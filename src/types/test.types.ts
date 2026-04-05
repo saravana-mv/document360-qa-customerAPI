@@ -1,0 +1,93 @@
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+export type TestStatus = "idle" | "running" | "pass" | "fail" | "skip" | "error";
+export type RollupStatus = "idle" | "running" | "pass" | "fail" | "partial";
+
+export interface TestContext {
+  projectId: string;
+  versionId: string;
+  langCode: string;
+  token: string;
+  baseUrl: string;
+  articleId?: string;
+}
+
+export interface RunState {
+  [key: string]: unknown;
+}
+
+export interface AssertionDef {
+  id: string;
+  description: string;
+  check: (result: TestExecutionResult, state: RunState) => boolean;
+}
+
+export interface AssertionResult {
+  id: string;
+  description: string;
+  passed: boolean;
+}
+
+export interface TestDef {
+  id: string;
+  name: string;
+  tag: string;
+  path: string;
+  method: HttpMethod;
+  setup?: (ctx: TestContext, state: RunState) => Promise<void>;
+  execute: (ctx: TestContext, state: RunState) => Promise<TestExecutionResult>;
+  teardown?: (ctx: TestContext, state: RunState) => Promise<void>;
+  assertions: AssertionDef[];
+}
+
+export interface TestExecutionResult {
+  status: "pass" | "fail" | "skip" | "error";
+  httpStatus?: number;
+  durationMs: number;
+  responseBody?: unknown;
+  failureReason?: string;
+  assertionResults: AssertionResult[];
+}
+
+export interface TestResult {
+  testId: string;
+  testName: string;
+  tag: string;
+  path: string;
+  method: HttpMethod;
+  status: TestStatus;
+  durationMs?: number;
+  httpStatus?: number;
+  failureReason?: string;
+  assertionResults: AssertionResult[];
+  startedAt?: number;
+  completedAt?: number;
+}
+
+export interface TagResult {
+  tag: string;
+  status: RollupStatus;
+  tests: TestResult[];
+  durationMs?: number;
+  startedAt?: number;
+  completedAt?: number;
+}
+
+export interface RunSummary {
+  total: number;
+  pass: number;
+  fail: number;
+  skip: number;
+  error: number;
+  durationMs: number;
+  startedAt: number;
+  completedAt?: number;
+}
+
+export interface LogEntry {
+  id: string;
+  timestamp: number;
+  level: "info" | "success" | "error" | "warn";
+  message: string;
+  testId?: string;
+  tag?: string;
+}
