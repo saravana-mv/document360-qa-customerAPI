@@ -1,4 +1,5 @@
 import { useSpecStore } from "../../store/spec.store";
+import { useAuthStore } from "../../store/auth.store";
 import { Modal } from "../common/Modal";
 import { loadSpec } from "../../lib/spec/loader";
 import { diffSpecs } from "../../lib/spec/differ";
@@ -14,6 +15,7 @@ interface DiffModalProps {
 
 export function DiffModal({ open, onClose }: DiffModalProps) {
   const { spec, diff, setDiff, fingerprint } = useSpecStore();
+  const { token } = useAuthStore();
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
   const [noChanges, setNoChanges] = useState(false);
@@ -24,7 +26,7 @@ export function DiffModal({ open, onClose }: DiffModalProps) {
     setError("");
     setNoChanges(false);
     try {
-      const freshSpec = (await loadSpec(true)) as SwaggerSpec;
+      const freshSpec = (await loadSpec(true, token?.access_token)) as SwaggerSpec;
       const freshFp = await computeFingerprint(freshSpec);
       const stored = loadFingerprint();
       if (stored && stored.hash === freshFp.hash) {

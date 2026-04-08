@@ -81,7 +81,7 @@ export function SetupPanel() {
     setStarting(true);
     spec.setLoading(true);
     try {
-      const rawSpec = await loadSpec();
+      const rawSpec = await loadSpec(false, token!.access_token);
       const swaggerSpec = rawSpec as SwaggerSpec;
       const parsedTags = parseSpec(swaggerSpec);
       const fingerprint = await computeFingerprint(swaggerSpec);
