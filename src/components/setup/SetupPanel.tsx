@@ -17,44 +17,57 @@ export function SetupPanel() {
   const setup = useSetupStore();
   const spec = useSpecStore();
   const [starting, setStarting] = useState(false);
+  const [debugInfo, setDebugInfo] = useState("");
 
   useEffect(() => {
     if (!token) return;
-    initProject();
+    initProjectAndVersions();
   }, [token]);
 
-  useEffect(() => {
-    if (!token || !setup.selectedProjectId) return;
-    loadVersions();
-  }, [setup.selectedProjectId]);
-
-  async function initProject() {
-    setup.setLoadingProjects(true);
+  async function initProjectAndVersions() {
     setup.setError(null);
+    setup.setLoadingProjects(true);
+    setDebugInfo("");
+
+    let projectId = "";
     try {
-      const projectId = getProjectIdFromToken(token!.access_token);
-      if (!projectId) throw new Error("Could not determine project from token — contact your admin.");
+      projectId = getProjectIdFromToken(token!.access_token);
+      setDebugInfo(`Project ID from token: ${projectId || "(none)"}`);
+
+      if (!projectId) throw new Error("doc360_project_id not found in token — try signing out and back in.");
+
       const project = await fetchProject(projectId, token!.access_token);
       setup.setProjects([project]);
       setup.selectProject(projectId);
     } catch (err) {
       setup.setError(err instanceof Error ? err.message : "Failed to load project");
+      setup.setLoadingProjects(false);
+      return;
     } finally {
       setup.setLoadingProjects(false);
     }
-  }
 
-  async function loadVersions() {
+    // Load versions directly — don't rely on useEffect chain
     setup.setLoadingVersions(true);
     try {
-      const versions = await fetchProjectVersions(setup.selectedProjectId, token!.access_token);
+      setDebugInfo((d) => d + `\nFetching versions for: ${projectId}`);
+      const versions = await fetchProjectVersions(projectId, token!.access_token);
+      setDebugInfo((d) => d + `\nVersions received: ${versions.length}`);
+
+      if (versions.length === 0) {
+        setup.setError("No versions returned from API. Check browser console for details.");
+        return;
+      }
+
       setup.setVersions(versions);
       const def = versions.find((v) => v.isDefault) ?? versions[0];
       if (def && !setup.selectedVersionId) {
         setup.selectVersion(def.id);
       }
     } catch (err) {
-      setup.setError(err instanceof Error ? err.message : "Failed to load versions");
+      const msg = err instanceof Error ? err.message : String(err);
+      setDebugInfo((d) => d + `\nVersions error: ${msg}`);
+      setup.setError(`Failed to load versions: ${msg}`);
     } finally {
       setup.setLoadingVersions(false);
     }
@@ -91,7 +104,7 @@ export function SetupPanel() {
         <p className="text-sm text-gray-500 mb-6">Configure your test session</p>
 
         <div className="space-y-5">
-          {/* Project — read-only, auto-detected from token */}
+          {/* Project — auto-detected from token */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Project {setup.loadingProjects && <Spinner size="sm" className="inline text-gray-400 ml-1" />}
@@ -115,9 +128,9 @@ export function SetupPanel() {
               value={setup.selectedVersionId}
               onChange={(e) => setup.selectVersion(e.target.value)}
               disabled={setup.versions.length === 0}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
             >
-              <option value="">Select a version...</option>
+              <option value="">{setup.loadingVersions ? "Loading..." : setup.versions.length === 0 ? "No versions found" : "Select a version..."}</option>
               {setup.versions.map((v) => (
                 <option key={v.id} value={v.id}>{v.name}</option>
               ))}
@@ -152,9 +165,15 @@ export function SetupPanel() {
           </div>
         </div>
 
+        {/* Debug info */}
+        {debugInfo && (
+          <pre className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500 whitespace-pre-wrap">{debugInfo}</pre>
+        )}
+
         {setup.error && (
           <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
             {setup.error}
+            <button onClick={initProjectAndVersions} className="ml-3 underline text-red-600 hover:text-red-800">Retry</button>
           </div>
         )}
         {spec.error && (
