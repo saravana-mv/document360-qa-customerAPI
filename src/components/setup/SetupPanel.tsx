@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../store/auth.store";
 import { useSetupStore } from "../../store/setup.store";
 import { useSpecStore } from "../../store/spec.store";
-import { fetchProjects } from "../../lib/api/projects";
+import { getProjectIdFromToken, fetchProject } from "../../lib/api/projects";
 import { fetchProjectVersions } from "../../lib/api/project-versions";
 import { loadSpec } from "../../lib/spec/loader";
 import { parseSpec } from "../../lib/spec/parser";
@@ -20,7 +20,7 @@ export function SetupPanel() {
 
   useEffect(() => {
     if (!token) return;
-    loadProjects();
+    initProject();
   }, [token]);
 
   useEffect(() => {
@@ -28,13 +28,17 @@ export function SetupPanel() {
     loadVersions();
   }, [setup.selectedProjectId]);
 
-  async function loadProjects() {
+  async function initProject() {
     setup.setLoadingProjects(true);
+    setup.setError(null);
     try {
-      const projects = await fetchProjects(token!.access_token);
-      setup.setProjects(projects);
+      const projectId = getProjectIdFromToken(token!.access_token);
+      if (!projectId) throw new Error("Could not determine project from token — contact your admin.");
+      const project = await fetchProject(projectId, token!.access_token);
+      setup.setProjects([project]);
+      setup.selectProject(projectId);
     } catch (err) {
-      setup.setError(err instanceof Error ? err.message : "Failed to load projects");
+      setup.setError(err instanceof Error ? err.message : "Failed to load project");
     } finally {
       setup.setLoadingProjects(false);
     }
@@ -45,7 +49,7 @@ export function SetupPanel() {
     try {
       const versions = await fetchProjectVersions(setup.selectedProjectId, token!.access_token);
       setup.setVersions(versions);
-      const def = versions.find((v) => v.isDefault);
+      const def = versions.find((v) => v.isDefault) ?? versions[0];
       if (def && !setup.selectedVersionId) {
         setup.selectVersion(def.id);
       }
@@ -58,7 +62,7 @@ export function SetupPanel() {
 
   async function handleStart() {
     if (!setup.selectedProjectId || !setup.selectedVersionId || !setup.articleId) {
-      setup.setError("Please select a project, version, and enter an article ID.");
+      setup.setError("Please select a version and enter an article ID.");
       return;
     }
     setStarting(true);
@@ -78,6 +82,8 @@ export function SetupPanel() {
     }
   }
 
+  const project = setup.projects[0];
+
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-lg">
@@ -85,21 +91,19 @@ export function SetupPanel() {
         <p className="text-sm text-gray-500 mb-6">Configure your test session</p>
 
         <div className="space-y-5">
-          {/* Project */}
+          {/* Project — read-only, auto-detected from token */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Project {setup.loadingProjects && <Spinner size="sm" className="inline text-gray-400 ml-1" />}
             </label>
-            <select
-              value={setup.selectedProjectId}
-              onChange={(e) => setup.selectProject(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a project...</option>
-              {setup.projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+            <div className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600 flex items-center justify-between">
+              {project ? (
+                <span>{project.name}</span>
+              ) : (
+                <span className="text-gray-400">{setup.loadingProjects ? "Detecting..." : "Not detected"}</span>
+              )}
+              {project && <span className="text-xs text-gray-400 font-mono">{project.id.slice(0, 8)}…</span>}
+            </div>
           </div>
 
           {/* Version */}
@@ -110,7 +114,7 @@ export function SetupPanel() {
             <select
               value={setup.selectedVersionId}
               onChange={(e) => setup.selectVersion(e.target.value)}
-              disabled={!setup.selectedProjectId}
+              disabled={setup.versions.length === 0}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
             >
               <option value="">Select a version...</option>
@@ -144,7 +148,7 @@ export function SetupPanel() {
               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
             />
-            <p className="text-xs text-gray-500 mt-1">UUID of an existing article in the test project (no POST /articles in spec)</p>
+            <p className="text-xs text-gray-500 mt-1">UUID of an existing article in the test project</p>
           </div>
         </div>
 
