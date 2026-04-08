@@ -17,6 +17,7 @@ export async function startAuthFlow(config: OAuthConfig): Promise<void> {
     code_challenge: challenge,
     code_challenge_method: "S256",
     state,
+    acr_values: "project_select",
   });
 
   window.location.href = `${config.authorizationUrl}?${params.toString()}`;
