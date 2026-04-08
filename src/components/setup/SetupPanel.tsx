@@ -5,10 +5,7 @@ import { useSetupStore } from "../../store/setup.store";
 import { useSpecStore } from "../../store/spec.store";
 import { getProjectIdFromToken, fetchProject } from "../../lib/api/projects";
 import { fetchProjectVersions } from "../../lib/api/project-versions";
-import { loadSpec } from "../../lib/spec/loader";
-import { parseSpec } from "../../lib/spec/parser";
-import { computeFingerprint, saveFingerprint } from "../../lib/spec/fingerprint";
-import type { SwaggerSpec } from "../../types/spec.types";
+import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import { Spinner } from "../common/Spinner";
 
 export function SetupPanel() {
@@ -79,17 +76,12 @@ export function SetupPanel() {
       return;
     }
     setStarting(true);
-    spec.setLoading(true);
     try {
-      const rawSpec = await loadSpec(false, token!.access_token);
-      const swaggerSpec = rawSpec as SwaggerSpec;
-      const parsedTags = parseSpec(swaggerSpec);
-      const fingerprint = await computeFingerprint(swaggerSpec);
-      saveFingerprint(fingerprint);
-      spec.setSpec(swaggerSpec, parsedTags, fingerprint);
+      const parsedTags = buildParsedTagsFromRegistry();
+      spec.setSpec(null as never, parsedTags, null as never);
       navigate("/test");
     } catch (err) {
-      spec.setError(err instanceof Error ? err.message : "Failed to load spec");
+      spec.setError(err instanceof Error ? err.message : "Failed to initialise tests");
     } finally {
       setStarting(false);
     }

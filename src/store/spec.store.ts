@@ -8,7 +8,7 @@ interface SpecState {
   loading: boolean;
   error: string | null;
   diff: SpecDiff | null;
-  setSpec: (spec: SwaggerSpec, tags: ParsedTag[], fingerprint: SpecFingerprint) => void;
+  setSpec: (spec: SwaggerSpec | null, tags: ParsedTag[], fingerprint: SpecFingerprint | null) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string) => void;
   setDiff: (diff: SpecDiff | null) => void;
