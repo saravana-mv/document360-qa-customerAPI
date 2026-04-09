@@ -13,13 +13,17 @@ import {
   deleteArticleVersion,
 } from "../../api/articles";
 
-const TAG = "Articles";
+const FLOW_CRUD = "Full Article CRUD Lifecycle";
+const FLOW_SETTINGS = "Article Settings Flow";
+const FLOW_WORKFLOW = "Publish / Unpublish Flow";
+const FLOW_BULK = "Bulk Operations";
+const FLOW_VERSIONS = "Version Management";
 
 const tests: TestDef[] = [
   {
     id: "articles.get-single",
     name: "Get single article",
-    tag: TAG,
+    tag: FLOW_CRUD,
     path: "/v3/projects/{id}/articles/{articleId}",
     method: "GET",
     assertions: [assertStatus(200), assertBodyHasField("title")],
@@ -52,7 +56,7 @@ const tests: TestDef[] = [
   {
     id: "articles.get-versions",
     name: "Get article versions",
-    tag: TAG,
+    tag: FLOW_VERSIONS,
     path: "/v3/projects/{id}/articles/{articleId}/versions",
     method: "GET",
     assertions: [assertStatus(200)],
@@ -90,7 +94,7 @@ const tests: TestDef[] = [
   {
     id: "articles.patch-title",
     name: "Patch article title",
-    tag: TAG,
+    tag: FLOW_CRUD,
     path: "/v3/projects/{id}/articles/{articleId}",
     method: "PATCH",
     assertions: [assertStatus(200)],
@@ -127,7 +131,7 @@ const tests: TestDef[] = [
   {
     id: "articles.verify-patch",
     name: "Verify patched title",
-    tag: TAG,
+    tag: FLOW_CRUD,
     path: "/v3/projects/{id}/articles/{articleId}",
     method: "GET",
     assertions: [assertStatus(200)],
@@ -160,7 +164,7 @@ const tests: TestDef[] = [
   {
     id: "articles.patch-restore",
     name: "Restore original title",
-    tag: TAG,
+    tag: FLOW_CRUD,
     path: "/v3/projects/{id}/articles/{articleId}",
     method: "PATCH",
     assertions: [assertStatus(200)],
@@ -192,7 +196,7 @@ const tests: TestDef[] = [
   {
     id: "articles.get-settings",
     name: "Get article settings",
-    tag: TAG,
+    tag: FLOW_SETTINGS,
     path: "/v3/projects/{id}/articles/{articleId}/settings",
     method: "GET",
     assertions: [assertStatus(200)],
@@ -224,7 +228,7 @@ const tests: TestDef[] = [
   {
     id: "articles.patch-settings",
     name: "Patch article settings",
-    tag: TAG,
+    tag: FLOW_SETTINGS,
     path: "/v3/projects/{id}/articles/{articleId}/settings",
     method: "PATCH",
     assertions: [assertStatus(200)],
@@ -259,7 +263,7 @@ const tests: TestDef[] = [
   {
     id: "articles.restore-settings",
     name: "Restore article settings",
-    tag: TAG,
+    tag: FLOW_SETTINGS,
     path: "/v3/projects/{id}/articles/{articleId}/settings",
     method: "PATCH",
     assertions: [assertStatus(200)],
@@ -291,7 +295,7 @@ const tests: TestDef[] = [
   {
     id: "articles.get-version",
     name: "Get specific article version",
-    tag: TAG,
+    tag: FLOW_VERSIONS,
     path: "/v3/projects/{id}/articles/{articleId}/versions/{versionNumber}",
     method: "GET",
     assertions: [assertStatus(200)],
@@ -323,14 +327,15 @@ const tests: TestDef[] = [
   {
     id: "articles.patch-workflow",
     name: "Patch article workflow status",
-    tag: TAG,
+    tag: FLOW_WORKFLOW,
     path: "/v3/projects/{id}/articles/{articleId}/workflow-status",
     method: "PATCH",
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
       try {
-        const article = state.originalArticle as Record<string, unknown> || {};
+        // Fetch article fresh — this flow runs independently of CRUD Lifecycle
+        const article = await getArticle(ctx.projectId, ctx.articleId!, ctx.token);
         const currentStatus = (article.workflowStatus as string) || "draft";
         // Pick a different status to actually test the change
         const newStatus = currentStatus === "draft" ? "inreview" : "draft";
@@ -368,7 +373,7 @@ const tests: TestDef[] = [
   {
     id: "articles.bulk-patch",
     name: "Bulk patch articles",
-    tag: TAG,
+    tag: FLOW_BULK,
     path: "/v3/projects/{id}/articles/bulk",
     method: "PATCH",
     assertions: [assertStatus(200)],
@@ -404,7 +409,7 @@ const tests: TestDef[] = [
   {
     id: "articles.bulk-patch-verify",
     name: "Verify bulk patch",
-    tag: TAG,
+    tag: FLOW_BULK,
     path: "/v3/projects/{id}/articles/{articleId}",
     method: "GET",
     assertions: [assertStatus(200)],
@@ -435,7 +440,7 @@ const tests: TestDef[] = [
   {
     id: "articles.bulk-restore",
     name: "Bulk restore articles",
-    tag: TAG,
+    tag: FLOW_BULK,
     path: "/v3/projects/{id}/articles/bulk",
     method: "PATCH",
     assertions: [assertStatus(200)],
@@ -472,7 +477,7 @@ const tests: TestDef[] = [
   {
     id: "articles.delete-version",
     name: "Delete draft article version (optional)",
-    tag: TAG,
+    tag: FLOW_VERSIONS,
     path: "/v3/projects/{id}/articles/{articleId}/versions/{versionNumber}",
     method: "DELETE",
     assertions: [],
@@ -517,7 +522,7 @@ const tests: TestDef[] = [
   {
     id: "articles.delete-version-verify",
     name: "Verify deleted version returns 404",
-    tag: TAG,
+    tag: FLOW_VERSIONS,
     path: "/v3/projects/{id}/articles/{articleId}/versions/{versionNumber}",
     method: "GET",
     assertions: [],
