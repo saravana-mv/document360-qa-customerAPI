@@ -12,7 +12,7 @@ interface TagNodeProps {
 
 export function TagNode({ tag, tests }: TagNodeProps) {
   const [open, setOpen] = useState(true);
-  const { tagResults, selectedTags, toggleTagSelection } = useRunnerStore();
+  const { tagResults, selectedTags, toggleFlowSelection } = useRunnerStore();
   const tagResult = tagResults[tag.name];
   const status = tagResult?.status ?? "idle";
   const isSelected = selectedTags.has(tag.name);
@@ -27,7 +27,7 @@ export function TagNode({ tag, tests }: TagNodeProps) {
           {open ? "▾" : "▸"}
         </button>
         <div
-          onClick={() => toggleTagSelection(tag.name)}
+          onClick={() => toggleFlowSelection(tag.name, tests.map((t) => t.id))}
           className={`flex items-center gap-2 flex-1 px-2 py-1.5 rounded-lg cursor-pointer transition-colors ${
             isSelected ? "bg-blue-50 border border-blue-200" : "hover:bg-gray-50"
           }`}

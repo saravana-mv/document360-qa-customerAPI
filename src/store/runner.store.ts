@@ -20,6 +20,7 @@ interface RunnerState {
   appendLog: (entry: Omit<LogEntry, "id" | "timestamp">) => void;
   setSummary: (summary: RunSummary) => void;
   toggleTagSelection: (tag: string) => void;
+  toggleFlowSelection: (tag: string, testIds: string[]) => void;
   toggleTestSelection: (testId: string) => void;
   selectAll: () => void;
   clearSelection: () => void;
@@ -75,6 +76,20 @@ export const useRunnerStore = create<RunnerState>((set) => ({
       if (next.has(tag)) next.delete(tag);
       else next.add(tag);
       return { selectedTags: next };
+    }),
+
+  toggleFlowSelection: (tag, testIds) =>
+    set((state) => {
+      const tags = new Set(state.selectedTags);
+      const tests = new Set(state.selectedTests);
+      if (tags.has(tag)) {
+        tags.delete(tag);
+        for (const id of testIds) tests.delete(id);
+      } else {
+        tags.add(tag);
+        for (const id of testIds) tests.add(id);
+      }
+      return { selectedTags: tags, selectedTests: tests };
     }),
 
   toggleTestSelection: (testId) =>
