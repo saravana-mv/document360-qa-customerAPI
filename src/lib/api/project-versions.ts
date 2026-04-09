@@ -12,12 +12,23 @@ export async function fetchProjectVersions(projectId: string, token: string): Pr
 
   const get = (o: Record<string, unknown>, snake: string, pascal: string) => o[snake] ?? o[pascal];
 
+  // Log raw version data so we can see VersionType values in the debug panel
+  console.log("[versions] raw:", raw.map((v) => {
+    const r = v as Record<string, unknown>;
+    return {
+      name: get(r, "version_code_name", "VersionCodeName"),
+      slug: get(r, "slug", "Slug"),
+      versionType: get(r, "version_type", "VersionType"),
+      isDefault: get(r, "is_default", "IsDefault") ?? get(r, "is_main_version", "IsMainVersion"),
+    };
+  }));
+
   return raw
     .filter((v) => {
       const r = v as Record<string, unknown>;
-      // VersionType 0 = documentation version; non-zero = API Reference or other types
-      const versionType = get(r, "version_type", "VersionType") ?? 0;
-      return versionType === 0;
+      const slug = ((get(r, "slug", "Slug") as string) || "").toLowerCase();
+      // Exclude API Reference versions — their slug ends with "-api"
+      return !slug.endsWith("-api");
     })
     .map((v) => {
       const r = v as Record<string, unknown>;
