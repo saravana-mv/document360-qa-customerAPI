@@ -54,6 +54,12 @@ function DesignTab({ testId }: { testId: string }) {
   return (
     <div className="p-4 space-y-5 text-sm">
 
+      {def.description && (
+        <div className="text-xs text-gray-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+          {def.description}
+        </div>
+      )}
+
       <div>
         <Label>Endpoint</Label>
         <div className="font-mono text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 break-all">
@@ -77,6 +83,31 @@ function DesignTab({ testId }: { testId: string }) {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {def.queryParams && Object.keys(def.queryParams).length > 0 && (
+        <div>
+          <Label>Query Parameters</Label>
+          <div className="space-y-1">
+            {Object.entries(def.queryParams).map(([k, v]) => (
+              <div key={k} className="flex items-center gap-2 text-xs py-1">
+                <span className="font-mono text-purple-700 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded">
+                  {k}
+                </span>
+                <span className="text-gray-500">=</span>
+                <span className="font-mono text-gray-600">{v}</span>
+                <span className="text-gray-400">· query</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {def.sampleRequestBody !== undefined && (
+        <div>
+          <Label>Request Body</Label>
+          <JsonBlock value={def.sampleRequestBody} />
         </div>
       )}
 

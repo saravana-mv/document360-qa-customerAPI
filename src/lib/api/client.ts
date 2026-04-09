@@ -35,11 +35,16 @@ async function request<T>(path: string, options: RequestOptions): Promise<T> {
 
     if (!response.ok) {
       let message = `HTTP ${response.status}`;
+      let raw: unknown;
       try {
-        const err = await response.json();
-        message = err.message || err.title || message;
+        raw = await response.json();
+        const err = raw as Record<string, unknown>;
+        const firstError = Array.isArray(err.errors) && err.errors.length > 0
+          ? (err.errors[0] as Record<string, unknown>).message as string
+          : undefined;
+        message = firstError || (err.detail as string) || (err.message as string) || (err.title as string) || message;
       } catch { /* ignore */ }
-      const error: ApiError = { status: response.status, message };
+      const error: ApiError = { status: response.status, message, raw };
       throw error;
     }
 

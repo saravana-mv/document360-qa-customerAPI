@@ -34,6 +34,9 @@ export interface TestDef {
   group?: string;      // Domain container (e.g. "Articles", "Categories")
   path: string;
   method: HttpMethod;
+  description?: string;           // Human-readable explanation shown in Design tab
+  sampleRequestBody?: unknown;    // Example request body shown in Design tab
+  queryParams?: Record<string, string>;  // Static query params shown in Design tab
   setup?: (ctx: TestContext, state: RunState) => Promise<void>;
   execute: (ctx: TestContext, state: RunState) => Promise<TestExecutionResult>;
   teardown?: (ctx: TestContext, state: RunState) => Promise<void>;

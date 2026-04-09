@@ -61,6 +61,9 @@ const tests: TestDef[] = [
     group: GROUP,
     path: "/v3/projects/{id}/articles/{articleId}",
     method: "PATCH",
+    description: "Partial update — sets a timestamped test title. auto_fork:true creates a new draft if the version is published.",
+    queryParams: { lang_code: "{ctx.langCode}" },
+    sampleRequestBody: { title: "[TEST] Article title - <timestamp>", auto_fork: true },
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
@@ -119,6 +122,9 @@ const tests: TestDef[] = [
     group: GROUP,
     path: "/v3/projects/{id}/articles/{articleId}",
     method: "PATCH",
+    description: "Restores the article title to its original value captured in the GET step.",
+    queryParams: { lang_code: "{ctx.langCode}" },
+    sampleRequestBody: { title: "<original title>", auto_fork: true },
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
@@ -166,6 +172,9 @@ const tests: TestDef[] = [
     group: GROUP,
     path: "/v3/projects/{id}/articles/{articleId}/settings",
     method: "PATCH",
+    description: "Toggles allow_comments to the opposite of its current value.",
+    queryParams: { lang_code: "{ctx.langCode}" },
+    sampleRequestBody: { allow_comments: true },
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
@@ -192,6 +201,9 @@ const tests: TestDef[] = [
     group: GROUP,
     path: "/v3/projects/{id}/articles/{articleId}/settings",
     method: "PATCH",
+    description: "Restores allow_comments to its original value captured in the GET settings step.",
+    queryParams: { lang_code: "{ctx.langCode}" },
+    sampleRequestBody: { allow_comments: "<original value>" },
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
@@ -326,6 +338,8 @@ const tests: TestDef[] = [
     group: GROUP,
     path: "/v3/projects/{id}/articles/{articleId}/workflow-status",
     method: "PATCH",
+    description: "Fetches available workflow statuses, then transitions the article to a different status. Skips if no workflow statuses are configured.",
+    sampleRequestBody: { project_version_id: "<uuid>", lang_code: "en", workflow_status_info: { status_id: "<uuid>" } },
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
@@ -386,6 +400,8 @@ const tests: TestDef[] = [
     group: GROUP,
     path: "/v3/projects/{id}/articles/bulk",
     method: "PATCH",
+    description: "Sets hidden:true on the test article using the bulk update endpoint.",
+    sampleRequestBody: { articles: [{ article_id: "<uuid>", lang_code: "en", hidden: true, auto_fork: false }] },
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
@@ -439,6 +455,8 @@ const tests: TestDef[] = [
     group: GROUP,
     path: "/v3/projects/{id}/articles/bulk",
     method: "PATCH",
+    description: "Restores hidden:false on the test article using the bulk update endpoint.",
+    sampleRequestBody: { articles: [{ article_id: "<uuid>", lang_code: "en", hidden: false, auto_fork: false }] },
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
