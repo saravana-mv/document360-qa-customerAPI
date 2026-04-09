@@ -26,9 +26,8 @@ export async function fetchProjectVersions(projectId: string, token: string): Pr
   return raw
     .filter((v) => {
       const r = v as Record<string, unknown>;
-      const slug = ((get(r, "slug", "Slug") as string) || "").toLowerCase();
-      // Exclude API Reference versions — their slug ends with "-api"
-      return !slug.endsWith("-api");
+      const versionType = get(r, "version_type", "VersionType") as string;
+      return versionType === "KnowledgeBase";
     })
     .map((v) => {
       const r = v as Record<string, unknown>;
