@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { TestResult, TagResult, RunSummary, LogEntry, TestStatus, RollupStatus } from "../types/test.types";
+import { getAllTests } from "../lib/tests/registry";
 
 interface RunnerState {
   running: boolean;
@@ -27,7 +28,7 @@ interface RunnerState {
 
 let logIdCounter = 0;
 
-export const useRunnerStore = create<RunnerState>((set, get) => ({
+export const useRunnerStore = create<RunnerState>((set) => ({
   running: false,
   cancelled: false,
   tagResults: {},
@@ -85,9 +86,11 @@ export const useRunnerStore = create<RunnerState>((set, get) => ({
     }),
 
   selectAll: () => {
-    const allTestIds = Object.keys(get().testResults);
-    const allTags = Object.keys(get().tagResults);
-    set({ selectedTests: new Set(allTestIds), selectedTags: new Set(allTags) });
+    const all = getAllTests();
+    set({
+      selectedTests: new Set(all.map((t) => t.id)),
+      selectedTags: new Set(all.map((t) => t.tag)),
+    });
   },
 
   clearSelection: () => set({ selectedTags: new Set(), selectedTests: new Set() }),

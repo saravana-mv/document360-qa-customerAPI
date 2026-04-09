@@ -10,6 +10,7 @@ import {
   patchArticleSettings,
   patchArticleWorkflowStatus,
   bulkPatchArticles,
+  deleteArticleVersion,
 } from "../../api/articles";
 
 const TAG = "Articles";
@@ -331,8 +332,8 @@ const tests: TestDef[] = [
       try {
         const article = state.originalArticle as Record<string, unknown> || {};
         const currentStatus = (article.workflowStatus as string) || "draft";
-        // Toggle between draft and review
-        const newStatus = currentStatus === "published" ? "review" : currentStatus;
+        // Pick a different status to actually test the change
+        const newStatus = currentStatus === "draft" ? "inreview" : "draft";
         state.originalWorkflowStatus = currentStatus;
         state.newWorkflowStatus = newStatus;
         const result = await patchArticleWorkflowStatus(ctx.projectId, ctx.articleId!, { workflowStatus: newStatus }, ctx.token);
@@ -461,6 +462,99 @@ const tests: TestDef[] = [
           httpStatus: e.status,
           durationMs: Date.now() - start,
           failureReason: e.message,
+          assertionResults: [],
+        };
+      }
+    },
+  },
+
+  // Optional: delete a draft article version and verify it's gone
+  {
+    id: "articles.delete-version",
+    name: "Delete draft article version (optional)",
+    tag: TAG,
+    path: "/v3/projects/{id}/articles/{articleId}/versions/{versionNumber}",
+    method: "DELETE",
+    assertions: [],
+    execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
+      const start = Date.now();
+      const versions = state.versions as Array<Record<string, unknown>> | undefined;
+      // Find a draft version to delete — skip if none found
+      const draftVersion = versions?.find(
+        (v) => v.isDraft === true || v.status === "draft"
+      );
+      if (!draftVersion) {
+        return {
+          status: "skip",
+          durationMs: Date.now() - start,
+          failureReason: "No draft version available to delete",
+          assertionResults: [],
+        };
+      }
+      const versionNumber = draftVersion.versionNumber as number;
+      state.deletedVersionNumber = versionNumber;
+      try {
+        await deleteArticleVersion(ctx.projectId, ctx.articleId!, versionNumber, ctx.token);
+        return {
+          status: "pass",
+          httpStatus: 204,
+          durationMs: Date.now() - start,
+          assertionResults: [],
+        };
+      } catch (err: unknown) {
+        const e = err as { status?: number; message?: string };
+        return {
+          status: "fail",
+          httpStatus: e.status,
+          durationMs: Date.now() - start,
+          failureReason: e.message,
+          assertionResults: [],
+        };
+      }
+    },
+  },
+
+  {
+    id: "articles.delete-version-verify",
+    name: "Verify deleted version returns 404",
+    tag: TAG,
+    path: "/v3/projects/{id}/articles/{articleId}/versions/{versionNumber}",
+    method: "GET",
+    assertions: [],
+    execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
+      const start = Date.now();
+      if (!state.deletedVersionNumber) {
+        return {
+          status: "skip",
+          durationMs: Date.now() - start,
+          failureReason: "No version was deleted — skipping verification",
+          assertionResults: [],
+        };
+      }
+      try {
+        await getArticleVersion(ctx.projectId, ctx.articleId!, state.deletedVersionNumber as number, ctx.token);
+        return {
+          status: "fail",
+          httpStatus: 200,
+          durationMs: Date.now() - start,
+          failureReason: "Expected 404 after deletion but version still exists",
+          assertionResults: [],
+        };
+      } catch (err: unknown) {
+        const e = err as { status?: number; message?: string };
+        if (e.status === 404) {
+          return {
+            status: "pass",
+            httpStatus: 404,
+            durationMs: Date.now() - start,
+            assertionResults: [],
+          };
+        }
+        return {
+          status: "fail",
+          httpStatus: e.status,
+          durationMs: Date.now() - start,
+          failureReason: `Expected 404 but got: ${e.message}`,
           assertionResults: [],
         };
       }

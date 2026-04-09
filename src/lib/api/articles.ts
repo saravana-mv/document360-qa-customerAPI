@@ -40,3 +40,7 @@ export async function bulkPatchArticles(projectId: string, body: unknown, token:
   const resp = await apiClient.patch<{ data: unknown }>(`/v3/projects/${projectId}/articles/bulk`, body, token);
   return resp.data;
 }
+
+export async function deleteArticleVersion(projectId: string, articleId: string, versionNumber: number, token: string): Promise<void> {
+  await apiClient.delete<void>(`/v3/projects/${projectId}/articles/${articleId}/versions/${versionNumber}`, token);
+}

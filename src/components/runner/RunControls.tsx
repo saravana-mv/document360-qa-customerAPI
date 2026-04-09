@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useRunnerStore } from "../../store/runner.store";
 import { useAuthStore } from "../../store/auth.store";
 import { useSetupStore } from "../../store/setup.store";
@@ -66,6 +67,14 @@ export function RunControls() {
 
     await runTests({ tests: selectedTests, context: ctx });
   }
+
+  // Listen for "run-selected" event dispatched by TopBar button
+  useEffect(() => {
+    const handler = () => { void runSelected(); };
+    window.addEventListener("run-selected", handler);
+    return () => window.removeEventListener("run-selected", handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, runner.selectedTags, runner.selectedTests]);
 
   return (
     <div className="flex flex-col gap-3 p-4 border-b border-gray-200 bg-white">
