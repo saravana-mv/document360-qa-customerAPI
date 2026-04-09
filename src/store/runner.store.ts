@@ -17,6 +17,7 @@ interface RunnerState {
   cancelRun: () => void;
   resetRun: () => void;
   selectTest: (id: string | null) => void;
+  selectSingleTest: (id: string) => void;
   updateTestStatus: (testId: string, update: Partial<TestResult>) => void;
   updateTagStatus: (tag: string, status: RollupStatus, durationMs?: number) => void;
   appendLog: (entry: Omit<LogEntry, "id" | "timestamp">) => void;
@@ -46,6 +47,13 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   cancelRun: () => set({ cancelled: true }),
   resetRun: () => set({ running: false, cancelled: false, tagResults: {}, testResults: {}, log: [], summary: null }),
   selectTest: (id) => set({ selectedTestId: id }),
+
+  // Exclusive: deselects everything, selects only this test, opens detail pane
+  selectSingleTest: (id) => set({
+    selectedTests: new Set([id]),
+    selectedTags: new Set(),
+    selectedTestId: id,
+  }),
 
   updateTestStatus: (testId, update) =>
     set((state) => ({
@@ -93,7 +101,8 @@ export const useRunnerStore = create<RunnerState>((set) => ({
         tags.add(tag);
         for (const id of testIds) tests.add(id);
       }
-      return { selectedTags: tags, selectedTests: tests };
+      // Close detail pane when switching to flow-level selection
+      return { selectedTags: tags, selectedTests: tests, selectedTestId: null };
     }),
 
   toggleTestSelection: (testId) =>

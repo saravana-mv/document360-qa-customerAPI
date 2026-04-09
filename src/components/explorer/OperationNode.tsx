@@ -15,15 +15,19 @@ const methodColor: Record<string, string> = {
 };
 
 export function OperationNode({ test }: OperationNodeProps) {
-  const { testResults, selectedTests, selectedTestId, toggleTestSelection, selectTest } = useRunnerStore();
+  const { testResults, selectedTests, selectedTestId, selectSingleTest, selectTest } = useRunnerStore();
   const result = testResults[test.id];
   const status = result?.status ?? "idle";
   const isSelected = selectedTests.has(test.id);
   const isPaneOpen = selectedTestId === test.id;
 
   function handleClick() {
-    toggleTestSelection(test.id);
-    selectTest(isPaneOpen ? null : test.id);
+    if (isPaneOpen) {
+      // Clicking the already-open test closes the pane and deselects
+      selectTest(null);
+    } else {
+      selectSingleTest(test.id);
+    }
   }
 
   return (
