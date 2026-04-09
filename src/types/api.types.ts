@@ -16,9 +16,13 @@ export interface Article {
   title: string;
   content?: string;
   status?: string;
-  workflowStatus?: string;
-  langCode?: string;
-  versionId?: string;
+  hidden?: boolean;
+  project_version_id?: string;
+  current_workflow_status_id?: string;
+  lang_code?: string;
+  version_number?: number;
+  public_version?: number;
+  latest_version?: number;
 }
 
 export interface ApiResponse<T> {
