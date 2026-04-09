@@ -16,6 +16,7 @@ interface RunnerState {
   startRun: () => void;
   cancelRun: () => void;
   resetRun: () => void;
+  fullReset: () => void;
   selectTest: (id: string | null) => void;
   selectSingleTest: (id: string) => void;
   updateTestStatus: (testId: string, update: Partial<TestResult>) => void;
@@ -46,6 +47,17 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   startRun: () => set({ running: true, cancelled: false, summary: null }),
   cancelRun: () => set({ cancelled: true }),
   resetRun: () => set({ running: false, cancelled: false, tagResults: {}, testResults: {}, log: [], summary: null }),
+  fullReset: () => set({
+    running: false,
+    cancelled: false,
+    tagResults: {},
+    testResults: {},
+    log: [],
+    summary: null,
+    selectedTags: new Set(),
+    selectedTests: new Set(),
+    selectedTestId: null,
+  }),
   selectTest: (id) => set({ selectedTestId: id }),
 
   // Exclusive: deselects everything, selects only this test, opens detail pane

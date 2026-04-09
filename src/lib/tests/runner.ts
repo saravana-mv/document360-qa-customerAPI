@@ -93,7 +93,7 @@ async function runTag(tag: string, tests: TestDef[], ctx: TestContext): Promise<
   const startedAt = Date.now();
 
   store.updateTagStatus(tag, "running");
-  log(`--- Tag: ${tag} ---`, "info", tag);
+  log(`Starting flow: ${tag}`, "info", tag);
 
   for (let i = 0; i < tests.length; i++) {
     const test = tests[i];

@@ -94,12 +94,21 @@ export function RunControls() {
         >
           Run Selected
         </button>
-        {runner.running && (
+        {runner.running ? (
           <button
             onClick={runner.cancelRun}
             className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 text-sm font-medium rounded-lg transition-colors"
           >
             Stop
+          </button>
+        ) : (
+          <button
+            onClick={runner.fullReset}
+            disabled={runner.running}
+            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-500 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            title="Clear all results and selections"
+          >
+            Reset
           </button>
         )}
         <span className="ml-auto text-xs text-gray-500">{allTests.length} tests total</span>
