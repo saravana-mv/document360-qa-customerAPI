@@ -1,87 +1,113 @@
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
 import { Layout } from "../components/common/Layout";
 import { TestExplorer } from "../components/explorer/TestExplorer";
 import { ResultsPanel } from "../components/results/ResultsPanel";
 import { SummaryDrawer } from "../components/results/SummaryDrawer";
-import { DiffModal } from "../components/results/DiffModal";
 import { DetailPane } from "../components/results/DetailPane";
 import { useAuthGuard } from "../hooks/useAuthGuard";
 import { useRunnerStore } from "../store/runner.store";
 
-const MIN_WIDTH = 180;
-const MAX_WIDTH = 520;
+const LHS_MIN = 180;
+const LHS_MAX = 520;
+const RHS_MIN = 280;
+const RHS_MAX = 640;
 
 export function TestPage() {
   useAuthGuard();
-  const [diffOpen, setDiffOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(288);
-  const isDragging = useRef(false);
+  const [detailWidth, setDetailWidth] = useState(384);
+  const lhsDragging = useRef(false);
+  const rhsDragging = useRef(false);
   const { selectedTestId, selectTest } = useRunnerStore();
 
-  function handleRunSelected() {
-    window.dispatchEvent(new CustomEvent("run-selected"));
-  }
-
-  function onDividerMouseDown(e: React.MouseEvent) {
+  function onLhsMouseDown(e: React.MouseEvent) {
     e.preventDefault();
-    isDragging.current = true;
+    lhsDragging.current = true;
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
 
-    function onMouseMove(ev: MouseEvent) {
-      if (!isDragging.current) return;
-      setSidebarWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, ev.clientX)));
+    function onMove(ev: MouseEvent) {
+      if (!lhsDragging.current) return;
+      setSidebarWidth(Math.min(LHS_MAX, Math.max(LHS_MIN, ev.clientX)));
     }
-
-    function onMouseUp() {
-      isDragging.current = false;
+    function onUp() {
+      lhsDragging.current = false;
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
     }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
 
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
+  function onRhsMouseDown(e: React.MouseEvent) {
+    e.preventDefault();
+    rhsDragging.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    function onMove(ev: MouseEvent) {
+      if (!rhsDragging.current) return;
+      // width = distance from drag handle to right edge of window
+      setDetailWidth(Math.min(RHS_MAX, Math.max(RHS_MIN, window.innerWidth - ev.clientX)));
+    }
+    function onUp() {
+      rhsDragging.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
   }
 
   return (
-    <Layout
-      showTestControls
-      onCheckChanges={() => setDiffOpen(true)}
-      onRunSelected={handleRunSelected}
-    >
-      <div className="flex h-full">
-        {/* Sidebar */}
-        <aside
-          style={{ width: sidebarWidth }}
-          className="border-r border-gray-200 bg-white flex flex-col h-full overflow-hidden shrink-0"
-        >
-          <TestExplorer />
-        </aside>
+    <Layout showTestControls>
+      <div className="flex flex-col h-full">
 
-        {/* Drag handle */}
-        <div
-          onMouseDown={onDividerMouseDown}
-          className="w-1 shrink-0 cursor-col-resize bg-gray-200 hover:bg-blue-400 transition-colors active:bg-blue-500"
-          title="Drag to resize"
-        />
+        {/* ── Three-column area ── */}
+        <div className="flex flex-1 overflow-hidden min-h-0">
 
-        {/* Main */}
-        <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
-          <div className="flex flex-1 overflow-hidden min-h-0">
-            <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-              <ResultsPanel />
-            </div>
-            {selectedTestId && (
-              <DetailPane testId={selectedTestId} onClose={() => selectTest(null)} />
-            )}
+          {/* LHS sidebar */}
+          <aside
+            style={{ width: sidebarWidth }}
+            className="border-r border-gray-200 bg-white flex flex-col overflow-hidden shrink-0"
+          >
+            <TestExplorer />
+          </aside>
+
+          {/* LHS drag handle */}
+          <div
+            onMouseDown={onLhsMouseDown}
+            className="w-1 shrink-0 cursor-col-resize bg-gray-200 hover:bg-blue-400 transition-colors active:bg-blue-500"
+          />
+
+          {/* Main results area */}
+          <div className="flex-1 overflow-hidden min-w-0">
+            <ResultsPanel />
           </div>
-          <SummaryDrawer />
-        </div>
-      </div>
 
-      <DiffModal open={diffOpen} onClose={() => setDiffOpen(false)} />
+          {/* RHS drag handle */}
+          {selectedTestId && (
+            <div
+              onMouseDown={onRhsMouseDown}
+              className="w-1 shrink-0 cursor-col-resize bg-gray-200 hover:bg-blue-400 transition-colors active:bg-blue-500"
+            />
+          )}
+
+          {/* RHS detail pane */}
+          {selectedTestId && (
+            <div style={{ width: detailWidth }} className="shrink-0 overflow-hidden">
+              <DetailPane testId={selectedTestId} onClose={() => selectTest(null)} />
+            </div>
+          )}
+        </div>
+
+        {/* ── Summary drawer spans full width ── */}
+        <SummaryDrawer />
+      </div>
     </Layout>
   );
 }

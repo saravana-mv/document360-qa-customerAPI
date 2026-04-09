@@ -261,7 +261,7 @@ export function DetailPane({ testId, onClose }: DetailPaneProps) {
   const badge = statusBadge[status];
 
   return (
-    <div className="w-96 shrink-0 border-l border-gray-200 bg-white flex flex-col h-full overflow-hidden">
+    <div className="border-l border-gray-200 bg-white flex flex-col h-full overflow-hidden w-full">
 
       {/* ── Header ── */}
       <div className="px-4 pt-3 pb-0 border-b border-gray-200 bg-gray-50 shrink-0">

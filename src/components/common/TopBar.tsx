@@ -6,12 +6,10 @@ import { Badge } from "./Badge";
 import { Spinner } from "./Spinner";
 
 interface TopBarProps {
-  onCheckChanges?: () => void;
-  onRunSelected?: () => void;
   showTestControls?: boolean;
 }
 
-export function TopBar({ onCheckChanges, onRunSelected, showTestControls }: TopBarProps) {
+export function TopBar({ showTestControls }: TopBarProps) {
   const { status, token, logout } = useAuthStore();
   const { selectedProjectId, selectedVersionId, projects, versions } = useSetupStore();
   const { loading: specLoading } = useSpecStore();
@@ -34,24 +32,7 @@ export function TopBar({ onCheckChanges, onRunSelected, showTestControls }: TopB
             </span>
           )}
 
-          {specLoading && <Spinner size="sm" className="text-blue-400" />}
-
-          {showTestControls && (
-            <>
-              <button
-                onClick={onCheckChanges}
-                className="px-3 py-1.5 text-xs rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors"
-              >
-                Check for Changes
-              </button>
-              <button
-                onClick={onRunSelected}
-                className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 hover:bg-blue-700 transition-colors font-medium"
-              >
-                Run Selected
-              </button>
-            </>
-          )}
+          {specLoading && showTestControls && <Spinner size="sm" className="text-blue-400" />}
 
           <button
             onClick={() => navigate("/setup")}
