@@ -4,6 +4,9 @@ import { assertStatus, assertBodyHasField } from "../assertions";
 import {
   getArticle,
   patchArticle,
+  getArticleVersions,
+  getArticleVersion,
+  deleteArticleVersion,
   getArticleSettings,
   patchArticleSettings,
   getWorkflowStatuses,
@@ -22,6 +25,7 @@ const GROUP = "Articles";
 const FLOW_CRUD = "Full Article CRUD Lifecycle";
 const FLOW_SETTINGS = "Article Settings Flow";
 const FLOW_WORKFLOW = "Publish / Unpublish Flow";
+const FLOW_VERSIONS = "Version Management";
 const FLOW_BULK = "Bulk Operations";
 
 const tests: TestDef[] = [
@@ -214,6 +218,123 @@ const tests: TestDef[] = [
       } catch (err: unknown) {
         const e = err as { status?: number; message?: string };
         return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: e.message, requestUrl, assertionResults: [] };
+      }
+    },
+  },
+
+  // ── Version Management ────────────────────────────────────────────────────
+  // Source: version-management.flow.xml
+
+  {
+    // Step 1: List Article Versions
+    // Captures state.versions (full array) and state.firstVersionNumber
+    id: "articles.get-versions",
+    name: "List article versions",
+    tag: FLOW_VERSIONS,
+    group: GROUP,
+    path: "/v3/projects/{project_id}/articles/{article_id}/versions",
+    method: "GET",
+    assertions: [assertStatus(200)],
+    execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
+      const start = Date.now();
+      const requestUrl = `${articleBase(ctx)}/versions`;
+      try {
+        const versions = await getArticleVersions(ctx.projectId, ctx.articleId!, ctx.token);
+        state.versions = versions;
+        const first = Array.isArray(versions) && versions.length > 0
+          ? (versions[0] as Record<string, unknown>).version_number
+          : undefined;
+        state.firstVersionNumber = first;
+        if (!versions || (versions as unknown[]).length === 0) {
+          return { status: "fail", httpStatus: 200, durationMs: Date.now() - start, failureReason: "Expected non-empty versions array", requestUrl, assertionResults: [] };
+        }
+        return { status: "pass", httpStatus: 200, durationMs: Date.now() - start, responseBody: versions, requestUrl, assertionResults: [] };
+      } catch (err: unknown) {
+        const e = err as { status?: number; message?: string };
+        return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: e.message, requestUrl, assertionResults: [] };
+      }
+    },
+  },
+
+  {
+    // Step 2: Get Specific Article Version using firstVersionNumber captured in Step 1
+    id: "articles.get-version",
+    name: "Get specific article version",
+    tag: FLOW_VERSIONS,
+    group: GROUP,
+    path: "/v3/projects/{project_id}/articles/{article_id}/versions/{version_number}",
+    method: "GET",
+    assertions: [assertStatus(200)],
+    execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
+      const start = Date.now();
+      const versionNumber = state.firstVersionNumber as number;
+      const requestUrl = `${articleBase(ctx)}/versions/${versionNumber}`;
+      try {
+        const version = await getArticleVersion(ctx.projectId, ctx.articleId!, versionNumber, ctx.token);
+        return { status: "pass", httpStatus: 200, durationMs: Date.now() - start, responseBody: version, requestUrl, assertionResults: [] };
+      } catch (err: unknown) {
+        const e = err as { status?: number; message?: string };
+        return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: e.message, requestUrl, assertionResults: [] };
+      }
+    },
+  },
+
+  {
+    // Step 3: Delete Draft Version (optional — skip gracefully if no draft exists)
+    // state.draftVersionNumber is derived by scanning state.versions for is_draft === true
+    // state.deletedVersionNumber is captured from the request path param used
+    id: "articles.delete-version",
+    name: "Delete draft article version",
+    tag: FLOW_VERSIONS,
+    group: GROUP,
+    path: "/v3/projects/{project_id}/articles/{article_id}/versions/{version_number}",
+    method: "DELETE",
+    assertions: [assertStatus(204)],
+    execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
+      const start = Date.now();
+      const versions = state.versions as Array<Record<string, unknown>> | undefined;
+      const draftVersion = versions?.find((v) => v.is_draft === true);
+      if (!draftVersion) {
+        return { status: "skip", durationMs: Date.now() - start, failureReason: "No draft version found — skipping deletion", assertionResults: [] };
+      }
+      const versionNumber = draftVersion.version_number as number;
+      state.deletedVersionNumber = versionNumber;
+      const requestUrl = `${articleBase(ctx)}/versions/${versionNumber}`;
+      try {
+        await deleteArticleVersion(ctx.projectId, ctx.articleId!, versionNumber, ctx.token);
+        return { status: "pass", httpStatus: 204, durationMs: Date.now() - start, requestUrl, assertionResults: [] };
+      } catch (err: unknown) {
+        const e = err as { status?: number; message?: string };
+        return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: e.message, requestUrl, assertionResults: [] };
+      }
+    },
+  },
+
+  {
+    // Step 4: Verify the deleted version now returns 404 (optional — skip if Step 3 was skipped)
+    id: "articles.delete-version-verify",
+    name: "Verify deleted version returns 404",
+    tag: FLOW_VERSIONS,
+    group: GROUP,
+    path: "/v3/projects/{project_id}/articles/{article_id}/versions/{version_number}",
+    method: "GET",
+    assertions: [assertStatus(404)],
+    execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
+      const start = Date.now();
+      if (!state.deletedVersionNumber) {
+        return { status: "skip", durationMs: Date.now() - start, failureReason: "Step 3 was skipped — no version was deleted", assertionResults: [] };
+      }
+      const versionNumber = state.deletedVersionNumber as number;
+      const requestUrl = `${articleBase(ctx)}/versions/${versionNumber}`;
+      try {
+        await getArticleVersion(ctx.projectId, ctx.articleId!, versionNumber, ctx.token);
+        return { status: "fail", httpStatus: 200, durationMs: Date.now() - start, failureReason: "Expected 404 but version still exists", requestUrl, assertionResults: [] };
+      } catch (err: unknown) {
+        const e = err as { status?: number; message?: string };
+        if (e.status === 404) {
+          return { status: "pass", httpStatus: 404, durationMs: Date.now() - start, requestUrl, assertionResults: [] };
+        }
+        return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: `Expected 404 but got: ${e.message}`, requestUrl, assertionResults: [] };
       }
     },
   },
