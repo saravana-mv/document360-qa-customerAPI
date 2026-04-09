@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<flow version="1.0"
+      xmlns="https://document360.io/qa/flow/v1"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="https://document360.io/qa/flow/v1 ../flow.xsd">
+
+  <name>Version Management</name>
+  <group>Articles</group>
+  <description>
+    Lists all versions of the test article, fetches the first version in
+    detail, then optionally deletes a draft version (skipped safely if no
+    draft exists) and verifies it returns 404 afterwards.
+  </description>
+  <stopOnFailure>true</stopOnFailure>
+
+  <steps>
+
+    <step number="1">
+      <name>List Article Versions</name>
+      <endpointRef>articles/list-versions-of-an-article.md</endpointRef>
+      <method>GET</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}/versions</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">ctx.articleId</param>
+      </pathParams>
+      <captures>
+        <capture variable="state.versions"           source="response.data"/>
+        <capture variable="state.firstVersionNumber" source="response.data[0].version_number"/>
+      </captures>
+      <assertions>
+        <assertion type="status"          code="200"/>
+        <assertion type="array-not-empty" field="data"/>
+      </assertions>
+    </step>
+
+    <step number="2">
+      <name>Get Specific Article Version</name>
+      <endpointRef>articles/get-a-specific-version-of-an-article.md</endpointRef>
+      <method>GET</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}/versions/{version_number}</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">ctx.articleId</param>
+        <param name="version_number">{{state.firstVersionNumber}}</param>
+      </pathParams>
+      <assertions>
+        <assertion type="status" code="200"/>
+      </assertions>
+    </step>
+
+    <step number="3">
+      <name>Delete Draft Version</name>
+      <endpointRef>articles/delete-a-specific-article-version.md</endpointRef>
+      <method>DELETE</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}/versions/{version_number}</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">ctx.articleId</param>
+        <param name="version_number">{{state.draftVersionNumber}}</param>
+      </pathParams>
+      <captures>
+        <capture variable="state.deletedVersionNumber" source="pathParam.version_number" from="request"/>
+      </captures>
+      <assertions>
+        <assertion type="status" code="204"/>
+      </assertions>
+      <flags optional="true"/>
+      <notes>
+        state.draftVersionNumber is derived at runtime by scanning state.versions
+        for the first entry where is_draft === true. If no draft version exists
+        this step is skipped gracefully (optional: true).
+      </notes>
+    </step>
+
+    <step number="4">
+      <name>Verify Deleted Version Returns 404</name>
+      <endpointRef>articles/get-a-specific-version-of-an-article.md</endpointRef>
+      <method>GET</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}/versions/{version_number}</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">ctx.articleId</param>
+        <param name="version_number">{{state.deletedVersionNumber}}</param>
+      </pathParams>
+      <assertions>
+        <assertion type="status" code="404"/>
+      </assertions>
+      <flags optional="true"/>
+      <notes>
+        optional: true — skip if Step 3 was skipped (no draft was deleted,
+        so state.deletedVersionNumber will not be set).
+      </notes>
+    </step>
+
+  </steps>
+</flow>

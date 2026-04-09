@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<flow version="1.0"
+      xmlns="https://document360.io/qa/flow/v1"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="https://document360.io/qa/flow/v1 ../flow.xsd">
+
+  <name>Article Settings Flow</name>
+  <group>Articles</group>
+  <description>
+    Reads the current article settings, toggles the allow_comments flag
+    to its opposite value, then restores the original value — verifying
+    the settings PATCH endpoint works without permanently changing anything.
+  </description>
+  <stopOnFailure>true</stopOnFailure>
+
+  <steps>
+
+    <step number="1">
+      <name>Get Article Settings</name>
+      <endpointRef>articles/get-article-settings.md</endpointRef>
+      <method>GET</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}/settings</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">ctx.articleId</param>
+      </pathParams>
+      <queryParams>
+        <param name="lang_code">ctx.langCode</param>
+      </queryParams>
+      <captures>
+        <capture variable="state.originalSettings"      source="response.data"/>
+        <capture variable="state.originalAllowComments" source="response.data.allow_comments"/>
+      </captures>
+      <assertions>
+        <assertion type="status" code="200"/>
+      </assertions>
+    </step>
+
+    <step number="2">
+      <name>Toggle allow_comments</name>
+      <endpointRef>articles/update-article-settings.md</endpointRef>
+      <method>PATCH</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}/settings</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">ctx.articleId</param>
+      </pathParams>
+      <queryParams>
+        <param name="lang_code">ctx.langCode</param>
+      </queryParams>
+      <body><![CDATA[
+{
+  "allow_comments": {{!state.originalAllowComments}}
+}
+      ]]></body>
+      <captures>
+        <capture variable="state.patchedAllowComments" source="body.allow_comments" from="request"/>
+      </captures>
+      <assertions>
+        <assertion type="status"       code="200"/>
+        <assertion type="field-equals" field="data.allow_comments" value="{{state.patchedAllowComments}}"/>
+      </assertions>
+      <notes>
+        Only fields included in the body are modified — all other settings
+        remain unchanged (partial update behaviour).
+        {{!state.originalAllowComments}} is the logical NOT of the captured boolean.
+      </notes>
+    </step>
+
+    <step number="3">
+      <name>Restore Original allow_comments</name>
+      <endpointRef>articles/update-article-settings.md</endpointRef>
+      <method>PATCH</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}/settings</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">ctx.articleId</param>
+      </pathParams>
+      <queryParams>
+        <param name="lang_code">ctx.langCode</param>
+      </queryParams>
+      <body><![CDATA[
+{
+  "allow_comments": {{state.originalAllowComments}}
+}
+      ]]></body>
+      <assertions>
+        <assertion type="status" code="200"/>
+      </assertions>
+      <flags teardown="true"/>
+      <notes>
+        teardown: true — always restore the original value even if Step 2 failed.
+      </notes>
+    </step>
+
+  </steps>
+</flow>

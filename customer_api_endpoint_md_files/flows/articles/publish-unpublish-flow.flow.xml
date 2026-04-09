@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<flow version="1.0"
+      xmlns="https://document360.io/qa/flow/v1"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="https://document360.io/qa/flow/v1 ../flow.xsd">
+
+  <name>Publish / Unpublish Flow</name>
+  <group>Articles</group>
+  <description>
+    Fetches the article and available workflow statuses, transitions the
+    article to a different workflow status, then restores the original —
+    verifying the workflow status PATCH endpoint works. Skipped gracefully
+    if no workflow statuses are configured for the project.
+  </description>
+  <stopOnFailure>true</stopOnFailure>
+
+  <steps>
+
+    <step number="1">
+      <name>Get Article (capture current state)</name>
+      <endpointRef>articles/get-an-article-by-id.md</endpointRef>
+      <method>GET</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">ctx.articleId</param>
+      </pathParams>
+      <queryParams>
+        <param name="lang_code">ctx.langCode</param>
+      </queryParams>
+      <captures>
+        <capture variable="state.projectVersionId"        source="response.data.project_version_id"/>
+        <capture variable="state.currentWorkflowStatusId" source="response.data.current_workflow_status_id"/>
+      </captures>
+      <assertions>
+        <assertion type="status" code="200"/>
+      </assertions>
+    </step>
+
+    <step number="2">
+      <name>Get Available Workflow Statuses</name>
+      <method>GET</method>
+      <path>/v3/projects/{project_id}/workflow-statuses</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+      </pathParams>
+      <captures>
+        <capture variable="state.workflowStatuses" source="response.data"/>
+        <capture variable="state.targetStatusId"
+                 source="First entry in response.data where id != state.currentWorkflowStatusId"
+                 from="computed"/>
+      </captures>
+      <assertions>
+        <assertion type="status" code="200"/>
+      </assertions>
+      <flags optional="true"/>
+      <notes>
+        optional: true — if response.data is empty (project has no workflow
+        statuses configured), skip Steps 3 and 4.
+        No dedicated endpoint MD file exists yet for GET /workflow-statuses.
+      </notes>
+    </step>
+
+    <step number="3">
+      <name>Transition to New Workflow Status</name>
+      <endpointRef>articles/update-workflow-status-for-an-article.md</endpointRef>
+      <method>PATCH</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}/workflow-status</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">ctx.articleId</param>
+      </pathParams>
+      <body><![CDATA[
+{
+  "project_version_id": "{{state.projectVersionId}}",
+  "lang_code": "{{ctx.langCode}}",
+  "workflow_status_info": {
+    "status_id": "{{state.targetStatusId}}"
+  }
+}
+      ]]></body>
+      <assertions>
+        <assertion type="status" code="200"/>
+      </assertions>
+      <flags optional="true"/>
+      <notes>
+        optional: true — skip if Step 2 found no available target status
+        (state.targetStatusId will be undefined).
+      </notes>
+    </step>
+
+    <step number="4">
+      <name>Restore Original Workflow Status</name>
+      <endpointRef>articles/update-workflow-status-for-an-article.md</endpointRef>
+      <method>PATCH</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}/workflow-status</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">ctx.articleId</param>
+      </pathParams>
+      <body><![CDATA[
+{
+  "project_version_id": "{{state.projectVersionId}}",
+  "lang_code": "{{ctx.langCode}}",
+  "workflow_status_info": {
+    "status_id": "{{state.currentWorkflowStatusId}}"
+  }
+}
+      ]]></body>
+      <assertions>
+        <assertion type="status" code="200"/>
+      </assertions>
+      <flags teardown="true" optional="true"/>
+      <notes>
+        teardown: true — always attempt to restore even if Step 3 failed.
+        optional: true — skip if state.currentWorkflowStatusId is null
+        (article had no workflow status to restore to).
+      </notes>
+    </step>
+
+  </steps>
+</flow>

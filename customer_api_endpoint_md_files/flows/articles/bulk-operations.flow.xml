@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<flow version="1.0"
+      xmlns="https://document360.io/qa/flow/v1"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="https://document360.io/qa/flow/v1 ../flow.xsd">
+
+  <name>Bulk Operations</name>
+  <group>Articles</group>
+  <description>
+    Hides the test article using the bulk update endpoint, reads it back
+    to confirm the hidden flag changed, then restores it to visible —
+    verifying the bulk PATCH endpoint works for a single article.
+  </description>
+  <stopOnFailure>true</stopOnFailure>
+
+  <steps>
+
+    <step number="1">
+      <name>Bulk Update — Set Hidden</name>
+      <endpointRef>articles/bulk-update-articles.md</endpointRef>
+      <method>PATCH</method>
+      <path>/v3/projects/{project_id}/articles/bulk</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+      </pathParams>
+      <body><![CDATA[
+{
+  "articles": [
+    {
+      "article_id": "{{ctx.articleId}}",
+      "lang_code": "{{ctx.langCode}}",
+      "hidden": true,
+      "auto_fork": false
+    }
+  ]
+}
+      ]]></body>
+      <assertions>
+        <assertion type="status"       code="200"/>
+        <assertion type="field-equals" field="success" value="true"/>
+      </assertions>
+      <notes>
+        Each item in the articles array is processed independently. If one
+        fails, others still apply. Check response.data[].success per item,
+        not just the top-level success field.
+      </notes>
+    </step>
+
+    <step number="2">
+      <name>Verify Article is Hidden</name>
+      <endpointRef>articles/get-an-article-by-id.md</endpointRef>
+      <method>GET</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">ctx.articleId</param>
+      </pathParams>
+      <queryParams>
+        <param name="lang_code">ctx.langCode</param>
+      </queryParams>
+      <assertions>
+        <assertion type="status"       code="200"/>
+        <assertion type="field-equals" field="data.hidden" value="true"/>
+      </assertions>
+    </step>
+
+    <step number="3">
+      <name>Bulk Update — Restore Visible</name>
+      <endpointRef>articles/bulk-update-articles.md</endpointRef>
+      <method>PATCH</method>
+      <path>/v3/projects/{project_id}/articles/bulk</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+      </pathParams>
+      <body><![CDATA[
+{
+  "articles": [
+    {
+      "article_id": "{{ctx.articleId}}",
+      "lang_code": "{{ctx.langCode}}",
+      "hidden": false,
+      "auto_fork": false
+    }
+  ]
+}
+      ]]></body>
+      <assertions>
+        <assertion type="status"       code="200"/>
+        <assertion type="field-equals" field="success" value="true"/>
+      </assertions>
+      <flags teardown="true"/>
+      <notes>
+        teardown: true — must run even if Step 2 failed to ensure the
+        article is not left hidden after the test run.
+      </notes>
+    </step>
+
+  </steps>
+</flow>

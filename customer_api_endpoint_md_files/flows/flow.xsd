@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="https://document360.io/qa/flow/v1"
+           xmlns:tns="https://document360.io/qa/flow/v1"
+           elementFormDefault="qualified">
+
+  <!--
+    Document360 QA Customer API — Flow Definition Schema v1.0
+    ==========================================================
+    Validates .flow.xml test flow files authored by QA engineers.
+
+    Allowed interpolation tokens in string values:
+      {{ctx.projectId}}        — selected project UUID
+      {{ctx.versionId}}        — selected project version UUID
+      {{ctx.langCode}}         — language code (e.g. "en")
+      {{ctx.articleId}}        — pre-configured test article UUID
+      {{ctx.token}}            — Bearer token (injected automatically)
+      {{ctx.baseUrl}}          — API base URL
+      {{state.variableName}}   — value captured from a previous step
+      {{timestamp}}            — Unix ms timestamp at execution time
+      {{!state.boolVar}}       — logical NOT of a boolean state variable
+  -->
+
+  <!-- ═══════════════════════════════════════
+       Root Element
+       ═══════════════════════════════════════ -->
+  <xs:element name="flow" type="tns:FlowType"/>
+
+  <!-- ═══════════════════════════════════════
+       Flow (root type)
+       ═══════════════════════════════════════ -->
+  <xs:complexType name="FlowType">
+    <xs:sequence>
+      <!-- Human-readable flow name — becomes the test tag in code -->
+      <xs:element name="name" type="xs:string"/>
+      <!-- Domain grouping shown in the test explorer (e.g. "Articles") -->
+      <xs:element name="group" type="xs:string"/>
+      <!-- Free-text description of what the flow covers -->
+      <xs:element name="description" type="xs:string"/>
+      <!--
+        When true (default): a failing step immediately skips all remaining
+        steps in the flow. Set to false only for independent cleanup steps.
+      -->
+      <xs:element name="stopOnFailure" type="xs:boolean" minOccurs="0" default="true"/>
+      <xs:element name="steps">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="step" type="tns:StepType" minOccurs="1" maxOccurs="unbounded"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+    <!-- Schema version — must be "1.0" -->
+    <xs:attribute name="version" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <!-- ═══════════════════════════════════════
+       Step
+       Elements must appear in the order shown.
+       ═══════════════════════════════════════ -->
+  <xs:complexType name="StepType">
+    <xs:sequence>
+      <!-- Step title shown in log output -->
+      <xs:element name="name" type="xs:string"/>
+      <!--
+        Relative path to the endpoint detail MD file, e.g.
+        "articles/get-an-article-by-id.md". Omit if no file exists yet.
+      -->
+      <xs:element name="endpointRef" type="xs:string" minOccurs="0"/>
+      <!-- HTTP verb — must be one of the allowed values -->
+      <xs:element name="method" type="tns:HttpMethodType"/>
+      <!--
+        URL path template. Use {param_name} placeholders for path parameters
+        (must be declared in <pathParams>). Interpolation tokens are allowed.
+        Example: /v3/projects/{project_id}/articles/{article_id}
+      -->
+      <xs:element name="path" type="xs:string"/>
+      <!-- Path parameter bindings — required when path contains {placeholders} -->
+      <xs:element name="pathParams"  type="tns:ParamListType"   minOccurs="0"/>
+      <!-- Query string parameter bindings -->
+      <xs:element name="queryParams" type="tns:ParamListType"   minOccurs="0"/>
+      <!--
+        JSON request body. Wrap the content in CDATA to avoid escaping issues.
+        Interpolation tokens (e.g. {{state.x}}) are supported. Omit for
+        GET / DELETE requests that have no body.
+      -->
+      <xs:element name="body"        type="xs:string"           minOccurs="0"/>
+      <!-- Values extracted from the response (or request) for later steps -->
+      <xs:element name="captures"    type="tns:CaptureListType" minOccurs="0"/>
+      <!-- At least one assertion is required per step -->
+      <xs:element name="assertions"  type="tns:AssertionListType"/>
+      <!-- Optional behavioural flags — see FlagsType below -->
+      <xs:element name="flags"       type="tns:FlagsType"       minOccurs="0"/>
+      <!--
+        Free-text notes for QA context, runtime derivation logic, or
+        caveats that cannot be expressed structurally (e.g. "targetStatusId
+        is derived by scanning response.data for an id != currentStatusId").
+      -->
+      <xs:element name="notes"       type="xs:string"           minOccurs="0"/>
+    </xs:sequence>
+    <!-- Sequential step number (used in notes cross-references, e.g. "skip if Step 3 skipped") -->
+    <xs:attribute name="number" type="xs:positiveInteger" use="required"/>
+  </xs:complexType>
+
+  <!-- ═══════════════════════════════════════
+       Parameters  (path and query)
+       ═══════════════════════════════════════ -->
+  <xs:complexType name="ParamListType">
+    <xs:sequence>
+      <xs:element name="param" type="tns:ParamType" minOccurs="1" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ParamType">
+    <xs:simpleContent>
+      <!--
+        The param value — a literal string or an interpolation token.
+        Examples:  ctx.projectId   |   {{state.firstVersionNumber}}
+      -->
+      <xs:extension base="xs:string">
+        <!-- Parameter name as it appears in the URL template or query string -->
+        <xs:attribute name="name" type="xs:string" use="required"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <!-- ═══════════════════════════════════════
+       Captures
+       ═══════════════════════════════════════ -->
+  <xs:complexType name="CaptureListType">
+    <xs:sequence>
+      <xs:element name="capture" type="tns:CaptureType" minOccurs="1" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="CaptureType">
+    <!--
+      variable:  State key to write, e.g. "state.originalTitle"
+      source:    Dot-path into the response/request, e.g. "response.data.title"
+                 For from="computed" this is a prose description of the derivation.
+      from:      Where the value comes from (default: response)
+    -->
+    <xs:attribute name="variable" type="xs:string"           use="required"/>
+    <xs:attribute name="source"   type="xs:string"           use="required"/>
+    <xs:attribute name="from"     type="tns:CaptureFromType" default="response"/>
+  </xs:complexType>
+
+  <xs:simpleType name="CaptureFromType">
+    <xs:restriction base="xs:string">
+      <!-- Default: extract from the HTTP response body -->
+      <xs:enumeration value="response"/>
+      <!-- Extract from the request body/params that were sent -->
+      <xs:enumeration value="request"/>
+      <!-- Runtime derivation — describe in source attribute as prose -->
+      <xs:enumeration value="computed"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- ═══════════════════════════════════════
+       Assertions
+       ═══════════════════════════════════════ -->
+  <xs:complexType name="AssertionListType">
+    <xs:sequence>
+      <xs:element name="assertion" type="tns:AssertionType" minOccurs="1" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="AssertionType">
+    <!--
+      type              Required attributes
+      ──────────────    ──────────────────────────────────────────
+      status            code (HTTP status code, e.g. 200)
+      field-equals      field (dot-path), value (expected value)
+      field-exists      field (dot-path)
+      array-not-empty   field (dot-path to the array)
+
+      Interpolation tokens are allowed in the value attribute.
+    -->
+    <xs:attribute name="type"  type="tns:AssertionTypeEnum" use="required"/>
+    <xs:attribute name="code"  type="xs:positiveInteger"/>
+    <xs:attribute name="field" type="xs:string"/>
+    <xs:attribute name="value" type="xs:string"/>
+  </xs:complexType>
+
+  <xs:simpleType name="AssertionTypeEnum">
+    <xs:restriction base="xs:string">
+      <!-- Asserts the HTTP response status code matches `code` -->
+      <xs:enumeration value="status"/>
+      <!-- Asserts response body field at `field` equals `value` -->
+      <xs:enumeration value="field-equals"/>
+      <!-- Asserts response body contains `field` (any value) -->
+      <xs:enumeration value="field-exists"/>
+      <!-- Asserts the array at `field` has at least one element -->
+      <xs:enumeration value="array-not-empty"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- ═══════════════════════════════════════
+       Step Flags
+       ═══════════════════════════════════════ -->
+  <xs:complexType name="FlagsType">
+    <!--
+      optional:  true → if a precondition cannot be met, skip this step
+                 without marking the flow as failed (graceful skip).
+      teardown:  true → this step always runs, even if earlier steps failed,
+                 to ensure the test environment is restored to a clean state.
+    -->
+    <xs:attribute name="optional"  type="xs:boolean" default="false"/>
+    <xs:attribute name="teardown"  type="xs:boolean" default="false"/>
+  </xs:complexType>
+
+  <!-- ═══════════════════════════════════════
+       HTTP Method Enum
+       ═══════════════════════════════════════ -->
+  <xs:simpleType name="HttpMethodType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="GET"/>
+      <xs:enumeration value="POST"/>
+      <xs:enumeration value="PUT"/>
+      <xs:enumeration value="PATCH"/>
+      <xs:enumeration value="DELETE"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+</xs:schema>
