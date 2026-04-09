@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import JsonView from "@uiw/react-json-view";
 import { useRunnerStore } from "../../store/runner.store";
+import { useSetupStore } from "../../store/setup.store";
 import { getTest } from "../../lib/tests/registry";
 import type { TestStatus } from "../../types/test.types";
 
@@ -47,9 +48,27 @@ function Label({ children }: { children: React.ReactNode }) {
 
 function DesignTab({ testId }: { testId: string }) {
   const def = getTest(testId);
+  const { selectedProjectId, selectedVersionId, articleId } = useSetupStore();
   if (!def) return null;
 
   const pathParams = def.path.match(/\{[^}]+\}/g) ?? [];
+
+  // Map each path token to its resolved runtime value
+  const paramValues: Record<string, string> = {
+    "{id}":          selectedProjectId || "(not configured)",
+    "{projectId}":   selectedProjectId || "(not configured)",
+    "{project_id}":  selectedProjectId || "(not configured)",
+    "{articleId}":   articleId         || "(not configured)",
+    "{article_id}":  articleId         || "(not configured)",
+    "{versionId}":   selectedVersionId || "(not configured)",
+    "{version_id}":  selectedVersionId || "(not configured)",
+  };
+
+  // Build resolved URL by substituting actual values into path
+  const resolvedPath = pathParams.reduce(
+    (path, token) => path.replace(token, paramValues[token] ?? token),
+    def.path
+  );
 
   return (
     <div className="p-4 space-y-5 text-sm">
@@ -73,15 +92,29 @@ function DesignTab({ testId }: { testId: string }) {
       {pathParams.length > 0 && (
         <div>
           <Label>Path Parameters</Label>
-          <div className="space-y-1">
-            {pathParams.map((p) => (
-              <div key={p} className="flex items-center gap-2 text-xs py-1">
-                <span className="font-mono text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded">
-                  {p}
-                </span>
-                <span className="text-gray-400">required · path</span>
-              </div>
-            ))}
+          <div className="space-y-1.5">
+            {pathParams.map((p) => {
+              const value = paramValues[p];
+              const missing = !value || value === "(not configured)";
+              return (
+                <div key={p} className="text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded shrink-0">
+                      {p}
+                    </span>
+                    <span className="text-gray-400">required · path</span>
+                  </div>
+                  <div className={`mt-0.5 ml-1 font-mono truncate ${missing ? "text-amber-500 italic" : "text-gray-700"}`}>
+                    = {value ?? "(not configured)"}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Resolved URL preview */}
+          <div className="mt-2 font-mono text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 break-all">
+            <span className="text-gray-400 mr-1">→</span>{resolvedPath}
           </div>
         </div>
       )}
