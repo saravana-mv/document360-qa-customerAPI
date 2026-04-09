@@ -12,17 +12,24 @@ export async function fetchProjectVersions(projectId: string, token: string): Pr
 
   const get = (o: Record<string, unknown>, snake: string, pascal: string) => o[snake] ?? o[pascal];
 
-  return raw.map((v) => {
-    const r = v as Record<string, unknown>;
-    const id = get(r, "id", "Id") as string;
-    const name = (get(r, "name", "Name") ?? get(r, "version_code_name", "VersionCodeName")) as string;
-    const versionNumber = (get(r, "version_number", "VersionNumber") ?? "") as string | number;
-    const isDefault = Boolean(get(r, "is_default", "IsDefault") ?? get(r, "is_main_version", "IsMainVersion"));
-    return {
-      id,
-      name: name || (versionNumber ? `v${versionNumber}` : id),
-      versionNumber: String(versionNumber),
-      isDefault,
-    };
-  });
+  return raw
+    .filter((v) => {
+      const r = v as Record<string, unknown>;
+      // VersionType 0 = documentation version; non-zero = API Reference or other types
+      const versionType = get(r, "version_type", "VersionType") ?? 0;
+      return versionType === 0;
+    })
+    .map((v) => {
+      const r = v as Record<string, unknown>;
+      const id = get(r, "id", "Id") as string;
+      const name = (get(r, "name", "Name") ?? get(r, "version_code_name", "VersionCodeName")) as string;
+      const versionNumber = (get(r, "version_number", "VersionNumber") ?? "") as string | number;
+      const isDefault = Boolean(get(r, "is_default", "IsDefault") ?? get(r, "is_main_version", "IsMainVersion"));
+      return {
+        id,
+        name: name || (versionNumber ? `v${versionNumber}` : id),
+        versionNumber: String(versionNumber),
+        isDefault,
+      };
+    });
 }
