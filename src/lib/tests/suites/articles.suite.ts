@@ -61,9 +61,9 @@ const tests: TestDef[] = [
     group: GROUP,
     path: "/v3/projects/{id}/articles/{articleId}",
     method: "PATCH",
-    description: "Partial update — sets a timestamped test title. auto_fork:true creates a new draft if the version is published.",
+    description: "Partial update — sets a timestamped test title. Includes original content (required by API). auto_fork:true creates a new draft if the version is published.",
     queryParams: { lang_code: "{ctx.langCode}" },
-    sampleRequestBody: { title: "[TEST] Article title - <timestamp>", auto_fork: true },
+    sampleRequestBody: { title: "[TEST] Article title - <timestamp>", content: "<original content>", auto_fork: true },
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
@@ -71,8 +71,9 @@ const tests: TestDef[] = [
       try {
         const testTitle = `[TEST] ${state.originalTitle || "Article"} - ${Date.now()}`;
         state.testTitle = testTitle;
-        // auto_fork: true — creates a new draft if the current version is published
-        const requestBody = { title: testTitle, auto_fork: true };
+        const originalArticle = state.originalArticle as Record<string, unknown>;
+        // content is required by the API; auto_fork creates a draft if the version is published
+        const requestBody = { title: testTitle, content: originalArticle?.content ?? "", auto_fork: true };
         const article = await patchArticle(ctx.projectId, ctx.articleId!, requestBody, ctx.token, ctx.langCode);
         return { status: "pass", httpStatus: 200, durationMs: Date.now() - start, responseBody: article, requestUrl, requestBody, assertionResults: [] };
       } catch (err: unknown) {
@@ -124,14 +125,15 @@ const tests: TestDef[] = [
     method: "PATCH",
     description: "Restores the article title to its original value captured in the GET step.",
     queryParams: { lang_code: "{ctx.langCode}" },
-    sampleRequestBody: { title: "<original title>", auto_fork: true },
+    sampleRequestBody: { title: "<original title>", content: "<original content>", auto_fork: true },
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
       const requestUrl = `${articleBase(ctx)}?lang_code=${ctx.langCode}`;
       try {
         const originalTitle = state.originalTitle as string || "Restored Article";
-        const requestBody = { title: originalTitle, auto_fork: true };
+        const originalArticle = state.originalArticle as Record<string, unknown>;
+        const requestBody = { title: originalTitle, content: originalArticle?.content ?? "", auto_fork: true };
         const article = await patchArticle(ctx.projectId, ctx.articleId!, requestBody, ctx.token, ctx.langCode);
         return { status: "pass", httpStatus: 200, durationMs: Date.now() - start, responseBody: article, requestUrl, requestBody, assertionResults: [] };
       } catch (err: unknown) {
