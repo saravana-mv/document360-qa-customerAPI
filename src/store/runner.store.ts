@@ -11,10 +11,12 @@ interface RunnerState {
   summary: RunSummary | null;
   selectedTags: Set<string>;
   selectedTests: Set<string>;
+  selectedTestId: string | null;
 
   startRun: () => void;
   cancelRun: () => void;
   resetRun: () => void;
+  selectTest: (id: string | null) => void;
   updateTestStatus: (testId: string, update: Partial<TestResult>) => void;
   updateTagStatus: (tag: string, status: RollupStatus, durationMs?: number) => void;
   appendLog: (entry: Omit<LogEntry, "id" | "timestamp">) => void;
@@ -38,10 +40,12 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   summary: null,
   selectedTags: new Set(),
   selectedTests: new Set(),
+  selectedTestId: null,
 
   startRun: () => set({ running: true, cancelled: false, summary: null }),
   cancelRun: () => set({ cancelled: true }),
   resetRun: () => set({ running: false, cancelled: false, tagResults: {}, testResults: {}, log: [], summary: null }),
+  selectTest: (id) => set({ selectedTestId: id }),
 
   updateTestStatus: (testId, update) =>
     set((state) => ({

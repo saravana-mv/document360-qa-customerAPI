@@ -74,6 +74,9 @@ async function executeTest(
     httpStatus: result.httpStatus,
     failureReason: result.failureReason,
     assertionResults: result.assertionResults,
+    responseBody: result.responseBody,
+    requestUrl: result.requestUrl,
+    requestBody: result.requestBody,
     completedAt,
   });
 
@@ -92,9 +95,19 @@ async function runTag(tag: string, tests: TestDef[], ctx: TestContext): Promise<
   store.updateTagStatus(tag, "running");
   log(`--- Tag: ${tag} ---`, "info", tag);
 
-  for (const test of tests) {
+  for (let i = 0; i < tests.length; i++) {
+    const test = tests[i];
     await executeTest(test, ctx, state);
-    if (getStore().cancelled) break;
+    const result = getStore().testResults[test.id];
+    const failed = result?.status === "fail" || result?.status === "error";
+    if (getStore().cancelled || failed) {
+      // Mark all remaining tests in this flow as skipped
+      for (let j = i + 1; j < tests.length; j++) {
+        getStore().updateTestStatus(tests[j].id, { status: "skip" });
+        log(`Skipped (flow stopped): ${tests[j].name}`, "warn", tag, tests[j].id);
+      }
+      break;
+    }
   }
 
   const tagTests = Object.values(getStore().testResults).filter((t) => t.tag === tag);

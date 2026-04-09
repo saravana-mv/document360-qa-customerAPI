@@ -58,7 +58,7 @@ export function SetupPanel() {
 
       setup.setVersions(versions);
       const def = versions.find((v) => v.isDefault) ?? versions[0];
-      if (def && !setup.selectedVersionId) {
+      if (def) {
         setup.selectVersion(def.id);
       }
     } catch (err) {

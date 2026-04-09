@@ -13,6 +13,13 @@ import {
   deleteArticleVersion,
 } from "../../api/articles";
 
+function articleBase(ctx: TestContext) {
+  return `${ctx.baseUrl}/v3/projects/${ctx.projectId}/articles/${ctx.articleId}`;
+}
+function projectBase(ctx: TestContext) {
+  return `${ctx.baseUrl}/v3/projects/${ctx.projectId}`;
+}
+
 const FLOW_CRUD = "Full Article CRUD Lifecycle";
 const FLOW_SETTINGS = "Article Settings Flow";
 const FLOW_WORKFLOW = "Publish / Unpublish Flow";
@@ -29,64 +36,15 @@ const tests: TestDef[] = [
     assertions: [assertStatus(200), assertBodyHasField("title")],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
+      const requestUrl = articleBase(ctx);
       try {
         const article = await getArticle(ctx.projectId, ctx.articleId!, ctx.token);
         state.originalTitle = article.title;
         state.originalArticle = article;
-        return {
-          status: "pass",
-          httpStatus: 200,
-          durationMs: Date.now() - start,
-          responseBody: article,
-          assertionResults: [],
-        };
+        return { status: "pass", httpStatus: 200, durationMs: Date.now() - start, responseBody: article, requestUrl, assertionResults: [] };
       } catch (err: unknown) {
         const e = err as { status?: number; message?: string };
-        return {
-          status: "fail",
-          httpStatus: e.status,
-          durationMs: Date.now() - start,
-          failureReason: e.message,
-          assertionResults: [],
-        };
-      }
-    },
-  },
-
-  {
-    id: "articles.get-versions",
-    name: "Get article versions",
-    tag: FLOW_VERSIONS,
-    path: "/v3/projects/{id}/articles/{articleId}/versions",
-    method: "GET",
-    assertions: [assertStatus(200)],
-    execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
-      const start = Date.now();
-      try {
-        const versions = await getArticleVersions(ctx.projectId, ctx.articleId!, ctx.token);
-        state.versions = versions;
-        const firstVersion = Array.isArray(versions) && versions.length > 0 ? versions[0] : null;
-        if (firstVersion && typeof firstVersion === "object") {
-          state.firstVersionNumber = (firstVersion as Record<string, unknown>).versionNumber ?? 1;
-        } else {
-          state.firstVersionNumber = 1;
-        }
-        return {
-          status: "pass",
-          httpStatus: 200,
-          durationMs: Date.now() - start,
-          responseBody: versions,
-          assertionResults: [],
-        };
-      } catch (err: unknown) {
-        const e = err as { status?: number; message?: string };
-        return {
-          status: "fail",
-          httpStatus: e.status,
-          durationMs: Date.now() - start,
-          failureReason: e.message,
-          assertionResults: [],
-        };
+        return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: e.message, requestUrl, assertionResults: [] };
       }
     },
   },
@@ -100,30 +58,19 @@ const tests: TestDef[] = [
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
+      const requestUrl = articleBase(ctx);
       try {
         const testTitle = `[TEST] ${state.originalTitle || "Article"} - ${Date.now()}`;
         state.testTitle = testTitle;
-        const article = await patchArticle(ctx.projectId, ctx.articleId!, { title: testTitle }, ctx.token);
-        return {
-          status: "pass",
-          httpStatus: 200,
-          durationMs: Date.now() - start,
-          responseBody: article,
-          assertionResults: [],
-        };
+        const requestBody = { title: testTitle };
+        const article = await patchArticle(ctx.projectId, ctx.articleId!, requestBody, ctx.token);
+        return { status: "pass", httpStatus: 200, durationMs: Date.now() - start, responseBody: article, requestUrl, requestBody, assertionResults: [] };
       } catch (err: unknown) {
         const e = err as { status?: number; message?: string };
-        return {
-          status: "fail",
-          httpStatus: e.status,
-          durationMs: Date.now() - start,
-          failureReason: e.message,
-          assertionResults: [],
-        };
+        return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: e.message, requestUrl, assertionResults: [] };
       }
     },
     teardown: async (_ctx: TestContext, state: RunState): Promise<void> => {
-      // Restore will be done by patch-restore test, but ensure we track dirty state
       state.titlePatched = true;
     },
   },
@@ -137,6 +84,7 @@ const tests: TestDef[] = [
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
+      const requestUrl = articleBase(ctx);
       try {
         const article = await getArticle(ctx.projectId, ctx.articleId!, ctx.token);
         const titleMatches = article.title === state.testTitle;
@@ -145,18 +93,13 @@ const tests: TestDef[] = [
           httpStatus: 200,
           durationMs: Date.now() - start,
           responseBody: article,
+          requestUrl,
           failureReason: titleMatches ? undefined : `Title mismatch: got "${article.title}", expected "${state.testTitle}"`,
           assertionResults: [],
         };
       } catch (err: unknown) {
         const e = err as { status?: number; message?: string };
-        return {
-          status: "fail",
-          httpStatus: e.status,
-          durationMs: Date.now() - start,
-          failureReason: e.message,
-          assertionResults: [],
-        };
+        return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: e.message, requestUrl, assertionResults: [] };
       }
     },
   },
@@ -170,25 +113,15 @@ const tests: TestDef[] = [
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
+      const requestUrl = articleBase(ctx);
       try {
         const originalTitle = state.originalTitle as string || "Restored Article";
-        await patchArticle(ctx.projectId, ctx.articleId!, { title: originalTitle }, ctx.token);
-        return {
-          status: "pass",
-          httpStatus: 200,
-          durationMs: Date.now() - start,
-          responseBody: { restored: true, title: originalTitle },
-          assertionResults: [],
-        };
+        const requestBody = { title: originalTitle };
+        await patchArticle(ctx.projectId, ctx.articleId!, requestBody, ctx.token);
+        return { status: "pass", httpStatus: 200, durationMs: Date.now() - start, responseBody: { restored: true, title: originalTitle }, requestUrl, requestBody, assertionResults: [] };
       } catch (err: unknown) {
         const e = err as { status?: number; message?: string };
-        return {
-          status: "fail",
-          httpStatus: e.status,
-          durationMs: Date.now() - start,
-          failureReason: e.message,
-          assertionResults: [],
-        };
+        return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: e.message, requestUrl, assertionResults: [] };
       }
     },
   },
@@ -202,25 +135,14 @@ const tests: TestDef[] = [
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
+      const requestUrl = `${articleBase(ctx)}/settings`;
       try {
         const settings = await getArticleSettings(ctx.projectId, ctx.articleId!, ctx.token);
         state.originalSettings = settings;
-        return {
-          status: "pass",
-          httpStatus: 200,
-          durationMs: Date.now() - start,
-          responseBody: settings,
-          assertionResults: [],
-        };
+        return { status: "pass", httpStatus: 200, durationMs: Date.now() - start, responseBody: settings, requestUrl, assertionResults: [] };
       } catch (err: unknown) {
         const e = err as { status?: number; message?: string };
-        return {
-          status: "fail",
-          httpStatus: e.status,
-          durationMs: Date.now() - start,
-          failureReason: e.message,
-          assertionResults: [],
-        };
+        return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: e.message, requestUrl, assertionResults: [] };
       }
     },
   },
@@ -234,28 +156,16 @@ const tests: TestDef[] = [
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
+      const requestUrl = `${articleBase(ctx)}/settings`;
       try {
         const settings = state.originalSettings as Record<string, unknown> || {};
-        // Toggle a safe setting value
-        const patchBody = { ...settings, hidden: !(settings.hidden ?? false) };
-        const result = await patchArticleSettings(ctx.projectId, ctx.articleId!, patchBody, ctx.token);
-        state.patchedSettings = patchBody;
-        return {
-          status: "pass",
-          httpStatus: 200,
-          durationMs: Date.now() - start,
-          responseBody: result,
-          assertionResults: [],
-        };
+        const requestBody = { ...settings, hidden: !(settings.hidden ?? false) };
+        const result = await patchArticleSettings(ctx.projectId, ctx.articleId!, requestBody, ctx.token);
+        state.patchedSettings = requestBody;
+        return { status: "pass", httpStatus: 200, durationMs: Date.now() - start, responseBody: result, requestUrl, requestBody, assertionResults: [] };
       } catch (err: unknown) {
         const e = err as { status?: number; message?: string };
-        return {
-          status: "fail",
-          httpStatus: e.status,
-          durationMs: Date.now() - start,
-          failureReason: e.message,
-          assertionResults: [],
-        };
+        return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: e.message, requestUrl, assertionResults: [] };
       }
     },
   },
@@ -269,25 +179,41 @@ const tests: TestDef[] = [
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
+      const requestUrl = `${articleBase(ctx)}/settings`;
       try {
-        const originalSettings = state.originalSettings as Record<string, unknown> || {};
-        await patchArticleSettings(ctx.projectId, ctx.articleId!, originalSettings, ctx.token);
-        return {
-          status: "pass",
-          httpStatus: 200,
-          durationMs: Date.now() - start,
-          responseBody: { restored: true },
-          assertionResults: [],
-        };
+        const requestBody = state.originalSettings as Record<string, unknown> || {};
+        await patchArticleSettings(ctx.projectId, ctx.articleId!, requestBody, ctx.token);
+        return { status: "pass", httpStatus: 200, durationMs: Date.now() - start, responseBody: { restored: true }, requestUrl, requestBody, assertionResults: [] };
       } catch (err: unknown) {
         const e = err as { status?: number; message?: string };
-        return {
-          status: "fail",
-          httpStatus: e.status,
-          durationMs: Date.now() - start,
-          failureReason: e.message,
-          assertionResults: [],
-        };
+        return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: e.message, requestUrl, assertionResults: [] };
+      }
+    },
+  },
+
+  {
+    id: "articles.get-versions",
+    name: "Get article versions",
+    tag: FLOW_VERSIONS,
+    path: "/v3/projects/{id}/articles/{articleId}/versions",
+    method: "GET",
+    assertions: [assertStatus(200)],
+    execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
+      const start = Date.now();
+      const requestUrl = `${articleBase(ctx)}/versions`;
+      try {
+        const versions = await getArticleVersions(ctx.projectId, ctx.articleId!, ctx.token);
+        state.versions = versions;
+        const firstVersion = Array.isArray(versions) && versions.length > 0 ? versions[0] : null;
+        if (firstVersion && typeof firstVersion === "object") {
+          state.firstVersionNumber = (firstVersion as Record<string, unknown>).versionNumber ?? 1;
+        } else {
+          state.firstVersionNumber = 1;
+        }
+        return { status: "pass", httpStatus: 200, durationMs: Date.now() - start, responseBody: versions, requestUrl, assertionResults: [] };
+      } catch (err: unknown) {
+        const e = err as { status?: number; message?: string };
+        return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: e.message, requestUrl, assertionResults: [] };
       }
     },
   },
@@ -301,25 +227,14 @@ const tests: TestDef[] = [
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
+      const versionNumber = state.firstVersionNumber as number || 1;
+      const requestUrl = `${articleBase(ctx)}/versions/${versionNumber}`;
       try {
-        const versionNumber = state.firstVersionNumber as number || 1;
         const version = await getArticleVersion(ctx.projectId, ctx.articleId!, versionNumber, ctx.token);
-        return {
-          status: "pass",
-          httpStatus: 200,
-          durationMs: Date.now() - start,
-          responseBody: version,
-          assertionResults: [],
-        };
+        return { status: "pass", httpStatus: 200, durationMs: Date.now() - start, responseBody: version, requestUrl, assertionResults: [] };
       } catch (err: unknown) {
         const e = err as { status?: number; message?: string };
-        return {
-          status: "fail",
-          httpStatus: e.status,
-          durationMs: Date.now() - start,
-          failureReason: e.message,
-          assertionResults: [],
-        };
+        return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: e.message, requestUrl, assertionResults: [] };
       }
     },
   },
@@ -333,38 +248,24 @@ const tests: TestDef[] = [
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
+      const requestUrl = `${articleBase(ctx)}/workflow-status`;
       try {
-        // Fetch article fresh — this flow runs independently of CRUD Lifecycle
         const article = await getArticle(ctx.projectId, ctx.articleId!, ctx.token);
         const currentStatus = (article.workflowStatus as string) || "draft";
-        // Pick a different status to actually test the change
         const newStatus = currentStatus === "draft" ? "inreview" : "draft";
         state.originalWorkflowStatus = currentStatus;
-        state.newWorkflowStatus = newStatus;
-        const result = await patchArticleWorkflowStatus(ctx.projectId, ctx.articleId!, { workflowStatus: newStatus }, ctx.token);
-        return {
-          status: "pass",
-          httpStatus: 200,
-          durationMs: Date.now() - start,
-          responseBody: result,
-          assertionResults: [],
-        };
+        const requestBody = { workflowStatus: newStatus };
+        const result = await patchArticleWorkflowStatus(ctx.projectId, ctx.articleId!, requestBody, ctx.token);
+        return { status: "pass", httpStatus: 200, durationMs: Date.now() - start, responseBody: result, requestUrl, requestBody, assertionResults: [] };
       } catch (err: unknown) {
         const e = err as { status?: number; message?: string };
-        return {
-          status: "fail",
-          httpStatus: e.status,
-          durationMs: Date.now() - start,
-          failureReason: e.message,
-          assertionResults: [],
-        };
+        return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: e.message, requestUrl, assertionResults: [] };
       }
     },
     teardown: async (ctx: TestContext, state: RunState): Promise<void> => {
       if (state.originalWorkflowStatus) {
         try {
-          await patchArticleWorkflowStatus(ctx.projectId, ctx.articleId!,
-            { workflowStatus: state.originalWorkflowStatus }, ctx.token);
+          await patchArticleWorkflowStatus(ctx.projectId, ctx.articleId!, { workflowStatus: state.originalWorkflowStatus }, ctx.token);
         } catch { /* ignore cleanup errors */ }
       }
     },
@@ -379,29 +280,15 @@ const tests: TestDef[] = [
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
+      const requestUrl = `${projectBase(ctx)}/articles/bulk`;
       try {
-        const bulkBody = {
-          articleIds: [ctx.articleId],
-          properties: { hidden: true },
-        };
+        const requestBody = { articleIds: [ctx.articleId], properties: { hidden: true } };
         state.bulkPatched = true;
-        const result = await bulkPatchArticles(ctx.projectId, bulkBody, ctx.token);
-        return {
-          status: "pass",
-          httpStatus: 200,
-          durationMs: Date.now() - start,
-          responseBody: result,
-          assertionResults: [],
-        };
+        const result = await bulkPatchArticles(ctx.projectId, requestBody, ctx.token);
+        return { status: "pass", httpStatus: 200, durationMs: Date.now() - start, responseBody: result, requestUrl, requestBody, assertionResults: [] };
       } catch (err: unknown) {
         const e = err as { status?: number; message?: string };
-        return {
-          status: "fail",
-          httpStatus: e.status,
-          durationMs: Date.now() - start,
-          failureReason: e.message,
-          assertionResults: [],
-        };
+        return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: e.message, requestUrl, assertionResults: [] };
       }
     },
   },
@@ -415,24 +302,13 @@ const tests: TestDef[] = [
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, _state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
+      const requestUrl = articleBase(ctx);
       try {
         const article = await getArticle(ctx.projectId, ctx.articleId!, ctx.token);
-        return {
-          status: "pass",
-          httpStatus: 200,
-          durationMs: Date.now() - start,
-          responseBody: article,
-          assertionResults: [],
-        };
+        return { status: "pass", httpStatus: 200, durationMs: Date.now() - start, responseBody: article, requestUrl, assertionResults: [] };
       } catch (err: unknown) {
         const e = err as { status?: number; message?: string };
-        return {
-          status: "fail",
-          httpStatus: e.status,
-          durationMs: Date.now() - start,
-          failureReason: e.message,
-          assertionResults: [],
-        };
+        return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: e.message, requestUrl, assertionResults: [] };
       }
     },
   },
@@ -446,34 +322,19 @@ const tests: TestDef[] = [
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
+      const requestUrl = `${projectBase(ctx)}/articles/bulk`;
       try {
-        const bulkBody = {
-          articleIds: [ctx.articleId],
-          properties: { hidden: false },
-        };
-        const result = await bulkPatchArticles(ctx.projectId, bulkBody, ctx.token);
+        const requestBody = { articleIds: [ctx.articleId], properties: { hidden: false } };
+        const result = await bulkPatchArticles(ctx.projectId, requestBody, ctx.token);
         state.bulkPatched = false;
-        return {
-          status: "pass",
-          httpStatus: 200,
-          durationMs: Date.now() - start,
-          responseBody: result,
-          assertionResults: [],
-        };
+        return { status: "pass", httpStatus: 200, durationMs: Date.now() - start, responseBody: result, requestUrl, requestBody, assertionResults: [] };
       } catch (err: unknown) {
         const e = err as { status?: number; message?: string };
-        return {
-          status: "fail",
-          httpStatus: e.status,
-          durationMs: Date.now() - start,
-          failureReason: e.message,
-          assertionResults: [],
-        };
+        return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: e.message, requestUrl, assertionResults: [] };
       }
     },
   },
 
-  // Optional: delete a draft article version and verify it's gone
   {
     id: "articles.delete-version",
     name: "Delete draft article version (optional)",
@@ -484,37 +345,19 @@ const tests: TestDef[] = [
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
       const versions = state.versions as Array<Record<string, unknown>> | undefined;
-      // Find a draft version to delete — skip if none found
-      const draftVersion = versions?.find(
-        (v) => v.isDraft === true || v.status === "draft"
-      );
+      const draftVersion = versions?.find((v) => v.isDraft === true || v.status === "draft");
       if (!draftVersion) {
-        return {
-          status: "skip",
-          durationMs: Date.now() - start,
-          failureReason: "No draft version available to delete",
-          assertionResults: [],
-        };
+        return { status: "skip", durationMs: Date.now() - start, failureReason: "No draft version available to delete", assertionResults: [] };
       }
       const versionNumber = draftVersion.versionNumber as number;
       state.deletedVersionNumber = versionNumber;
+      const requestUrl = `${articleBase(ctx)}/versions/${versionNumber}`;
       try {
         await deleteArticleVersion(ctx.projectId, ctx.articleId!, versionNumber, ctx.token);
-        return {
-          status: "pass",
-          httpStatus: 204,
-          durationMs: Date.now() - start,
-          assertionResults: [],
-        };
+        return { status: "pass", httpStatus: 204, durationMs: Date.now() - start, requestUrl, assertionResults: [] };
       } catch (err: unknown) {
         const e = err as { status?: number; message?: string };
-        return {
-          status: "fail",
-          httpStatus: e.status,
-          durationMs: Date.now() - start,
-          failureReason: e.message,
-          assertionResults: [],
-        };
+        return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: e.message, requestUrl, assertionResults: [] };
       }
     },
   },
@@ -529,39 +372,18 @@ const tests: TestDef[] = [
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
       if (!state.deletedVersionNumber) {
-        return {
-          status: "skip",
-          durationMs: Date.now() - start,
-          failureReason: "No version was deleted — skipping verification",
-          assertionResults: [],
-        };
+        return { status: "skip", durationMs: Date.now() - start, failureReason: "No version was deleted — skipping verification", assertionResults: [] };
       }
+      const requestUrl = `${articleBase(ctx)}/versions/${state.deletedVersionNumber}`;
       try {
         await getArticleVersion(ctx.projectId, ctx.articleId!, state.deletedVersionNumber as number, ctx.token);
-        return {
-          status: "fail",
-          httpStatus: 200,
-          durationMs: Date.now() - start,
-          failureReason: "Expected 404 after deletion but version still exists",
-          assertionResults: [],
-        };
+        return { status: "fail", httpStatus: 200, durationMs: Date.now() - start, failureReason: "Expected 404 after deletion but version still exists", requestUrl, assertionResults: [] };
       } catch (err: unknown) {
         const e = err as { status?: number; message?: string };
         if (e.status === 404) {
-          return {
-            status: "pass",
-            httpStatus: 404,
-            durationMs: Date.now() - start,
-            assertionResults: [],
-          };
+          return { status: "pass", httpStatus: 404, durationMs: Date.now() - start, requestUrl, assertionResults: [] };
         }
-        return {
-          status: "fail",
-          httpStatus: e.status,
-          durationMs: Date.now() - start,
-          failureReason: `Expected 404 but got: ${e.message}`,
-          assertionResults: [],
-        };
+        return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: `Expected 404 but got: ${e.message}`, requestUrl, assertionResults: [] };
       }
     },
   },

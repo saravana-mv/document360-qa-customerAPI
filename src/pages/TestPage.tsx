@@ -4,7 +4,9 @@ import { TestExplorer } from "../components/explorer/TestExplorer";
 import { ResultsPanel } from "../components/results/ResultsPanel";
 import { SummaryDrawer } from "../components/results/SummaryDrawer";
 import { DiffModal } from "../components/results/DiffModal";
+import { DetailPane } from "../components/results/DetailPane";
 import { useAuthGuard } from "../hooks/useAuthGuard";
+import { useRunnerStore } from "../store/runner.store";
 
 const MIN_WIDTH = 180;
 const MAX_WIDTH = 520;
@@ -12,8 +14,9 @@ const MAX_WIDTH = 520;
 export function TestPage() {
   useAuthGuard();
   const [diffOpen, setDiffOpen] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(288); // default w-72
+  const [sidebarWidth, setSidebarWidth] = useState(288);
   const isDragging = useRef(false);
+  const { selectedTestId, selectTest } = useRunnerStore();
 
   function handleRunSelected() {
     window.dispatchEvent(new CustomEvent("run-selected"));
@@ -66,7 +69,14 @@ export function TestPage() {
 
         {/* Main */}
         <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
-          <ResultsPanel />
+          <div className="flex flex-1 overflow-hidden min-h-0">
+            <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+              <ResultsPanel />
+            </div>
+            {selectedTestId && (
+              <DetailPane testId={selectedTestId} onClose={() => selectTest(null)} />
+            )}
+          </div>
           <SummaryDrawer />
         </div>
       </div>

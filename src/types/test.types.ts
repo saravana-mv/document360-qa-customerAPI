@@ -44,6 +44,8 @@ export interface TestExecutionResult {
   httpStatus?: number;
   durationMs: number;
   responseBody?: unknown;
+  requestUrl?: string;
+  requestBody?: unknown;
   failureReason?: string;
   assertionResults: AssertionResult[];
 }
@@ -59,6 +61,9 @@ export interface TestResult {
   httpStatus?: number;
   failureReason?: string;
   assertionResults: AssertionResult[];
+  responseBody?: unknown;
+  requestUrl?: string;
+  requestBody?: unknown;
   startedAt?: number;
   completedAt?: number;
 }
