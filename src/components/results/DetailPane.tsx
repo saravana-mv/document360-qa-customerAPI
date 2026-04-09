@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import JsonView from "@uiw/react-json-view";
 import { useRunnerStore } from "../../store/runner.store";
 import { getTest } from "../../lib/tests/registry";
 import type { TestStatus } from "../../types/test.types";
@@ -28,9 +29,9 @@ function JsonBlock({ value }: { value: unknown }) {
   if (value === undefined || value === null)
     return <span className="text-gray-400 italic text-xs">—</span>;
   return (
-    <pre className="text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-3 overflow-auto max-h-56 whitespace-pre-wrap break-all">
-      {JSON.stringify(value, null, 2)}
-    </pre>
+    <div className="text-xs border border-gray-200 rounded-lg overflow-auto max-h-56 p-2 bg-gray-50">
+      <JsonView value={value as object} style={{ background: "transparent", fontSize: "11px" }} />
+    </div>
   );
 }
 
