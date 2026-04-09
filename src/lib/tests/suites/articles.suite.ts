@@ -20,6 +20,7 @@ function projectBase(ctx: TestContext) {
   return `${ctx.baseUrl}/v3/projects/${ctx.projectId}`;
 }
 
+const GROUP = "Articles";
 const FLOW_CRUD = "Full Article CRUD Lifecycle";
 const FLOW_SETTINGS = "Article Settings Flow";
 const FLOW_WORKFLOW = "Publish / Unpublish Flow";
@@ -31,6 +32,7 @@ const tests: TestDef[] = [
     id: "articles.get-single",
     name: "Get single article",
     tag: FLOW_CRUD,
+    group: GROUP,
     path: "/v3/projects/{id}/articles/{articleId}",
     method: "GET",
     assertions: [assertStatus(200), assertBodyHasField("title")],
@@ -51,8 +53,9 @@ const tests: TestDef[] = [
 
   {
     id: "articles.patch-title",
-    name: "Patch article title",
+    name: "Update article title",
     tag: FLOW_CRUD,
+    group: GROUP,
     path: "/v3/projects/{id}/articles/{articleId}",
     method: "PATCH",
     assertions: [assertStatus(200)],
@@ -79,6 +82,7 @@ const tests: TestDef[] = [
     id: "articles.verify-patch",
     name: "Verify patched title",
     tag: FLOW_CRUD,
+    group: GROUP,
     path: "/v3/projects/{id}/articles/{articleId}",
     method: "GET",
     assertions: [assertStatus(200)],
@@ -108,6 +112,7 @@ const tests: TestDef[] = [
     id: "articles.patch-restore",
     name: "Restore original title",
     tag: FLOW_CRUD,
+    group: GROUP,
     path: "/v3/projects/{id}/articles/{articleId}",
     method: "PATCH",
     assertions: [assertStatus(200)],
@@ -130,6 +135,7 @@ const tests: TestDef[] = [
     id: "articles.get-settings",
     name: "Get article settings",
     tag: FLOW_SETTINGS,
+    group: GROUP,
     path: "/v3/projects/{id}/articles/{articleId}/settings",
     method: "GET",
     assertions: [assertStatus(200)],
@@ -149,8 +155,9 @@ const tests: TestDef[] = [
 
   {
     id: "articles.patch-settings",
-    name: "Patch article settings",
+    name: "Update article settings",
     tag: FLOW_SETTINGS,
+    group: GROUP,
     path: "/v3/projects/{id}/articles/{articleId}/settings",
     method: "PATCH",
     assertions: [assertStatus(200)],
@@ -174,6 +181,7 @@ const tests: TestDef[] = [
     id: "articles.restore-settings",
     name: "Restore article settings",
     tag: FLOW_SETTINGS,
+    group: GROUP,
     path: "/v3/projects/{id}/articles/{articleId}/settings",
     method: "PATCH",
     assertions: [assertStatus(200)],
@@ -195,6 +203,7 @@ const tests: TestDef[] = [
     id: "articles.get-versions",
     name: "Get article versions",
     tag: FLOW_VERSIONS,
+    group: GROUP,
     path: "/v3/projects/{id}/articles/{articleId}/versions",
     method: "GET",
     assertions: [assertStatus(200)],
@@ -222,6 +231,7 @@ const tests: TestDef[] = [
     id: "articles.get-version",
     name: "Get specific article version",
     tag: FLOW_VERSIONS,
+    group: GROUP,
     path: "/v3/projects/{id}/articles/{articleId}/versions/{versionNumber}",
     method: "GET",
     assertions: [assertStatus(200)],
@@ -241,8 +251,9 @@ const tests: TestDef[] = [
 
   {
     id: "articles.patch-workflow",
-    name: "Patch article workflow status",
+    name: "Update workflow status",
     tag: FLOW_WORKFLOW,
+    group: GROUP,
     path: "/v3/projects/{id}/articles/{articleId}/workflow-status",
     method: "PATCH",
     assertions: [assertStatus(200)],
@@ -273,8 +284,9 @@ const tests: TestDef[] = [
 
   {
     id: "articles.bulk-patch",
-    name: "Bulk patch articles",
+    name: "Bulk update articles",
     tag: FLOW_BULK,
+    group: GROUP,
     path: "/v3/projects/{id}/articles/bulk",
     method: "PATCH",
     assertions: [assertStatus(200)],
@@ -295,8 +307,9 @@ const tests: TestDef[] = [
 
   {
     id: "articles.bulk-patch-verify",
-    name: "Verify bulk patch",
+    name: "Verify bulk update",
     tag: FLOW_BULK,
+    group: GROUP,
     path: "/v3/projects/{id}/articles/{articleId}",
     method: "GET",
     assertions: [assertStatus(200)],
@@ -317,6 +330,7 @@ const tests: TestDef[] = [
     id: "articles.bulk-restore",
     name: "Bulk restore articles",
     tag: FLOW_BULK,
+    group: GROUP,
     path: "/v3/projects/{id}/articles/bulk",
     method: "PATCH",
     assertions: [assertStatus(200)],
@@ -339,6 +353,7 @@ const tests: TestDef[] = [
     id: "articles.delete-version",
     name: "Delete draft article version (optional)",
     tag: FLOW_VERSIONS,
+    group: GROUP,
     path: "/v3/projects/{id}/articles/{articleId}/versions/{versionNumber}",
     method: "DELETE",
     assertions: [],
@@ -366,6 +381,7 @@ const tests: TestDef[] = [
     id: "articles.delete-version-verify",
     name: "Verify deleted version returns 404",
     tag: FLOW_VERSIONS,
+    group: GROUP,
     path: "/v3/projects/{id}/articles/{articleId}/versions/{versionNumber}",
     method: "GET",
     assertions: [],

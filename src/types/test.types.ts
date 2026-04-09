@@ -30,7 +30,8 @@ export interface AssertionResult {
 export interface TestDef {
   id: string;
   name: string;
-  tag: string;
+  tag: string;         // Flow name (e.g. "Full Article CRUD Lifecycle")
+  group?: string;      // Domain container (e.g. "Articles", "Categories")
   path: string;
   method: HttpMethod;
   setup?: (ctx: TestContext, state: RunState) => Promise<void>;

@@ -15,16 +15,26 @@ const methodColor: Record<string, string> = {
 };
 
 export function OperationNode({ test }: OperationNodeProps) {
-  const { testResults, selectedTests, toggleTestSelection } = useRunnerStore();
+  const { testResults, selectedTests, selectedTestId, toggleTestSelection, selectTest } = useRunnerStore();
   const result = testResults[test.id];
   const status = result?.status ?? "idle";
   const isSelected = selectedTests.has(test.id);
+  const isPaneOpen = selectedTestId === test.id;
+
+  function handleClick() {
+    toggleTestSelection(test.id);
+    selectTest(isPaneOpen ? null : test.id);
+  }
 
   return (
     <div
-      onClick={() => toggleTestSelection(test.id)}
+      onClick={handleClick}
       className={`flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-colors text-xs ml-2 ${
-        isSelected ? "bg-blue-50 border border-blue-200" : "hover:bg-gray-100"
+        isPaneOpen
+          ? "bg-blue-100 border border-blue-300"
+          : isSelected
+          ? "bg-blue-50 border border-blue-200"
+          : "hover:bg-gray-100"
       }`}
     >
       <StatusIcon status={status} />
