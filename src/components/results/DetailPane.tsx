@@ -106,7 +106,7 @@ function CopyableText({ value, mono = true, className = "" }: { value: string; m
 
 function DesignTab({ testId }: { testId: string }) {
   const def = getTest(testId);
-  const { selectedProjectId, selectedVersionId, articleId } = useSetupStore();
+  const { selectedProjectId, selectedVersionId } = useSetupStore();
   if (!def) return null;
 
   const pathTokens = def.path.match(/\{[^}]+\}/g) ?? [];
@@ -116,8 +116,6 @@ function DesignTab({ testId }: { testId: string }) {
     "{id}":         selectedProjectId || "(not configured)",
     "{projectId}":  selectedProjectId || "(not configured)",
     "{project_id}": selectedProjectId || "(not configured)",
-    "{articleId}":  articleId         || "(not configured)",
-    "{article_id}": articleId         || "(not configured)",
     "{versionId}":  selectedVersionId || "(not configured)",
     "{version_id}": selectedVersionId || "(not configured)",
   };
