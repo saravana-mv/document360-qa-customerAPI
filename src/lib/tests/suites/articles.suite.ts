@@ -37,7 +37,7 @@ const tests: TestDef[] = [
     name: "Create category",
     tag: FLOW_LIFECYCLE,
     group: GROUP,
-    path: "/v2/projects/{project_id}/categories",
+    path: "/{apiVersion}/projects/{project_id}/categories",
     method: "POST",
     sampleRequestBody: {
       name: "[TEST] Version Lifecycle - <timestamp>",
@@ -46,7 +46,7 @@ const tests: TestDef[] = [
     assertions: [assertStatus(201), assertBodyHasField("id")],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
-      const requestUrl = `${ctx.baseUrl}/v2/projects/${ctx.projectId}/categories`;
+      const requestUrl = `${ctx.baseUrl}/${ctx.apiVersion}/projects/${ctx.projectId}/categories`;
       try {
         const requestBody = {
           name: `[TEST] Version Lifecycle - ${Date.now()}`,
@@ -302,7 +302,7 @@ const tests: TestDef[] = [
     name: "Delete test category (cleanup)",
     tag: FLOW_LIFECYCLE,
     group: GROUP,
-    path: "/v2/projects/{project_id}/categories/{category_id}",
+    path: "/{apiVersion}/projects/{project_id}/categories/{category_id}",
     method: "DELETE",
     pathParamsMeta: {
       category_id: { value: "{{state.createdCategoryId}}", tooltip: "Created in Step 1 · response.data.id" },
@@ -314,7 +314,7 @@ const tests: TestDef[] = [
       if (!categoryId) {
         return { status: "skip", durationMs: Date.now() - start, failureReason: "state.createdCategoryId not set — Step 1 did not succeed", assertionResults: [] };
       }
-      const requestUrl = `${ctx.baseUrl}/v2/projects/${ctx.projectId}/categories/${categoryId}?project_version_id=${ctx.versionId}`;
+      const requestUrl = `${ctx.baseUrl}/${ctx.apiVersion}/projects/${ctx.projectId}/categories/${categoryId}?project_version_id=${ctx.versionId}`;
       try {
         await deleteCategory(ctx.projectId, categoryId, ctx.versionId, ctx.token);
         state.categoryDeleted = true;

@@ -1,8 +1,8 @@
-import { apiClient } from "./client";
+import { apiClient, getApiVersion } from "./client";
 import type { ProjectVersion } from "../../types/api.types";
 
 export async function fetchProjectVersions(projectId: string, token: string): Promise<ProjectVersion[]> {
-  const json = await apiClient.get<unknown>(`/v3/projects/${projectId}/project-versions`, token);
+  const json = await apiClient.get<unknown>(`/${getApiVersion()}/projects/${projectId}/project-versions`, token);
 
   // API may wrap the array in data / result / versions, or return it directly
   const envelope = json as Record<string, unknown>;

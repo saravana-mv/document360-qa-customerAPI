@@ -1,8 +1,10 @@
 import type { ApiError } from "../../types/api.types";
 
 const DEFAULT_BASE_URL = "https://apihub.berlin.document360.net";
+const DEFAULT_API_VERSION = "v3";
 
 let _baseUrl = DEFAULT_BASE_URL;
+let _apiVersion = DEFAULT_API_VERSION;
 
 /** Called by setup store on init and when the user changes the base URL. */
 export function setApiBaseUrl(url: string) {
@@ -11,6 +13,15 @@ export function setApiBaseUrl(url: string) {
 
 export function getApiBaseUrl() {
   return _baseUrl;
+}
+
+/** Called by setup store on init and when the user changes the API version. */
+export function setApiVersion(version: string) {
+  _apiVersion = version;
+}
+
+export function getApiVersion() {
+  return _apiVersion;
 }
 
 interface RequestOptions {

@@ -1,4 +1,4 @@
-import { apiClient } from "./client";
+import { apiClient, getApiVersion } from "./client";
 import type { Project } from "../../types/api.types";
 
 function decodeJwtPayload(token: string): Record<string, unknown> {
@@ -17,7 +17,7 @@ export function getProjectIdFromToken(accessToken: string): string {
 }
 
 export async function fetchProject(projectId: string, token: string): Promise<Project> {
-  const response = await apiClient.get<{ data: Project }>(`/v3/projects/${projectId}`, token);
+  const response = await apiClient.get<{ data: Project }>(`/${getApiVersion()}/projects/${projectId}`, token);
   const project = response.data;
   return {
     id: projectId,

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { Project, ProjectVersion } from "../types/api.types";
-import { setApiBaseUrl } from "../lib/api/client";
+import { setApiBaseUrl, setApiVersion } from "../lib/api/client";
 
 const DEFAULT_BASE_URL = "https://apihub.berlin.document360.net";
 const DEFAULT_API_VERSION = "v3";
@@ -41,9 +41,11 @@ function loadSaved(): Partial<SetupState> {
 
 const saved = loadSaved();
 
-// Apply saved base URL immediately so the client is configured before any API calls.
+// Apply saved config immediately so the client is configured before any API calls.
 const initialBaseUrl = (saved.baseUrl as string) || DEFAULT_BASE_URL;
+const initialApiVersion = (saved.apiVersion as string) || DEFAULT_API_VERSION;
 setApiBaseUrl(initialBaseUrl);
+setApiVersion(initialApiVersion);
 
 function persist(state: Partial<SetupState>) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
@@ -89,6 +91,7 @@ export const useSetupStore = create<SetupState>((set, get) => ({
     persist({ ...get(), baseUrl: cleaned });
   },
   setApiVersion: (apiVersion) => {
+    setApiVersion(apiVersion);
     set({ apiVersion });
     persist({ ...get(), apiVersion });
   },
