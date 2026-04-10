@@ -57,8 +57,8 @@ export async function createArticle(projectId: string, body: Record<string, unkn
   return resp.data;
 }
 
-export async function publishArticle(projectId: string, articleId: string, body: Record<string, unknown>, token: string): Promise<void> {
-  await apiClient.post<{ success: boolean }>(`${p(projectId)}/articles/${articleId}/publish`, body, token);
+export async function publishArticle(projectId: string, articleId: string, body: Record<string, unknown>, token: string): Promise<unknown> {
+  return apiClient.post<unknown>(`${p(projectId)}/articles/${articleId}/publish`, body, token);
 }
 
 export async function forkArticle(projectId: string, articleId: string, token: string): Promise<Article> {

@@ -131,8 +131,8 @@ const tests: TestDef[] = [
           version_number: state.createdVersionNumber,
           message: "Publishing article for version lifecycle test",
         };
-        await publishArticle(ctx.projectId, articleId, requestBody, ctx.token);
-        return { status: "pass", httpStatus: 200, durationMs: Date.now() - start, requestUrl, requestBody, assertionResults: [] };
+        const responseBody = await publishArticle(ctx.projectId, articleId, requestBody, ctx.token);
+        return { status: "pass", httpStatus: 200, durationMs: Date.now() - start, responseBody, requestUrl, requestBody, assertionResults: [] };
       } catch (err: unknown) {
         const e = err as { status?: number; message?: string };
         return { status: "fail", httpStatus: e.status, durationMs: Date.now() - start, failureReason: e.message, requestUrl, assertionResults: [] };
