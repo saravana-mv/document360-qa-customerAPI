@@ -1,6 +1,17 @@
 import type { ApiError } from "../../types/api.types";
 
-export const BASE_URL = "https://apihub.berlin.document360.net";
+const DEFAULT_BASE_URL = "https://apihub.berlin.document360.net";
+
+let _baseUrl = DEFAULT_BASE_URL;
+
+/** Called by setup store on init and when the user changes the base URL. */
+export function setApiBaseUrl(url: string) {
+  _baseUrl = url.replace(/\/$/, ""); // strip trailing slash
+}
+
+export function getApiBaseUrl() {
+  return _baseUrl;
+}
 
 interface RequestOptions {
   method?: string;
@@ -20,7 +31,7 @@ async function request<T>(path: string, options: RequestOptions): Promise<T> {
   let attempts = 0;
   while (true) {
     attempts++;
-    const response = await fetch(`${BASE_URL}${path}`, {
+    const response = await fetch(`${_baseUrl}${path}`, {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,

@@ -1,18 +1,20 @@
 import type { TestContext } from "../../types/test.types";
 import type { TokenSet } from "../../types/auth.types";
-import { BASE_URL } from "../api/client";
+import { getApiBaseUrl } from "../api/client";
 
 export function buildTestContext(
   token: TokenSet,
   projectId: string,
   versionId: string,
-  langCode: string
+  langCode: string,
+  apiVersion: string,
 ): TestContext {
   return {
     projectId,
     versionId,
     langCode,
     token: token.access_token,
-    baseUrl: BASE_URL,
+    baseUrl: getApiBaseUrl(),
+    apiVersion,
   };
 }

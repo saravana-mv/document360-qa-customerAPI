@@ -8,6 +8,7 @@ export interface TestContext {
   langCode: string;
   token: string;
   baseUrl: string;
+  apiVersion: string; // e.g. "v3"
 }
 
 export interface RunState {

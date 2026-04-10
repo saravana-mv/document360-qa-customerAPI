@@ -8,6 +8,8 @@ import { fetchProjectVersions } from "../../lib/api/project-versions";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import { Spinner } from "../common/Spinner";
 
+const API_VERSIONS = ["v3", "v2"];
+
 export function SetupPanel() {
   const navigate = useNavigate();
   const { token } = useAuthStore();
@@ -27,9 +29,7 @@ export function SetupPanel() {
     let projectId = "";
     try {
       projectId = getProjectIdFromToken(token!.access_token);
-
       if (!projectId) throw new Error("doc360_project_id not found in token — try signing out and back in.");
-
       const project = await fetchProject(projectId, token!.access_token);
       setup.setProjects([project]);
       setup.selectProject(projectId);
@@ -41,21 +41,16 @@ export function SetupPanel() {
       setup.setLoadingProjects(false);
     }
 
-    // Load versions directly — don't rely on useEffect chain
     setup.setLoadingVersions(true);
     try {
       const versions = await fetchProjectVersions(projectId, token!.access_token);
-
       if (versions.length === 0) {
-        setup.setError("No versions returned from API. Check browser console for details.");
+        setup.setError("No versions returned from API.");
         return;
       }
-
       setup.setVersions(versions);
       const def = versions.find((v) => v.isDefault) ?? versions[0];
-      if (def) {
-        setup.selectVersion(def.id);
-      }
+      if (def) setup.selectVersion(def.id);
     } catch (err) {
       setup.setError(`Failed to load versions: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
@@ -89,7 +84,43 @@ export function SetupPanel() {
         <p className="text-sm text-gray-500 mb-6">Configure your test session</p>
 
         <div className="space-y-5">
-          {/* Project — auto-detected from token */}
+
+          {/* ── Environment ───────────────────────────────────── */}
+          <div className="pb-4 border-b border-gray-100">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Environment</p>
+            <div className="space-y-3">
+              {/* Base URL */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Base URL</label>
+                <input
+                  type="url"
+                  value={setup.baseUrl}
+                  onChange={(e) => setup.setBaseUrl(e.target.value)}
+                  placeholder="https://apihub.berlin.document360.net"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                />
+              </div>
+
+              {/* API Version */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">API Version</label>
+                <select
+                  value={setup.apiVersion}
+                  onChange={(e) => setup.setApiVersion(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {API_VERSIONS.map((v) => (
+                    <option key={v} value={v}>{v}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Used for article endpoints. Category endpoints always use v2.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Project ───────────────────────────────────────── */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Project {setup.loadingProjects && <Spinner size="sm" className="inline text-gray-400 ml-1" />}
@@ -133,6 +164,7 @@ export function SetupPanel() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+
         </div>
 
         {setup.error && (

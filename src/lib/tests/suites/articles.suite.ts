@@ -15,6 +15,11 @@ import { createCategory, deleteCategory } from "../../api/categories";
 const GROUP = "Articles";
 const FLOW_LIFECYCLE = "Article Version Lifecycle";
 
+/** Base URL for article endpoints using the configured API version (e.g. v3). */
+function articlesBase(ctx: TestContext) {
+  return `${ctx.baseUrl}/${ctx.apiVersion}/projects/${ctx.projectId}`;
+}
+
 const tests: TestDef[] = [
   // ── Article Version Lifecycle ─────────────────────────────────────────────
   // Source: article-version-lifecycle.flow.xml
@@ -78,7 +83,7 @@ const tests: TestDef[] = [
     assertions: [assertStatus(201), assertBodyHasField("id")],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
-      const requestUrl = `${ctx.baseUrl}/v3/projects/${ctx.projectId}/articles`;
+      const requestUrl = `${articlesBase(ctx)}/articles`;
       try {
         const requestBody = {
           title: `[TEST] Version Lifecycle - ${Date.now()}`,
@@ -119,7 +124,7 @@ const tests: TestDef[] = [
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
       const articleId = state.createdArticleId as string;
-      const requestUrl = `${ctx.baseUrl}/v3/projects/${ctx.projectId}/articles/${articleId}/publish`;
+      const requestUrl = `${articlesBase(ctx)}/articles/${articleId}/publish`;
       try {
         const requestBody = {
           project_version_id: state.projectVersionId,
@@ -150,7 +155,7 @@ const tests: TestDef[] = [
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
       const articleId = state.createdArticleId as string;
-      const requestUrl = `${ctx.baseUrl}/v3/projects/${ctx.projectId}/articles/${articleId}/fork`;
+      const requestUrl = `${articlesBase(ctx)}/articles/${articleId}/fork`;
       try {
         const article = await forkArticle(ctx.projectId, articleId, ctx.token);
         state.draftVersionNumber = article.version_number;
@@ -178,7 +183,7 @@ const tests: TestDef[] = [
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
       const articleId = state.createdArticleId as string;
-      const requestUrl = `${ctx.baseUrl}/v3/projects/${ctx.projectId}/articles/${articleId}?lang_code=${ctx.langCode}`;
+      const requestUrl = `${articlesBase(ctx)}/articles/${articleId}?lang_code=${ctx.langCode}`;
       try {
         const article = await getArticle(ctx.projectId, articleId, ctx.token);
         const versionMatches = article.version_number === (state.draftVersionNumber as number);
@@ -218,7 +223,7 @@ const tests: TestDef[] = [
       const start = Date.now();
       const articleId = state.createdArticleId as string;
       const versionNumber = state.draftVersionNumber as number;
-      const requestUrl = `${ctx.baseUrl}/v3/projects/${ctx.projectId}/articles/${articleId}/versions/${versionNumber}`;
+      const requestUrl = `${articlesBase(ctx)}/articles/${articleId}/versions/${versionNumber}`;
       try {
         await deleteArticleVersion(ctx.projectId, articleId, versionNumber, ctx.token);
         state.deletedVersionNumber = versionNumber;
@@ -247,7 +252,7 @@ const tests: TestDef[] = [
       const start = Date.now();
       const articleId = state.createdArticleId as string;
       const versionNumber = state.deletedVersionNumber as number;
-      const requestUrl = `${ctx.baseUrl}/v3/projects/${ctx.projectId}/articles/${articleId}/versions/${versionNumber}`;
+      const requestUrl = `${articlesBase(ctx)}/articles/${articleId}/versions/${versionNumber}`;
       try {
         await getArticleVersion(ctx.projectId, articleId, versionNumber, ctx.token);
         return { status: "fail", httpStatus: 200, durationMs: Date.now() - start, failureReason: "Expected 404 but version still exists", requestUrl, assertionResults: [] };
@@ -279,7 +284,7 @@ const tests: TestDef[] = [
       if (!articleId) {
         return { status: "skip", durationMs: Date.now() - start, failureReason: "state.createdArticleId not set — Step 2 did not succeed", assertionResults: [] };
       }
-      const requestUrl = `${ctx.baseUrl}/v3/projects/${ctx.projectId}/articles/${articleId}`;
+      const requestUrl = `${articlesBase(ctx)}/articles/${articleId}`;
       try {
         await deleteArticle(ctx.projectId, articleId, ctx.token);
         state.articleDeleted = true;
