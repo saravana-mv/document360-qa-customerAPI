@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRunnerStore } from "../../store/runner.store";
 import { getAllTests } from "../../lib/tests/registry";
 import { TagNode } from "./TagNode";
+import { useExplorerContext } from "./ExplorerContext";
 import type { ParsedTag } from "../../types/spec.types";
 
 interface GroupNodeProps {
@@ -10,9 +11,14 @@ interface GroupNodeProps {
 }
 
 export function GroupNode({ name, flows }: GroupNodeProps) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const allTests = getAllTests();
   const { selectedTags } = useRunnerStore();
+  const { expandSignal, expandAll } = useExplorerContext();
+
+  useEffect(() => {
+    if (expandSignal > 0) setOpen(expandAll);
+  }, [expandSignal]);
 
   const groupTests = allTests.filter((t) => flows.some((f) => f.name === t.tag));
   const selectedCount = flows.filter((f) => selectedTags.has(f.name)).length;

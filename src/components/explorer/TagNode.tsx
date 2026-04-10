@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRunnerStore } from "../../store/runner.store";
 import { StatusIcon } from "./StatusIcon";
 import { OperationNode } from "./OperationNode";
+import { useExplorerContext } from "./ExplorerContext";
 import type { ParsedTag } from "../../types/spec.types";
 import type { TestDef } from "../../types/test.types";
 
@@ -11,11 +12,16 @@ interface TagNodeProps {
 }
 
 export function TagNode({ tag, tests }: TagNodeProps) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const { tagResults, selectedTags, toggleFlowSelection } = useRunnerStore();
+  const { expandSignal, expandAll } = useExplorerContext();
   const tagResult = tagResults[tag.name];
   const status = tagResult?.status ?? "idle";
   const isSelected = selectedTags.has(tag.name);
+
+  useEffect(() => {
+    if (expandSignal > 0) setOpen(expandAll);
+  }, [expandSignal]);
 
   return (
     <div className="mb-1">

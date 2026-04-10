@@ -7,16 +7,47 @@
   <name>Article Version Lifecycle</name>
   <group>Articles</group>
   <description>
-    Creates a fresh article, publishes it, forks it to produce a new draft,
-    retrieves the article to confirm the draft version exists, deletes the
-    draft version, verifies the deleted version returns 404, then deletes
-    the entire article as teardown — leaving the project in a clean state.
+    Creates a category (required dependency for article creation), then creates a
+    fresh article in that category, publishes it, forks it to produce a new draft,
+    retrieves the article to confirm the draft version exists, deletes the draft
+    version, verifies the deleted version returns 404, then deletes the article
+    and the category as teardown — leaving the project in a clean state.
   </description>
   <stopOnFailure>true</stopOnFailure>
 
   <steps>
 
     <step number="1">
+      <name>Create Category</name>
+      <endpointRef>categories/create-a-category.md</endpointRef>
+      <method>POST</method>
+      <path>/v2/projects/{project_id}/categories</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+      </pathParams>
+      <body><![CDATA[
+{
+  "name": "[TEST] Version Lifecycle - {{timestamp}}",
+  "project_version_id": "{{ctx.versionId}}"
+}
+      ]]></body>
+      <captures>
+        <capture variable="state.createdCategoryId" source="response.data.id"/>
+        <capture variable="state.createdCategoryName" source="response.data.name"/>
+      </captures>
+      <assertions>
+        <assertion type="status"      code="201"/>
+        <assertion type="field-exists" field="data.id"/>
+      </assertions>
+      <notes>
+        Article creation requires a category_id — this step satisfies that dependency.
+        The category is created at the root level (no parent_category_id).
+        state.createdCategoryId is used in Step 2 as category_id for the article.
+        Teardown: Step 9 deletes this category.
+      </notes>
+    </step>
+
+    <step number="2">
       <name>Create Article</name>
       <endpointRef>articles/create-a-new-article.md</endpointRef>
       <method>POST</method>
@@ -28,6 +59,7 @@
 {
   "title": "[TEST] Version Lifecycle - {{timestamp}}",
   "content": "Test article created by the Article Version Lifecycle flow.",
+  "category_id": "{{state.createdCategoryId}}",
   "project_version_id": "{{ctx.versionId}}"
 }
       ]]></body>
@@ -38,17 +70,17 @@
         <capture variable="state.createdTitle"        source="response.data.title"/>
       </captures>
       <assertions>
-        <assertion type="status"      code="201"/>
+        <assertion type="status"       code="201"/>
         <assertion type="field-exists" field="data.id"/>
       </assertions>
       <notes>
-        The article is created in draft status. project_version_id (ctx.versionId) determines
-        which documentation version the article belongs to. The returned id becomes
-        state.createdArticleId and is used as the article_id path param in all subsequent steps.
+        category_id (state.createdCategoryId from Step 1) is required by the API
+        even though the spec marks it as nullable. The article is created in draft
+        status. state.createdArticleId is used as article_id in Steps 3–8.
       </notes>
     </step>
 
-    <step number="2">
+    <step number="3">
       <name>Publish Article</name>
       <endpointRef>articles/publish-an-article.md</endpointRef>
       <method>POST</method>
@@ -69,14 +101,13 @@
         <assertion type="field-equals" field="success" value="true"/>
       </assertions>
       <notes>
-        version_number must reference a draft version. After this call the article version
-        transitions from draft to published and becomes visible to readers.
-        state.createdVersionNumber (captured in Step 1) is used here without quotes in the
-        JSON body because it is an integer, not a string.
+        version_number must reference a draft version. After this call the article
+        version transitions from draft to published. state.createdVersionNumber
+        (captured in Step 2) is used here without quotes — it is an integer.
       </notes>
     </step>
 
-    <step number="3">
+    <step number="4">
       <name>Fork Published Version (create draft)</name>
       <endpointRef>articles/fork-an-article-version-creates-new-draft-from-published-version.md</endpointRef>
       <method>POST</method>
@@ -94,14 +125,14 @@
         <assertion type="field-exists" field="data.version_number"/>
       </assertions>
       <notes>
-        The fork endpoint has no request body. It creates a new draft version based on the
-        currently published content. Returns 409 Conflict if a draft already exists.
-        state.draftVersionNumber is the new draft's version_number — used in Steps 5 and 6.
-        state.publishedVersionNumber is the still-active published version number (public_version).
+        The fork endpoint has no request body. It creates a new draft version based
+        on the currently published content. Returns 409 Conflict if a draft already
+        exists. state.draftVersionNumber is the new draft's version_number — used
+        in Steps 6 and 7.
       </notes>
     </step>
 
-    <step number="4">
+    <step number="5">
       <name>Retrieve Article — Verify Draft Exists</name>
       <endpointRef>articles/get-an-article-by-id.md</endpointRef>
       <method>GET</method>
@@ -119,12 +150,12 @@
       </assertions>
       <notes>
         GET /articles/{id} returns the latest version (the draft created by the fork).
-        Asserting data.version_number equals state.draftVersionNumber confirms the fork
-        was applied and the article now surfaces the new draft as its current version.
+        Asserting data.version_number equals state.draftVersionNumber confirms the
+        fork was applied and the article now surfaces the new draft as its current version.
       </notes>
     </step>
 
-    <step number="5">
+    <step number="6">
       <name>Delete Draft Version</name>
       <endpointRef>articles/delete-a-specific-article-version.md</endpointRef>
       <method>DELETE</method>
@@ -143,13 +174,13 @@
         <assertion type="status" code="204"/>
       </assertions>
       <notes>
-        Deletes the draft version created by the fork in Step 3. After deletion the article
-        reverts to showing only the published version (state.publishedVersionNumber).
-        state.deletedVersionNumber is captured from the request path param for use in Step 6.
+        Deletes the draft version created by the fork in Step 4. After deletion the
+        article reverts to showing only the published version (state.publishedVersionNumber).
+        state.deletedVersionNumber is captured from the request path param for use in Step 7.
       </notes>
     </step>
 
-    <step number="6">
+    <step number="7">
       <name>Verify Deleted Version Returns 404</name>
       <endpointRef>articles/get-a-specific-version-of-an-article.md</endpointRef>
       <method>GET</method>
@@ -163,12 +194,12 @@
         <assertion type="status" code="404"/>
       </assertions>
       <notes>
-        Confirms the deleted draft version is truly gone. A 200 response here would be a
-        test failure — the version should no longer exist after Step 5.
+        Confirms the deleted draft version is truly gone. A 200 response here would
+        be a test failure — the version should no longer exist after Step 6.
       </notes>
     </step>
 
-    <step number="7">
+    <step number="8">
       <name>Delete Article (cleanup)</name>
       <endpointRef>articles/delete-an-article.md</endpointRef>
       <method>DELETE</method>
@@ -182,10 +213,36 @@
       </assertions>
       <flags teardown="true"/>
       <notes>
-        teardown: true — this step always runs even if Steps 2–6 failed, to ensure
-        the article created in Step 1 is not left orphaned in the project.
-        If Step 1 itself failed and state.createdArticleId is not set, the test
-        implementation should skip this step gracefully.
+        teardown: true — this step always runs even if Steps 3–7 failed.
+        The article must be deleted before the category (Step 9) because
+        the API will reject category deletion while articles still exist in it.
+        If Step 2 failed and state.createdArticleId is not set, this step
+        should be skipped gracefully by the test implementation.
+      </notes>
+    </step>
+
+    <step number="9">
+      <name>Delete Category (cleanup)</name>
+      <endpointRef>categories/delete-a-category.md</endpointRef>
+      <method>DELETE</method>
+      <path>/v2/projects/{project_id}/categories/{category_id}</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="category_id">{{state.createdCategoryId}}</param>
+      </pathParams>
+      <queryParams>
+        <param name="project_version_id">ctx.versionId</param>
+      </queryParams>
+      <assertions>
+        <assertion type="status" code="200"/>
+      </assertions>
+      <flags teardown="true"/>
+      <notes>
+        teardown: true — runs after article deletion (Step 8) to clean up the
+        category created in Step 1. Must run after Step 8 since the API requires
+        the category to be empty before deletion.
+        If Step 1 failed and state.createdCategoryId is not set, this step
+        should be skipped gracefully by the test implementation.
       </notes>
     </step>
 
