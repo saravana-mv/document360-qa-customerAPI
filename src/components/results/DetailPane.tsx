@@ -340,6 +340,19 @@ function RunTab({ testId }: { testId: string }) {
         </div>
       )}
 
+      {/* State Snapshot — shown for skip/fail when extra context was captured */}
+      {result?.stateSnapshot !== undefined && (
+        <div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">State Snapshot</p>
+            <span className="text-[10px] text-amber-500 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded">
+              debug context
+            </span>
+          </div>
+          <JsonBlock value={result.stateSnapshot} />
+        </div>
+      )}
+
       {/* Assertion results */}
       {result?.assertionResults && result.assertionResults.length > 0 && (
         <div>

@@ -301,7 +301,18 @@ const tests: TestDef[] = [
       const versions = state.versions as Array<Record<string, unknown>> | undefined;
       const draftVersion = versions?.find((v) => v.is_draft === true);
       if (!draftVersion) {
-        return { status: "skip", durationMs: Date.now() - start, failureReason: "No draft version found — skipping deletion", assertionResults: [] };
+        return {
+          status: "skip",
+          durationMs: Date.now() - start,
+          failureReason: `No version with is_draft=true found among ${(versions ?? []).length} version(s) — deletion skipped`,
+          requestUrl: `${articleBase(ctx)}/versions/{draft_version_number}`,
+          stateSnapshot: {
+            versions_scanned: (versions ?? []).length,
+            versions,
+            draft_version_found: null,
+          },
+          assertionResults: [],
+        };
       }
       const versionNumber = draftVersion.version_number as number;
       state.deletedVersionNumber = versionNumber;
@@ -331,7 +342,16 @@ const tests: TestDef[] = [
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
       if (!state.deletedVersionNumber) {
-        return { status: "skip", durationMs: Date.now() - start, failureReason: "Step 3 was skipped — no version was deleted", assertionResults: [] };
+        return {
+          status: "skip",
+          durationMs: Date.now() - start,
+          failureReason: "Step 3 was skipped (no draft found) — 404 verification not applicable",
+          stateSnapshot: {
+            deletedVersionNumber: null,
+            note: "state.deletedVersionNumber was not set because Step 3 found no draft version to delete",
+          },
+          assertionResults: [],
+        };
       }
       const versionNumber = state.deletedVersionNumber as number;
       const requestUrl = `${articleBase(ctx)}/versions/${versionNumber}`;

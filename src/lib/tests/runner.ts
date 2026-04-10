@@ -77,6 +77,7 @@ async function executeTest(
     responseBody: result.responseBody,
     requestUrl: result.requestUrl,
     requestBody: result.requestBody,
+    stateSnapshot: result.stateSnapshot,
     completedAt,
   });
 

@@ -58,6 +58,8 @@ export interface TestExecutionResult {
   requestBody?: unknown;
   failureReason?: string;
   assertionResults: AssertionResult[];
+  // Additional context for skip/fail debugging — shown in Run tab as "State Snapshot"
+  stateSnapshot?: Record<string, unknown>;
 }
 
 export interface TestResult {
@@ -74,6 +76,7 @@ export interface TestResult {
   responseBody?: unknown;
   requestUrl?: string;
   requestBody?: unknown;
+  stateSnapshot?: Record<string, unknown>;
   startedAt?: number;
   completedAt?: number;
 }
