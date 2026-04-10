@@ -5,13 +5,13 @@ import { useSetupStore } from "../../store/setup.store";
 import { getTest } from "../../lib/tests/registry";
 import type { TestStatus } from "../../types/test.types";
 
-// ── Styles ─────────────────────────────────────────────────────────────────
+// ── Styles ──────────────────────────────────────────────────────────────────
 
 const methodColor: Record<string, string> = {
-  GET: "text-green-700 bg-green-100",
-  POST: "text-blue-700 bg-blue-100",
-  PATCH: "text-yellow-700 bg-yellow-100",
-  PUT: "text-orange-700 bg-orange-100",
+  GET:    "text-green-700 bg-green-100",
+  POST:   "text-blue-700 bg-blue-100",
+  PATCH:  "text-yellow-700 bg-yellow-100",
+  PUT:    "text-orange-700 bg-orange-100",
   DELETE: "text-red-700 bg-red-100",
 };
 
@@ -24,17 +24,7 @@ const statusBadge: Record<TestStatus, { label: string; cls: string; icon: string
   skip:    { label: "Skipped",  cls: "text-gray-500 bg-gray-100",               icon: "—" },
 };
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-function JsonBlock({ value }: { value: unknown }) {
-  if (value === undefined || value === null)
-    return <span className="text-gray-400 italic text-xs">—</span>;
-  return (
-    <div className="text-xs border border-gray-200 rounded-lg overflow-auto max-h-56 p-2 bg-gray-50">
-      <JsonView value={value as object} style={{ background: "transparent", fontSize: "11px" }} />
-    </div>
-  );
-}
+// ── Small shared components ──────────────────────────────────────────────────
 
 function Label({ children }: { children: React.ReactNode }) {
   return (
@@ -44,31 +34,101 @@ function Label({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ── Tab content ─────────────────────────────────────────────────────────────
+/** Inline copy-to-clipboard button. Flips to a checkmark for 1.5 s after copy. */
+function CopyButton({ value, className = "" }: { value: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  function handleCopy() {
+    void navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
+  return (
+    <button
+      onClick={handleCopy}
+      title={copied ? "Copied!" : "Copy"}
+      className={`shrink-0 text-gray-300 hover:text-gray-500 transition-colors ${className}`}
+    >
+      {copied ? (
+        // Checkmark
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-green-500">
+          <path fillRule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd"/>
+        </svg>
+      ) : (
+        // Clipboard
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+          <path fillRule="evenodd" d="M5.5 3.5A1.5 1.5 0 0 1 7 2h2a1.5 1.5 0 0 1 1.5 1.5v.5h1A1.5 1.5 0 0 1 13 5.5v7A1.5 1.5 0 0 1 11.5 14h-7A1.5 1.5 0 0 1 3 12.5v-7A1.5 1.5 0 0 1 4.5 4h1v-.5ZM7 3.5h2v.5H7v-.5Zm-2.5 2v7h7v-7h-7Z" clipRule="evenodd"/>
+        </svg>
+      )}
+    </button>
+  );
+}
+
+/** Hover tooltip — wraps any inline content. */
+function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
+  return (
+    <span className="relative group/tip inline-flex items-center">
+      {children}
+      <span className="absolute bottom-full left-0 mb-1.5 hidden group-hover/tip:block z-20 bg-gray-800 text-white text-[10px] leading-snug rounded px-2 py-1 whitespace-nowrap shadow-lg pointer-events-none max-w-xs">
+        {text}
+      </span>
+    </span>
+  );
+}
+
+/** JSON viewer with a copy button in the top-right corner. */
+function JsonBlock({ value }: { value: unknown }) {
+  if (value === undefined || value === null)
+    return <span className="text-gray-400 italic text-xs">—</span>;
+  const jsonStr = JSON.stringify(value, null, 2);
+  return (
+    <div className="relative group/json text-xs border border-gray-200 rounded-lg overflow-auto max-h-56 p-2 bg-gray-50">
+      <CopyButton
+        value={jsonStr}
+        className="absolute top-1.5 right-1.5 opacity-0 group-hover/json:opacity-100 transition-opacity"
+      />
+      <JsonView value={value as object} style={{ background: "transparent", fontSize: "11px" }} />
+    </div>
+  );
+}
+
+/** Single-line text block with an inline copy button. */
+function CopyableText({ value, mono = true, className = "" }: { value: string; mono?: boolean; className?: string }) {
+  return (
+    <div className={`flex items-center gap-1.5 group/text ${className}`}>
+      <span className={`flex-1 break-all ${mono ? "font-mono" : ""} text-xs text-gray-600`}>{value}</span>
+      <CopyButton value={value} className="opacity-0 group-hover/text:opacity-100 transition-opacity" />
+    </div>
+  );
+}
+
+// ── Design Tab ───────────────────────────────────────────────────────────────
 
 function DesignTab({ testId }: { testId: string }) {
   const def = getTest(testId);
   const { selectedProjectId, selectedVersionId, articleId } = useSetupStore();
   if (!def) return null;
 
-  const pathParams = def.path.match(/\{[^}]+\}/g) ?? [];
+  const pathTokens = def.path.match(/\{[^}]+\}/g) ?? [];
 
-  // Map each path token to its resolved runtime value
-  const paramValues: Record<string, string> = {
-    "{id}":          selectedProjectId || "(not configured)",
-    "{projectId}":   selectedProjectId || "(not configured)",
-    "{project_id}":  selectedProjectId || "(not configured)",
-    "{articleId}":   articleId         || "(not configured)",
-    "{article_id}":  articleId         || "(not configured)",
-    "{versionId}":   selectedVersionId || "(not configured)",
-    "{version_id}":  selectedVersionId || "(not configured)",
+  // Ctx param values resolved from setup store (fallback for params without explicit metadata)
+  const ctxParamValues: Record<string, string> = {
+    "{id}":         selectedProjectId || "(not configured)",
+    "{projectId}":  selectedProjectId || "(not configured)",
+    "{project_id}": selectedProjectId || "(not configured)",
+    "{articleId}":  articleId         || "(not configured)",
+    "{article_id}": articleId         || "(not configured)",
+    "{versionId}":  selectedVersionId || "(not configured)",
+    "{version_id}": selectedVersionId || "(not configured)",
   };
 
-  // Build resolved URL by substituting actual values into path
-  const resolvedPath = pathParams.reduce(
-    (path, token) => path.replace(token, paramValues[token] ?? token),
-    def.path
-  );
+  // Build resolved URL — ctx params get real values, state params keep their template string
+  const resolvedPath = pathTokens.reduce((path, token) => {
+    const paramName = token.slice(1, -1);
+    const meta = def.pathParamsMeta?.[paramName];
+    const replacement = meta ? meta.value : (ctxParamValues[token] ?? token);
+    return path.replace(token, replacement);
+  }, def.path);
 
   return (
     <div className="p-4 space-y-5 text-sm">
@@ -79,33 +139,58 @@ function DesignTab({ testId }: { testId: string }) {
         </div>
       )}
 
+      {/* Endpoint */}
       <div>
         <Label>Endpoint</Label>
-        <div className="font-mono text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 break-all">
-          <span className={`font-bold mr-2 ${methodColor[def.method]?.split(" ")[0] ?? "text-gray-600"}`}>
+        <div className="flex items-center gap-1.5 group/ep font-mono text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+          <span className={`font-bold mr-1 shrink-0 ${methodColor[def.method]?.split(" ")[0] ?? "text-gray-600"}`}>
             {def.method}
           </span>
-          {def.path}
+          <span className="break-all flex-1">{def.path}</span>
+          <CopyButton value={`${def.method} ${def.path}`} className="opacity-0 group-hover/ep:opacity-100 transition-opacity" />
         </div>
       </div>
 
-      {pathParams.length > 0 && (
+      {/* Path Parameters */}
+      {pathTokens.length > 0 && (
         <div>
           <Label>Path Parameters</Label>
-          <div className="space-y-1.5">
-            {pathParams.map((p) => {
-              const value = paramValues[p];
-              const missing = !value || value === "(not configured)";
+          <div className="space-y-2">
+            {pathTokens.map((token) => {
+              const paramName = token.slice(1, -1);
+              const meta = def.pathParamsMeta?.[paramName];
+              const isStateBased = !!meta;
+              const displayValue = meta ? meta.value : (ctxParamValues[token] ?? "(not configured)");
+              const missing = displayValue === "(not configured)";
+
               return (
-                <div key={p} className="text-xs">
-                  <div className="flex items-center gap-2">
+                <div key={token} className="text-xs">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Param token */}
                     <span className="font-mono text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded shrink-0">
-                      {p}
+                      {token}
                     </span>
-                    <span className="text-gray-400">required · path</span>
-                  </div>
-                  <div className={`mt-0.5 ml-1 font-mono truncate ${missing ? "text-amber-500 italic" : "text-gray-700"}`}>
-                    = {value ?? "(not configured)"}
+                    <span className="text-gray-300">→</span>
+                    {/* Value — with tooltip if state-based */}
+                    {meta?.tooltip ? (
+                      <Tooltip text={meta.tooltip}>
+                        <span className="font-mono text-purple-600 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded cursor-help underline decoration-dotted underline-offset-2">
+                          {displayValue}
+                        </span>
+                      </Tooltip>
+                    ) : (
+                      <span className={`font-mono px-2 py-0.5 rounded ${
+                        missing
+                          ? "text-amber-500 italic"
+                          : "text-gray-700 bg-gray-100"
+                      }`}>
+                        {displayValue}
+                      </span>
+                    )}
+                    {!missing && <CopyButton value={displayValue} />}
+                    {isStateBased && (
+                      <span className="text-[10px] text-purple-400 italic">runtime</span>
+                    )}
                   </div>
                 </div>
               );
@@ -113,30 +198,34 @@ function DesignTab({ testId }: { testId: string }) {
           </div>
 
           {/* Resolved URL preview */}
-          <div className="mt-2 font-mono text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 break-all">
-            <span className="text-gray-400 mr-1">→</span>{resolvedPath}
+          <div className="mt-2.5 flex items-center gap-1.5 group/url font-mono text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+            <span className="text-gray-300 mr-0.5 shrink-0">→</span>
+            <span className="break-all flex-1">{resolvedPath}</span>
+            <CopyButton value={resolvedPath} className="opacity-0 group-hover/url:opacity-100 transition-opacity" />
           </div>
         </div>
       )}
 
+      {/* Query Parameters */}
       {def.queryParams && Object.keys(def.queryParams).length > 0 && (
         <div>
           <Label>Query Parameters</Label>
           <div className="space-y-1">
             {Object.entries(def.queryParams).map(([k, v]) => (
-              <div key={k} className="flex items-center gap-2 text-xs py-1">
-                <span className="font-mono text-purple-700 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded">
+              <div key={k} className="flex items-center gap-2 text-xs py-0.5 group/qp">
+                <span className="font-mono text-purple-700 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded shrink-0">
                   {k}
                 </span>
-                <span className="text-gray-500">=</span>
-                <span className="font-mono text-gray-600">{v}</span>
-                <span className="text-gray-400">· query</span>
+                <span className="text-gray-400">=</span>
+                <span className="font-mono text-gray-600 flex-1">{v}</span>
+                <CopyButton value={`${k}=${v}`} className="opacity-0 group-hover/qp:opacity-100 transition-opacity" />
               </div>
             ))}
           </div>
         </div>
       )}
 
+      {/* Request Body */}
       {def.sampleRequestBody !== undefined && (
         <div>
           <Label>Request Body</Label>
@@ -144,14 +233,15 @@ function DesignTab({ testId }: { testId: string }) {
         </div>
       )}
 
+      {/* Assertions */}
       {def.assertions.length > 0 ? (
         <div>
           <Label>Assertions</Label>
           <div className="space-y-1">
             {def.assertions.map((a) => (
               <div key={a.id} className="flex items-start gap-2 text-xs text-gray-600 px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg">
-                <span className="text-gray-300 mt-0.5">◆</span>
-                <span>{a.description}</span>
+                <span className="text-gray-300 mt-0.5 shrink-0">◆</span>
+                <span className="flex-1">{a.description}</span>
               </div>
             ))}
           </div>
@@ -163,14 +253,21 @@ function DesignTab({ testId }: { testId: string }) {
         </div>
       )}
 
+      {/* Footer metadata */}
       <div className="border-t border-gray-100 pt-4 space-y-1.5 text-xs text-gray-400">
         <div><span className="font-medium text-gray-500">Flow:</span> {def.tag}</div>
         {def.group && <div><span className="font-medium text-gray-500">Group:</span> {def.group}</div>}
-        <div><span className="font-medium text-gray-500">Test ID:</span> <span className="font-mono">{def.id}</span></div>
+        <div className="flex items-center gap-1.5 group/id">
+          <span className="font-medium text-gray-500">Test ID:</span>
+          <span className="font-mono">{def.id}</span>
+          <CopyButton value={def.id} className="opacity-0 group-hover/id:opacity-100 transition-opacity" />
+        </div>
       </div>
     </div>
   );
 }
+
+// ── Run Tab ──────────────────────────────────────────────────────────────────
 
 function RunTab({ testId }: { testId: string }) {
   const result = useRunnerStore((s) => s.testResults[testId]);
@@ -204,23 +301,30 @@ function RunTab({ testId }: { testId: string }) {
         )}
       </div>
 
+      {/* Failure reason */}
       {result?.failureReason && (
         <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
-          <span className="font-semibold block mb-0.5">Failure reason</span>
-          {result.failureReason}
-        </div>
-      )}
-
-      {/* Request */}
-      {result?.requestUrl && (
-        <div>
-          <Label>Request URL</Label>
-          <div className="font-mono text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 break-all">
-            {result.requestUrl}
+          <div className="flex items-start gap-1.5 group/fail">
+            <div className="flex-1">
+              <span className="font-semibold block mb-0.5">Failure reason</span>
+              {result.failureReason}
+            </div>
+            <CopyButton value={result.failureReason} className="opacity-0 group-hover/fail:opacity-100 transition-opacity mt-0.5" />
           </div>
         </div>
       )}
 
+      {/* Request URL */}
+      {result?.requestUrl && (
+        <div>
+          <Label>Request URL</Label>
+          <div className="font-mono text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+            <CopyableText value={result.requestUrl} />
+          </div>
+        </div>
+      )}
+
+      {/* Request Body */}
       {result?.requestBody !== undefined && (
         <div>
           <Label>Request Body</Label>
@@ -228,7 +332,7 @@ function RunTab({ testId }: { testId: string }) {
         </div>
       )}
 
-      {/* Response */}
+      {/* Response Body */}
       {result?.responseBody !== undefined && (
         <div>
           <Label>Response Body</Label>
@@ -250,8 +354,8 @@ function RunTab({ testId }: { testId: string }) {
                     : "text-red-600 bg-red-50 border-red-100"
                 }`}
               >
-                <span className="font-bold">{a.passed ? "✓" : "✗"}</span>
-                <span>{a.description}</span>
+                <span className="font-bold shrink-0">{a.passed ? "✓" : "✗"}</span>
+                <span className="flex-1">{a.description}</span>
               </div>
             ))}
           </div>
@@ -261,7 +365,7 @@ function RunTab({ testId }: { testId: string }) {
   );
 }
 
-// ── Main component ───────────────────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────────────────────
 
 interface DetailPaneProps {
   testId: string;

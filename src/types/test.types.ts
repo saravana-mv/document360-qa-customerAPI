@@ -37,6 +37,12 @@ export interface TestDef {
   description?: string;           // Human-readable explanation shown in Design tab
   sampleRequestBody?: unknown;    // Example request body shown in Design tab
   queryParams?: Record<string, string>;  // Static query params shown in Design tab
+  // Per-param metadata for Design tab (keyed by param name without braces, e.g. "version_number").
+  // Only needed for state-based params — ctx params are resolved automatically from setup store.
+  pathParamsMeta?: Record<string, {
+    value: string;     // Display value, e.g. "{{state.firstVersionNumber}}"
+    tooltip?: string;  // Hover explanation, e.g. "Captured in Step 1 · response.data[0].version_number"
+  }>;
   setup?: (ctx: TestContext, state: RunState) => Promise<void>;
   execute: (ctx: TestContext, state: RunState) => Promise<TestExecutionResult>;
   teardown?: (ctx: TestContext, state: RunState) => Promise<void>;

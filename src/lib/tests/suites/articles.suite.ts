@@ -264,6 +264,9 @@ const tests: TestDef[] = [
     group: GROUP,
     path: "/v3/projects/{project_id}/articles/{article_id}/versions/{version_number}",
     method: "GET",
+    pathParamsMeta: {
+      version_number: { value: "{{state.firstVersionNumber}}", tooltip: "Captured in Step 1 · response.data[0].version_number" },
+    },
     assertions: [assertStatus(200)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
@@ -289,6 +292,9 @@ const tests: TestDef[] = [
     group: GROUP,
     path: "/v3/projects/{project_id}/articles/{article_id}/versions/{version_number}",
     method: "DELETE",
+    pathParamsMeta: {
+      version_number: { value: "{{state.draftVersionNumber}}", tooltip: "Derived at runtime · first entry in state.versions where is_draft === true" },
+    },
     assertions: [assertStatus(204)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
@@ -318,6 +324,9 @@ const tests: TestDef[] = [
     group: GROUP,
     path: "/v3/projects/{project_id}/articles/{article_id}/versions/{version_number}",
     method: "GET",
+    pathParamsMeta: {
+      version_number: { value: "{{state.deletedVersionNumber}}", tooltip: "Captured from Step 3 · version number that was deleted" },
+    },
     assertions: [assertStatus(404)],
     execute: async (ctx: TestContext, state: RunState): Promise<TestExecutionResult> => {
       const start = Date.now();
