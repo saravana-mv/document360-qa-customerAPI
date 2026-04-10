@@ -331,12 +331,13 @@ function RunTab({ testId }: { testId: string }) {
       )}
 
       {/* Response Body */}
-      {result?.responseBody !== undefined && (
-        <div>
-          <Label>Response Body</Label>
-          <JsonBlock value={result.responseBody} />
-        </div>
-      )}
+      <div>
+        <Label>Response Body</Label>
+        {result?.responseBody !== undefined
+          ? <JsonBlock value={result.responseBody} />
+          : <p className="text-xs text-gray-400 italic px-1">No content to display</p>
+        }
+      </div>
 
       {/* State Snapshot — shown for skip/fail when extra context was captured */}
       {result?.stateSnapshot !== undefined && (
