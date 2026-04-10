@@ -8,7 +8,6 @@ export interface TestContext {
   langCode: string;
   token: string;
   baseUrl: string;
-  articleId?: string;
 }
 
 export interface RunState {

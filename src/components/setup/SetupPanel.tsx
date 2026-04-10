@@ -14,7 +14,6 @@ export function SetupPanel() {
   const setup = useSetupStore();
   const spec = useSpecStore();
   const [starting, setStarting] = useState(false);
-  const [debugInfo, setDebugInfo] = useState("");
 
   useEffect(() => {
     if (!token) return;
@@ -24,12 +23,10 @@ export function SetupPanel() {
   async function initProjectAndVersions() {
     setup.setError(null);
     setup.setLoadingProjects(true);
-    setDebugInfo("");
 
     let projectId = "";
     try {
       projectId = getProjectIdFromToken(token!.access_token);
-      setDebugInfo(`Project ID from token: ${projectId || "(none)"}`);
 
       if (!projectId) throw new Error("doc360_project_id not found in token — try signing out and back in.");
 
@@ -47,9 +44,7 @@ export function SetupPanel() {
     // Load versions directly — don't rely on useEffect chain
     setup.setLoadingVersions(true);
     try {
-      setDebugInfo((d) => d + `\nFetching versions for: ${projectId}`);
       const versions = await fetchProjectVersions(projectId, token!.access_token);
-      setDebugInfo((d) => d + `\nVersions received: ${versions.length}`);
 
       if (versions.length === 0) {
         setup.setError("No versions returned from API. Check browser console for details.");
@@ -62,17 +57,15 @@ export function SetupPanel() {
         setup.selectVersion(def.id);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setDebugInfo((d) => d + `\nVersions error: ${msg}`);
-      setup.setError(`Failed to load versions: ${msg}`);
+      setup.setError(`Failed to load versions: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setup.setLoadingVersions(false);
     }
   }
 
   async function handleStart() {
-    if (!setup.selectedProjectId || !setup.selectedVersionId || !setup.articleId) {
-      setup.setError("Please select a version and enter an article ID.");
+    if (!setup.selectedProjectId || !setup.selectedVersionId) {
+      setup.setError("Please select a project version.");
       return;
     }
     setStarting(true);
@@ -140,27 +133,7 @@ export function SetupPanel() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-
-          {/* Article ID */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Test Article ID <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={setup.articleId}
-              onChange={(e) => setup.setArticleId(e.target.value)}
-              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-            />
-            <p className="text-xs text-gray-500 mt-1">UUID of an existing article in the test project</p>
-          </div>
         </div>
-
-        {/* Debug info */}
-        {debugInfo && (
-          <pre className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500 whitespace-pre-wrap">{debugInfo}</pre>
-        )}
 
         {setup.error && (
           <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
@@ -176,11 +149,11 @@ export function SetupPanel() {
 
         <button
           onClick={handleStart}
-          disabled={starting || !setup.selectedProjectId || !setup.selectedVersionId || !setup.articleId}
+          disabled={starting || !setup.selectedProjectId || !setup.selectedVersionId}
           className="mt-6 w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
         >
           {starting && <Spinner size="sm" className="text-white" />}
-          {starting ? "Loading spec..." : "Start Testing"}
+          {starting ? "Loading..." : "Start Testing"}
         </button>
       </div>
     </div>

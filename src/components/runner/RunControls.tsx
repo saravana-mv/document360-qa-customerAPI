@@ -27,7 +27,6 @@ export function RunControls() {
       setup.selectedProjectId,
       setup.selectedVersionId,
       setup.langCode,
-      setup.articleId || undefined
     );
 
     runner.initTests(allTests.map((t) => ({
@@ -50,7 +49,6 @@ export function RunControls() {
       setup.selectedProjectId,
       setup.selectedVersionId,
       setup.langCode,
-      setup.articleId || undefined
     );
 
     let selectedTests = allTests;

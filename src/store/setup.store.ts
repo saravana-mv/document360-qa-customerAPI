@@ -7,7 +7,6 @@ interface SetupState {
   selectedProjectId: string;
   selectedVersionId: string;
   langCode: string;
-  articleId: string;
   loadingProjects: boolean;
   loadingVersions: boolean;
   error: string | null;
@@ -16,7 +15,6 @@ interface SetupState {
   selectProject: (id: string) => void;
   selectVersion: (id: string) => void;
   setLangCode: (lang: string) => void;
-  setArticleId: (id: string) => void;
   setLoadingProjects: (v: boolean) => void;
   setLoadingVersions: (v: boolean) => void;
   setError: (error: string | null) => void;
@@ -41,7 +39,6 @@ export const useSetupStore = create<SetupState>((set, get) => ({
   selectedProjectId: (saved.selectedProjectId as string) || "",
   selectedVersionId: (saved.selectedVersionId as string) || "",
   langCode: (saved.langCode as string) || "en",
-  articleId: (saved.articleId as string) || "",
   loadingProjects: false,
   loadingVersions: false,
   error: null,
@@ -55,7 +52,6 @@ export const useSetupStore = create<SetupState>((set, get) => ({
       selectedProjectId: id,
       selectedVersionId: s.selectedVersionId,
       langCode: s.langCode,
-      articleId: s.articleId,
     }));
   },
   selectVersion: (id) => {
@@ -65,7 +61,6 @@ export const useSetupStore = create<SetupState>((set, get) => ({
       selectedProjectId: s.selectedProjectId,
       selectedVersionId: id,
       langCode: s.langCode,
-      articleId: s.articleId,
     }));
   },
   setLangCode: (langCode) => {
@@ -75,17 +70,6 @@ export const useSetupStore = create<SetupState>((set, get) => ({
       selectedProjectId: s.selectedProjectId,
       selectedVersionId: s.selectedVersionId,
       langCode,
-      articleId: s.articleId,
-    }));
-  },
-  setArticleId: (articleId) => {
-    set({ articleId });
-    const s = get();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      selectedProjectId: s.selectedProjectId,
-      selectedVersionId: s.selectedVersionId,
-      langCode: s.langCode,
-      articleId,
     }));
   },
   setLoadingProjects: (v) => set({ loadingProjects: v }),
