@@ -49,3 +49,21 @@ export async function bulkPatchArticles(projectId: string, body: unknown, token:
 export async function deleteArticleVersion(projectId: string, articleId: string, versionNumber: number, token: string): Promise<void> {
   await apiClient.delete<void>(`/v3/projects/${projectId}/articles/${articleId}/versions/${versionNumber}`, token);
 }
+
+export async function createArticle(projectId: string, body: Record<string, unknown>, token: string): Promise<Article> {
+  const resp = await apiClient.post<{ data: Article }>(`/v3/projects/${projectId}/articles`, body, token);
+  return resp.data;
+}
+
+export async function publishArticle(projectId: string, articleId: string, body: Record<string, unknown>, token: string): Promise<void> {
+  await apiClient.post<{ success: boolean }>(`/v3/projects/${projectId}/articles/${articleId}/publish`, body, token);
+}
+
+export async function forkArticle(projectId: string, articleId: string, token: string): Promise<Article> {
+  const resp = await apiClient.post<{ data: Article }>(`/v3/projects/${projectId}/articles/${articleId}/fork`, {}, token);
+  return resp.data;
+}
+
+export async function deleteArticle(projectId: string, articleId: string, token: string): Promise<void> {
+  await apiClient.delete<void>(`/v3/projects/${projectId}/articles/${articleId}`, token);
+}
