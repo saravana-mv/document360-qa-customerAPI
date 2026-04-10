@@ -40,7 +40,7 @@ export function OAuthCallback() {
         setMessage("Exchanging authorization code...");
         const token = await handleCallback(code, state, config);
         setToken(token);
-        navigate("/setup");
+        navigate("/settings");
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         setError(msg);

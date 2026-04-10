@@ -1,5 +1,7 @@
 import { type ReactNode } from "react";
 import { TopBar } from "./TopBar";
+import { SideNav } from "./SideNav";
+import { useAuthStore } from "../../store/auth.store";
 
 interface LayoutProps {
   children: ReactNode;
@@ -7,10 +9,16 @@ interface LayoutProps {
 }
 
 export function Layout({ children, showTestControls }: LayoutProps) {
+  const { status } = useAuthStore();
+  const showNav = status === "authenticated";
+
   return (
-    <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
-      <TopBar showTestControls={showTestControls} />
-      <main className="flex-1 overflow-hidden">{children}</main>
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
+      {showNav && <SideNav />}
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <TopBar showTestControls={showTestControls} />
+        <main className="flex-1 overflow-hidden">{children}</main>
+      </div>
     </div>
   );
 }

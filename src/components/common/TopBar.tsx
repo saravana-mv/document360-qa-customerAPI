@@ -1,4 +1,3 @@
-import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../store/auth.store";
 import { useSetupStore } from "../../store/setup.store";
 import { useSpecStore } from "../../store/spec.store";
@@ -13,7 +12,6 @@ export function TopBar({ showTestControls }: TopBarProps) {
   const { status, token, logout } = useAuthStore();
   const { selectedProjectId, selectedVersionId, projects, versions } = useSetupStore();
   const { loading: specLoading } = useSpecStore();
-  const navigate = useNavigate();
 
   const project = projects.find((p) => p.id === selectedProjectId);
   const version = versions.find((v) => v.id === selectedVersionId);
@@ -33,13 +31,6 @@ export function TopBar({ showTestControls }: TopBarProps) {
           )}
 
           {specLoading && showTestControls && <Spinner size="sm" className="text-blue-400" />}
-
-          <button
-            onClick={() => navigate("/setup")}
-            className="text-xs text-gray-400 hover:text-white transition-colors"
-          >
-            Setup
-          </button>
 
           <button
             onClick={logout}
