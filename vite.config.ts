@@ -12,6 +12,10 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/swagger-proxy/, ""),
       },
+      "/api": {
+        target: "http://localhost:7071",
+        changeOrigin: true,
+      },
     },
   },
 });
