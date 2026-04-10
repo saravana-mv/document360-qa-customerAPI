@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<flow version="1.0"
+      xmlns="https://document360.io/qa/flow/v1"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="https://document360.io/qa/flow/v1 ../flow.xsd">
+
+  <name>Article Version Lifecycle</name>
+  <group>Articles</group>
+  <description>
+    Creates a fresh article, publishes it, forks it to produce a new draft,
+    retrieves the article to confirm the draft version exists, deletes the
+    draft version, verifies the deleted version returns 404, then deletes
+    the entire article as teardown — leaving the project in a clean state.
+  </description>
+  <stopOnFailure>true</stopOnFailure>
+
+  <steps>
+
+    <step number="1">
+      <name>Create Article</name>
+      <endpointRef>articles/create-a-new-article.md</endpointRef>
+      <method>POST</method>
+      <path>/v3/projects/{project_id}/articles</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+      </pathParams>
+      <body><![CDATA[
+{
+  "title": "[TEST] Version Lifecycle - {{timestamp}}",
+  "content": "Test article created by the Article Version Lifecycle flow.",
+  "project_version_id": "{{ctx.versionId}}"
+}
+      ]]></body>
+      <captures>
+        <capture variable="state.createdArticleId"    source="response.data.id"/>
+        <capture variable="state.createdVersionNumber" source="response.data.version_number"/>
+        <capture variable="state.projectVersionId"    source="response.data.project_version_id"/>
+        <capture variable="state.createdTitle"        source="response.data.title"/>
+      </captures>
+      <assertions>
+        <assertion type="status"      code="201"/>
+        <assertion type="field-exists" field="data.id"/>
+      </assertions>
+      <notes>
+        The article is created in draft status. project_version_id (ctx.versionId) determines
+        which documentation version the article belongs to. The returned id becomes
+        state.createdArticleId and is used as the article_id path param in all subsequent steps.
+      </notes>
+    </step>
+
+    <step number="2">
+      <name>Publish Article</name>
+      <endpointRef>articles/publish-an-article.md</endpointRef>
+      <method>POST</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}/publish</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
+      </pathParams>
+      <body><![CDATA[
+{
+  "project_version_id": "{{state.projectVersionId}}",
+  "version_number": {{state.createdVersionNumber}},
+  "message": "Publishing article for version lifecycle test"
+}
+      ]]></body>
+      <assertions>
+        <assertion type="status"       code="200"/>
+        <assertion type="field-equals" field="success" value="true"/>
+      </assertions>
+      <notes>
+        version_number must reference a draft version. After this call the article version
+        transitions from draft to published and becomes visible to readers.
+        state.createdVersionNumber (captured in Step 1) is used here without quotes in the
+        JSON body because it is an integer, not a string.
+      </notes>
+    </step>
+
+    <step number="3">
+      <name>Fork Published Version (create draft)</name>
+      <endpointRef>articles/fork-an-article-version-creates-new-draft-from-published-version.md</endpointRef>
+      <method>POST</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}/fork</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
+      </pathParams>
+      <captures>
+        <capture variable="state.draftVersionNumber"     source="response.data.version_number"/>
+        <capture variable="state.publishedVersionNumber" source="response.data.public_version"/>
+      </captures>
+      <assertions>
+        <assertion type="status"       code="201"/>
+        <assertion type="field-exists" field="data.version_number"/>
+      </assertions>
+      <notes>
+        The fork endpoint has no request body. It creates a new draft version based on the
+        currently published content. Returns 409 Conflict if a draft already exists.
+        state.draftVersionNumber is the new draft's version_number — used in Steps 5 and 6.
+        state.publishedVersionNumber is the still-active published version number (public_version).
+      </notes>
+    </step>
+
+    <step number="4">
+      <name>Retrieve Article — Verify Draft Exists</name>
+      <endpointRef>articles/get-an-article-by-id.md</endpointRef>
+      <method>GET</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
+      </pathParams>
+      <queryParams>
+        <param name="lang_code">ctx.langCode</param>
+      </queryParams>
+      <assertions>
+        <assertion type="status"       code="200"/>
+        <assertion type="field-equals" field="data.version_number" value="{{state.draftVersionNumber}}"/>
+      </assertions>
+      <notes>
+        GET /articles/{id} returns the latest version (the draft created by the fork).
+        Asserting data.version_number equals state.draftVersionNumber confirms the fork
+        was applied and the article now surfaces the new draft as its current version.
+      </notes>
+    </step>
+
+    <step number="5">
+      <name>Delete Draft Version</name>
+      <endpointRef>articles/delete-a-specific-article-version.md</endpointRef>
+      <method>DELETE</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}/versions/{version_number}</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
+        <param name="version_number">{{state.draftVersionNumber}}</param>
+      </pathParams>
+      <captures>
+        <capture variable="state.deletedVersionNumber"
+                 source="pathParam.version_number"
+                 from="request"/>
+      </captures>
+      <assertions>
+        <assertion type="status" code="204"/>
+      </assertions>
+      <notes>
+        Deletes the draft version created by the fork in Step 3. After deletion the article
+        reverts to showing only the published version (state.publishedVersionNumber).
+        state.deletedVersionNumber is captured from the request path param for use in Step 6.
+      </notes>
+    </step>
+
+    <step number="6">
+      <name>Verify Deleted Version Returns 404</name>
+      <endpointRef>articles/get-a-specific-version-of-an-article.md</endpointRef>
+      <method>GET</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}/versions/{version_number}</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
+        <param name="version_number">{{state.deletedVersionNumber}}</param>
+      </pathParams>
+      <assertions>
+        <assertion type="status" code="404"/>
+      </assertions>
+      <notes>
+        Confirms the deleted draft version is truly gone. A 200 response here would be a
+        test failure — the version should no longer exist after Step 5.
+      </notes>
+    </step>
+
+    <step number="7">
+      <name>Delete Article (cleanup)</name>
+      <endpointRef>articles/delete-an-article.md</endpointRef>
+      <method>DELETE</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
+      </pathParams>
+      <assertions>
+        <assertion type="status" code="204"/>
+      </assertions>
+      <flags teardown="true"/>
+      <notes>
+        teardown: true — this step always runs even if Steps 2–6 failed, to ensure
+        the article created in Step 1 is not left orphaned in the project.
+        If Step 1 itself failed and state.createdArticleId is not set, the test
+        implementation should skip this step gracefully.
+      </notes>
+    </step>
+
+  </steps>
+</flow>
