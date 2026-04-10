@@ -1,0 +1,24 @@
+{
+  "name": "document360-qa-api",
+  "version": "1.0.0",
+  "description": "Azure Functions backend for Document360 QA Customer API",
+  "main": "dist/src/functions/*.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "start": "func start",
+    "prestart": "npm run build"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.6.0",
+    "@azure/storage-blob": "^12.26.0",
+    "@anthropic-ai/sdk": "^0.39.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
