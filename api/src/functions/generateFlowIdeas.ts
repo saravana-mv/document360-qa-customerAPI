@@ -16,9 +16,13 @@ const MAX_OUTPUT_TOKENS = 4096;
 const DEFAULT_BUDGET_USD = 1.0;
 const MAX_FILES = 50;
 
+const MAX_IDEAS_PER_RUN = 10;
+
 const SYSTEM_PROMPT = `You are an expert QA test architect analyzing API specifications for Document360.
 
-Your job: given a set of API endpoint specifications, generate ALL possible test flow ideas. A "flow" is a sequence of API calls that tests a real user journey or lifecycle.
+Your job: given a set of API endpoint specifications, generate test flow ideas. A "flow" is a sequence of API calls that tests a real user journey or lifecycle.
+
+IMPORTANT: Generate exactly up to ${MAX_IDEAS_PER_RUN} NEW ideas per request. If the user provides a list of existing ideas, do NOT repeat any of them — generate only fresh, different ideas.
 
 ## What to analyze
 - Each spec file describes one API endpoint (method, path, request/response schema, business rules)
@@ -46,11 +50,12 @@ Return a JSON array. Each item:
 - complex: 7+ steps, multi-entity dependencies, bulk operations, error scenarios
 
 ## Rules
-1. Be exhaustive — generate every reasonable flow, including error/negative flows
+1. Generate up to ${MAX_IDEAS_PER_RUN} ideas maximum per request
 2. Always note entity dependencies (e.g., article flows need category setup/teardown)
 3. Include both happy-path and error-path flows
 4. Group related flows logically
 5. Return ONLY valid JSON — no markdown fences, no explanation text
+6. If existing ideas are provided, generate DIFFERENT ideas that cover new scenarios
 
 Return the JSON array directly.`;
 
@@ -84,7 +89,7 @@ export async function generateFlowIdeasHandler(
   }
 
   // ── Parse body ──
-  let body: { folderPath?: string; maxBudgetUsd?: number };
+  let body: { folderPath?: string; maxBudgetUsd?: number; existingIdeas?: string[] };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -146,7 +151,11 @@ export async function generateFlowIdeasHandler(
     .map((s) => `## ${s.name}\n\n${s.content}`)
     .join("\n\n---\n\n");
 
-  const userMessage = `Analyze these API specifications and generate all possible test flow ideas.\n\n## Spec Files\n\n${specText}`;
+  const existingList = body.existingIdeas && body.existingIdeas.length > 0
+    ? `\n\n## Already Generated Ideas (DO NOT repeat these)\n\n${body.existingIdeas.map((t, i) => `${i + 1}. ${t}`).join("\n")}`
+    : "";
+
+  const userMessage = `Analyze these API specifications and generate up to ${MAX_IDEAS_PER_RUN} NEW test flow ideas.${existingList}\n\n## Spec Files\n\n${specText}`;
 
   // ── Pre-estimate cost and enforce budget ──
   const totalChars = SYSTEM_PROMPT.length + userMessage.length;

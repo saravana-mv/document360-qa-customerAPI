@@ -159,6 +159,7 @@ export function SpecFilesPage() {
   // ── Generate flow ideas (AI) ──────────────────────────────────────────────
 
   async function handleGenerateFlowIdeas(folderPath: string) {
+    // Fresh generation from context menu — reset everything
     setIdeasFolderPath(folderPath);
     setIdeas([]);
     setIdeasUsage(null);
@@ -169,9 +170,48 @@ export function SpecFilesPage() {
     setIdeasLoading(true);
     setActiveTab("ideas");
     try {
-      const result = await generateFlowIdeas(folderPath);
+      const result = await generateFlowIdeas(folderPath, []);
       setIdeas(result.ideas);
       setIdeasUsage(result.usage);
+      if (result.parseError && result.rawText) {
+        setIdeasRawText(result.rawText);
+      }
+    } catch (e) {
+      setIdeasError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setIdeasLoading(false);
+    }
+  }
+
+  async function handleGenerateMoreIdeas() {
+    if (!ideasFolderPath) return;
+    setIdeasError(null);
+    setIdeasRawText(undefined);
+    setIdeasLoading(true);
+    // Pass existing idea titles so Claude avoids duplicates
+    const existingTitles = ideas.map((i) => i.title);
+    try {
+      const result = await generateFlowIdeas(ideasFolderPath, existingTitles);
+      if (result.ideas.length > 0) {
+        // Re-number new idea IDs to avoid collisions
+        const offset = ideas.length;
+        const newIdeas = result.ideas.map((idea, i) => ({
+          ...idea,
+          id: `idea-${offset + i + 1}`,
+        }));
+        setIdeas((prev) => [...prev, ...newIdeas]);
+      }
+      // Accumulate usage
+      if (result.usage) {
+        setIdeasUsage((prev) => prev ? {
+          inputTokens: prev.inputTokens + result.usage.inputTokens,
+          outputTokens: prev.outputTokens + result.usage.outputTokens,
+          totalTokens: prev.totalTokens + result.usage.totalTokens,
+          costUsd: parseFloat((prev.costUsd + result.usage.costUsd).toFixed(6)),
+          filesAnalyzed: result.usage.filesAnalyzed,
+          totalSpecCharacters: result.usage.totalSpecCharacters,
+        } : result.usage);
+      }
       if (result.parseError && result.rawText) {
         setIdeasRawText(result.rawText);
       }
@@ -381,6 +421,7 @@ export function SpecFilesPage() {
               onSelectAll={selectAllIdeas}
               onDeselectAll={deselectAllIdeas}
               onGenerateFlows={handleGenerateFlows}
+              onGenerateMore={handleGenerateMoreIdeas}
               generatingFlows={generatingFlows}
             />
           )}

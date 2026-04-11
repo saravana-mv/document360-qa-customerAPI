@@ -19,13 +19,14 @@ interface Props {
   onSelectAll: () => void;
   onDeselectAll: () => void;
   onGenerateFlows: () => void;
+  onGenerateMore: () => void;
   generatingFlows: boolean;
 }
 
 export function FlowIdeasPanel({
   folderPath, ideas, usage, loading, error, rawText,
   selectedIds, onToggleSelect, onSelectAll, onDeselectAll,
-  onGenerateFlows, generatingFlows,
+  onGenerateFlows, onGenerateMore, generatingFlows,
 }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const folderName = folderPath.split("/").pop() || folderPath;
@@ -177,13 +178,23 @@ export function FlowIdeasPanel({
         )}
       </div>
 
-      {/* Bottom action bar — visible when ideas exist and some are selected */}
+      {/* Bottom action bar — visible when ideas exist */}
       {!loading && ideas && ideas.length > 0 && (
-        <div className="shrink-0 border-t border-gray-200 bg-gray-50 px-4 py-3">
+        <div className="shrink-0 border-t border-gray-200 bg-gray-50 px-4 py-3 flex gap-2">
+          <button
+            onClick={onGenerateMore}
+            disabled={generatingFlows}
+            className="flex items-center justify-center gap-1.5 border border-gray-300 hover:border-gray-400 bg-white text-gray-700 text-xs font-medium rounded-lg px-3 py-2 transition-colors disabled:opacity-40"
+          >
+            <svg className="w-3.5 h-3.5 text-purple-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            More Ideas
+          </button>
           <button
             onClick={onGenerateFlows}
             disabled={selectedCount === 0 || generatingFlows}
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
