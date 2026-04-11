@@ -1,8 +1,7 @@
 import { useRef, useState } from "react";
 import { Layout } from "../components/common/Layout";
-import { SpecFilePicker } from "../components/flowcreator/SpecFilePicker";
 import { XmlViewer } from "../components/flowcreator/XmlViewer";
-import { generateFlowStream } from "../lib/api/specFilesApi";
+import { generateFlowStream } from "../lib/api/flowApi";
 import { useAuthGuard } from "../hooks/useAuthGuard";
 
 const EXAMPLE_PROMPTS = [
@@ -15,20 +14,10 @@ export function FlowCreatorPage() {
   useAuthGuard();
 
   const [prompt, setPrompt] = useState("");
-  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [xml, setXml] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-
-  function toggleFile(name: string) {
-    setSelectedFiles((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
-    });
-  }
 
   async function handleGenerate() {
     if (!prompt.trim() || streaming) return;
@@ -41,7 +30,7 @@ export function FlowCreatorPage() {
     try {
       await generateFlowStream(
         prompt.trim(),
-        Array.from(selectedFiles),
+        [],
         (chunk) => setXml((prev) => prev + chunk),
         ctrl.signal
       );
@@ -98,9 +87,6 @@ export function FlowCreatorPage() {
               </button>
             ))}
           </div>
-
-          {/* Spec file picker */}
-          <SpecFilePicker selected={selectedFiles} onToggle={toggleFile} />
 
           {/* Generate / Stop */}
           <div className="mt-auto pt-2">
