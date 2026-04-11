@@ -17,7 +17,6 @@ function err(status: number, message: string): HttpResponseInit {
 
 /** GET /api/spec-files?prefix=<folder>  — list blobs */
 async function listFiles(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
-  if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
   try {
     const prefix = req.query.get("prefix") ?? undefined;
     const blobs = await listBlobs(prefix);
@@ -46,7 +45,6 @@ async function getFileContent(req: HttpRequest, _ctx: InvocationContext): Promis
  *  Body: { name: string; content: string; contentType?: string }
  */
 async function createFile(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
-  if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
   try {
     const body = (await req.json()) as { name: string; content: string; contentType?: string };
     if (!body.name || body.content === undefined) return err(400, "name and content are required");
@@ -62,7 +60,6 @@ async function createFile(req: HttpRequest, _ctx: InvocationContext): Promise<Ht
  *  Body: { name: string; content?: string; newName?: string }
  */
 async function updateFile(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
-  if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
   try {
     const body = (await req.json()) as { name: string; content?: string; newName?: string };
     if (!body.name) return err(400, "name is required");
@@ -86,7 +83,6 @@ async function updateFile(req: HttpRequest, _ctx: InvocationContext): Promise<Ht
 
 /** DELETE /api/spec-files?name=<blobName>  — delete a blob */
 async function deleteFile(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
-  if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
   try {
     const name = req.query.get("name");
     if (!name) return err(400, "name query param is required");
@@ -98,12 +94,24 @@ async function deleteFile(req: HttpRequest, _ctx: InvocationContext): Promise<Ht
   }
 }
 
-// Register functions
-app.http("specFilesList", {
-  methods: ["GET", "OPTIONS"],
+// Single function handles all methods on spec-files route to avoid
+// Azure SWA routing issues when multiple functions share the same route.
+async function specFilesRouter(req: HttpRequest, ctx: InvocationContext): Promise<HttpResponseInit> {
+  switch (req.method) {
+    case "OPTIONS": return { status: 204, headers: CORS_HEADERS };
+    case "GET":     return listFiles(req, ctx);
+    case "POST":    return createFile(req, ctx);
+    case "PUT":     return updateFile(req, ctx);
+    case "DELETE":  return deleteFile(req, ctx);
+    default:        return err(405, "Method Not Allowed");
+  }
+}
+
+app.http("specFiles", {
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   authLevel: "anonymous",
   route: "spec-files",
-  handler: listFiles,
+  handler: specFilesRouter,
 });
 
 app.http("specFilesContent", {
@@ -111,25 +119,4 @@ app.http("specFilesContent", {
   authLevel: "anonymous",
   route: "spec-files/content",
   handler: getFileContent,
-});
-
-app.http("specFilesCreate", {
-  methods: ["POST", "OPTIONS"],
-  authLevel: "anonymous",
-  route: "spec-files",
-  handler: createFile,
-});
-
-app.http("specFilesUpdate", {
-  methods: ["PUT", "OPTIONS"],
-  authLevel: "anonymous",
-  route: "spec-files",
-  handler: updateFile,
-});
-
-app.http("specFilesDelete", {
-  methods: ["DELETE", "OPTIONS"],
-  authLevel: "anonymous",
-  route: "spec-files",
-  handler: deleteFile,
 });
