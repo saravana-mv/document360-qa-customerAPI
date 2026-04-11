@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Layout } from "../components/common/Layout";
 import { FileTree } from "../components/specfiles/FileTree";
 import { MarkdownViewer } from "../components/specfiles/MarkdownViewer";
 import { FileUploadModal } from "../components/specfiles/FileUploadModal";
 import { FlowIdeasPanel } from "../components/specfiles/FlowIdeasPanel";
+import { FlowsPanel, type GeneratedFlow } from "../components/specfiles/FlowsPanel";
 import {
   listSpecFiles,
   getSpecFileContent,
@@ -15,11 +16,15 @@ import {
   type FlowIdea,
   type FlowIdeasUsage,
 } from "../lib/api/specFilesApi";
+import { generateFlowXml } from "../lib/api/flowApi";
 import { useAuthGuard } from "../hooks/useAuthGuard";
+
+type RhsTab = "viewer" | "ideas" | "flows";
 
 export function SpecFilesPage() {
   useAuthGuard();
 
+  // ── File tree state ────────────────────────────────────────────────────────
   const [files, setFiles] = useState<SpecFileItem[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -28,13 +33,26 @@ export function SpecFilesPage() {
   const [error, setError] = useState<string | null>(null);
   const [uploadFolderPath, setUploadFolderPath] = useState<string | null>(null);
 
-  // Flow ideas state
-  const [flowIdeasFolder, setFlowIdeasFolder] = useState<string | null>(null);
-  const [flowIdeas, setFlowIdeas] = useState<FlowIdea[] | null>(null);
-  const [flowIdeasUsage, setFlowIdeasUsage] = useState<FlowIdeasUsage | null>(null);
-  const [flowIdeasLoading, setFlowIdeasLoading] = useState(false);
-  const [flowIdeasError, setFlowIdeasError] = useState<string | null>(null);
-  const [flowIdeasRawText, setFlowIdeasRawText] = useState<string | undefined>();
+  // ── Tab state ──────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<RhsTab>("viewer");
+
+  // ── Flow ideas state ───────────────────────────────────────────────────────
+  const [ideasFolderPath, setIdeasFolderPath] = useState<string | null>(null);
+  const [ideas, setIdeas] = useState<FlowIdea[]>([]);
+  const [ideasUsage, setIdeasUsage] = useState<FlowIdeasUsage | null>(null);
+  const [ideasLoading, setIdeasLoading] = useState(false);
+  const [ideasError, setIdeasError] = useState<string | null>(null);
+  const [ideasRawText, setIdeasRawText] = useState<string | undefined>();
+  const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(new Set());
+
+  // ── Flow generation state ──────────────────────────────────────────────────
+  const [generatedFlows, setGeneratedFlows] = useState<GeneratedFlow[]>([]);
+  const [generatingFlows, setGeneratingFlows] = useState(false);
+  const [flowProgress, setFlowProgress] = useState<{ current: number; total: number } | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Tab bar is visible once ideas have been generated at least once
+  const showTabs = ideas.length > 0 || ideasLoading || ideasError !== null;
 
   // ── File list ──────────────────────────────────────────────────────────────
 
@@ -56,8 +74,7 @@ export function SpecFilesPage() {
   // ── Select file ────────────────────────────────────────────────────────────
 
   async function selectFile(path: string) {
-    // Close flow ideas panel when selecting a file
-    setFlowIdeasFolder(null);
+    setActiveTab("viewer");
     setSelectedPath(path);
     setContent("");
     setLoadingContent(true);
@@ -71,7 +88,7 @@ export function SpecFilesPage() {
     }
   }
 
-  // ── Create folder (creates a .keep sentinel blob) ─────────────────────────
+  // ── CRUD handlers ─────────────────────────────────────────────────────────
 
   async function handleCreateFolder(folderPath: string) {
     setError(null);
@@ -83,14 +100,10 @@ export function SpecFilesPage() {
     }
   }
 
-  // ── Upload files ───────────────────────────────────────────────────────────
-
   async function handleUpload(name: string, fileContent: string, contentType: string) {
     await uploadSpecFile(name, fileContent, contentType);
     await loadFiles();
   }
-
-  // ── Delete file ────────────────────────────────────────────────────────────
 
   async function handleDeleteFile(path: string) {
     setError(null);
@@ -106,8 +119,6 @@ export function SpecFilesPage() {
     }
   }
 
-  // ── Delete folder (delete all blobs under prefix) ─────────────────────────
-
   async function handleDeleteFolder(folderPath: string) {
     setError(null);
     try {
@@ -122,8 +133,6 @@ export function SpecFilesPage() {
       setError(e instanceof Error ? e.message : String(e));
     }
   }
-
-  // ── Rename ─────────────────────────────────────────────────────────────────
 
   async function handleRename(oldPath: string, newPath: string) {
     setError(null);
@@ -150,36 +159,114 @@ export function SpecFilesPage() {
   // ── Generate flow ideas (AI) ──────────────────────────────────────────────
 
   async function handleGenerateFlowIdeas(folderPath: string) {
-    setFlowIdeasFolder(folderPath);
-    setFlowIdeas(null);
-    setFlowIdeasUsage(null);
-    setFlowIdeasError(null);
-    setFlowIdeasRawText(undefined);
-    setFlowIdeasLoading(true);
-    // Clear file viewer when showing flow ideas
-    setSelectedPath(null);
-    setContent("");
+    setIdeasFolderPath(folderPath);
+    setIdeas([]);
+    setIdeasUsage(null);
+    setIdeasError(null);
+    setIdeasRawText(undefined);
+    setSelectedIdeaIds(new Set());
+    setGeneratedFlows([]);
+    setIdeasLoading(true);
+    setActiveTab("ideas");
     try {
       const result = await generateFlowIdeas(folderPath);
-      setFlowIdeas(result.ideas);
-      setFlowIdeasUsage(result.usage);
+      setIdeas(result.ideas);
+      setIdeasUsage(result.usage);
       if (result.parseError && result.rawText) {
-        setFlowIdeasRawText(result.rawText);
+        setIdeasRawText(result.rawText);
       }
     } catch (e) {
-      setFlowIdeasError(e instanceof Error ? e.message : String(e));
+      setIdeasError(e instanceof Error ? e.message : String(e));
     } finally {
-      setFlowIdeasLoading(false);
+      setIdeasLoading(false);
     }
   }
 
-  // ── Determine RHS content ─────────────────────────────────────────────────
+  // ── Idea selection ────────────────────────────────────────────────────────
 
-  const showFlowIdeas = flowIdeasFolder !== null;
-  const showViewer = !showFlowIdeas && selectedPath && !loadingContent;
-  const showEmpty = !showFlowIdeas && !selectedPath && !loadingContent;
+  function toggleIdeaSelect(id: string) {
+    setSelectedIdeaIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAllIdeas() {
+    setSelectedIdeaIds(new Set(ideas.map((i) => i.id)));
+  }
+
+  function deselectAllIdeas() {
+    setSelectedIdeaIds(new Set());
+  }
+
+  // ── Generate flows from selected ideas ────────────────────────────────────
+
+  async function handleGenerateFlows() {
+    if (selectedIdeaIds.size === 0 || !ideasFolderPath) return;
+
+    const selectedIdeas = ideas.filter((i) => selectedIdeaIds.has(i.id));
+
+    // Get spec file names for context
+    const prefix = ideasFolderPath.endsWith("/") ? ideasFolderPath : `${ideasFolderPath}/`;
+    const specFileNames = files
+      .filter((f) => f.name.startsWith(prefix) && f.name.endsWith(".md"))
+      .map((f) => f.name);
+
+    // Initialize flow entries
+    const initialFlows: GeneratedFlow[] = selectedIdeas.map((idea) => ({
+      ideaId: idea.id,
+      title: idea.title,
+      status: "pending" as const,
+      xml: "",
+    }));
+    setGeneratedFlows(initialFlows);
+    setGeneratingFlows(true);
+    setFlowProgress({ current: 0, total: selectedIdeas.length });
+    setActiveTab("flows");
+
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+
+    // Generate sequentially
+    for (let i = 0; i < selectedIdeas.length; i++) {
+      if (ctrl.signal.aborted) break;
+
+      const idea = selectedIdeas[i];
+      const prompt = buildFlowPrompt(idea);
+
+      // Mark as generating
+      setGeneratedFlows((prev) =>
+        prev.map((f) => f.ideaId === idea.id ? { ...f, status: "generating" as const } : f)
+      );
+
+      try {
+        const xml = await generateFlowXml(prompt, specFileNames, ctrl.signal);
+        setGeneratedFlows((prev) =>
+          prev.map((f) => f.ideaId === idea.id ? { ...f, status: "done" as const, xml } : f)
+        );
+      } catch (e) {
+        if (ctrl.signal.aborted) break;
+        setGeneratedFlows((prev) =>
+          prev.map((f) => f.ideaId === idea.id
+            ? { ...f, status: "error" as const, error: e instanceof Error ? e.message : String(e) }
+            : f
+          )
+        );
+      }
+
+      setFlowProgress({ current: i + 1, total: selectedIdeas.length });
+    }
+
+    setGeneratingFlows(false);
+    abortRef.current = null;
+  }
 
   // ── Render ─────────────────────────────────────────────────────────────────
+
+  const ideasCount = ideas.length;
+  const flowsDoneCount = generatedFlows.filter((f) => f.status === "done").length;
+  const flowsTotalCount = generatedFlows.length;
 
   return (
     <Layout>
@@ -212,32 +299,99 @@ export function SpecFilesPage() {
 
         {/* RHS content */}
         <div className="flex-1 flex flex-col overflow-hidden bg-white">
-          {loadingContent && !showFlowIdeas && (
-            <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">Loading…</div>
+          {/* Tab bar — only after ideas exist */}
+          {showTabs && (
+            <div className="flex items-center border-b border-gray-200 bg-white shrink-0 px-1">
+              <TabButton active={activeTab === "viewer"} onClick={() => setActiveTab("viewer")}>
+                Viewer
+              </TabButton>
+              <TabButton
+                active={activeTab === "ideas"}
+                onClick={() => setActiveTab("ideas")}
+                badge={ideasCount > 0 ? ideasCount : undefined}
+              >
+                Ideas
+              </TabButton>
+              <TabButton
+                active={activeTab === "flows"}
+                onClick={() => setActiveTab("flows")}
+                badge={flowsTotalCount > 0 ? `${flowsDoneCount}/${flowsTotalCount}` : undefined}
+              >
+                Flows
+              </TabButton>
+
+              {/* Close workshop button */}
+              <div className="flex-1" />
+              <button
+                onClick={() => {
+                  if (generatingFlows) {
+                    abortRef.current?.abort();
+                  }
+                  setIdeasFolderPath(null);
+                  setIdeas([]);
+                  setIdeasUsage(null);
+                  setIdeasError(null);
+                  setIdeasRawText(undefined);
+                  setSelectedIdeaIds(new Set());
+                  setGeneratedFlows([]);
+                  setGeneratingFlows(false);
+                  setFlowProgress(null);
+                  setActiveTab("viewer");
+                }}
+                title="Close workshop"
+                className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded hover:bg-gray-100 mr-1"
+              >
+                Close workshop
+              </button>
+            </div>
           )}
-          {showFlowIdeas && (
+
+          {/* Tab content */}
+          {activeTab === "viewer" && (
+            <>
+              {loadingContent && (
+                <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">Loading…</div>
+              )}
+              {!loadingContent && selectedPath && (
+                <MarkdownViewer path={selectedPath} content={content} />
+              )}
+              {!loadingContent && !selectedPath && (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center space-y-2 text-gray-300">
+                    <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" strokeWidth={0.8} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                    </svg>
+                    <p className="text-sm">Select a file to view</p>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {activeTab === "ideas" && ideasFolderPath && (
             <FlowIdeasPanel
-              folderPath={flowIdeasFolder}
-              ideas={flowIdeas}
-              usage={flowIdeasUsage}
-              loading={flowIdeasLoading}
-              error={flowIdeasError}
-              rawText={flowIdeasRawText}
-              onClose={() => setFlowIdeasFolder(null)}
+              folderPath={ideasFolderPath}
+              ideas={ideas.length > 0 ? ideas : null}
+              usage={ideasUsage}
+              loading={ideasLoading}
+              error={ideasError}
+              rawText={ideasRawText}
+              selectedIds={selectedIdeaIds}
+              onToggleSelect={toggleIdeaSelect}
+              onSelectAll={selectAllIdeas}
+              onDeselectAll={deselectAllIdeas}
+              onGenerateFlows={handleGenerateFlows}
+              generatingFlows={generatingFlows}
             />
           )}
-          {showViewer && (
-            <MarkdownViewer path={selectedPath!} content={content} />
-          )}
-          {showEmpty && (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center space-y-2 text-gray-300">
-                <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" strokeWidth={0.8} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                </svg>
-                <p className="text-sm">Select a file to view</p>
-              </div>
-            </div>
+
+          {activeTab === "flows" && (
+            <FlowsPanel
+              flows={generatedFlows}
+              ideas={ideas}
+              generating={generatingFlows}
+              progress={flowProgress}
+            />
           )}
         </div>
       </div>
@@ -252,4 +406,50 @@ export function SpecFilesPage() {
       )}
     </Layout>
   );
+}
+
+// ── Tab button component ──────────────────────────────────────────────────────
+
+function TabButton({ active, onClick, badge, children }: {
+  active: boolean;
+  onClick: () => void;
+  badge?: number | string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+        active
+          ? "border-blue-600 text-blue-600"
+          : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+      }`}
+    >
+      {children}
+      {badge !== undefined && (
+        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+          active ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"
+        }`}>
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
+// ── Build prompt for flow XML generation ──────────────────────────────────────
+
+function buildFlowPrompt(idea: FlowIdea): string {
+  const steps = idea.steps.map((s, i) => `  ${i + 1}. ${s}`).join("\n");
+  return `Create a detailed test flow XML for the following test scenario:
+
+Title: ${idea.title}
+Description: ${idea.description}
+Complexity: ${idea.complexity}
+Entities involved: ${idea.entities.join(", ")}
+
+Expected steps:
+${steps}
+
+Generate the complete flow XML with proper step IDs, request bodies, path parameters, captures, and assertions. Include setup and teardown steps where needed (e.g., create category before article, delete in reverse order).`;
 }
