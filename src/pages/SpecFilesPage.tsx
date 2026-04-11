@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Layout } from "../components/common/Layout";
 import { FileTree } from "../components/specfiles/FileTree";
-import { MarkdownEditor } from "../components/specfiles/MarkdownEditor";
+import { MarkdownViewer } from "../components/specfiles/MarkdownViewer";
+import { FileUploadModal } from "../components/specfiles/FileUploadModal";
 import {
   listSpecFiles,
   getSpecFileContent,
@@ -12,11 +13,6 @@ import {
 } from "../lib/api/specFilesApi";
 import { useAuthGuard } from "../hooks/useAuthGuard";
 
-const NEW_FILE_TEMPLATE = `# New Document
-
-Start writing here.
-`;
-
 export function SpecFilesPage() {
   useAuthGuard();
 
@@ -24,13 +20,9 @@ export function SpecFilesPage() {
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [content, setContent] = useState("");
-  const [savedContent, setSavedContent] = useState("");
   const [loadingContent, setLoadingContent] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const pendingSelectRef = useRef<string | null>(null);
-
-  const dirty = content !== savedContent;
+  const [uploadFolderPath, setUploadFolderPath] = useState<string | null>(null);
 
   // ── File list ──────────────────────────────────────────────────────────────
 
@@ -52,58 +44,16 @@ export function SpecFilesPage() {
   // ── Select file ────────────────────────────────────────────────────────────
 
   async function selectFile(path: string) {
-    if (dirty) {
-      if (!confirm("You have unsaved changes. Discard and open another file?")) return;
-    }
     setSelectedPath(path);
     setContent("");
-    setSavedContent("");
     setLoadingContent(true);
     try {
       const text = await getSpecFileContent(path);
       setContent(text);
-      setSavedContent(text);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoadingContent(false);
-    }
-  }
-
-  // ── Save ───────────────────────────────────────────────────────────────────
-
-  async function handleSave() {
-    if (!selectedPath) return;
-    setSaving(true);
-    try {
-      await uploadSpecFile(selectedPath, content);
-      setSavedContent(content);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function handleDiscard() {
-    setContent(savedContent);
-  }
-
-  // ── Create file ────────────────────────────────────────────────────────────
-
-  async function handleCreateFile(path: string) {
-    const fullPath = path.endsWith(".md") || path.endsWith(".xml") ? path : `${path}.md`;
-    setError(null);
-    try {
-      await uploadSpecFile(fullPath, NEW_FILE_TEMPLATE);
-      await loadFiles();
-      // Select the new file
-      pendingSelectRef.current = fullPath;
-      setSelectedPath(fullPath);
-      setContent(NEW_FILE_TEMPLATE);
-      setSavedContent(NEW_FILE_TEMPLATE);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -119,6 +69,13 @@ export function SpecFilesPage() {
     }
   }
 
+  // ── Upload files ───────────────────────────────────────────────────────────
+
+  async function handleUpload(name: string, fileContent: string, contentType: string) {
+    await uploadSpecFile(name, fileContent, contentType);
+    await loadFiles();
+  }
+
   // ── Delete file ────────────────────────────────────────────────────────────
 
   async function handleDeleteFile(path: string) {
@@ -128,7 +85,6 @@ export function SpecFilesPage() {
       if (selectedPath === path) {
         setSelectedPath(null);
         setContent("");
-        setSavedContent("");
       }
       await loadFiles();
     } catch (e) {
@@ -146,7 +102,6 @@ export function SpecFilesPage() {
       if (selectedPath?.startsWith(`${folderPath}/`)) {
         setSelectedPath(null);
         setContent("");
-        setSavedContent("");
       }
       await loadFiles();
     } catch (e) {
@@ -159,7 +114,6 @@ export function SpecFilesPage() {
   async function handleRename(oldPath: string, newPath: string) {
     setError(null);
     try {
-      // For folders, rename all blobs under the prefix
       const isFolder = !files.some((f) => f.name === oldPath);
       if (isFolder) {
         const toRename = files.filter((f) => f.name.startsWith(`${oldPath}/`));
@@ -200,30 +154,22 @@ export function SpecFilesPage() {
             loading={loadingFiles}
             selectedPath={selectedPath}
             onSelectFile={(path) => void selectFile(path)}
-            onCreateFile={(path) => handleCreateFile(path)}
             onCreateFolder={(path) => handleCreateFolder(path)}
             onDeleteFile={(path) => handleDeleteFile(path)}
             onDeleteFolder={(path) => handleDeleteFolder(path)}
             onRenameFile={(oldPath, newPath) => handleRename(oldPath, newPath)}
+            onUploadFiles={(folderPath) => setUploadFolderPath(folderPath)}
             onRefresh={loadFiles}
           />
         </aside>
 
-        {/* RHS editor */}
+        {/* RHS viewer */}
         <div className="flex-1 flex flex-col overflow-hidden bg-white">
           {loadingContent && (
             <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">Loading…</div>
           )}
           {!loadingContent && selectedPath && (
-            <MarkdownEditor
-              path={selectedPath}
-              content={content}
-              dirty={dirty}
-              saving={saving}
-              onChange={setContent}
-              onSave={() => void handleSave()}
-              onDiscard={handleDiscard}
-            />
+            <MarkdownViewer path={selectedPath} content={content} />
           )}
           {!loadingContent && !selectedPath && (
             <div className="flex-1 flex items-center justify-center">
@@ -231,13 +177,21 @@ export function SpecFilesPage() {
                 <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" strokeWidth={0.8} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                 </svg>
-                <p className="text-sm">Select a file to edit</p>
-                <p className="text-xs">or use + File to create a new one</p>
+                <p className="text-sm">Select a file to view</p>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Upload modal */}
+      {uploadFolderPath !== null && (
+        <FileUploadModal
+          folderPath={uploadFolderPath}
+          onUpload={handleUpload}
+          onClose={() => setUploadFolderPath(null)}
+        />
+      )}
     </Layout>
   );
 }

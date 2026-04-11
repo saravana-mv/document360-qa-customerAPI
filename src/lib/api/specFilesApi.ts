@@ -31,11 +31,11 @@ export async function getSpecFileContent(name: string): Promise<string> {
   return res.text();
 }
 
-export async function uploadSpecFile(name: string, content: string): Promise<void> {
+export async function uploadSpecFile(name: string, content: string, contentType?: string): Promise<void> {
   await apiFetch(`/api/spec-files`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, content }),
+    body: JSON.stringify({ name, content, ...(contentType ? { contentType } : {}) }),
   });
 }
 

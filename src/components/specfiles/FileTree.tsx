@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SpecFileItem } from "../../lib/api/specFilesApi";
 
 // ── Tree data model ───────────────────────────────────────────────────────────
@@ -13,13 +13,12 @@ export interface FileNode {
 export interface FolderNode {
   type: "folder";
   name: string;
-  path: string; // full prefix, e.g. "v3/articles"
+  path: string;
   children: TreeNode[];
 }
 
 export type TreeNode = FileNode | FolderNode;
 
-/** Build a nested tree from flat blob list. Hides .keep sentinel files. */
 export function buildTree(files: SpecFileItem[]): TreeNode[] {
   const root: TreeNode[] = [];
 
@@ -56,11 +55,11 @@ function sortLevel(nodes: TreeNode[]): TreeNode[] {
     .map((n) => (n.type === "folder" ? { ...n, children: sortLevel(n.children) } : n));
 }
 
-// ── File icon helpers ─────────────────────────────────────────────────────────
+// ── Icons ─────────────────────────────────────────────────────────────────────
 
 function FileIcon({ name }: { name: string }) {
   const ext = name.split(".").pop()?.toLowerCase();
-  if (ext === "xml")
+  if (ext === "xml" || ext === "xsd")
     return (
       <svg className="w-3.5 h-3.5 text-orange-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
         <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.379 2H4.5Zm2.25 8.5a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Zm0 3a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Z" clipRule="evenodd" />
@@ -75,25 +74,20 @@ function FileIcon({ name }: { name: string }) {
 
 // ── Inline input (create / rename) ────────────────────────────────────────────
 
-interface InlineInputProps {
+function InlineInput({ defaultValue = "", onCommit, onCancel }: {
   defaultValue?: string;
-  onCommit: (value: string) => void;
+  onCommit: (v: string) => void;
   onCancel: () => void;
-}
-
-function InlineInput({ defaultValue = "", onCommit, onCancel }: InlineInputProps) {
+}) {
   const [value, setValue] = useState(defaultValue);
-  const ref = useRef<HTMLInputElement>(null);
-
   return (
     <input
-      ref={ref}
       autoFocus
       value={value}
       onChange={(e) => setValue(e.target.value)}
       onKeyDown={(e) => {
-        if (e.key === "Enter" && value.trim()) { onCommit(value.trim()); }
-        if (e.key === "Escape") { onCancel(); }
+        if (e.key === "Enter" && value.trim()) onCommit(value.trim());
+        if (e.key === "Escape") onCancel();
         e.stopPropagation();
       }}
       onBlur={() => { if (value.trim()) onCommit(value.trim()); else onCancel(); }}
@@ -102,7 +96,103 @@ function InlineInput({ defaultValue = "", onCommit, onCancel }: InlineInputProps
   );
 }
 
-// ── Tree node rendering ───────────────────────────────────────────────────────
+// ── Folder context menu ───────────────────────────────────────────────────────
+
+interface FolderMenuProps {
+  folderPath: string;
+  isSelected: boolean;
+  onNewSubfolder: () => void;
+  onUploadFiles: () => void;
+  onRename: () => void;
+  onDelete: () => void;
+}
+
+function FolderContextMenu({ folderPath: _, isSelected, onNewSubfolder, onUploadFiles, onRename, onDelete }: FolderMenuProps) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (!menuRef.current?.contains(e.target as Node) && !btnRef.current?.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  function action(fn: () => void) {
+    setOpen(false);
+    fn();
+  }
+
+  return (
+    <div className="relative shrink-0">
+      <button
+        ref={btnRef}
+        title="More actions"
+        onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
+        className={`rounded p-0.5 transition-colors ${
+          isSelected ? "hover:bg-blue-500 text-white" : "text-gray-400 hover:bg-gray-200 hover:text-gray-700"
+        }`}
+      >
+        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10 3a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM10 8.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM11.5 15.5a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0Z" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          ref={menuRef}
+          className="absolute right-0 top-full mt-0.5 z-50 bg-white border border-gray-200 rounded shadow-lg py-0.5 min-w-36"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => action(onNewSubfolder)}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+          >
+            <svg className="w-3.5 h-3.5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
+            </svg>
+            New subfolder
+          </button>
+          <button
+            onClick={() => action(onUploadFiles)}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+          >
+            <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+            </svg>
+            Upload files
+          </button>
+          <div className="border-t border-gray-100 my-0.5" />
+          <button
+            onClick={() => action(onRename)}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+          >
+            <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
+            </svg>
+            Rename
+          </button>
+          <button
+            onClick={() => action(onDelete)}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+            </svg>
+            Delete folder
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Tree node row ─────────────────────────────────────────────────────────────
 
 interface NodeProps {
   node: TreeNode;
@@ -110,23 +200,25 @@ interface NodeProps {
   selectedPath: string | null;
   expandedFolders: Set<string>;
   renamingPath: string | null;
-  creatingUnder: string | null; // folder path where new item is being created
-  creatingType: "file" | "folder" | null;
+  creatingUnder: string | null;
   onSelect: (path: string) => void;
   onToggle: (path: string) => void;
   onRenameStart: (path: string) => void;
   onRenameCommit: (node: TreeNode, newName: string) => void;
   onRenameCancel: () => void;
-  onDelete: (node: TreeNode) => void;
-  onCreateCommit: (parentPath: string, name: string, type: "file" | "folder") => void;
+  onDeleteNode: (node: TreeNode) => void;
+  onStartSubfolder: (parentPath: string) => void;
+  onUploadFiles: (folderPath: string) => void;
+  onCreateCommit: (parentPath: string, name: string) => void;
   onCreateCancel: () => void;
 }
 
 function TreeNodeRow({
   node, depth, selectedPath, expandedFolders, renamingPath,
-  creatingUnder, creatingType,
+  creatingUnder,
   onSelect, onToggle, onRenameStart, onRenameCommit, onRenameCancel,
-  onDelete, onCreateCommit, onCreateCancel,
+  onDeleteNode, onStartSubfolder, onUploadFiles,
+  onCreateCommit, onCreateCancel,
 }: NodeProps) {
   const indent = depth * 12;
   const isSelected = node.path === selectedPath;
@@ -145,7 +237,7 @@ function TreeNodeRow({
           else onSelect(node.path);
         }}
       >
-        {/* Expand/collapse arrow for folders */}
+        {/* Expand arrow */}
         {node.type === "folder" ? (
           <svg
             className={`w-3 h-3 shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""} ${isSelected ? "text-white" : "text-gray-400"}`}
@@ -177,27 +269,40 @@ function TreeNodeRow({
           <span className="flex-1 truncate">{node.name}</span>
         )}
 
-        {/* Hover action buttons */}
+        {/* Actions */}
         {!isRenaming && (
           <span className={`flex items-center gap-0.5 shrink-0 ${isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
-            <button
-              title="Rename"
-              onClick={(e) => { e.stopPropagation(); onRenameStart(node.path); }}
-              className={`rounded p-0.5 ${isSelected ? "hover:bg-blue-500" : "hover:bg-gray-200"}`}
-            >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
-              </svg>
-            </button>
-            <button
-              title="Delete"
-              onClick={(e) => { e.stopPropagation(); onDelete(node); }}
-              className={`rounded p-0.5 ${isSelected ? "hover:bg-red-500" : "hover:bg-red-100 text-red-500"}`}
-            >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
-            </button>
+            {node.type === "folder" ? (
+              <FolderContextMenu
+                folderPath={node.path}
+                isSelected={isSelected}
+                onNewSubfolder={() => onStartSubfolder(node.path)}
+                onUploadFiles={() => onUploadFiles(node.path)}
+                onRename={() => onRenameStart(node.path)}
+                onDelete={() => onDeleteNode(node)}
+              />
+            ) : (
+              <>
+                <button
+                  title="Rename"
+                  onClick={(e) => { e.stopPropagation(); onRenameStart(node.path); }}
+                  className={`rounded p-0.5 ${isSelected ? "hover:bg-blue-500" : "hover:bg-gray-200"}`}
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
+                  </svg>
+                </button>
+                <button
+                  title="Delete"
+                  onClick={(e) => { e.stopPropagation(); onDeleteNode(node); }}
+                  className={`rounded p-0.5 ${isSelected ? "hover:bg-red-500" : "hover:bg-red-100 text-red-500"}`}
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </>
+            )}
           </span>
         )}
       </div>
@@ -214,32 +319,27 @@ function TreeNodeRow({
               expandedFolders={expandedFolders}
               renamingPath={renamingPath}
               creatingUnder={creatingUnder}
-              creatingType={creatingType}
               onSelect={onSelect}
               onToggle={onToggle}
               onRenameStart={onRenameStart}
               onRenameCommit={onRenameCommit}
               onRenameCancel={onRenameCancel}
-              onDelete={onDelete}
+              onDeleteNode={onDeleteNode}
+              onStartSubfolder={onStartSubfolder}
+              onUploadFiles={onUploadFiles}
               onCreateCommit={onCreateCommit}
               onCreateCancel={onCreateCancel}
             />
           ))}
-          {/* Inline create row */}
-          {creatingUnder === node.path && creatingType && (
+          {/* Inline subfolder create row */}
+          {creatingUnder === node.path && (
             <div className="flex items-center gap-1 py-0.5 pr-1 mx-1" style={{ paddingLeft: (depth + 1) * 12 + 4 }}>
               <span className="w-3 shrink-0" />
-              {creatingType === "folder" ? (
-                <svg className="w-3.5 h-3.5 shrink-0 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
-                </svg>
-              ) : (
-                <svg className="w-3.5 h-3.5 shrink-0 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.379 2H4.5Z" clipRule="evenodd" />
-                </svg>
-              )}
+              <svg className="w-3.5 h-3.5 shrink-0 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
+              </svg>
               <InlineInput
-                onCommit={(name) => onCreateCommit(node.path, name, creatingType)}
+                onCommit={(name) => onCreateCommit(node.path, name)}
                 onCancel={onCreateCancel}
               />
             </div>
@@ -257,18 +357,18 @@ interface FileTreeProps {
   loading: boolean;
   selectedPath: string | null;
   onSelectFile: (path: string) => void;
-  onCreateFile: (path: string) => Promise<void>;
   onCreateFolder: (path: string) => Promise<void>;
   onDeleteFile: (path: string) => Promise<void>;
   onDeleteFolder: (folderPath: string) => Promise<void>;
   onRenameFile: (oldPath: string, newPath: string) => Promise<void>;
+  onUploadFiles: (folderPath: string) => void;
   onRefresh: () => void;
 }
 
 export function FileTree({
   files, loading, selectedPath,
-  onSelectFile, onCreateFile, onCreateFolder,
-  onDeleteFile, onDeleteFolder, onRenameFile, onRefresh,
+  onSelectFile, onCreateFolder, onDeleteFile, onDeleteFolder, onRenameFile,
+  onUploadFiles, onRefresh,
 }: FileTreeProps) {
   const tree = buildTree(files);
 
@@ -276,8 +376,8 @@ export function FileTree({
     () => new Set(files.map((f) => f.name.split("/").slice(0, -1).join("/")).filter(Boolean))
   );
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
+  // null = no create, "__root__" = root level, "<path>" = subfolder of that path
   const [creatingUnder, setCreatingUnder] = useState<string | null>(null);
-  const [creatingType, setCreatingType] = useState<"file" | "folder" | null>(null);
 
   function toggleFolder(path: string) {
     setExpandedFolders((prev) => {
@@ -287,34 +387,21 @@ export function FileTree({
     });
   }
 
-  function startCreate(type: "file" | "folder") {
-    // Create under the currently selected folder (or the folder containing selected file)
-    let parent = "";
-    if (selectedPath) {
-      const parts = selectedPath.split("/");
-      // If selected is a file, parent is its containing folder
-      const isFile = files.some((f) => f.name === selectedPath);
-      parent = isFile ? parts.slice(0, -1).join("/") : selectedPath;
-    }
-    setCreatingUnder(parent || "__root__");
-    setCreatingType(type);
-    // Ensure the parent folder is expanded
-    if (parent) {
-      setExpandedFolders((prev) => new Set([...prev, parent]));
-    }
+  function startRootFolder() {
+    setCreatingUnder("__root__");
   }
 
-  async function handleCreateCommit(parentPath: string, name: string, type: "file" | "folder") {
+  function startSubfolder(parentPath: string) {
+    setCreatingUnder(parentPath);
+    setExpandedFolders((prev) => new Set([...prev, parentPath]));
+  }
+
+  async function handleCreateCommit(parentPath: string, name: string) {
     const fullPath = parentPath && parentPath !== "__root__"
       ? `${parentPath}/${name}`
       : name;
     setCreatingUnder(null);
-    setCreatingType(null);
-    if (type === "folder") {
-      await onCreateFolder(fullPath);
-    } else {
-      await onCreateFile(fullPath);
-    }
+    await onCreateFolder(fullPath);
   }
 
   async function handleRenameCommit(node: TreeNode, newName: string) {
@@ -322,48 +409,31 @@ export function FileTree({
     const parts = node.path.split("/");
     parts[parts.length - 1] = newName;
     const newPath = parts.join("/");
-    if (newPath === node.path) return;
-    await onRenameFile(node.path, newPath);
+    if (newPath !== node.path) await onRenameFile(node.path, newPath);
   }
 
-  async function handleDelete(node: TreeNode) {
+  async function handleDeleteNode(node: TreeNode) {
     const label = node.type === "folder"
       ? `Delete folder "${node.name}" and all its contents?`
       : `Delete "${node.name}"?`;
     if (!confirm(label)) return;
-    if (node.type === "folder") {
-      await onDeleteFolder(node.path);
-    } else {
-      await onDeleteFile(node.path);
-    }
+    if (node.type === "folder") await onDeleteFolder(node.path);
+    else await onDeleteFile(node.path);
   }
-
-  // Root-level create row
-  const showRootCreate = creatingUnder === "__root__" && creatingType;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Toolbar */}
+      {/* Toolbar — only root "New folder" + Refresh */}
       <div className="flex items-center gap-1 px-2 py-1.5 border-b border-gray-200 bg-gray-50 shrink-0">
         <button
-          onClick={() => startCreate("folder")}
-          title="New Folder"
+          onClick={startRootFolder}
+          title="New root folder"
           className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded px-1.5 py-1 transition-colors"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
           </svg>
-          Folder
-        </button>
-        <button
-          onClick={() => startCreate("file")}
-          title="New File"
-          className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded px-1.5 py-1 transition-colors"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-          </svg>
-          File
+          New folder
         </button>
         <div className="flex-1" />
         <button
@@ -383,29 +453,23 @@ export function FileTree({
         {loading && files.length === 0 && (
           <p className="text-gray-400 text-center py-8">Loading…</p>
         )}
-        {!loading && tree.length === 0 && !showRootCreate && (
-          <div className="text-center py-8 px-4">
-            <p className="text-gray-400 text-xs">No files yet.</p>
-            <p className="text-gray-400 text-xs mt-1">Use + Folder or + File to get started.</p>
+        {!loading && tree.length === 0 && !creatingUnder && (
+          <div className="text-center py-8 px-4 space-y-1">
+            <p className="text-gray-400">No files yet.</p>
+            <p className="text-gray-400">Use <strong>New folder</strong> to get started.</p>
           </div>
         )}
 
-        {/* Root-level inline create */}
-        {showRootCreate && (
+        {/* Root-level inline folder create */}
+        {creatingUnder === "__root__" && (
           <div className="flex items-center gap-1 py-0.5 pr-1 mx-1 pl-1">
             <span className="w-3 shrink-0" />
-            {creatingType === "folder" ? (
-              <svg className="w-3.5 h-3.5 shrink-0 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
-              </svg>
-            ) : (
-              <svg className="w-3.5 h-3.5 shrink-0 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.379 2H4.5Z" clipRule="evenodd" />
-              </svg>
-            )}
+            <svg className="w-3.5 h-3.5 shrink-0 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
+            </svg>
             <InlineInput
-              onCommit={(name) => void handleCreateCommit("__root__", name, creatingType!)}
-              onCancel={() => { setCreatingUnder(null); setCreatingType(null); }}
+              onCommit={(name) => void handleCreateCommit("__root__", name)}
+              onCancel={() => setCreatingUnder(null)}
             />
           </div>
         )}
@@ -419,15 +483,16 @@ export function FileTree({
             expandedFolders={expandedFolders}
             renamingPath={renamingPath}
             creatingUnder={creatingUnder}
-            creatingType={creatingType}
             onSelect={onSelectFile}
             onToggle={toggleFolder}
             onRenameStart={(path) => setRenamingPath(path)}
-            onRenameCommit={(node, name) => void handleRenameCommit(node, name)}
+            onRenameCommit={(n, name) => void handleRenameCommit(n, name)}
             onRenameCancel={() => setRenamingPath(null)}
-            onDelete={(node) => void handleDelete(node)}
-            onCreateCommit={(parent, name, type) => void handleCreateCommit(parent, name, type)}
-            onCreateCancel={() => { setCreatingUnder(null); setCreatingType(null); }}
+            onDeleteNode={(n) => void handleDeleteNode(n)}
+            onStartSubfolder={startSubfolder}
+            onUploadFiles={onUploadFiles}
+            onCreateCommit={(parent, name) => void handleCreateCommit(parent, name)}
+            onCreateCancel={() => setCreatingUnder(null)}
           />
         ))}
       </div>
