@@ -58,7 +58,7 @@ export function MarkdownEditor({ path, content, dirty, saving, onChange, onSave,
       <div className="flex-1 overflow-hidden" data-color-mode="light">
         <MDEditor
           value={content}
-          onChange={(val) => onChange(val ?? "")}
+          onChange={(val: string | undefined) => onChange(val ?? "")}
           height="100%"
           preview="live"
           visibleDragbar={false}
