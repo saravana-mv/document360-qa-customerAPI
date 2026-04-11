@@ -55,6 +55,28 @@ function sortLevel(nodes: TreeNode[]): TreeNode[] {
     .map((n) => (n.type === "folder" ? { ...n, children: sortLevel(n.children) } : n));
 }
 
+// ── Drop validation ───────────────────────────────────────────────────────────
+
+/** Returns the parent folder path of a node ("" means root level). */
+function parentOf(path: string): string {
+  const idx = path.lastIndexOf("/");
+  return idx === -1 ? "" : path.slice(0, idx);
+}
+
+/**
+ * Can we drop `drag` onto `targetFolderPath`?
+ * targetFolderPath: "" = root, otherwise a folder path.
+ */
+function canDrop(drag: TreeNode, targetFolderPath: string): boolean {
+  // Can't drop a folder into itself
+  if (drag.type === "folder" && targetFolderPath === drag.path) return false;
+  // Can't drop a folder into one of its own descendants
+  if (drag.type === "folder" && targetFolderPath.startsWith(drag.path + "/")) return false;
+  // Already in this location — no-op
+  if (parentOf(drag.path) === targetFolderPath) return false;
+  return true;
+}
+
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
 function FileIcon({ name }: { name: string }) {
@@ -201,6 +223,14 @@ interface NodeProps {
   expandedFolders: Set<string>;
   renamingPath: string | null;
   creatingUnder: string | null;
+  // Drag state
+  draggingPath: string | null;
+  dropTargetPath: string | null; // "" = root, folder path = that folder
+  onDragStart: (node: TreeNode) => void;
+  onDragOver: (e: React.DragEvent, node: TreeNode) => void;
+  onDrop: (e: React.DragEvent, node: TreeNode) => void;
+  onDragEnd: () => void;
+  // Other
   onSelect: (path: string) => void;
   onToggle: (path: string) => void;
   onRenameStart: (path: string) => void;
@@ -216,6 +246,8 @@ interface NodeProps {
 function TreeNodeRow({
   node, depth, selectedPath, expandedFolders, renamingPath,
   creatingUnder,
+  draggingPath, dropTargetPath,
+  onDragStart, onDragOver, onDrop, onDragEnd,
   onSelect, onToggle, onRenameStart, onRenameCommit, onRenameCancel,
   onDeleteNode, onStartSubfolder, onUploadFiles,
   onCreateCommit, onCreateCancel,
@@ -224,12 +256,25 @@ function TreeNodeRow({
   const isSelected = node.path === selectedPath;
   const isExpanded = node.type === "folder" && expandedFolders.has(node.path);
   const isRenaming = node.path === renamingPath;
+  const isDragging = node.path === draggingPath;
+  const isDropTarget = node.type === "folder" && dropTargetPath === node.path;
 
   return (
     <>
       <div
-        className={`group flex items-center gap-1 py-0.5 pr-1 cursor-pointer select-none text-xs rounded mx-1 ${
-          isSelected ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
+        draggable={!isRenaming}
+        onDragStart={(e) => { e.stopPropagation(); onDragStart(node); }}
+        onDragOver={(e) => { e.stopPropagation(); onDragOver(e, node); }}
+        onDrop={(e) => { e.stopPropagation(); onDrop(e, node); }}
+        onDragEnd={(e) => { e.stopPropagation(); onDragEnd(); }}
+        className={`group flex items-center gap-1 py-0.5 pr-1 cursor-pointer select-none text-xs rounded mx-1 transition-colors ${
+          isDragging ? "opacity-40" : ""
+        } ${
+          isDropTarget
+            ? "ring-2 ring-blue-400 bg-blue-50 text-gray-700"
+            : isSelected
+              ? "bg-blue-600 text-white"
+              : "text-gray-700 hover:bg-gray-100"
         }`}
         style={{ paddingLeft: indent + 4 }}
         onClick={() => {
@@ -240,7 +285,7 @@ function TreeNodeRow({
         {/* Expand arrow */}
         {node.type === "folder" ? (
           <svg
-            className={`w-3 h-3 shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""} ${isSelected ? "text-white" : "text-gray-400"}`}
+            className={`w-3 h-3 shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""} ${isSelected && !isDropTarget ? "text-white" : "text-gray-400"}`}
             fill="currentColor" viewBox="0 0 20 20"
           >
             <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clipRule="evenodd" />
@@ -251,7 +296,7 @@ function TreeNodeRow({
 
         {/* Icon */}
         {node.type === "folder" ? (
-          <svg className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-yellow-300" : "text-yellow-500"}`} fill="currentColor" viewBox="0 0 20 20">
+          <svg className={`w-3.5 h-3.5 shrink-0 ${isSelected && !isDropTarget ? "text-yellow-300" : "text-yellow-500"}`} fill="currentColor" viewBox="0 0 20 20">
             <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
           </svg>
         ) : (
@@ -271,11 +316,11 @@ function TreeNodeRow({
 
         {/* Actions */}
         {!isRenaming && (
-          <span className={`flex items-center gap-0.5 shrink-0 ${isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+          <span className={`flex items-center gap-0.5 shrink-0 ${isSelected && !isDropTarget ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
             {node.type === "folder" ? (
               <FolderContextMenu
                 folderPath={node.path}
-                isSelected={isSelected}
+                isSelected={isSelected && !isDropTarget}
                 onNewSubfolder={() => onStartSubfolder(node.path)}
                 onUploadFiles={() => onUploadFiles(node.path)}
                 onRename={() => onRenameStart(node.path)}
@@ -319,6 +364,12 @@ function TreeNodeRow({
               expandedFolders={expandedFolders}
               renamingPath={renamingPath}
               creatingUnder={creatingUnder}
+              draggingPath={draggingPath}
+              dropTargetPath={dropTargetPath}
+              onDragStart={onDragStart}
+              onDragOver={onDragOver}
+              onDrop={onDrop}
+              onDragEnd={onDragEnd}
               onSelect={onSelect}
               onToggle={onToggle}
               onRenameStart={onRenameStart}
@@ -376,8 +427,21 @@ export function FileTree({
     () => new Set(files.map((f) => f.name.split("/").slice(0, -1).join("/")).filter(Boolean))
   );
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
-  // null = no create, "__root__" = root level, "<path>" = subfolder of that path
   const [creatingUnder, setCreatingUnder] = useState<string | null>(null);
+
+  // Drag-and-drop state
+  const [draggingNode, setDraggingNode] = useState<TreeNode | null>(null);
+  // dropTargetPath: "" = root zone, folder path = that folder, null = no active target
+  const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
+  // Auto-expand timer ref
+  const expandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function clearExpandTimer() {
+    if (expandTimerRef.current !== null) {
+      clearTimeout(expandTimerRef.current);
+      expandTimerRef.current = null;
+    }
+  }
 
   function toggleFolder(path: string) {
     setExpandedFolders((prev) => {
@@ -421,6 +485,111 @@ export function FileTree({
     else await onDeleteFile(node.path);
   }
 
+  // ── Drag handlers ───────────────────────────────────────────────────────────
+
+  function handleDragStart(node: TreeNode) {
+    setDraggingNode(node);
+    setDropTargetPath(null);
+  }
+
+  function handleDragOver(e: React.DragEvent, node: TreeNode) {
+    if (!draggingNode) return;
+
+    // Only folders are valid drop targets
+    if (node.type !== "folder") {
+      // Allow drop on the parent folder of this file by targeting its parent
+      e.dataTransfer.dropEffect = "none";
+      return;
+    }
+
+    if (!canDrop(draggingNode, node.path)) {
+      e.dataTransfer.dropEffect = "none";
+      return;
+    }
+
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDropTargetPath(node.path);
+
+    // Auto-expand collapsed folders after 600 ms
+    if (!expandedFolders.has(node.path)) {
+      clearExpandTimer();
+      expandTimerRef.current = setTimeout(() => {
+        setExpandedFolders((prev) => new Set([...prev, node.path]));
+      }, 600);
+    } else {
+      clearExpandTimer();
+    }
+  }
+
+  function handleDrop(e: React.DragEvent, node: TreeNode) {
+    e.preventDefault();
+    if (!draggingNode || node.type !== "folder") return;
+    const target = node.path;
+    if (!canDrop(draggingNode, target)) return;
+    void doMove(draggingNode, target);
+    setDraggingNode(null);
+    setDropTargetPath(null);
+    clearExpandTimer();
+  }
+
+  function handleDragEnd() {
+    setDraggingNode(null);
+    setDropTargetPath(null);
+    clearExpandTimer();
+  }
+
+  // Root zone drag handlers
+  function handleRootDragOver(e: React.DragEvent) {
+    if (!draggingNode) return;
+    if (!canDrop(draggingNode, "")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDropTargetPath("");
+    clearExpandTimer();
+  }
+
+  function handleRootDrop(e: React.DragEvent) {
+    e.preventDefault();
+    if (!draggingNode || !canDrop(draggingNode, "")) return;
+    void doMove(draggingNode, "");
+    setDraggingNode(null);
+    setDropTargetPath(null);
+    clearExpandTimer();
+  }
+
+  async function doMove(node: TreeNode, targetFolderPath: string) {
+    const newPath = targetFolderPath ? `${targetFolderPath}/${node.name}` : node.name;
+    await onRenameFile(node.path, newPath);
+    // Expand target after move
+    if (targetFolderPath) {
+      setExpandedFolders((prev) => new Set([...prev, targetFolderPath]));
+    }
+  }
+
+  const sharedProps = {
+    selectedPath,
+    expandedFolders,
+    renamingPath,
+    creatingUnder,
+    draggingPath: draggingNode?.path ?? null,
+    dropTargetPath,
+    onDragStart: handleDragStart,
+    onDragOver: handleDragOver,
+    onDrop: handleDrop,
+    onDragEnd: handleDragEnd,
+    onSelect: onSelectFile,
+    onToggle: toggleFolder,
+    onRenameStart: (path: string) => setRenamingPath(path),
+    onRenameCommit: (n: TreeNode, name: string) => void handleRenameCommit(n, name),
+    onRenameCancel: () => setRenamingPath(null),
+    onDeleteNode: (n: TreeNode) => void handleDeleteNode(n),
+    onStartSubfolder: startSubfolder,
+    onUploadFiles,
+    onCreateCommit: (parent: string, name: string) => void handleCreateCommit(parent, name),
+    onCreateCancel: () => setCreatingUnder(null),
+  };
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Toolbar — only root "New folder" + Refresh */}
@@ -448,8 +617,21 @@ export function FileTree({
         </button>
       </div>
 
-      {/* Tree */}
-      <div className="flex-1 overflow-y-auto py-1 text-xs">
+      {/* Tree — acts as root drop zone when dragging */}
+      <div
+        className={`flex-1 overflow-y-auto py-1 text-xs transition-colors ${
+          dropTargetPath === "" ? "bg-blue-50 ring-2 ring-inset ring-blue-300" : ""
+        }`}
+        onDragOver={handleRootDragOver}
+        onDrop={handleRootDrop}
+        onDragLeave={(e) => {
+          // Only clear root highlight when leaving the whole tree area
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            setDropTargetPath(null);
+            clearExpandTimer();
+          }
+        }}
+      >
         {loading && files.length === 0 && (
           <p className="text-gray-400 text-center py-8">Loading…</p>
         )}
@@ -479,22 +661,20 @@ export function FileTree({
             key={node.path}
             node={node}
             depth={0}
-            selectedPath={selectedPath}
-            expandedFolders={expandedFolders}
-            renamingPath={renamingPath}
-            creatingUnder={creatingUnder}
-            onSelect={onSelectFile}
-            onToggle={toggleFolder}
-            onRenameStart={(path) => setRenamingPath(path)}
-            onRenameCommit={(n, name) => void handleRenameCommit(n, name)}
-            onRenameCancel={() => setRenamingPath(null)}
-            onDeleteNode={(n) => void handleDeleteNode(n)}
-            onStartSubfolder={startSubfolder}
-            onUploadFiles={onUploadFiles}
-            onCreateCommit={(parent, name) => void handleCreateCommit(parent, name)}
-            onCreateCancel={() => setCreatingUnder(null)}
+            {...sharedProps}
           />
         ))}
+
+        {/* Root drop zone hint — shown at bottom when dragging */}
+        {draggingNode && (
+          <div className={`mx-2 mt-2 mb-1 rounded border-2 border-dashed px-3 py-2 text-center text-xs transition-colors ${
+            dropTargetPath === ""
+              ? "border-blue-400 text-blue-500 bg-blue-50"
+              : "border-gray-200 text-gray-400"
+          }`}>
+            Drop here to move to root
+          </div>
+        )}
       </div>
     </div>
   );
