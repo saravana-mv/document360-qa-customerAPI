@@ -15,10 +15,25 @@ interface AuthState {
   initFromSession: () => void;
 }
 
+/** Read sessionStorage synchronously — safe to call at module load time. */
+function resolveInitialAuth(): { status: AuthStatus; token: TokenSet | null } {
+  const token = getToken() as TokenSet | null;
+  if (token) {
+    const isExpired = token.expires_at && token.expires_at < Date.now();
+    if (!isExpired) {
+      return { status: "authenticated", token };
+    }
+  }
+  return { status: "unauthenticated", token: null };
+}
+
+const initial = resolveInitialAuth();
+
 export const useAuthStore = create<AuthState>((set) => ({
-  status: "loading",
+  // Auth resolved synchronously at store creation — no loading flash
+  status: initial.status,
+  token: initial.token,
   config: null,
-  token: null,
   error: null,
 
   setConfig: (config) => set({ config }),
@@ -31,15 +46,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ status: "unauthenticated", token: null, error: null });
   },
 
+  // Kept for compatibility — re-checks session if called explicitly
   initFromSession: () => {
-    const token = getToken() as TokenSet | null;
-    if (token) {
-      const isExpired = token.expires_at && token.expires_at < Date.now();
-      if (!isExpired) {
-        set({ token, status: "authenticated" });
-        return;
-      }
-    }
-    set({ status: "unauthenticated" });
+    const { status, token } = resolveInitialAuth();
+    set({ status, token });
   },
 }));
