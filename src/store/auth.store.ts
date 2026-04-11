@@ -16,7 +16,7 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  status: "unauthenticated",
+  status: "loading",
   config: null,
   token: null,
   error: null,
@@ -37,7 +37,9 @@ export const useAuthStore = create<AuthState>((set) => ({
       const isExpired = token.expires_at && token.expires_at < Date.now();
       if (!isExpired) {
         set({ token, status: "authenticated" });
+        return;
       }
     }
+    set({ status: "unauthenticated" });
   },
 }));

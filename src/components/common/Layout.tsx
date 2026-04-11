@@ -10,7 +10,7 @@ interface LayoutProps {
 
 export function Layout({ children, showTestControls }: LayoutProps) {
   const { status } = useAuthStore();
-  const showNav = status === "authenticated";
+  const showNav = status === "authenticated" || status === "authenticating";
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">

@@ -1,5 +1,4 @@
 import MDEditor from "@uiw/react-md-editor";
-import "@uiw/react-md-editor/markdown-editor.css";
 
 interface Props {
   path: string;

@@ -16,6 +16,14 @@ import "./lib/tests/suites/articles.suite";
 import "./lib/tests/suites/categories.suite";
 import "./lib/tests/suites/drive.suite";
 
+function PageLoader() {
+  return (
+    <div className="flex h-screen w-screen items-center justify-center bg-gray-50">
+      <Spinner size="lg" className="text-blue-600" />
+    </div>
+  );
+}
+
 function AppRoutes() {
   const { initFromSession } = useAuthStore();
 
@@ -31,8 +39,8 @@ function AppRoutes() {
       <Route path="/settings" element={<SetupPage />} />
       <Route path="/setup" element={<Navigate to="/settings" replace />} />
       <Route path="/test" element={<TestPage />} />
-      <Route path="/flow" element={<Suspense fallback={<div className="flex-1 flex items-center justify-center"><Spinner size="lg" /></div>}><FlowCreatorPage /></Suspense>} />
-      <Route path="/spec-files" element={<Suspense fallback={<div className="flex-1 flex items-center justify-center"><Spinner size="lg" /></div>}><SpecFilesPage /></Suspense>} />
+      <Route path="/flow" element={<Suspense fallback={<PageLoader />}><FlowCreatorPage /></Suspense>} />
+      <Route path="/spec-files" element={<Suspense fallback={<PageLoader />}><SpecFilesPage /></Suspense>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

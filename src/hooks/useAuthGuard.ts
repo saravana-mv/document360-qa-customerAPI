@@ -7,6 +7,7 @@ export function useAuthGuard() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // "loading" means initFromSession hasn't run yet — wait before redirecting
     if (status === "unauthenticated" || status === "error") {
       navigate("/");
     }

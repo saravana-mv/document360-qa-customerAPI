@@ -15,4 +15,4 @@ export interface TokenSet {
   expires_at?: number;
 }
 
-export type AuthStatus = "unauthenticated" | "authenticating" | "authenticated" | "error";
+export type AuthStatus = "loading" | "unauthenticated" | "authenticating" | "authenticated" | "error";
