@@ -410,7 +410,6 @@ export function SpecFilesPage() {
 
           {activeTab === "ideas" && ideasFolderPath && (
             <FlowIdeasPanel
-              folderPath={ideasFolderPath}
               ideas={ideas.length > 0 ? ideas : null}
               usage={ideasUsage}
               loading={ideasLoading}

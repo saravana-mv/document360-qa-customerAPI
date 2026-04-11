@@ -43,7 +43,7 @@ export function FlowsPanel({ flows, ideas, generating, progress }: Props) {
     }
   }
 
-  const STATUS_ICON: Record<string, JSX.Element> = {
+  const STATUS_ICON: Record<string, React.ReactNode> = {
     pending: (
       <span className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
         <span className="w-2 h-2 rounded-full bg-gray-300" />

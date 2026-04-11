@@ -4,20 +4,22 @@
   "description": "Azure Functions backend for Document360 QA Customer API",
   "main": "dist/src/functions/*.js",
   "scripts": {
-    "build": "tsc",
+    "build": "node esbuild.config.mjs",
+    "build:tsc": "tsc",
     "watch": "tsc -w",
     "start": "func start",
     "prestart": "npm run build",
     "test": "jest"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
-    "@azure/functions": "^4.6.0",
-    "@azure/storage-blob": "^12.26.0"
+    "@azure/functions": "^4.6.0"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@azure/storage-blob": "^12.26.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^20.0.0",
+    "esbuild": "^0.28.0",
     "jest": "^30.3.0",
     "ts-jest": "^29.4.9",
     "typescript": "^5.4.0"

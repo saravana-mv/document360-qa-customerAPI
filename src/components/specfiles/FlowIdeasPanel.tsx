@@ -8,7 +8,6 @@ const COMPLEXITY_COLORS: Record<string, string> = {
 };
 
 interface Props {
-  folderPath: string;
   ideas: FlowIdea[] | null;
   usage: FlowIdeasUsage | null;
   loading: boolean;
@@ -24,12 +23,11 @@ interface Props {
 }
 
 export function FlowIdeasPanel({
-  folderPath, ideas, usage, loading, error, rawText,
+  ideas, usage, loading, error, rawText,
   selectedIds, onToggleSelect, onSelectAll, onDeselectAll,
   onGenerateFlows, onGenerateMore, generatingFlows,
 }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const folderName = folderPath.split("/").pop() || folderPath;
 
   const totalIdeas = ideas?.length ?? 0;
   const selectedCount = selectedIds.size;
