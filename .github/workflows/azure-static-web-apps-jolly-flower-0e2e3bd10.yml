@@ -19,6 +19,14 @@ jobs:
         with:
           submodules: true
           lfs: false
+
+      # Run API unit tests before deploying so broken function logic is caught early
+      - name: Test API functions
+        working-directory: api
+        run: |
+          npm ci
+          npm test
+
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
@@ -32,6 +40,13 @@ jobs:
           api_location: "api" # Api source code path - optional
           output_location: "dist" # Built app content directory - optional
           ###### End of Repository/Build Configurations ######
+
+      # Smoke-test the live deployment — catches routing and 404 issues immediately
+      - name: Smoke test deployed endpoints
+        run: |
+          # Wait briefly for Azure SWA to finish propagating the deployment
+          sleep 10
+          node scripts/smoke-test.mjs https://jolly-flower-0e2e3bd10.1.azurestaticapps.net
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'

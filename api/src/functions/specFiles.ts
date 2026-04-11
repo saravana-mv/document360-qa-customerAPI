@@ -96,7 +96,7 @@ async function deleteFile(req: HttpRequest, _ctx: InvocationContext): Promise<Ht
 
 // Single function handles all methods on spec-files route to avoid
 // Azure SWA routing issues when multiple functions share the same route.
-async function specFilesRouter(req: HttpRequest, ctx: InvocationContext): Promise<HttpResponseInit> {
+export async function specFilesRouter(req: HttpRequest, ctx: InvocationContext): Promise<HttpResponseInit> {
   switch (req.method) {
     case "OPTIONS": return { status: 204, headers: CORS_HEADERS };
     case "GET":     return listFiles(req, ctx);
