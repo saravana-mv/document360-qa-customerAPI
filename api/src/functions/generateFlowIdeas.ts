@@ -1,0 +1,230 @@
+import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
+import Anthropic from "@anthropic-ai/sdk";
+import { downloadBlob, listBlobs } from "../lib/blobClient";
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+// Claude Sonnet 4 pricing
+const INPUT_PRICE_PER_TOKEN = 3 / 1_000_000;   // $3 per million
+const OUTPUT_PRICE_PER_TOKEN = 15 / 1_000_000;  // $15 per million
+const CHARS_PER_TOKEN = 3.5;  // conservative estimate
+const MAX_OUTPUT_TOKENS = 4096;
+const DEFAULT_BUDGET_USD = 1.0;
+const MAX_FILES = 50;
+
+const SYSTEM_PROMPT = `You are an expert QA test architect analyzing API specifications for Document360.
+
+Your job: given a set of API endpoint specifications, generate ALL possible test flow ideas. A "flow" is a sequence of API calls that tests a real user journey or lifecycle.
+
+## What to analyze
+- Each spec file describes one API endpoint (method, path, request/response schema, business rules)
+- Look for CRUD lifecycles (create -> read -> update -> delete)
+- Look for state transitions (draft -> published -> unpublished)
+- Look for bulk operations and their relationship to single operations
+- Look for dependencies between entities (e.g., articles require categories)
+- Look for edge cases: invalid inputs, missing required fields, duplicate creation
+- Look for ordering constraints: what must happen before what
+
+## Output format
+Return a JSON array. Each item:
+{
+  "id": "idea-N",
+  "title": "Short descriptive name (under 60 chars)",
+  "description": "One sentence describing the test scenario",
+  "steps": ["POST /v3/.../resource", "GET /v3/.../resource/{id}", ...],
+  "entities": ["articles", "categories"],
+  "complexity": "simple|moderate|complex"
+}
+
+## Complexity guide
+- simple: 2-3 steps, single entity CRUD
+- moderate: 4-6 steps, may involve state changes or 2 entities
+- complex: 7+ steps, multi-entity dependencies, bulk operations, error scenarios
+
+## Rules
+1. Be exhaustive — generate every reasonable flow, including error/negative flows
+2. Always note entity dependencies (e.g., article flows need category setup/teardown)
+3. Include both happy-path and error-path flows
+4. Group related flows logically
+5. Return ONLY valid JSON — no markdown fences, no explanation text
+
+Return the JSON array directly.`;
+
+function ok(data: unknown): HttpResponseInit {
+  return {
+    status: 200,
+    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  };
+}
+
+function err(status: number, data: unknown): HttpResponseInit {
+  const body = typeof data === "string" ? JSON.stringify({ error: data }) : JSON.stringify(data);
+  return {
+    status,
+    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    body,
+  };
+}
+
+export async function generateFlowIdeasHandler(
+  req: HttpRequest,
+  _ctx: InvocationContext
+): Promise<HttpResponseInit> {
+  if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
+
+  // ── Validate API key ──
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return err(500, "ANTHROPIC_API_KEY is not configured");
+  }
+
+  // ── Parse body ──
+  let body: { folderPath?: string; maxBudgetUsd?: number };
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    return err(400, "Invalid JSON body");
+  }
+
+  if (!body.folderPath) {
+    return err(400, "folderPath is required");
+  }
+
+  const budget = typeof body.maxBudgetUsd === "number" && body.maxBudgetUsd > 0
+    ? body.maxBudgetUsd
+    : DEFAULT_BUDGET_USD;
+
+  // ── Read all .md files in the folder ──
+  const prefix = body.folderPath.endsWith("/") ? body.folderPath : `${body.folderPath}/`;
+  let allBlobs;
+  try {
+    allBlobs = await listBlobs(prefix);
+  } catch (e) {
+    return err(500, `Failed to list blobs: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  const mdBlobs = allBlobs.filter((b) => b.name.endsWith(".md") && !b.name.endsWith("/.keep"));
+
+  if (mdBlobs.length === 0) {
+    return ok({
+      ideas: [],
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        costUsd: 0,
+        filesAnalyzed: 0,
+        totalSpecCharacters: 0,
+      },
+      message: "No .md files found in this folder",
+    });
+  }
+
+  if (mdBlobs.length > MAX_FILES) {
+    return err(422, `Folder contains ${mdBlobs.length} .md files (max ${MAX_FILES}). Use a subfolder or reduce file count.`);
+  }
+
+  // ── Download and concatenate spec content ──
+  let specContents: { name: string; content: string }[];
+  try {
+    specContents = await Promise.all(
+      mdBlobs.map(async (b) => ({
+        name: b.name,
+        content: await downloadBlob(b.name),
+      }))
+    );
+  } catch (e) {
+    return err(500, `Failed to read spec files: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  const specText = specContents
+    .map((s) => `## ${s.name}\n\n${s.content}`)
+    .join("\n\n---\n\n");
+
+  const userMessage = `Analyze these API specifications and generate all possible test flow ideas.\n\n## Spec Files\n\n${specText}`;
+
+  // ── Pre-estimate cost and enforce budget ──
+  const totalChars = SYSTEM_PROMPT.length + userMessage.length;
+  const estimatedInputTokens = Math.ceil(totalChars / CHARS_PER_TOKEN);
+  const estimatedCostUsd =
+    estimatedInputTokens * INPUT_PRICE_PER_TOKEN +
+    MAX_OUTPUT_TOKENS * OUTPUT_PRICE_PER_TOKEN;
+
+  if (estimatedCostUsd > budget) {
+    return err(422, {
+      error: `Estimated cost $${estimatedCostUsd.toFixed(4)} exceeds budget $${budget.toFixed(2)}`,
+      estimatedInputTokens,
+      estimatedOutputTokens: MAX_OUTPUT_TOKENS,
+      estimatedCostUsd: parseFloat(estimatedCostUsd.toFixed(4)),
+      budget,
+      filesFound: mdBlobs.length,
+      totalChars,
+    });
+  }
+
+  // ── Call Claude API ──
+  const client = new Anthropic({ apiKey });
+  let response;
+  try {
+    response = await client.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: MAX_OUTPUT_TOKENS,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: "user", content: userMessage }],
+    });
+  } catch (e) {
+    return err(500, `Claude API error: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  // ── Extract usage ──
+  const inputTokens = response.usage.input_tokens;
+  const outputTokens = response.usage.output_tokens;
+  const costUsd = parseFloat(
+    ((inputTokens * INPUT_PRICE_PER_TOKEN) + (outputTokens * OUTPUT_PRICE_PER_TOKEN)).toFixed(6)
+  );
+
+  const usage = {
+    inputTokens,
+    outputTokens,
+    totalTokens: inputTokens + outputTokens,
+    costUsd,
+    filesAnalyzed: mdBlobs.length,
+    totalSpecCharacters: specText.length,
+  };
+
+  // ── Parse response ──
+  const textBlock = response.content.find((b) => b.type === "text");
+  const rawText = textBlock && textBlock.type === "text" ? textBlock.text : "";
+
+  let ideas;
+  try {
+    // Strip markdown code fences if Claude adds them despite instructions
+    const cleaned = rawText.replace(/^```(?:json)?\s*\n?/m, "").replace(/\n?```\s*$/m, "").trim();
+    ideas = JSON.parse(cleaned);
+    if (!Array.isArray(ideas)) {
+      ideas = [ideas];
+    }
+  } catch {
+    // Return raw text so the frontend can still display something
+    return ok({
+      ideas: [],
+      rawText,
+      parseError: true,
+      usage,
+    });
+  }
+
+  return ok({ ideas, usage });
+}
+
+app.http("generateFlowIdeas", {
+  methods: ["POST", "OPTIONS"],
+  authLevel: "anonymous",
+  route: "generate-flow-ideas",
+  handler: generateFlowIdeasHandler,
+});

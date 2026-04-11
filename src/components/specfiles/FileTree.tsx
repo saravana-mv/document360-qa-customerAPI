@@ -125,11 +125,12 @@ interface FolderMenuProps {
   isSelected: boolean;
   onNewSubfolder: () => void;
   onUploadFiles: () => void;
+  onGenerateFlowIdeas: () => void;
   onRename: () => void;
   onDelete: () => void;
 }
 
-function FolderContextMenu({ folderPath: _, isSelected, onNewSubfolder, onUploadFiles, onRename, onDelete }: FolderMenuProps) {
+function FolderContextMenu({ folderPath: _, isSelected, onNewSubfolder, onUploadFiles, onGenerateFlowIdeas, onRename, onDelete }: FolderMenuProps) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -189,6 +190,15 @@ function FolderContextMenu({ folderPath: _, isSelected, onNewSubfolder, onUpload
             </svg>
             Upload files
           </button>
+          <button
+            onClick={() => action(onGenerateFlowIdeas)}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+          >
+            <svg className="w-3.5 h-3.5 text-purple-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+            </svg>
+            Generate Flow Ideas (AI)
+          </button>
           <div className="border-t border-gray-100 my-0.5" />
           <button
             onClick={() => action(onRename)}
@@ -239,6 +249,7 @@ interface NodeProps {
   onDeleteNode: (node: TreeNode) => void;
   onStartSubfolder: (parentPath: string) => void;
   onUploadFiles: (folderPath: string) => void;
+  onGenerateFlowIdeas: (folderPath: string) => void;
   onCreateCommit: (parentPath: string, name: string) => void;
   onCreateCancel: () => void;
 }
@@ -249,7 +260,7 @@ function TreeNodeRow({
   draggingPath, dropTargetPath,
   onDragStart, onDragOver, onDrop, onDragEnd,
   onSelect, onToggle, onRenameStart, onRenameCommit, onRenameCancel,
-  onDeleteNode, onStartSubfolder, onUploadFiles,
+  onDeleteNode, onStartSubfolder, onUploadFiles, onGenerateFlowIdeas,
   onCreateCommit, onCreateCancel,
 }: NodeProps) {
   const indent = depth * 12;
@@ -323,6 +334,7 @@ function TreeNodeRow({
                 isSelected={isSelected && !isDropTarget}
                 onNewSubfolder={() => onStartSubfolder(node.path)}
                 onUploadFiles={() => onUploadFiles(node.path)}
+                onGenerateFlowIdeas={() => onGenerateFlowIdeas(node.path)}
                 onRename={() => onRenameStart(node.path)}
                 onDelete={() => onDeleteNode(node)}
               />
@@ -378,6 +390,7 @@ function TreeNodeRow({
               onDeleteNode={onDeleteNode}
               onStartSubfolder={onStartSubfolder}
               onUploadFiles={onUploadFiles}
+              onGenerateFlowIdeas={onGenerateFlowIdeas}
               onCreateCommit={onCreateCommit}
               onCreateCancel={onCreateCancel}
             />
@@ -413,13 +426,14 @@ interface FileTreeProps {
   onDeleteFolder: (folderPath: string) => Promise<void>;
   onRenameFile: (oldPath: string, newPath: string) => Promise<void>;
   onUploadFiles: (folderPath: string) => void;
+  onGenerateFlowIdeas: (folderPath: string) => void;
   onRefresh: () => void;
 }
 
 export function FileTree({
   files, loading, selectedPath,
   onSelectFile, onCreateFolder, onDeleteFile, onDeleteFolder, onRenameFile,
-  onUploadFiles, onRefresh,
+  onUploadFiles, onGenerateFlowIdeas, onRefresh,
 }: FileTreeProps) {
   const tree = buildTree(files);
 
@@ -586,6 +600,7 @@ export function FileTree({
     onDeleteNode: (n: TreeNode) => void handleDeleteNode(n),
     onStartSubfolder: startSubfolder,
     onUploadFiles,
+    onGenerateFlowIdeas,
     onCreateCommit: (parent: string, name: string) => void handleCreateCommit(parent, name),
     onCreateCancel: () => setCreatingUnder(null),
   };

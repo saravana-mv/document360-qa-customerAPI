@@ -3,13 +3,17 @@ import { Layout } from "../components/common/Layout";
 import { FileTree } from "../components/specfiles/FileTree";
 import { MarkdownViewer } from "../components/specfiles/MarkdownViewer";
 import { FileUploadModal } from "../components/specfiles/FileUploadModal";
+import { FlowIdeasPanel } from "../components/specfiles/FlowIdeasPanel";
 import {
   listSpecFiles,
   getSpecFileContent,
   uploadSpecFile,
   deleteSpecFile,
   renameSpecFile,
+  generateFlowIdeas,
   type SpecFileItem,
+  type FlowIdea,
+  type FlowIdeasUsage,
 } from "../lib/api/specFilesApi";
 import { useAuthGuard } from "../hooks/useAuthGuard";
 
@@ -23,6 +27,14 @@ export function SpecFilesPage() {
   const [loadingContent, setLoadingContent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadFolderPath, setUploadFolderPath] = useState<string | null>(null);
+
+  // Flow ideas state
+  const [flowIdeasFolder, setFlowIdeasFolder] = useState<string | null>(null);
+  const [flowIdeas, setFlowIdeas] = useState<FlowIdea[] | null>(null);
+  const [flowIdeasUsage, setFlowIdeasUsage] = useState<FlowIdeasUsage | null>(null);
+  const [flowIdeasLoading, setFlowIdeasLoading] = useState(false);
+  const [flowIdeasError, setFlowIdeasError] = useState<string | null>(null);
+  const [flowIdeasRawText, setFlowIdeasRawText] = useState<string | undefined>();
 
   // ── File list ──────────────────────────────────────────────────────────────
 
@@ -44,6 +56,8 @@ export function SpecFilesPage() {
   // ── Select file ────────────────────────────────────────────────────────────
 
   async function selectFile(path: string) {
+    // Close flow ideas panel when selecting a file
+    setFlowIdeasFolder(null);
     setSelectedPath(path);
     setContent("");
     setLoadingContent(true);
@@ -133,6 +147,38 @@ export function SpecFilesPage() {
     }
   }
 
+  // ── Generate flow ideas (AI) ──────────────────────────────────────────────
+
+  async function handleGenerateFlowIdeas(folderPath: string) {
+    setFlowIdeasFolder(folderPath);
+    setFlowIdeas(null);
+    setFlowIdeasUsage(null);
+    setFlowIdeasError(null);
+    setFlowIdeasRawText(undefined);
+    setFlowIdeasLoading(true);
+    // Clear file viewer when showing flow ideas
+    setSelectedPath(null);
+    setContent("");
+    try {
+      const result = await generateFlowIdeas(folderPath);
+      setFlowIdeas(result.ideas);
+      setFlowIdeasUsage(result.usage);
+      if (result.parseError && result.rawText) {
+        setFlowIdeasRawText(result.rawText);
+      }
+    } catch (e) {
+      setFlowIdeasError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setFlowIdeasLoading(false);
+    }
+  }
+
+  // ── Determine RHS content ─────────────────────────────────────────────────
+
+  const showFlowIdeas = flowIdeasFolder !== null;
+  const showViewer = !showFlowIdeas && selectedPath && !loadingContent;
+  const showEmpty = !showFlowIdeas && !selectedPath && !loadingContent;
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -159,19 +205,31 @@ export function SpecFilesPage() {
             onDeleteFolder={(path) => handleDeleteFolder(path)}
             onRenameFile={(oldPath, newPath) => handleRename(oldPath, newPath)}
             onUploadFiles={(folderPath) => setUploadFolderPath(folderPath)}
+            onGenerateFlowIdeas={(folderPath) => void handleGenerateFlowIdeas(folderPath)}
             onRefresh={loadFiles}
           />
         </aside>
 
-        {/* RHS viewer */}
+        {/* RHS content */}
         <div className="flex-1 flex flex-col overflow-hidden bg-white">
-          {loadingContent && (
+          {loadingContent && !showFlowIdeas && (
             <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">Loading…</div>
           )}
-          {!loadingContent && selectedPath && (
-            <MarkdownViewer path={selectedPath} content={content} />
+          {showFlowIdeas && (
+            <FlowIdeasPanel
+              folderPath={flowIdeasFolder}
+              ideas={flowIdeas}
+              usage={flowIdeasUsage}
+              loading={flowIdeasLoading}
+              error={flowIdeasError}
+              rawText={flowIdeasRawText}
+              onClose={() => setFlowIdeasFolder(null)}
+            />
           )}
-          {!loadingContent && !selectedPath && (
+          {showViewer && (
+            <MarkdownViewer path={selectedPath!} content={content} />
+          )}
+          {showEmpty && (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center space-y-2 text-gray-300">
                 <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" strokeWidth={0.8} viewBox="0 0 24 24">

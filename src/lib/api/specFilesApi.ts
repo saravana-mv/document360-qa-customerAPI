@@ -52,3 +52,43 @@ export async function renameSpecFile(name: string, newName: string): Promise<voi
     body: JSON.stringify({ name, newName }),
   });
 }
+
+// ── Flow Ideas (AI) ───────────────────────────────────────────────────────────
+
+export interface FlowIdea {
+  id: string;
+  title: string;
+  description: string;
+  steps: string[];
+  entities: string[];
+  complexity: "simple" | "moderate" | "complex";
+}
+
+export interface FlowIdeasUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  costUsd: number;
+  filesAnalyzed: number;
+  totalSpecCharacters: number;
+}
+
+export interface GenerateFlowIdeasResponse {
+  ideas: FlowIdea[];
+  usage: FlowIdeasUsage;
+  rawText?: string;
+  parseError?: boolean;
+  message?: string;
+}
+
+export async function generateFlowIdeas(
+  folderPath: string,
+  maxBudgetUsd?: number
+): Promise<GenerateFlowIdeasResponse> {
+  const res = await apiFetch("/api/generate-flow-ideas", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ folderPath, maxBudgetUsd }),
+  });
+  return res.json() as Promise<GenerateFlowIdeasResponse>;
+}
