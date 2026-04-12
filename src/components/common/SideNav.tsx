@@ -48,15 +48,7 @@ const NAV_ITEMS: NavItem[] = [
 
 export function SideNav() {
   return (
-    <nav className="w-[68px] bg-white flex flex-col items-center pt-4 pb-3 shrink-0 border-r border-[#d1d9e0]">
-      {/* Logo mark */}
-      <div className="w-8 h-8 rounded-lg bg-[#0969da] flex items-center justify-center mb-5 shrink-0">
-        <span className="text-white font-bold text-[11px] tracking-tight">FF</span>
-      </div>
-
-      {/* Divider */}
-      <div className="w-8 border-t border-[#d1d9e0] mb-3" />
-
+    <nav className="w-[68px] bg-white flex flex-col items-center pt-2 pb-3 shrink-0 border-r border-[#d1d9e0]">
       <div className="flex flex-col items-center gap-1 flex-1">
         {NAV_ITEMS.map((item) => (
           <NavLink
