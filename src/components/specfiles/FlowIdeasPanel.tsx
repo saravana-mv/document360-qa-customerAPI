@@ -271,7 +271,7 @@ export function FlowIdeasPanel({
               </div>
               <div className="px-4 py-3 space-y-2">
                 <p className="text-xs text-[#656d76] leading-relaxed">
-                  This will permanently remove the selected idea{deletingCount !== 1 ? "s" : ""} from this context.
+                  This will permanently remove the selected idea{deletingCount !== 1 ? "s" : ""} and all associated flows from this context.
                 </p>
                 {flowsToDelete > 0 && (
                   <div className="flex items-start gap-2 bg-[#fff8c5] border border-[#f5e0a0] rounded-md px-3 py-2">
@@ -279,7 +279,7 @@ export function FlowIdeasPanel({
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
                     </svg>
                     <p className="text-xs text-[#9a6700] leading-relaxed">
-                      <strong>{flowsToDelete}</strong> of the selected idea{flowsToDelete !== 1 ? "s have" : " has"} already generated flow{flowsToDelete !== 1 ? "s" : ""}. Deleting will also remove {flowsToDelete !== 1 ? "those flows" : "that flow"}.
+                      <strong>{flowsToDelete}</strong> of the selected idea{flowsToDelete !== 1 ? "s have" : " has"} completed flow{flowsToDelete !== 1 ? "s" : ""} that will also be deleted.
                     </p>
                   </div>
                 )}
