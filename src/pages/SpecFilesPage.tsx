@@ -5,6 +5,7 @@ import { MarkdownViewer } from "../components/specfiles/MarkdownViewer";
 import { FileUploadModal } from "../components/specfiles/FileUploadModal";
 import { FlowIdeasPanel } from "../components/specfiles/FlowIdeasPanel";
 import { FlowsPanel, type GeneratedFlow } from "../components/specfiles/FlowsPanel";
+import { DetailPanel } from "../components/specfiles/DetailPanel";
 import {
   listSpecFiles,
   getSpecFileContent,
@@ -19,8 +20,6 @@ import {
 import { generateFlowXml } from "../lib/api/flowApi";
 import { useAuthGuard } from "../hooks/useAuthGuard";
 
-type RhsTab = "viewer" | "ideas" | "flows";
-
 export function SpecFilesPage() {
   useAuthGuard();
 
@@ -33,9 +32,6 @@ export function SpecFilesPage() {
   const [loadingContent, setLoadingContent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadFolderPath, setUploadFolderPath] = useState<string | null>(null);
-
-  // ── Tab state ──────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<RhsTab>("viewer");
 
   // ── Flow ideas state ───────────────────────────────────────────────────────
   const [ideasFolderPath, setIdeasFolderPath] = useState<string | null>(null);
@@ -52,8 +48,12 @@ export function SpecFilesPage() {
   const [flowProgress, setFlowProgress] = useState<{ current: number; total: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Tab bar is visible once ideas have been generated at least once
-  const showTabs = ideas.length > 0 || ideasLoading || ideasError !== null;
+  // ── Detail panel state ─────────────────────────────────────────────────────
+  const [activeIdeaId, setActiveIdeaId] = useState<string | null>(null);
+  const [activeFlowId, setActiveFlowId] = useState<string | null>(null);
+
+  // Workshop is visible once ideas have been generated at least once
+  const showWorkshop = ideas.length > 0 || ideasLoading || ideasError !== null;
 
   // ── File list ──────────────────────────────────────────────────────────────
 
@@ -75,7 +75,6 @@ export function SpecFilesPage() {
   // ── Select file ────────────────────────────────────────────────────────────
 
   async function selectFile(path: string) {
-    setActiveTab("viewer");
     setSelectedPath(path);
     setSelectedFolderPath(null);
     setContent("");
@@ -94,11 +93,6 @@ export function SpecFilesPage() {
     setSelectedFolderPath(path);
     setSelectedPath(null);
     setContent("");
-    // If this is the same folder that already has ideas, keep existing state
-    // Otherwise switch to the folder view tab
-    if (path !== ideasFolderPath) {
-      setActiveTab("viewer");
-    }
   }
 
   // ── CRUD handlers ─────────────────────────────────────────────────────────
@@ -172,7 +166,6 @@ export function SpecFilesPage() {
   // ── Generate flow ideas (AI) ──────────────────────────────────────────────
 
   async function handleGenerateFlowIdeas(folderPath: string) {
-    // Fresh generation — reset everything
     setSelectedFolderPath(folderPath);
     setSelectedPath(null);
     setIdeasFolderPath(folderPath);
@@ -182,8 +175,9 @@ export function SpecFilesPage() {
     setIdeasRawText(undefined);
     setSelectedIdeaIds(new Set());
     setGeneratedFlows([]);
+    setActiveIdeaId(null);
+    setActiveFlowId(null);
     setIdeasLoading(true);
-    setActiveTab("ideas");
     try {
       const result = await generateFlowIdeas(folderPath, []);
       setIdeas(result.ideas);
@@ -203,12 +197,10 @@ export function SpecFilesPage() {
     setIdeasError(null);
     setIdeasRawText(undefined);
     setIdeasLoading(true);
-    // Pass existing idea titles so Claude avoids duplicates
     const existingTitles = ideas.map((i) => i.title);
     try {
       const result = await generateFlowIdeas(ideasFolderPath, existingTitles);
       if (result.ideas.length > 0) {
-        // Re-number new idea IDs to avoid collisions
         const offset = ideas.length;
         const newIdeas = result.ideas.map((idea, i) => ({
           ...idea,
@@ -216,7 +208,6 @@ export function SpecFilesPage() {
         }));
         setIdeas((prev) => [...prev, ...newIdeas]);
       }
-      // Accumulate usage
       if (result.usage) {
         setIdeasUsage((prev) => prev ? {
           inputTokens: prev.inputTokens + result.usage.inputTokens,
@@ -255,6 +246,42 @@ export function SpecFilesPage() {
     setSelectedIdeaIds(new Set());
   }
 
+  // ── Detail panel click handlers ───────────────────────────────────────────
+
+  function handleClickIdea(id: string) {
+    setActiveIdeaId(id);
+    setActiveFlowId(null);
+  }
+
+  function handleClickFlow(ideaId: string) {
+    setActiveFlowId(ideaId);
+    setActiveIdeaId(null);
+  }
+
+  // ── Download helpers ──────────────────────────────────────────────────────
+
+  function downloadFlow(flow: GeneratedFlow) {
+    const idea = ideas.find((i) => i.id === flow.ideaId);
+    const filename = (idea?.title ?? flow.ideaId)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 35) + ".flow.xml";
+    const blob = new Blob([flow.xml], { type: "application/xml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadAllFlows() {
+    for (const f of generatedFlows.filter((f) => f.status === "done")) {
+      downloadFlow(f);
+    }
+  }
+
   // ── Generate flows from selected ideas ────────────────────────────────────
 
   async function handleGenerateFlows() {
@@ -262,13 +289,11 @@ export function SpecFilesPage() {
 
     const selectedIdeas = ideas.filter((i) => selectedIdeaIds.has(i.id));
 
-    // Get spec file names for context
     const prefix = ideasFolderPath.endsWith("/") ? ideasFolderPath : `${ideasFolderPath}/`;
     const specFileNames = files
       .filter((f) => f.name.startsWith(prefix) && f.name.endsWith(".md"))
       .map((f) => f.name);
 
-    // Initialize flow entries
     const initialFlows: GeneratedFlow[] = selectedIdeas.map((idea) => ({
       ideaId: idea.id,
       title: idea.title,
@@ -278,22 +303,22 @@ export function SpecFilesPage() {
     setGeneratedFlows(initialFlows);
     setGeneratingFlows(true);
     setFlowProgress({ current: 0, total: selectedIdeas.length });
-    setActiveTab("flows");
 
     const ctrl = new AbortController();
     abortRef.current = ctrl;
 
-    // Generate sequentially
     for (let i = 0; i < selectedIdeas.length; i++) {
       if (ctrl.signal.aborted) break;
 
       const idea = selectedIdeas[i];
       const prompt = buildFlowPrompt(idea);
 
-      // Mark as generating
       setGeneratedFlows((prev) =>
         prev.map((f) => f.ideaId === idea.id ? { ...f, status: "generating" as const } : f)
       );
+      // Auto-select the currently generating flow in the detail panel
+      setActiveFlowId(idea.id);
+      setActiveIdeaId(null);
 
       try {
         const xml = await generateFlowXml(prompt, specFileNames, ctrl.signal);
@@ -317,11 +342,31 @@ export function SpecFilesPage() {
     abortRef.current = null;
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Close workshop ────────────────────────────────────────────────────────
 
-  const ideasCount = ideas.length;
-  const flowsDoneCount = generatedFlows.filter((f) => f.status === "done").length;
-  const flowsTotalCount = generatedFlows.length;
+  function closeWorkshop() {
+    if (generatingFlows) {
+      abortRef.current?.abort();
+    }
+    setIdeasFolderPath(null);
+    setIdeas([]);
+    setIdeasUsage(null);
+    setIdeasError(null);
+    setIdeasRawText(undefined);
+    setSelectedIdeaIds(new Set());
+    setGeneratedFlows([]);
+    setGeneratingFlows(false);
+    setFlowProgress(null);
+    setActiveIdeaId(null);
+    setActiveFlowId(null);
+  }
+
+  // ── Derived detail data ───────────────────────────────────────────────────
+
+  const selectedIdea = activeIdeaId ? ideas.find((i) => i.id === activeIdeaId) ?? null : null;
+  const selectedFlow = activeFlowId ? generatedFlows.find((f) => f.ideaId === activeFlowId) ?? null : null;
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <Layout>
@@ -354,12 +399,79 @@ export function SpecFilesPage() {
           />
         </aside>
 
-        {/* RHS content */}
+        {/* Main content area */}
         <div className="flex-1 flex flex-col overflow-hidden bg-white">
-          {/* Folder container page */}
-          {selectedFolderPath && !selectedPath ? (
+          {/* Folder selected with workshop active → 3-column layout */}
+          {selectedFolderPath && !selectedPath && showWorkshop ? (
             <>
-              {/* Folder header */}
+              {/* Folder header bar */}
+              <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200 bg-gray-50 shrink-0">
+                <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
+                </svg>
+                <span className="text-sm font-medium text-gray-800">{selectedFolderPath}</span>
+                <span className="text-xs text-gray-400">
+                  ({files.filter((f) => f.name.startsWith(`${selectedFolderPath}/`) && f.name.endsWith(".md")).length} spec files)
+                </span>
+                <div className="flex-1" />
+                <button
+                  onClick={closeWorkshop}
+                  title="Close workshop"
+                  className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded hover:bg-gray-100"
+                >
+                  Close workshop
+                </button>
+              </div>
+
+              {/* Three-column panels */}
+              <div className="flex-1 flex overflow-hidden">
+                {/* Column 1 — Ideas */}
+                <div className="w-80 shrink-0 border-r border-gray-200 flex flex-col overflow-hidden">
+                  <FlowIdeasPanel
+                    ideas={ideas.length > 0 ? ideas : null}
+                    usage={ideasUsage}
+                    loading={ideasLoading}
+                    error={ideasError}
+                    rawText={ideasRawText}
+                    selectedIds={selectedIdeaIds}
+                    activeIdeaId={activeIdeaId}
+                    onToggleSelect={toggleIdeaSelect}
+                    onSelectAll={selectAllIdeas}
+                    onDeselectAll={deselectAllIdeas}
+                    onGenerateFlows={handleGenerateFlows}
+                    onGenerateMore={handleGenerateMoreIdeas}
+                    onClickIdea={handleClickIdea}
+                    generatingFlows={generatingFlows}
+                  />
+                </div>
+
+                {/* Column 2 — Flows */}
+                <div className="w-72 shrink-0 border-r border-gray-200 flex flex-col overflow-hidden">
+                  <FlowsPanel
+                    flows={generatedFlows}
+                    ideas={ideas}
+                    generating={generatingFlows}
+                    progress={flowProgress}
+                    activeFlowId={activeFlowId}
+                    onClickFlow={handleClickFlow}
+                    onDownloadFlow={downloadFlow}
+                    onDownloadAll={downloadAllFlows}
+                  />
+                </div>
+
+                {/* Column 3 — Detail */}
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  <DetailPanel
+                    selectedIdea={selectedIdea}
+                    selectedFlow={selectedFlow}
+                    onDownloadFlow={downloadFlow}
+                  />
+                </div>
+              </div>
+            </>
+          ) : selectedFolderPath && !selectedPath && !showWorkshop ? (
+            /* Folder selected, no workshop → Generate button landing */
+            <>
               <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-200 bg-gray-50 shrink-0">
                 <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
@@ -369,100 +481,26 @@ export function SpecFilesPage() {
                   ({files.filter((f) => f.name.startsWith(`${selectedFolderPath}/`) && f.name.endsWith(".md")).length} spec files)
                 </span>
               </div>
-
-              {/* Tab bar for folder — Ideas / Flows (visible once ideas pipeline started) */}
-              {showTabs ? (
-                <div className="flex items-center border-b border-gray-200 bg-white shrink-0 px-1">
-                  <TabButton
-                    active={activeTab === "ideas"}
-                    onClick={() => setActiveTab("ideas")}
-                    badge={ideasCount > 0 ? ideasCount : undefined}
-                  >
-                    Ideas
-                  </TabButton>
-                  <TabButton
-                    active={activeTab === "flows"}
-                    onClick={() => setActiveTab("flows")}
-                    badge={flowsTotalCount > 0 ? `${flowsDoneCount}/${flowsTotalCount}` : undefined}
-                  >
-                    Flows
-                  </TabButton>
-
-                  <div className="flex-1" />
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center space-y-4">
+                  <svg className="w-16 h-16 mx-auto text-purple-200" fill="none" stroke="currentColor" strokeWidth={0.8} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+                  </svg>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">Analyze spec files and generate test flow ideas</p>
+                    <p className="text-xs text-gray-400">AI will read all .md files in this folder and suggest test scenarios</p>
+                  </div>
                   <button
-                    onClick={() => {
-                      if (generatingFlows) {
-                        abortRef.current?.abort();
-                      }
-                      setIdeasFolderPath(null);
-                      setIdeas([]);
-                      setIdeasUsage(null);
-                      setIdeasError(null);
-                      setIdeasRawText(undefined);
-                      setSelectedIdeaIds(new Set());
-                      setGeneratedFlows([]);
-                      setGeneratingFlows(false);
-                      setFlowProgress(null);
-                      setActiveTab("viewer");
-                    }}
-                    title="Close workshop"
-                    className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded hover:bg-gray-100 mr-1"
+                    onClick={() => void handleGenerateFlowIdeas(selectedFolderPath)}
+                    className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg px-5 py-2.5 transition-colors"
                   >
-                    Close workshop
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                    </svg>
+                    Generate Flow Ideas (AI)
                   </button>
                 </div>
-              ) : null}
-
-              {/* Folder tab content */}
-              {showTabs && activeTab === "ideas" && ideasFolderPath === selectedFolderPath && (
-                <FlowIdeasPanel
-                  ideas={ideas.length > 0 ? ideas : null}
-                  usage={ideasUsage}
-                  loading={ideasLoading}
-                  error={ideasError}
-                  rawText={ideasRawText}
-                  selectedIds={selectedIdeaIds}
-                  onToggleSelect={toggleIdeaSelect}
-                  onSelectAll={selectAllIdeas}
-                  onDeselectAll={deselectAllIdeas}
-                  onGenerateFlows={handleGenerateFlows}
-                  onGenerateMore={handleGenerateMoreIdeas}
-                  generatingFlows={generatingFlows}
-                />
-              )}
-
-              {showTabs && activeTab === "flows" && (
-                <FlowsPanel
-                  flows={generatedFlows}
-                  ideas={ideas}
-                  generating={generatingFlows}
-                  progress={flowProgress}
-                />
-              )}
-
-              {/* Default folder landing — Generate Flow Ideas button */}
-              {!showTabs && (
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="text-center space-y-4">
-                    <svg className="w-16 h-16 mx-auto text-purple-200" fill="none" stroke="currentColor" strokeWidth={0.8} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
-                    </svg>
-                    <div>
-                      <p className="text-sm text-gray-500 mb-1">Analyze spec files and generate test flow ideas</p>
-                      <p className="text-xs text-gray-400">AI will read all .md files in this folder and suggest test scenarios</p>
-                    </div>
-                    <button
-                      onClick={() => void handleGenerateFlowIdeas(selectedFolderPath)}
-                      className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg px-5 py-2.5 transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-                      </svg>
-                      Generate Flow Ideas (AI)
-                    </button>
-                  </div>
-                </div>
-              )}
+              </div>
             </>
           ) : (
             /* File viewer / empty state */
@@ -497,35 +535,6 @@ export function SpecFilesPage() {
         />
       )}
     </Layout>
-  );
-}
-
-// ── Tab button component ──────────────────────────────────────────────────────
-
-function TabButton({ active, onClick, badge, children }: {
-  active: boolean;
-  onClick: () => void;
-  badge?: number | string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
-        active
-          ? "border-blue-600 text-blue-600"
-          : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-      }`}
-    >
-      {children}
-      {badge !== undefined && (
-        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-          active ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"
-        }`}>
-          {badge}
-        </span>
-      )}
-    </button>
   );
 }
 
