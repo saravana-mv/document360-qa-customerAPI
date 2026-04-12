@@ -810,15 +810,12 @@ export function SpecFilesPage() {
               <div className="flex items-center gap-1.5 px-4 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
                 {isFileContext ? (
                   <>
-                    {/* File icon */}
                     <svg className="w-4 h-4 text-[#656d76] shrink-0" fill="currentColor" viewBox="0 0 16 16">
                       <path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z" />
                     </svg>
-                    {/* Parent path */}
                     {fileParentPath && (
                       <span className="text-sm text-[#656d76]">{fileParentPath}/</span>
                     )}
-                    {/* Filename as clickable link */}
                     <button
                       onClick={() => setViewingContent(true)}
                       className="text-sm font-semibold text-[#0969da] hover:underline"
@@ -828,7 +825,6 @@ export function SpecFilesPage() {
                   </>
                 ) : (
                   <>
-                    {/* Folder icon */}
                     <svg className="w-4 h-4 text-[#9a6700] shrink-0" fill="currentColor" viewBox="0 0 16 16">
                       <path d="M.513 1.513A1.75 1.75 0 0 1 1.75 0h3.5c.465 0 .91.185 1.239.513l.61.61c.109.109.257.17.411.17h6.74a1.75 1.75 0 0 1 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15.5H1.75A1.75 1.75 0 0 1 0 13.75V1.75c0-.465.185-.91.513-1.237Z" />
                     </svg>
@@ -838,6 +834,26 @@ export function SpecFilesPage() {
                     </span>
                   </>
                 )}
+                {/* Cost summary — right side */}
+                {(ideasUsage || flowsUsage) && (() => {
+                  const totalCost = (ideasUsage?.costUsd ?? 0) + (flowsUsage?.costUsd ?? 0);
+                  return (
+                    <div className="ml-auto flex items-center gap-3 text-xs text-[#656d76]">
+                      {ideasUsage && (
+                        <span>Ideas <span className="font-medium text-[#1f2328]">${ideasUsage.costUsd.toFixed(4)}</span></span>
+                      )}
+                      {flowsUsage && (
+                        <span>Flows <span className="font-medium text-[#1f2328]">${flowsUsage.costUsd.toFixed(4)}</span></span>
+                      )}
+                      {ideasUsage && flowsUsage && (
+                        <>
+                          <span className="text-[#d1d9e0]">|</span>
+                          <span className="font-semibold text-[#1f2328]">${totalCost.toFixed(4)}</span>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Content area — either markdown viewer or workshop */}
@@ -855,8 +871,6 @@ export function SpecFilesPage() {
                   <div className="shrink-0 border-r border-[#d1d9e0] flex flex-col overflow-hidden" style={{ width: ideasWidth }}>
                     <FlowIdeasPanel
                       ideas={ideas.length > 0 ? ideas : null}
-                      usage={ideasUsage}
-                      flowsUsage={flowsUsage}
                       loading={ideasLoading}
                       appending={ideasAppending}
                       error={ideasError}

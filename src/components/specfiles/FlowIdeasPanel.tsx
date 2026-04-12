@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { FlowIdea, FlowIdeasUsage, FlowUsage } from "../../lib/api/specFilesApi";
+import type { FlowIdea } from "../../lib/api/specFilesApi";
 
 const COMPLEXITY_COLORS: Record<string, string> = {
   simple: "bg-[#dafbe1] text-[#1a7f37] border-[#aceebb]",
@@ -9,8 +9,6 @@ const COMPLEXITY_COLORS: Record<string, string> = {
 
 interface Props {
   ideas: FlowIdea[] | null;
-  usage: FlowIdeasUsage | null;
-  flowsUsage: FlowUsage | null;
   /** Initial generation loading (no ideas yet) */
   loading: boolean;
   /** Appending more ideas (existing ideas stay visible) */
@@ -39,7 +37,7 @@ interface Props {
 }
 
 export function FlowIdeasPanel({
-  ideas, usage, flowsUsage, loading, appending, error, rawText, message,
+  ideas, loading, appending, error, rawText, message,
   selectedIds, lockedIds, activeIdeaId, activeFlowId,
   onToggleSelect, onSelectAll, onDeselectAll,
   onGenerateFlows, onGenerateMore, onDeleteSelected, onClickIdea, generatingFlows,
@@ -89,36 +87,6 @@ export function FlowIdeasPanel({
           </button>
         )}
       </div>
-
-      {/* Usage stats */}
-      {(usage || flowsUsage) && (() => {
-        const totalCost = (usage?.costUsd ?? 0) + (flowsUsage?.costUsd ?? 0);
-        return (
-          <div className="flex flex-col gap-0.5 px-3 py-1.5 border-b border-[#d1d9e0]/60 bg-[#f6f8fa]/50 text-xs text-[#656d76] shrink-0">
-            {usage && (
-              <div className="flex items-center gap-2">
-                <span>Ideas: {usage.filesAnalyzed} file{usage.filesAnalyzed !== 1 ? "s" : ""}</span>
-                <span className="text-[#d1d9e0]">&middot;</span>
-                <span>{usage.inputTokens.toLocaleString()} in + {usage.outputTokens.toLocaleString()} out</span>
-                <span className="text-[#d1d9e0]">&middot;</span>
-                <span className="font-medium text-[#1f2328]">${usage.costUsd.toFixed(4)}</span>
-              </div>
-            )}
-            {flowsUsage && (
-              <div className="flex items-center gap-2">
-                <span>Flows: {flowsUsage.inputTokens.toLocaleString()} in + {flowsUsage.outputTokens.toLocaleString()} out</span>
-                <span className="text-[#d1d9e0]">&middot;</span>
-                <span className="font-medium text-[#1f2328]">${flowsUsage.costUsd.toFixed(4)}</span>
-              </div>
-            )}
-            {usage && flowsUsage && (
-              <div className="flex items-center gap-2 pt-0.5 border-t border-[#d1d9e0]/40">
-                <span className="font-medium text-[#1f2328]">Total: ${totalCost.toFixed(4)}</span>
-              </div>
-            )}
-          </div>
-        );
-      })()}
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
