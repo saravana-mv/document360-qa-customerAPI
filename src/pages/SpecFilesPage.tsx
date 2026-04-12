@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Layout } from "../components/common/Layout";
+import { ResizeHandle } from "../components/common/ResizeHandle";
 import { FileTree } from "../components/specfiles/FileTree";
 import { MarkdownViewer } from "../components/specfiles/MarkdownViewer";
 import { FileUploadModal } from "../components/specfiles/FileUploadModal";
@@ -92,6 +93,11 @@ export function SpecFilesPage() {
   // ── Detail panel state ─────────────────────────────────────────────────────
   const [activeIdeaId, setActiveIdeaId] = useState<string | null>(null);
   const [activeFlowId, setActiveFlowId] = useState<string | null>(null);
+
+  // ── Resizable panel widths ────────────────────────────────────────────────
+  const [treeWidth, setTreeWidth] = useState(240);
+  const [ideasWidth, setIdeasWidth] = useState(320);
+  const [flowsWidth, setFlowsWidth] = useState(288);
 
   // Workshop is visible once ideas have been generated at least once
   const showWorkshop = ideas.length > 0 || ideasLoading || ideasError !== null;
@@ -427,7 +433,7 @@ export function SpecFilesPage() {
     <Layout>
       <div className="h-full flex overflow-hidden">
         {/* LHS tree */}
-        <aside className="w-60 shrink-0 border-r border-[#d1d9e0] bg-white flex flex-col overflow-hidden">
+        <aside className="shrink-0 border-r border-[#d1d9e0] bg-white flex flex-col overflow-hidden" style={{ width: treeWidth }}>
           {error && (
             <div className="mx-2 mt-2 text-xs text-[#d1242f] bg-[#ffebe9] border border-[#ffcecb] rounded-md px-2 py-1.5 shrink-0">
               {error}
@@ -450,6 +456,7 @@ export function SpecFilesPage() {
             onRefresh={loadFiles}
           />
         </aside>
+        <ResizeHandle width={treeWidth} onResize={setTreeWidth} minWidth={160} maxWidth={400} />
 
         {/* Main content area */}
         <div className="flex-1 flex flex-col overflow-hidden bg-white">
@@ -475,10 +482,10 @@ export function SpecFilesPage() {
                 </button>
               </div>
 
-              {/* Three-column panels */}
+              {/* Three-column panels with resize handles */}
               <div className="flex-1 flex overflow-hidden">
                 {/* Column 1 — Ideas */}
-                <div className="w-80 shrink-0 border-r border-[#d1d9e0] flex flex-col overflow-hidden">
+                <div className="shrink-0 border-r border-[#d1d9e0] flex flex-col overflow-hidden" style={{ width: ideasWidth }}>
                   <FlowIdeasPanel
                     ideas={ideas.length > 0 ? ideas : null}
                     usage={ideasUsage}
@@ -496,9 +503,10 @@ export function SpecFilesPage() {
                     generatingFlows={generatingFlows}
                   />
                 </div>
+                <ResizeHandle width={ideasWidth} onResize={setIdeasWidth} minWidth={200} maxWidth={500} />
 
                 {/* Column 2 — Flows */}
-                <div className="w-72 shrink-0 border-r border-[#d1d9e0] flex flex-col overflow-hidden">
+                <div className="shrink-0 border-r border-[#d1d9e0] flex flex-col overflow-hidden" style={{ width: flowsWidth }}>
                   <FlowsPanel
                     flows={generatedFlows}
                     ideas={ideas}
@@ -510,9 +518,10 @@ export function SpecFilesPage() {
                     onDownloadAll={downloadAllFlows}
                   />
                 </div>
+                <ResizeHandle width={flowsWidth} onResize={setFlowsWidth} minWidth={180} maxWidth={500} />
 
-                {/* Column 3 — Detail */}
-                <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Column 3 — Detail (takes remaining space) */}
+                <div className="flex-1 flex flex-col overflow-hidden min-w-[200px]">
                   <DetailPanel
                     selectedIdea={selectedIdea}
                     selectedFlow={selectedFlow}
