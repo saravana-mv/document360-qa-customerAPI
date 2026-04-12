@@ -497,6 +497,43 @@ export function SpecFilesPage() {
     setSelectedIdeaIds(new Set());
   }
 
+  function handleDeleteSelectedIdeas(ids: Set<string>) {
+    if (ids.size === 0) return;
+
+    // Remove ideas from flat working set
+    setIdeas(prev => prev.filter(i => !ids.has(i.id)));
+    // Remove corresponding flows
+    setGeneratedFlows(prev => prev.filter(f => !ids.has(f.ideaId)));
+    // Clear selection
+    setSelectedIdeaIds(new Set());
+    // Clear detail panel if showing a deleted item
+    if (activeIdeaId && ids.has(activeIdeaId)) setActiveIdeaId(null);
+    if (activeFlowId && ids.has(activeFlowId)) setActiveFlowId(null);
+
+    // Remove from workshopMap (persist to localStorage)
+    setWorkshopMap(prev => {
+      const next = { ...prev };
+      for (const key of Object.keys(next)) {
+        const ctx = next[key];
+        const hadIdeas = ctx.ideas.some(i => ids.has(i.id));
+        if (hadIdeas) {
+          const remainingIdeas = ctx.ideas.filter(i => !ids.has(i.id));
+          const remainingFlows = ctx.generatedFlows.filter(f => !ids.has(f.ideaId));
+          if (remainingIdeas.length === 0 && remainingFlows.length === 0) {
+            // Remove context entirely if empty
+            delete next[key];
+          } else {
+            next[key] = { ...ctx, ideas: remainingIdeas, generatedFlows: remainingFlows };
+          }
+        }
+      }
+      return next;
+    });
+
+    // Reset exhausted flag — deletion opens room for more ideas
+    setIdeasExhausted(false);
+  }
+
   // ── Detail panel click handlers ───────────────────────────────────────────
 
   function handleClickIdea(id: string) {
@@ -733,6 +770,7 @@ export function SpecFilesPage() {
                       onDeselectAll={deselectAllIdeas}
                       onGenerateFlows={handleGenerateFlows}
                       onGenerateMore={handleGenerateMoreIdeas}
+                      onDeleteSelected={handleDeleteSelectedIdeas}
                       onClickIdea={handleClickIdea}
                       generatingFlows={generatingFlows}
                       ideasExhausted={ideasExhausted}
