@@ -51,11 +51,12 @@ Return a JSON array. Each item:
 
 ## Rules
 1. Generate up to ${MAX_IDEAS_PER_RUN} ideas maximum per request
-2. Always note entity dependencies (e.g., article flows need category setup/teardown)
-3. Include both happy-path and error-path flows
-4. Group related flows logically
-5. Return ONLY valid JSON — no markdown fences, no explanation text
-6. If existing ideas are provided, generate DIFFERENT ideas that cover new scenarios
+2. **STRICT SCOPE**: Only use API endpoints that are explicitly described in the provided spec files. Do NOT reference, invent, or assume endpoints that are not in the provided context — even if you know they exist in the broader API. Every step in a flow must map to an endpoint from the specs given.
+3. Always note entity dependencies (e.g., article flows need category setup/teardown)
+4. Include both happy-path and error-path flows
+5. Group related flows logically
+6. Return ONLY valid JSON — no markdown fences, no explanation text
+7. If existing ideas are provided, generate DIFFERENT ideas that cover new scenarios
 
 Return the JSON array directly.`;
 
@@ -173,7 +174,11 @@ export async function generateFlowIdeasHandler(
     ? `\n\n## Already Generated Ideas (DO NOT repeat these)\n\n${body.existingIdeas.map((t, i) => `${i + 1}. ${t}`).join("\n")}`
     : "";
 
-  const userMessage = `Analyze these API specifications and generate up to ${MAX_IDEAS_PER_RUN} NEW test flow ideas.${existingList}\n\n## Spec Files\n\n${specText}`;
+  const scopeNote = isSingleFile
+    ? `\n\nIMPORTANT: You are analyzing a SINGLE endpoint specification. Generate ideas using ONLY this endpoint. Do not reference any other endpoints outside this file.`
+    : `\n\nYou are analyzing ${filesAnalyzed} endpoint specifications. Only use endpoints from these files in your ideas.`;
+
+  const userMessage = `Analyze these API specifications and generate up to ${MAX_IDEAS_PER_RUN} NEW test flow ideas.${scopeNote}${existingList}\n\n## Spec Files\n\n${specText}`;
 
   // ── Pre-estimate cost and enforce budget ──
   const totalChars = SYSTEM_PROMPT.length + userMessage.length;
