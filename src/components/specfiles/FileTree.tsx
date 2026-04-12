@@ -616,17 +616,17 @@ export function FileTree({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Toolbar — only root "New folder" + Refresh */}
+      {/* Toolbar — only root "New API Version" + Refresh */}
       <div className="flex items-center gap-1 px-2 py-1.5 border-b border-gray-200 bg-gray-50 shrink-0">
         <button
           onClick={startRootFolder}
-          title="New root folder"
+          title="New API Version"
           className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded px-1.5 py-1 transition-colors"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
           </svg>
-          New folder
+          New API Version
         </button>
         <div className="flex-1" />
         <button
@@ -662,7 +662,7 @@ export function FileTree({
         {!loading && tree.length === 0 && !creatingUnder && (
           <div className="text-center py-8 px-4 space-y-1">
             <p className="text-gray-400">No files yet.</p>
-            <p className="text-gray-400">Use <strong>New folder</strong> to get started.</p>
+            <p className="text-gray-400">Use <strong>New API Version</strong> to get started.</p>
           </div>
         )}
 
