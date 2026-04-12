@@ -1,7 +1,7 @@
 {
-  "name": "document360-qa-api",
+  "name": "flowforge-api",
   "version": "1.0.0",
-  "description": "Azure Functions backend for Document360 QA Customer API",
+  "description": "Azure Functions backend for FlowForge",
   "main": "dist/src/functions/*.js",
   "scripts": {
     "build": "node esbuild.config.mjs",

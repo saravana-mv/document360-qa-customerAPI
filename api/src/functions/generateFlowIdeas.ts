@@ -18,7 +18,7 @@ const MAX_FILES = 50;
 
 const MAX_IDEAS_PER_RUN = 10;
 
-const SYSTEM_PROMPT = `You are an expert QA test architect analyzing API specifications for Document360.
+const SYSTEM_PROMPT = `You are an expert QA test architect analyzing API specifications.
 
 Your job: given a set of API endpoint specifications, generate test flow ideas. A "flow" is a sequence of API calls that tests a real user journey or lifecycle.
 

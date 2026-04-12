@@ -19,7 +19,7 @@ export function TopBar({ showTestControls }: TopBarProps) {
     <header className="h-12 bg-[#1f2328] text-[#e6edf3] flex items-center px-4 gap-3 shrink-0 border-b border-[#31363b]">
       {/* App title */}
       <span className="text-[13px] font-semibold tracking-[-0.01em]">
-        D360 API Test Runner
+        FLOW FORGE
       </span>
 
       {status === "authenticated" && project && (

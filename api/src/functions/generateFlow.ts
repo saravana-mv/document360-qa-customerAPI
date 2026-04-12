@@ -8,7 +8,7 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-const FLOW_SYSTEM_PROMPT = `You are an expert at creating API test flow definitions for the Document360 Customer API.
+const FLOW_SYSTEM_PROMPT = `You are an expert at creating API test flow definitions.
 
 You generate structured XML flow files that describe a sequence of API test steps. Each flow tests a specific user journey or lifecycle.
 
@@ -51,7 +51,7 @@ Each flow file must conform to this structure:
 
 ## Key Rules
 
-1. **Category dependency**: If a flow creates articles, ALWAYS add a Create Category step first and a Delete Category teardown step last. The Document360 API requires category_id for article creation.
+1. **Category dependency**: If a flow creates articles, ALWAYS add a Create Category step first and a Delete Category teardown step last. The API requires category_id for article creation.
 
 2. **Teardown order**: Delete child resources before parent resources (e.g., delete article before category).
 
