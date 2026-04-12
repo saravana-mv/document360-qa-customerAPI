@@ -19,18 +19,30 @@ export function Modal({ open, onClose, title, children, footer, maxWidth = "max-
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className={`bg-white rounded-xl shadow-2xl w-full ${maxWidth} mx-4 max-h-[90vh] flex flex-col`}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-            <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className={`bg-white rounded-xl shadow-xl border border-[#d1d9e0] w-full ${maxWidth} mx-4 max-h-[90vh] flex flex-col`}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#d1d9e0]">
+          <h2 className="text-sm font-semibold text-[#1f2328]">{title}</h2>
+          <button
+            onClick={onClose}
+            className="text-[#656d76] hover:text-[#1f2328] transition-colors rounded-md p-0.5 hover:bg-[#f6f8fa]"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
             </svg>
           </button>
         </div>
-        <div className="px-6 py-4 overflow-y-auto flex-1">{children}</div>
-        {footer && <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">{footer}</div>}
+
+        {/* Body */}
+        <div className="px-5 py-4 overflow-y-auto flex-1 text-sm text-[#1f2328]">{children}</div>
+
+        {/* Footer */}
+        {footer && (
+          <div className="px-5 py-3.5 border-t border-[#d1d9e0] flex justify-end gap-2 bg-[#f6f8fa] rounded-b-xl">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );

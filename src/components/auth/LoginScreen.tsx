@@ -34,19 +34,18 @@ export function LoginScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm text-center">
-        <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4">
-          <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-          </svg>
+    <div className="min-h-screen bg-[#f6f8fa] flex items-center justify-center px-4">
+      <div className="bg-white rounded-xl border border-[#d1d9e0] shadow-sm p-8 w-full max-w-sm text-center">
+        {/* Logo */}
+        <div className="w-12 h-12 bg-[#1f2328] rounded-xl flex items-center justify-center mx-auto mb-5">
+          <span className="text-white font-bold text-sm tracking-tight">D3</span>
         </div>
 
-        <h1 className="text-xl font-bold text-gray-900 mb-1">D360 API Test Runner</h1>
-        <p className="text-sm text-gray-500 mb-8">Document360 QA · Berlin environment</p>
+        <h1 className="text-xl font-semibold text-[#1f2328] mb-1">Sign in</h1>
+        <p className="text-sm text-[#656d76] mb-8">Document360 QA · Berlin environment</p>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 text-left">
+          <div className="mb-4 px-3 py-2.5 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-sm text-[#d1242f] text-left">
             {error}
           </div>
         )}
@@ -54,14 +53,14 @@ export function LoginScreen() {
         <button
           onClick={handleLogin}
           disabled={starting}
-          className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+          className="w-full py-2.5 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2 disabled:opacity-60 border border-[#1a7f37]/80"
         >
           {starting && <Spinner size="sm" className="text-white" />}
-          {starting ? "Redirecting to sign in..." : "Sign in with Document360"}
+          {starting ? "Redirecting..." : "Sign in with Document360"}
         </button>
 
-        <p className="mt-4 text-xs text-gray-400">
-          Uses OAuth2 Authorization Code + PKCE
+        <p className="mt-5 text-[11px] text-[#656d76]">
+          OAuth 2.0 Authorization Code + PKCE
         </p>
       </div>
     </div>

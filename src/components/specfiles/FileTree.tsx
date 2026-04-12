@@ -280,14 +280,14 @@ function TreeNodeRow({
         onDragOver={(e) => { e.stopPropagation(); onDragOver(e, node); }}
         onDrop={(e) => { e.stopPropagation(); onDrop(e, node); }}
         onDragEnd={(e) => { e.stopPropagation(); onDragEnd(); }}
-        className={`group flex items-center gap-1 py-0.5 pr-1 cursor-pointer select-none text-xs rounded mx-1 transition-colors ${
+        className={`group flex items-center gap-1 py-[3px] pr-1 cursor-pointer select-none text-xs rounded-md mx-1 transition-colors ${
           isDragging ? "opacity-40" : ""
         } ${
           isDropTarget
-            ? "ring-2 ring-blue-400 bg-blue-50 text-gray-700"
+            ? "ring-2 ring-[#0969da]/30 bg-[#ddf4ff] text-[#1f2328]"
             : isSelected
-              ? "bg-blue-600 text-white"
-              : "text-gray-700 hover:bg-gray-100"
+              ? "bg-[#0969da] text-white"
+              : "text-[#1f2328] hover:bg-[#eef1f6]"
         }`}
         style={{ paddingLeft: indent + 4 }}
         onClick={() => {
@@ -298,7 +298,7 @@ function TreeNodeRow({
         {/* Expand arrow — clicking only toggles expand/collapse */}
         {node.type === "folder" ? (
           <svg
-            className={`w-3 h-3 shrink-0 transition-transform cursor-pointer ${isExpanded ? "rotate-90" : ""} ${isSelected && !isDropTarget ? "text-white" : "text-gray-400"}`}
+            className={`w-3 h-3 shrink-0 transition-transform cursor-pointer ${isExpanded ? "rotate-90" : ""} ${isSelected && !isDropTarget ? "text-white/70" : "text-[#656d76]"}`}
             fill="currentColor" viewBox="0 0 20 20"
             onClick={(e) => { e.stopPropagation(); onToggle(node.path); }}
           >
@@ -616,14 +616,14 @@ export function FileTree({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Toolbar — only root "New API Version" + Refresh */}
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-gray-200 bg-gray-50 shrink-0">
+      {/* Toolbar */}
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
         <button
           onClick={startRootFolder}
           title="New API Version"
-          className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded px-1.5 py-1 transition-colors"
+          className="flex items-center gap-1 text-xs text-[#1f2328] hover:bg-[#eef1f6] rounded-md px-1.5 py-1 transition-colors font-medium"
         >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <svg className="w-3.5 h-3.5 text-[#656d76]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
           </svg>
           New API Version
@@ -633,7 +633,7 @@ export function FileTree({
           onClick={onRefresh}
           title="Refresh"
           disabled={loading}
-          className="text-gray-400 hover:text-gray-700 disabled:opacity-40 rounded p-1 hover:bg-gray-200 transition-colors"
+          className="text-[#656d76] hover:text-[#1f2328] disabled:opacity-40 rounded-md p-1 hover:bg-[#eef1f6] transition-colors"
         >
           <svg className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
@@ -644,7 +644,7 @@ export function FileTree({
       {/* Tree — acts as root drop zone when dragging */}
       <div
         className={`flex-1 overflow-y-auto py-1 text-xs transition-colors ${
-          dropTargetPath === "" ? "bg-blue-50 ring-2 ring-inset ring-blue-300" : ""
+          dropTargetPath === "" ? "bg-[#ddf4ff] ring-2 ring-inset ring-[#0969da]/30" : ""
         }`}
         onDragOver={handleRootDragOver}
         onDrop={handleRootDrop}
@@ -657,12 +657,12 @@ export function FileTree({
         }}
       >
         {loading && files.length === 0 && (
-          <p className="text-gray-400 text-center py-8">Loading…</p>
+          <p className="text-[#656d76] text-center py-8">Loading…</p>
         )}
         {!loading && tree.length === 0 && !creatingUnder && (
           <div className="text-center py-8 px-4 space-y-1">
-            <p className="text-gray-400">No files yet.</p>
-            <p className="text-gray-400">Use <strong>New API Version</strong> to get started.</p>
+            <p className="text-[#656d76]">No files yet.</p>
+            <p className="text-[#656d76]">Use <strong>New API Version</strong> to get started.</p>
           </div>
         )}
 

@@ -433,14 +433,17 @@ export function SpecFilesPage() {
     <Layout>
       <div className="h-full flex overflow-hidden">
         {/* LHS tree */}
-        <aside className="w-64 shrink-0 border-r border-gray-200 bg-white flex flex-col overflow-hidden">
-          <div className="flex items-center px-3 py-2 border-b border-gray-200 bg-gray-900 shrink-0">
-            <span className="text-xs font-semibold text-gray-300 uppercase tracking-wide">Spec Files</span>
+        <aside className="w-60 shrink-0 border-r border-[#d1d9e0] bg-white flex flex-col overflow-hidden">
+          <div className="flex items-center px-3 py-2 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+            <svg className="w-4 h-4 text-[#656d76] mr-1.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v8.25m19.5 0v2.25a2.25 2.25 0 0 1-2.25 2.25H4.5A2.25 2.25 0 0 1 2.25 16.5v-2.25" />
+            </svg>
+            <span className="text-xs font-semibold text-[#1f2328]">Spec Files</span>
           </div>
           {error && (
-            <div className="mx-2 mt-2 text-xs text-red-600 bg-red-50 rounded px-2 py-1 shrink-0">
+            <div className="mx-2 mt-2 text-xs text-[#d1242f] bg-[#ffebe9] border border-[#ffcecb] rounded-md px-2 py-1.5 shrink-0">
               {error}
-              <button onClick={() => setError(null)} className="ml-2 text-red-400 hover:text-red-600">✕</button>
+              <button onClick={() => setError(null)} className="ml-2 text-[#d1242f]/60 hover:text-[#d1242f]">✕</button>
             </div>
           )}
           <FileTree
@@ -466,19 +469,19 @@ export function SpecFilesPage() {
           {selectedFolderPath && !selectedPath && showWorkshop ? (
             <>
               {/* Folder header bar */}
-              <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200 bg-gray-50 shrink-0">
-                <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+                <svg className="w-4 h-4 text-[#9a6700]" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M.513 1.513A1.75 1.75 0 0 1 1.75 0h3.5c.465 0 .91.185 1.239.513l.61.61c.109.109.257.17.411.17h6.74a1.75 1.75 0 0 1 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15.5H1.75A1.75 1.75 0 0 1 0 13.75V1.75c0-.465.185-.91.513-1.237Z" />
                 </svg>
-                <span className="text-sm font-medium text-gray-800">{selectedFolderPath}</span>
-                <span className="text-xs text-gray-400">
+                <span className="text-sm font-semibold text-[#1f2328]">{selectedFolderPath}</span>
+                <span className="text-xs text-[#656d76]">
                   ({files.filter((f) => f.name.startsWith(`${selectedFolderPath}/`) && f.name.endsWith(".md")).length} spec files)
                 </span>
                 <div className="flex-1" />
                 <button
                   onClick={closeWorkshop}
                   title="Close workshop"
-                  className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded hover:bg-gray-100"
+                  className="text-xs text-[#656d76] hover:text-[#1f2328] px-2 py-1 rounded-md hover:bg-[#eef1f6] border border-transparent hover:border-[#d1d9e0] transition-colors"
                 >
                   Close workshop
                 </button>
@@ -487,7 +490,7 @@ export function SpecFilesPage() {
               {/* Three-column panels */}
               <div className="flex-1 flex overflow-hidden">
                 {/* Column 1 — Ideas */}
-                <div className="w-80 shrink-0 border-r border-gray-200 flex flex-col overflow-hidden">
+                <div className="w-80 shrink-0 border-r border-[#d1d9e0] flex flex-col overflow-hidden">
                   <FlowIdeasPanel
                     ideas={ideas.length > 0 ? ideas : null}
                     usage={ideasUsage}
@@ -507,7 +510,7 @@ export function SpecFilesPage() {
                 </div>
 
                 {/* Column 2 — Flows */}
-                <div className="w-72 shrink-0 border-r border-gray-200 flex flex-col overflow-hidden">
+                <div className="w-72 shrink-0 border-r border-[#d1d9e0] flex flex-col overflow-hidden">
                   <FlowsPanel
                     flows={generatedFlows}
                     ideas={ideas}
@@ -533,32 +536,34 @@ export function SpecFilesPage() {
           ) : selectedFolderPath && !selectedPath && !showWorkshop ? (
             /* Folder selected, no workshop → Generate button landing */
             <>
-              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-200 bg-gray-50 shrink-0">
-                <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+                <svg className="w-4 h-4 text-[#9a6700]" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M.513 1.513A1.75 1.75 0 0 1 1.75 0h3.5c.465 0 .91.185 1.239.513l.61.61c.109.109.257.17.411.17h6.74a1.75 1.75 0 0 1 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15.5H1.75A1.75 1.75 0 0 1 0 13.75V1.75c0-.465.185-.91.513-1.237Z" />
                 </svg>
-                <span className="text-sm font-medium text-gray-800">{selectedFolderPath}</span>
-                <span className="text-xs text-gray-400">
+                <span className="text-sm font-semibold text-[#1f2328]">{selectedFolderPath}</span>
+                <span className="text-xs text-[#656d76]">
                   ({files.filter((f) => f.name.startsWith(`${selectedFolderPath}/`) && f.name.endsWith(".md")).length} spec files)
                 </span>
               </div>
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center space-y-4">
-                  <svg className="w-16 h-16 mx-auto text-purple-200" fill="none" stroke="currentColor" strokeWidth={0.8} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
-                  </svg>
+              <div className="flex-1 flex items-center justify-center bg-white">
+                <div className="text-center space-y-4 max-w-sm">
+                  <div className="w-14 h-14 rounded-full bg-[#8250df]/10 flex items-center justify-center mx-auto">
+                    <svg className="w-7 h-7 text-[#8250df]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+                    </svg>
+                  </div>
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">Analyze spec files and generate test flow ideas</p>
-                    <p className="text-xs text-gray-400">AI will read all .md files in this folder and suggest test scenarios</p>
+                    <p className="text-sm font-medium text-[#1f2328] mb-1">Generate test flow ideas</p>
+                    <p className="text-sm text-[#656d76]">AI will analyze all spec files in this folder and suggest test scenarios.</p>
                   </div>
                   <button
                     onClick={() => void handleGenerateFlowIdeas(selectedFolderPath)}
-                    className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg px-5 py-2.5 transition-colors"
+                    className="inline-flex items-center gap-2 bg-[#8250df] hover:bg-[#7048c2] text-white text-sm font-medium rounded-md px-4 py-2 transition-colors border border-[#8250df]/80"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
                     </svg>
-                    Generate Flow Ideas (AI)
+                    Generate ideas
                   </button>
                 </div>
               </div>
@@ -567,18 +572,18 @@ export function SpecFilesPage() {
             /* File viewer / empty state */
             <>
               {loadingContent && (
-                <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">Loading…</div>
+                <div className="flex-1 flex items-center justify-center text-[#656d76] text-sm">Loading…</div>
               )}
               {!loadingContent && selectedPath && (
                 <MarkdownViewer path={selectedPath} content={content} />
               )}
               {!loadingContent && !selectedPath && (
                 <div className="flex-1 flex items-center justify-center">
-                  <div className="text-center space-y-2 text-gray-300">
-                    <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" strokeWidth={0.8} viewBox="0 0 24 24">
+                  <div className="text-center space-y-2">
+                    <svg className="w-12 h-12 mx-auto text-[#d1d9e0]" fill="none" stroke="currentColor" strokeWidth={0.8} viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                     </svg>
-                    <p className="text-sm">Select a file or folder</p>
+                    <p className="text-sm text-[#656d76]">Select a file or folder</p>
                   </div>
                 </div>
               )}

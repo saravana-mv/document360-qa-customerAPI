@@ -13,7 +13,7 @@ export function Layout({ children, showTestControls }: LayoutProps) {
   const showNav = status === "authenticated" || status === "authenticating";
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-[#f6f8fa]">
       {showNav && <SideNav />}
       <div className="flex flex-col flex-1 overflow-hidden">
         <TopBar showTestControls={showTestControls} />
