@@ -14,7 +14,11 @@ interface Props {
   rawText?: string;
   message?: string | null;
   selectedIds: Set<string>;
+  /** Ideas that already have completed flows — visually locked */
+  lockedIds: Set<string>;
   activeIdeaId: string | null;
+  /** Currently active flow (to highlight its source idea) */
+  activeFlowId: string | null;
   onToggleSelect: (id: string) => void;
   onSelectAll: () => void;
   onDeselectAll: () => void;
@@ -26,12 +30,15 @@ interface Props {
 
 export function FlowIdeasPanel({
   ideas, usage, loading, error, rawText, message,
-  selectedIds, activeIdeaId, onToggleSelect, onSelectAll, onDeselectAll,
+  selectedIds, lockedIds, activeIdeaId, activeFlowId,
+  onToggleSelect, onSelectAll, onDeselectAll,
   onGenerateFlows, onGenerateMore, onClickIdea, generatingFlows,
 }: Props) {
   const totalIdeas = ideas?.length ?? 0;
+  const lockedCount = ideas?.filter(i => lockedIds.has(i.id)).length ?? 0;
+  const selectableCount = totalIdeas - lockedCount;
   const selectedCount = selectedIds.size;
-  const allSelected = totalIdeas > 0 && selectedCount === totalIdeas;
+  const allSelectableSelected = selectableCount > 0 && selectedCount === selectableCount;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -44,13 +51,16 @@ export function FlowIdeasPanel({
         {totalIdeas > 0 && (
           <span className="text-[11px] px-1.5 py-px rounded-full font-medium bg-[#656d76]/10 text-[#656d76] border border-[#656d76]/20">{totalIdeas}</span>
         )}
+        {lockedCount > 0 && (
+          <span className="text-[11px] px-1.5 py-px rounded-full font-medium bg-[#dafbe1] text-[#1a7f37] border border-[#aceebb]">{lockedCount} done</span>
+        )}
         <div className="flex-1" />
-        {totalIdeas > 0 && (
+        {selectableCount > 0 && (
           <button
-            onClick={allSelected ? onDeselectAll : onSelectAll}
+            onClick={allSelectableSelected ? onDeselectAll : onSelectAll}
             className="text-xs text-[#0969da] hover:underline"
           >
-            {allSelected ? "Deselect all" : "Select all"}
+            {allSelectableSelected ? "Deselect all" : "Select all"}
           </button>
         )}
       </div>
@@ -58,10 +68,10 @@ export function FlowIdeasPanel({
       {/* Usage stats */}
       {usage && (
         <div className="flex items-center gap-2 px-3 py-1 border-b border-[#d1d9e0]/60 bg-[#f6f8fa]/50 text-[11px] text-[#656d76] shrink-0">
-          <span>{usage.filesAnalyzed} files</span>
-          <span className="text-[#d1d9e0]">·</span>
+          <span>{usage.filesAnalyzed} file{usage.filesAnalyzed !== 1 ? "s" : ""}</span>
+          <span className="text-[#d1d9e0]">&middot;</span>
           <span>{usage.inputTokens.toLocaleString()} in + {usage.outputTokens.toLocaleString()} out</span>
-          <span className="text-[#d1d9e0]">·</span>
+          <span className="text-[#d1d9e0]">&middot;</span>
           <span className="font-medium text-[#1f2328]">${usage.costUsd.toFixed(4)}</span>
         </div>
       )}
@@ -99,31 +109,43 @@ export function FlowIdeasPanel({
         {!loading && !error && ideas && ideas.length > 0 && (
           <div>
             {ideas.map((idea) => {
+              const isLocked = lockedIds.has(idea.id);
               const isChecked = selectedIds.has(idea.id);
-              const isActive = activeIdeaId === idea.id;
+              const isActive = activeIdeaId === idea.id || (isLocked && activeFlowId === idea.id);
               return (
                 <div
                   key={idea.id}
                   className={`flex items-start gap-2 px-3 py-2.5 cursor-pointer border-b border-[#d1d9e0]/50 transition-colors ${
                     isActive
                       ? "bg-[#ddf4ff] border-l-2 border-l-[#0969da]"
-                      : isChecked
-                        ? "bg-[#ddf4ff]/40 border-l-2 border-l-[#0969da]/40"
-                        : "border-l-2 border-l-transparent hover:bg-[#f6f8fa]"
+                      : isLocked
+                        ? "bg-[#dafbe1]/30 border-l-2 border-l-[#1a7f37]/40"
+                        : isChecked
+                          ? "bg-[#ddf4ff]/40 border-l-2 border-l-[#0969da]/40"
+                          : "border-l-2 border-l-transparent hover:bg-[#f6f8fa]"
                   }`}
                 >
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    onChange={() => onToggleSelect(idea.id)}
-                    className="mt-0.5 accent-[#0969da] shrink-0"
-                  />
+                  {isLocked ? (
+                    /* Green check icon for locked ideas */
+                    <div className="mt-0.5 shrink-0 w-[13px] h-[13px] flex items-center justify-center" title="Flow already generated">
+                      <svg className="w-3.5 h-3.5 text-[#1a7f37]" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
+                      </svg>
+                    </div>
+                  ) : (
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => onToggleSelect(idea.id)}
+                      className="mt-0.5 accent-[#0969da] shrink-0"
+                    />
+                  )}
                   <button
                     onClick={() => onClickIdea(idea.id)}
                     className="flex-1 text-left min-w-0"
                   >
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[13px] font-medium text-[#1f2328] truncate">{idea.title}</span>
+                      <span className={`text-[13px] font-medium truncate ${isLocked ? "text-[#656d76]" : "text-[#1f2328]"}`}>{idea.title}</span>
                       <span className={`text-[10px] px-1.5 py-px rounded-full font-medium shrink-0 border ${COMPLEXITY_COLORS[idea.complexity] ?? "bg-[#eef1f6] text-[#656d76] border-[#d1d9e0]"}`}>
                         {idea.complexity}
                       </span>
@@ -165,7 +187,7 @@ export function FlowIdeasPanel({
             <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
-            More
+            More ideas
           </button>
           <button
             onClick={onGenerateFlows}
@@ -175,7 +197,9 @@ export function FlowIdeasPanel({
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
             </svg>
-            {selectedCount === 0 ? "Select ideas" : `Generate ${selectedCount} flow${selectedCount !== 1 ? "s" : ""}`}
+            {selectedCount === 0
+              ? (selectableCount === 0 ? "All flows generated" : "Select ideas")
+              : `Generate ${selectedCount} flow${selectedCount !== 1 ? "s" : ""}`}
           </button>
         </div>
       )}

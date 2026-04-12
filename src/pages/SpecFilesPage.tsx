@@ -328,6 +328,23 @@ export function SpecFilesPage() {
       setSelectedPath(null);
     }
     setViewingContent(false);
+
+    // ── Guard: skip API call if ideas already exist for this context ──
+    const existing = aggregateForPath(workshopMap, contextPath);
+    if (existing.ideas.length > 0) {
+      // Just load existing ideas — no API call, no cost
+      setIdeas(existing.ideas);
+      setIdeasUsage(existing.usage);
+      setGeneratedFlows(existing.generatedFlows.filter(f => f.status === "done" || f.status === "error"));
+      setSelectedIdeaIds(new Set());
+      setIdeasError(null);
+      setIdeasRawText(undefined);
+      setIdeasMessage(null);
+      setActiveIdeaId(null);
+      setActiveFlowId(null);
+      return;
+    }
+
     setIdeas([]);
     setIdeasUsage(null);
     setIdeasError(null);
@@ -437,9 +454,16 @@ export function SpecFilesPage() {
     }
   }
 
-  // ── Idea selection ────────────────────────────────────────────────────────
+  // ── Idea/flow locking — ideas with completed flows are locked ────────────
+
+  const completedFlowIdeaIds = new Set(
+    generatedFlows.filter(f => f.status === "done").map(f => f.ideaId)
+  );
+
+  // ── Idea selection (excludes locked ideas) ─────────────────────────────
 
   function toggleIdeaSelect(id: string) {
+    if (completedFlowIdeaIds.has(id)) return; // locked — ignore
     setSelectedIdeaIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -448,7 +472,10 @@ export function SpecFilesPage() {
   }
 
   function selectAllIdeas() {
-    setSelectedIdeaIds(new Set(ideas.map((i) => i.id)));
+    // Only select ideas that don't already have completed flows
+    setSelectedIdeaIds(new Set(
+      ideas.filter(i => !completedFlowIdeaIds.has(i.id)).map(i => i.id)
+    ));
   }
 
   function deselectAllIdeas() {
@@ -458,8 +485,14 @@ export function SpecFilesPage() {
   // ── Detail panel click handlers ───────────────────────────────────────────
 
   function handleClickIdea(id: string) {
-    setActiveIdeaId(id);
-    setActiveFlowId(null);
+    // If this idea has a completed flow, auto-show the flow in detail panel
+    if (completedFlowIdeaIds.has(id)) {
+      setActiveFlowId(id);
+      setActiveIdeaId(null);
+    } else {
+      setActiveIdeaId(id);
+      setActiveFlowId(null);
+    }
   }
 
   function handleClickFlow(ideaId: string) {
@@ -496,7 +529,11 @@ export function SpecFilesPage() {
   async function handleGenerateFlows() {
     if (selectedIdeaIds.size === 0 || !activePath) return;
 
-    const selectedIdeas = ideas.filter((i) => selectedIdeaIds.has(i.id));
+    // Filter out ideas that already have completed flows — don't waste resources
+    const selectedIdeas = ideas.filter(
+      (i) => selectedIdeaIds.has(i.id) && !completedFlowIdeaIds.has(i.id)
+    );
+    if (selectedIdeas.length === 0) return;
 
     // Get spec file names for context — depends on whether context is a file or folder
     let specFileNames: string[];
@@ -509,13 +546,15 @@ export function SpecFilesPage() {
         .map((f) => f.name);
     }
 
-    const initialFlows: GeneratedFlow[] = selectedIdeas.map((idea) => ({
+    // Preserve existing completed flows, add pending entries for new ones
+    const newPending: GeneratedFlow[] = selectedIdeas.map((idea) => ({
       ideaId: idea.id,
       title: idea.title,
       status: "pending" as const,
       xml: "",
     }));
-    setGeneratedFlows(initialFlows);
+    const existingCompleted = generatedFlows.filter(f => f.status === "done" || f.status === "error");
+    setGeneratedFlows([...existingCompleted, ...newPending]);
     setGeneratingFlows(true);
     setFlowProgress({ current: 0, total: selectedIdeas.length });
 
@@ -670,7 +709,9 @@ export function SpecFilesPage() {
                       rawText={ideasRawText}
                       message={ideasMessage}
                       selectedIds={selectedIdeaIds}
+                      lockedIds={completedFlowIdeaIds}
                       activeIdeaId={activeIdeaId}
+                      activeFlowId={activeFlowId}
                       onToggleSelect={toggleIdeaSelect}
                       onSelectAll={selectAllIdeas}
                       onDeselectAll={deselectAllIdeas}
