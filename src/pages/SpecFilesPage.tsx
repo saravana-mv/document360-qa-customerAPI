@@ -21,36 +21,106 @@ import {
 import { generateFlowXml } from "../lib/api/flowApi";
 import { useAuthGuard } from "../hooks/useAuthGuard";
 
-// ── localStorage persistence helpers ────────────────────────────────────────
+// ── localStorage persistence helpers (multi-context map) ─────────────────────
 
-const STORAGE_KEY = "specfiles_workshop";
+const STORAGE_KEY_V2 = "specfiles_workshop_v2";
+const STORAGE_KEY_V1 = "specfiles_workshop"; // legacy key for migration
 
-interface WorkshopSnapshot {
-  ideasFolderPath: string | null;
+interface ContextData {
   ideas: FlowIdea[];
-  ideasUsage: FlowIdeasUsage | null;
-  selectedIdeaIds: string[];
+  usage: FlowIdeasUsage | null;
   generatedFlows: GeneratedFlow[];
 }
 
-function loadWorkshop(): WorkshopSnapshot | null {
+type WorkshopMap = Record<string, ContextData>;
+
+function loadWorkshopMap(): WorkshopMap {
+  // Try v2 first
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as WorkshopSnapshot;
-  } catch {
-    return null;
-  }
+    const raw = localStorage.getItem(STORAGE_KEY_V2);
+    if (raw) return JSON.parse(raw) as WorkshopMap;
+  } catch { /* ignore */ }
+
+  // Migrate from v1 single-context format
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_V1);
+    if (raw) {
+      const v1 = JSON.parse(raw);
+      if (v1.ideasFolderPath && v1.ideas?.length > 0) {
+        const map: WorkshopMap = {
+          [v1.ideasFolderPath]: {
+            ideas: v1.ideas,
+            usage: v1.ideasUsage ?? null,
+            generatedFlows: (v1.generatedFlows ?? []).filter(
+              (f: GeneratedFlow) => f.status === "done" || f.status === "error"
+            ),
+          },
+        };
+        localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(map));
+        localStorage.removeItem(STORAGE_KEY_V1);
+        return map;
+      }
+    }
+  } catch { /* ignore */ }
+
+  return {};
 }
 
-function saveWorkshop(snap: WorkshopSnapshot) {
+function saveWorkshopMap(map: WorkshopMap) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
+    localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(map));
   } catch { /* quota exceeded — ignore */ }
 }
 
-// Load snapshot once at module level to avoid repeated parsing
-const _initialSnap = loadWorkshop();
+/** Aggregate ideas + flows from a path and all descendant paths */
+function aggregateForPath(map: WorkshopMap, path: string | null): ContextData {
+  if (!path) return { ideas: [], usage: null, generatedFlows: [] };
+  const prefix = path.endsWith("/") ? path : `${path}/`;
+  const matchingKeys = Object.keys(map).filter(k => k === path || k.startsWith(prefix));
+
+  if (matchingKeys.length === 0) return { ideas: [], usage: null, generatedFlows: [] };
+  if (matchingKeys.length === 1) return map[matchingKeys[0]];
+
+  const allIdeas: FlowIdea[] = [];
+  const allFlows: GeneratedFlow[] = [];
+  let totalUsage: FlowIdeasUsage | null = null;
+
+  for (const key of matchingKeys) {
+    const ctx = map[key];
+    allIdeas.push(...ctx.ideas);
+    allFlows.push(...ctx.generatedFlows);
+    if (ctx.usage) {
+      if (!totalUsage) {
+        totalUsage = { ...ctx.usage };
+      } else {
+        totalUsage = {
+          inputTokens: totalUsage.inputTokens + ctx.usage.inputTokens,
+          outputTokens: totalUsage.outputTokens + ctx.usage.outputTokens,
+          totalTokens: totalUsage.totalTokens + ctx.usage.totalTokens,
+          costUsd: parseFloat((totalUsage.costUsd + ctx.usage.costUsd).toFixed(6)),
+          filesAnalyzed: totalUsage.filesAnalyzed + ctx.usage.filesAnalyzed,
+          totalSpecCharacters: totalUsage.totalSpecCharacters + ctx.usage.totalSpecCharacters,
+        };
+      }
+    }
+  }
+
+  return { ideas: allIdeas, usage: totalUsage, generatedFlows: allFlows };
+}
+
+/** Get next globally unique idea index across all contexts */
+function nextGlobalIdeaIndex(map: WorkshopMap): number {
+  let max = 0;
+  for (const ctx of Object.values(map)) {
+    for (const idea of ctx.ideas) {
+      const match = idea.id.match(/^idea-(\d+)$/);
+      if (match) max = Math.max(max, parseInt(match[1]));
+    }
+  }
+  return max + 1;
+}
+
+const _initialMap = loadWorkshopMap();
 
 export function SpecFilesPage() {
   useAuthGuard();
@@ -66,22 +136,19 @@ export function SpecFilesPage() {
   const [error, setError] = useState<string | null>(null);
   const [uploadFolderPath, setUploadFolderPath] = useState<string | null>(null);
 
-  // ── Flow ideas state (restored from localStorage on mount) ────────────────
-  // ideasContextPath can be a folder path OR a file path (.md)
-  const [ideasContextPath, setIdeasContextPath] = useState<string | null>(() => _initialSnap?.ideasFolderPath ?? null);
-  const [ideas, setIdeas] = useState<FlowIdea[]>(() => _initialSnap?.ideas ?? []);
-  const [ideasUsage, setIdeasUsage] = useState<FlowIdeasUsage | null>(() => _initialSnap?.ideasUsage ?? null);
+  // ── Multi-context workshop state ──────────────────────────────────────────
+  const [workshopMap, setWorkshopMap] = useState<WorkshopMap>(() => _initialMap);
+
+  // Working set — flat state loaded from workshopMap when navigating
+  const [ideas, setIdeas] = useState<FlowIdea[]>([]);
+  const [ideasUsage, setIdeasUsage] = useState<FlowIdeasUsage | null>(null);
   const [ideasLoading, setIdeasLoading] = useState(false);
   const [ideasError, setIdeasError] = useState<string | null>(null);
   const [ideasRawText, setIdeasRawText] = useState<string | undefined>();
-  const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(
-    () => new Set(_initialSnap?.selectedIdeaIds ?? [])
-  );
+  const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(new Set());
 
-  // ── Flow generation state (restored from localStorage on mount) ───────────
-  const [generatedFlows, setGeneratedFlows] = useState<GeneratedFlow[]>(
-    () => _initialSnap?.generatedFlows.filter((f) => f.status === "done" || f.status === "error") ?? []
-  );
+  // ── Flow generation state ─────────────────────────────────────────────────
+  const [generatedFlows, setGeneratedFlows] = useState<GeneratedFlow[]>([]);
   const [generatingFlows, setGeneratingFlows] = useState(false);
   const [flowProgress, setFlowProgress] = useState<{ current: number; total: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -95,22 +162,31 @@ export function SpecFilesPage() {
   const [ideasWidth, setIdeasWidth] = useState(320);
   const [flowsWidth, setFlowsWidth] = useState(288);
 
-  // Workshop is visible only when the current selection matches the context it was generated for
+  // Workshop is visible when aggregated data exists for the current path (or loading/error)
   const activePath = selectedPath ?? selectedFolderPath;
-  const showWorkshop = activePath === ideasContextPath && (ideas.length > 0 || ideasLoading || ideasError !== null);
+  const showWorkshop = ideas.length > 0 || ideasLoading || ideasError !== null;
 
-  // Persist workshop state whenever ideas or flows change
+  // Persist workshopMap to localStorage whenever it changes
   useEffect(() => {
-    if (ideas.length > 0 || generatedFlows.length > 0) {
-      saveWorkshop({
-        ideasFolderPath: ideasContextPath,
-        ideas,
-        ideasUsage,
-        selectedIdeaIds: Array.from(selectedIdeaIds),
-        generatedFlows: generatedFlows.filter((f) => f.status === "done" || f.status === "error"),
-      });
+    saveWorkshopMap(workshopMap);
+  }, [workshopMap]);
+
+  // Persist generated flows back to workshopMap when flow generation completes
+  useEffect(() => {
+    if (!generatingFlows && generatedFlows.length > 0 && activePath) {
+      const flowsToSave = generatedFlows.filter(f => f.status === "done" || f.status === "error");
+      if (flowsToSave.length > 0) {
+        setWorkshopMap(prev => ({
+          ...prev,
+          [activePath]: {
+            ...(prev[activePath] ?? { ideas: [], usage: null, generatedFlows: [] }),
+            generatedFlows: flowsToSave,
+          },
+        }));
+      }
     }
-  }, [ideasContextPath, ideas, ideasUsage, selectedIdeaIds, generatedFlows]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generatingFlows]);
 
   // ── File list ──────────────────────────────────────────────────────────────
 
@@ -131,10 +207,24 @@ export function SpecFilesPage() {
 
   // ── Select file ────────────────────────────────────────────────────────────
 
+  /** Load aggregated workshop data into the flat working set for a given path */
+  function loadWorkingSet(path: string) {
+    const agg = aggregateForPath(workshopMap, path);
+    setIdeas(agg.ideas);
+    setIdeasUsage(agg.usage);
+    setGeneratedFlows(agg.generatedFlows.filter(f => f.status === "done" || f.status === "error"));
+    setSelectedIdeaIds(new Set());
+    setIdeasError(null);
+    setIdeasRawText(undefined);
+    setActiveIdeaId(null);
+    setActiveFlowId(null);
+  }
+
   async function selectFile(path: string) {
     setSelectedPath(path);
     setSelectedFolderPath(null);
     setViewingContent(false);
+    loadWorkingSet(path);
     // Pre-load content for when user clicks the filename link
     setContent("");
     setLoadingContent(true);
@@ -153,6 +243,7 @@ export function SpecFilesPage() {
     setSelectedPath(null);
     setViewingContent(false);
     setContent("");
+    loadWorkingSet(path);
   }
 
   // ── CRUD handlers ─────────────────────────────────────────────────────────
@@ -235,7 +326,6 @@ export function SpecFilesPage() {
       setSelectedPath(null);
     }
     setViewingContent(false);
-    setIdeasContextPath(contextPath);
     setIdeas([]);
     setIdeasUsage(null);
     setIdeasError(null);
@@ -247,7 +337,23 @@ export function SpecFilesPage() {
     setIdeasLoading(true);
     try {
       const result = await generateFlowIdeas(contextPath, []);
-      setIdeas(result.ideas);
+      // Assign globally unique IDs to avoid collisions across contexts
+      const startIdx = nextGlobalIdeaIndex(workshopMap);
+      const newIdeas = result.ideas.map((idea, i) => ({
+        ...idea,
+        id: `idea-${startIdx + i}`,
+      }));
+      // Save to workshopMap under this context
+      setWorkshopMap(prev => ({
+        ...prev,
+        [contextPath]: {
+          ideas: newIdeas,
+          usage: result.usage,
+          generatedFlows: [],
+        },
+      }));
+      // Update flat working set
+      setIdeas(newIdeas);
       setIdeasUsage(result.usage);
       if (result.parseError && result.rawText) {
         setIdeasRawText(result.rawText);
@@ -260,19 +366,46 @@ export function SpecFilesPage() {
   }
 
   async function handleGenerateMoreIdeas() {
-    if (!ideasContextPath) return;
+    const currentPath = activePath;
+    if (!currentPath) return;
     setIdeasError(null);
     setIdeasRawText(undefined);
     setIdeasLoading(true);
+    // Exclude ALL visible idea titles (including from child contexts)
     const existingTitles = ideas.map((i) => i.title);
     try {
-      const result = await generateFlowIdeas(ideasContextPath, existingTitles);
+      const result = await generateFlowIdeas(currentPath, existingTitles);
       if (result.ideas.length > 0) {
-        const offset = ideas.length;
+        const startIdx = nextGlobalIdeaIndex(workshopMap);
         const newIdeas = result.ideas.map((idea, i) => ({
           ...idea,
-          id: `idea-${offset + i + 1}`,
+          id: `idea-${startIdx + i}`,
         }));
+        // Save to workshopMap under this exact context
+        setWorkshopMap(prev => {
+          const existing = prev[currentPath] ?? { ideas: [], usage: null, generatedFlows: [] };
+          const mergedUsage = result.usage
+            ? existing.usage
+              ? {
+                  inputTokens: existing.usage.inputTokens + result.usage.inputTokens,
+                  outputTokens: existing.usage.outputTokens + result.usage.outputTokens,
+                  totalTokens: existing.usage.totalTokens + result.usage.totalTokens,
+                  costUsd: parseFloat((existing.usage.costUsd + result.usage.costUsd).toFixed(6)),
+                  filesAnalyzed: result.usage.filesAnalyzed,
+                  totalSpecCharacters: result.usage.totalSpecCharacters,
+                }
+              : result.usage
+            : existing.usage;
+          return {
+            ...prev,
+            [currentPath]: {
+              ...existing,
+              ideas: [...existing.ideas, ...newIdeas],
+              usage: mergedUsage,
+            },
+          };
+        });
+        // Update flat working set
         setIdeas((prev) => [...prev, ...newIdeas]);
       }
       if (result.usage) {
@@ -352,16 +485,16 @@ export function SpecFilesPage() {
   // ── Generate flows from selected ideas ────────────────────────────────────
 
   async function handleGenerateFlows() {
-    if (selectedIdeaIds.size === 0 || !ideasContextPath) return;
+    if (selectedIdeaIds.size === 0 || !activePath) return;
 
     const selectedIdeas = ideas.filter((i) => selectedIdeaIds.has(i.id));
 
     // Get spec file names for context — depends on whether context is a file or folder
     let specFileNames: string[];
-    if (ideasContextPath.endsWith(".md")) {
-      specFileNames = [ideasContextPath];
+    if (activePath.endsWith(".md")) {
+      specFileNames = [activePath];
     } else {
-      const prefix = ideasContextPath.endsWith("/") ? ideasContextPath : `${ideasContextPath}/`;
+      const prefix = activePath.endsWith("/") ? activePath : `${activePath}/`;
       specFileNames = files
         .filter((f) => f.name.startsWith(prefix) && f.name.endsWith(".md"))
         .map((f) => f.name);
