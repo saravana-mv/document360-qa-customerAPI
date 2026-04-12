@@ -156,9 +156,11 @@ export function FlowIdeasPanel({
                     className={`mt-0.5 shrink-0 ${isLocked ? "accent-[#1a7f37]" : "accent-[#0969da]"}`}
                   />
                   {isLocked && (
-                    <svg className="w-3.5 h-3.5 text-[#1a7f37] shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 16 16" title="Flow already generated">
-                      <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
-                    </svg>
+                    <span title="Flow already generated" className="shrink-0 mt-0.5 flex items-center">
+                      <svg className="w-3.5 h-3.5 text-[#1a7f37]" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
+                      </svg>
+                    </span>
                   )}
                   <button
                     onClick={() => onClickIdea(idea.id)}

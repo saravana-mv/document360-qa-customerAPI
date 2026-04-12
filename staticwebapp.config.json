@@ -1,5 +1,5 @@
 {
-  "navigationFallback": { "rewrite": "/index.html", "exclude": ["/assets/**", "/api/**"] },
+  "navigationFallback": { "rewrite": "/index.html", "exclude": ["/assets/*", "/api/*"] },
   "mimeTypes": {
     ".js": "text/javascript",
     ".mjs": "text/javascript",
