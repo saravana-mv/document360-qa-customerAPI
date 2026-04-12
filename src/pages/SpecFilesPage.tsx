@@ -145,6 +145,7 @@ export function SpecFilesPage() {
   const [ideasLoading, setIdeasLoading] = useState(false);
   const [ideasError, setIdeasError] = useState<string | null>(null);
   const [ideasRawText, setIdeasRawText] = useState<string | undefined>();
+  const [ideasMessage, setIdeasMessage] = useState<string | null>(null);
   const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(new Set());
 
   // ── Flow generation state ─────────────────────────────────────────────────
@@ -164,7 +165,7 @@ export function SpecFilesPage() {
 
   // Workshop is visible when aggregated data exists for the current path (or loading/error)
   const activePath = selectedPath ?? selectedFolderPath;
-  const showWorkshop = ideas.length > 0 || ideasLoading || ideasError !== null;
+  const showWorkshop = ideas.length > 0 || ideasLoading || ideasError !== null || ideasMessage !== null;
 
   // Persist workshopMap to localStorage whenever it changes
   useEffect(() => {
@@ -216,6 +217,7 @@ export function SpecFilesPage() {
     setSelectedIdeaIds(new Set());
     setIdeasError(null);
     setIdeasRawText(undefined);
+    setIdeasMessage(null);
     setActiveIdeaId(null);
     setActiveFlowId(null);
   }
@@ -330,6 +332,7 @@ export function SpecFilesPage() {
     setIdeasUsage(null);
     setIdeasError(null);
     setIdeasRawText(undefined);
+    setIdeasMessage(null);
     setSelectedIdeaIds(new Set());
     setGeneratedFlows([]);
     setActiveIdeaId(null);
@@ -344,19 +347,25 @@ export function SpecFilesPage() {
         id: `idea-${startIdx + i}`,
       }));
       // Save to workshopMap under this context
-      setWorkshopMap(prev => ({
-        ...prev,
-        [contextPath]: {
-          ideas: newIdeas,
-          usage: result.usage,
-          generatedFlows: [],
-        },
-      }));
+      if (newIdeas.length > 0) {
+        setWorkshopMap(prev => ({
+          ...prev,
+          [contextPath]: {
+            ideas: newIdeas,
+            usage: result.usage,
+            generatedFlows: [],
+          },
+        }));
+      }
       // Update flat working set
       setIdeas(newIdeas);
       setIdeasUsage(result.usage);
       if (result.parseError && result.rawText) {
         setIdeasRawText(result.rawText);
+      }
+      // Show message when API returns 0 ideas
+      if (newIdeas.length === 0) {
+        setIdeasMessage(result.message || "AI could not generate any test flow ideas for this specification. The file may be too short or not contain enough API detail.");
       }
     } catch (e) {
       setIdeasError(e instanceof Error ? e.message : String(e));
@@ -659,6 +668,7 @@ export function SpecFilesPage() {
                       loading={ideasLoading}
                       error={ideasError}
                       rawText={ideasRawText}
+                      message={ideasMessage}
                       selectedIds={selectedIdeaIds}
                       activeIdeaId={activeIdeaId}
                       onToggleSelect={toggleIdeaSelect}

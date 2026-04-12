@@ -12,6 +12,7 @@ interface Props {
   loading: boolean;
   error: string | null;
   rawText?: string;
+  message?: string | null;
   selectedIds: Set<string>;
   activeIdeaId: string | null;
   onToggleSelect: (id: string) => void;
@@ -24,7 +25,7 @@ interface Props {
 }
 
 export function FlowIdeasPanel({
-  ideas, usage, loading, error, rawText,
+  ideas, usage, loading, error, rawText, message,
   selectedIds, activeIdeaId, onToggleSelect, onSelectAll, onDeselectAll,
   onGenerateFlows, onGenerateMore, onClickIdea, generatingFlows,
 }: Props) {
@@ -135,10 +136,20 @@ export function FlowIdeasPanel({
           </div>
         )}
 
-        {/* Empty */}
-        {!loading && !error && ideas && ideas.length === 0 && !rawText && (
-          <div className="text-center py-12">
-            <p className="text-xs text-[#656d76]">No flow ideas generated.</p>
+        {/* Empty / message */}
+        {!loading && !error && (!ideas || ideas.length === 0) && !rawText && (
+          <div className="flex flex-col items-center justify-center py-12 px-4 gap-3">
+            <div className="w-10 h-10 rounded-full bg-[#fff8c5] flex items-center justify-center">
+              <svg className="w-5 h-5 text-[#9a6700]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+              </svg>
+            </div>
+            <div className="text-center">
+              <p className="text-xs font-medium text-[#1f2328] mb-1">No ideas generated</p>
+              <p className="text-xs text-[#656d76] leading-relaxed">
+                {message || "AI could not generate test flow ideas for this context."}
+              </p>
+            </div>
           </div>
         )}
       </div>
