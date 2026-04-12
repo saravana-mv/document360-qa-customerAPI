@@ -23,7 +23,7 @@ export function MarkdownViewer({ path, content }: Props) {
         </div>
         {/* Raw / Rendered toggle — only meaningful for markdown */}
         {isMarkdown && (
-          <div className="flex items-center shrink-0 rounded-md overflow-hidden border border-[#d1d9e0] text-xs">
+          <div className="flex items-center shrink-0 rounded-md overflow-hidden border border-[#d1d9e0] text-[13px]">
             <button
               onClick={() => setRaw(false)}
               className={`px-2.5 py-1 transition-colors ${!raw ? "bg-[#0969da] text-white" : "text-[#656d76] hover:bg-[#f6f8fa]"}`}
@@ -50,7 +50,7 @@ export function MarkdownViewer({ path, content }: Props) {
             />
           </div>
         ) : (
-          <pre className="p-6 text-xs font-mono text-[#1f2328] whitespace-pre-wrap break-words leading-relaxed">
+          <pre className="p-6 text-[13px] font-mono text-[#1f2328] whitespace-pre-wrap break-words leading-relaxed">
             {content}
           </pre>
         )}

@@ -32,7 +32,7 @@ export function OperationNode({ test }: OperationNodeProps) {
   return (
     <div
       onClick={handleClick}
-      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer transition-colors text-xs ml-1 ${
+      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer transition-colors text-[13px] ml-1 ${
         isPaneOpen
           ? "bg-[#ddf4ff] border border-[#b6e3ff]"
           : isSelected
@@ -41,7 +41,7 @@ export function OperationNode({ test }: OperationNodeProps) {
       }`}
     >
       <StatusIcon status={status} />
-      <span className={`font-mono px-1.5 py-px rounded text-[10px] font-semibold border ${methodColor[test.method] ?? "text-[#656d76] bg-[#eef1f6] border-[#d1d9e0]"}`}>
+      <span className={`font-mono px-1.5 py-px rounded text-[11px] font-semibold border ${methodColor[test.method] ?? "text-[#656d76] bg-[#eef1f6] border-[#d1d9e0]"}`}>
         {test.method}
       </span>
       <span className="flex-1 text-[#1f2328] truncate">{test.name}</span>

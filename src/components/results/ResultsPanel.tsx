@@ -28,14 +28,14 @@ export function ResultsPanel() {
               <div
                 key={t.testId}
                 onClick={() => selectTest(selectedTestId === t.testId ? null : t.testId)}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-xs cursor-pointer transition-colors ${
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] cursor-pointer transition-colors ${
                   selectedTestId === t.testId
                     ? "bg-[#ddf4ff] border border-[#b6e3ff]"
                     : "bg-white hover:bg-[#f6f8fa] border border-[#d1d9e0]"
                 }`}
               >
                 <StatusIcon status={t.status} />
-                <span className={`font-mono font-semibold text-[10px] ${methodColor[t.method] ?? "text-[#656d76]"}`}>{t.method}</span>
+                <span className={`font-mono font-semibold text-[11px] ${methodColor[t.method] ?? "text-[#656d76]"}`}>{t.method}</span>
                 <span className="flex-1 text-[#1f2328] truncate">{t.testName}</span>
                 {t.httpStatus && <span className="text-[#656d76]">{t.httpStatus}</span>}
                 {t.durationMs !== undefined && <span className="text-[#afb8c1] shrink-0">{t.durationMs}ms</span>}

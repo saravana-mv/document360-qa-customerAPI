@@ -39,15 +39,15 @@ export function FlowIdeasPanel({
         <svg className="w-4 h-4 text-[#656d76]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
         </svg>
-        <span className="text-xs font-semibold text-[#1f2328]">Ideas</span>
+        <span className="text-[13px] font-semibold text-[#1f2328]">Ideas</span>
         {totalIdeas > 0 && (
-          <span className="text-[10px] px-1.5 py-px rounded-full font-medium bg-[#656d76]/10 text-[#656d76] border border-[#656d76]/20">{totalIdeas}</span>
+          <span className="text-[11px] px-1.5 py-px rounded-full font-medium bg-[#656d76]/10 text-[#656d76] border border-[#656d76]/20">{totalIdeas}</span>
         )}
         <div className="flex-1" />
         {totalIdeas > 0 && (
           <button
             onClick={allSelected ? onDeselectAll : onSelectAll}
-            className="text-[11px] text-[#0969da] hover:underline"
+            className="text-xs text-[#0969da] hover:underline"
           >
             {allSelected ? "Deselect all" : "Select all"}
           </button>
@@ -56,7 +56,7 @@ export function FlowIdeasPanel({
 
       {/* Usage stats */}
       {usage && (
-        <div className="flex items-center gap-2 px-3 py-1 border-b border-[#d1d9e0]/60 bg-[#f6f8fa]/50 text-[10px] text-[#656d76] shrink-0">
+        <div className="flex items-center gap-2 px-3 py-1 border-b border-[#d1d9e0]/60 bg-[#f6f8fa]/50 text-[11px] text-[#656d76] shrink-0">
           <span>{usage.filesAnalyzed} files</span>
           <span className="text-[#d1d9e0]">·</span>
           <span>{usage.inputTokens.toLocaleString()} in + {usage.outputTokens.toLocaleString()} out</span>
@@ -82,7 +82,7 @@ export function FlowIdeasPanel({
         {!loading && error && (
           <div className="m-3 bg-[#ffebe9] border border-[#ffcecb] rounded-md p-3">
             <p className="text-xs text-[#d1242f] font-medium">Generation failed</p>
-            <p className="text-[11px] text-[#d1242f]/80 mt-1">{error}</p>
+            <p className="text-xs text-[#d1242f]/80 mt-1">{error}</p>
           </div>
         )}
 
@@ -90,7 +90,7 @@ export function FlowIdeasPanel({
         {!loading && !error && rawText && (
           <div className="m-3 bg-[#fff8c5] border border-[#f5e0a0] rounded-md p-3">
             <p className="text-xs text-[#9a6700] font-medium mb-1">Could not parse ideas:</p>
-            <pre className="text-[11px] text-[#1f2328] whitespace-pre-wrap font-mono bg-white rounded p-2 border border-[#f5e0a0] max-h-40 overflow-y-auto">{rawText}</pre>
+            <pre className="text-xs text-[#1f2328] whitespace-pre-wrap font-mono bg-white rounded p-2 border border-[#f5e0a0] max-h-40 overflow-y-auto">{rawText}</pre>
           </div>
         )}
 
@@ -122,12 +122,12 @@ export function FlowIdeasPanel({
                     className="flex-1 text-left min-w-0"
                   >
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-medium text-[#1f2328] truncate">{idea.title}</span>
-                      <span className={`text-[9px] px-1.5 py-px rounded-full font-medium shrink-0 border ${COMPLEXITY_COLORS[idea.complexity] ?? "bg-[#eef1f6] text-[#656d76] border-[#d1d9e0]"}`}>
+                      <span className="text-[13px] font-medium text-[#1f2328] truncate">{idea.title}</span>
+                      <span className={`text-[10px] px-1.5 py-px rounded-full font-medium shrink-0 border ${COMPLEXITY_COLORS[idea.complexity] ?? "bg-[#eef1f6] text-[#656d76] border-[#d1d9e0]"}`}>
                         {idea.complexity}
                       </span>
                     </div>
-                    <p className="text-[11px] text-[#656d76] mt-0.5 line-clamp-1">{idea.description}</p>
+                    <p className="text-xs text-[#656d76] mt-0.5 line-clamp-1">{idea.description}</p>
                   </button>
                 </div>
               );
@@ -149,7 +149,7 @@ export function FlowIdeasPanel({
           <button
             onClick={onGenerateMore}
             disabled={generatingFlows}
-            className="flex items-center justify-center gap-1 border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-[11px] font-medium rounded-md px-2.5 py-1.5 transition-colors disabled:opacity-40"
+            className="flex items-center justify-center gap-1 border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-xs font-medium rounded-md px-2.5 py-1.5 transition-colors disabled:opacity-40"
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />

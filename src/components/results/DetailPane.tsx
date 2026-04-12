@@ -28,7 +28,7 @@ const statusBadge: Record<TestStatus, { label: string; cls: string; icon: string
 
 function Label({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[11px] font-semibold text-[#656d76] uppercase tracking-wider mb-1.5">
+    <p className="text-xs font-semibold text-[#656d76] uppercase tracking-wider mb-1.5">
       {children}
     </p>
   );
@@ -67,7 +67,7 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
   return (
     <span className="relative group/tip inline-flex items-center">
       {children}
-      <span className="absolute bottom-full left-0 mb-1.5 hidden group-hover/tip:block z-20 bg-[#1f2328] text-white text-[10px] leading-snug rounded-md px-2 py-1 whitespace-nowrap shadow-lg pointer-events-none max-w-xs">
+      <span className="absolute bottom-full left-0 mb-1.5 hidden group-hover/tip:block z-20 bg-[#1f2328] text-white text-[11px] leading-snug rounded-md px-2 py-1 whitespace-nowrap shadow-lg pointer-events-none max-w-xs">
         {text}
       </span>
     </span>
@@ -185,7 +185,7 @@ function DesignTab({ testId }: { testId: string }) {
                     )}
                     {!missing && <CopyButton value={displayValue} />}
                     {isStateBased && (
-                      <span className="text-[10px] text-[#656d76] italic">runtime</span>
+                      <span className="text-[11px] text-[#656d76] italic">runtime</span>
                     )}
                   </div>
                 </div>
@@ -286,7 +286,7 @@ function RunTab({ testId }: { testId: string }) {
 
       {/* Status row */}
       <div className="flex items-center gap-3 px-3 py-2.5 rounded-md bg-[#f6f8fa] border border-[#d1d9e0]">
-        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badge.cls}`}>
+        <span className={`text-[13px] font-semibold px-2 py-0.5 rounded-full ${badge.cls}`}>
           {badge.icon} {badge.label}
         </span>
         {result?.httpStatus && (
@@ -341,8 +341,8 @@ function RunTab({ testId }: { testId: string }) {
       {result?.stateSnapshot !== undefined && (
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <p className="text-xs font-semibold text-[#656d76] uppercase tracking-wide">State Snapshot</p>
-            <span className="text-[10px] text-[#9a6700] bg-[#fff8c5] border border-[#f5e0a0] px-1.5 py-0.5 rounded">
+            <p className="text-[13px] font-semibold text-[#656d76] uppercase tracking-wide">State Snapshot</p>
+            <span className="text-[11px] text-[#9a6700] bg-[#fff8c5] border border-[#f5e0a0] px-1.5 py-0.5 rounded">
               debug context
             </span>
           </div>
@@ -437,7 +437,7 @@ export function DetailPane({ testId, onClose }: DetailPaneProps) {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-1.5 text-xs font-semibold capitalize border-b-2 transition-colors ${
+              className={`px-4 py-1.5 text-[13px] font-semibold capitalize border-b-2 transition-colors ${
                 activeTab === tab
                   ? "border-[#fd8c73] text-[#1f2328]"
                   : "border-transparent text-[#656d76] hover:text-[#1f2328]"

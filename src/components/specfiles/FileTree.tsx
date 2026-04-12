@@ -113,7 +113,7 @@ function InlineInput({ defaultValue = "", onCommit, onCancel }: {
         e.stopPropagation();
       }}
       onBlur={() => { if (value.trim()) onCommit(value.trim()); else onCancel(); }}
-      className="flex-1 min-w-0 text-xs border border-[#0969da] rounded px-1 py-0.5 outline-none bg-white text-[#1f2328]"
+      className="flex-1 min-w-0 text-[13px] border border-[#0969da] rounded px-1 py-0.5 outline-none bg-white text-[#1f2328]"
     />
   );
 }
@@ -174,7 +174,7 @@ function FolderContextMenu({ folderPath: _, isSelected, onNewSubfolder, onUpload
         >
           <button
             onClick={() => action(onNewSubfolder)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[#1f2328] hover:bg-[#f6f8fa]"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[#1f2328] hover:bg-[#f6f8fa]"
           >
             <svg className="w-3.5 h-3.5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
               <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
@@ -183,7 +183,7 @@ function FolderContextMenu({ folderPath: _, isSelected, onNewSubfolder, onUpload
           </button>
           <button
             onClick={() => action(onUploadFiles)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[#1f2328] hover:bg-[#f6f8fa]"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[#1f2328] hover:bg-[#f6f8fa]"
           >
             <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
@@ -192,7 +192,7 @@ function FolderContextMenu({ folderPath: _, isSelected, onNewSubfolder, onUpload
           </button>
           <button
             onClick={() => action(onGenerateFlowIdeas)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[#1f2328] hover:bg-[#f6f8fa]"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[#1f2328] hover:bg-[#f6f8fa]"
           >
             <svg className="w-3.5 h-3.5 text-[#0969da]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
@@ -202,7 +202,7 @@ function FolderContextMenu({ folderPath: _, isSelected, onNewSubfolder, onUpload
           <div className="border-t border-[#d8dee4] my-0.5" />
           <button
             onClick={() => action(onRename)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[#1f2328] hover:bg-[#f6f8fa]"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[#1f2328] hover:bg-[#f6f8fa]"
           >
             <svg className="w-3.5 h-3.5 text-[#656d76]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
@@ -211,7 +211,7 @@ function FolderContextMenu({ folderPath: _, isSelected, onNewSubfolder, onUpload
           </button>
           <button
             onClick={() => action(onDelete)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[#d1242f] hover:bg-[#ffebe9]"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
@@ -280,7 +280,7 @@ function TreeNodeRow({
         onDragOver={(e) => { e.stopPropagation(); onDragOver(e, node); }}
         onDrop={(e) => { e.stopPropagation(); onDrop(e, node); }}
         onDragEnd={(e) => { e.stopPropagation(); onDragEnd(); }}
-        className={`group flex items-center gap-1 py-[3px] pr-1 cursor-pointer select-none text-xs rounded-md mx-1 transition-colors ${
+        className={`group flex items-center gap-1 py-[3px] pr-1 cursor-pointer select-none text-[13px] rounded-md mx-1 transition-colors ${
           isDragging ? "opacity-40" : ""
         } ${
           isDropTarget
@@ -621,7 +621,7 @@ export function FileTree({
         <svg className="w-4 h-4 text-[#656d76] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v8.25m19.5 0v2.25a2.25 2.25 0 0 1-2.25 2.25H4.5A2.25 2.25 0 0 1 2.25 16.5v-2.25" />
         </svg>
-        <span className="text-xs font-semibold text-[#1f2328]">Spec Files</span>
+        <span className="text-[13px] font-semibold text-[#1f2328]">Spec Files</span>
         <div className="flex-1" />
         <button
           onClick={startRootFolder}
@@ -646,7 +646,7 @@ export function FileTree({
 
       {/* Tree — acts as root drop zone when dragging */}
       <div
-        className={`flex-1 overflow-y-auto py-1 text-xs transition-colors ${
+        className={`flex-1 overflow-y-auto py-1 text-[13px] transition-colors ${
           dropTargetPath === "" ? "bg-[#ddf4ff] ring-2 ring-inset ring-[#0969da]/30" : ""
         }`}
         onDragOver={handleRootDragOver}

@@ -57,9 +57,9 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
         <svg className="w-4 h-4 text-[#0969da]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
         </svg>
-        <span className="text-xs font-semibold text-[#1f2328]">Flows</span>
+        <span className="text-[13px] font-semibold text-[#1f2328]">Flows</span>
         {flows.length > 0 && (
-          <span className="text-[10px] px-1.5 py-px rounded-full font-medium bg-[#0969da]/10 text-[#0969da] border border-[#0969da]/20">
+          <span className="text-[11px] px-1.5 py-px rounded-full font-medium bg-[#0969da]/10 text-[#0969da] border border-[#0969da]/20">
             {doneFlows.length}/{flows.length}
           </span>
         )}
@@ -68,7 +68,7 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
       {/* Progress bar */}
       {generating && progress && (
         <div className="shrink-0 px-3 py-1.5 border-b border-[#d1d9e0]/60 bg-[#ddf4ff]/40">
-          <div className="flex items-center justify-between text-[10px] text-[#0969da] mb-1">
+          <div className="flex items-center justify-between text-[11px] text-[#0969da] mb-1">
             <span>Generating...</span>
             <span className="font-medium">{progress.current}/{progress.total}</span>
           </div>
@@ -89,7 +89,7 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
               <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
             </svg>
             <p className="text-xs text-[#656d76]">No flows yet</p>
-            <p className="text-[11px] text-[#afb8c1] mt-0.5">Select ideas and generate</p>
+            <p className="text-xs text-[#afb8c1] mt-0.5">Select ideas and generate</p>
           </div>
         )}
 
@@ -109,8 +109,8 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
                 >
                   {STATUS_ICON[flow.status]}
                   <div className="flex-1 min-w-0">
-                    <span className="text-xs font-medium text-[#1f2328] truncate block">{flow.title}</span>
-                    <span className="text-[11px] text-[#656d76]">
+                    <span className="text-[13px] font-medium text-[#1f2328] truncate block">{flow.title}</span>
+                    <span className="text-xs text-[#656d76]">
                       {flow.status === "generating" && "Generating..."}
                       {flow.status === "pending" && "Queued"}
                       {flow.status === "done" && `${flow.xml.length.toLocaleString()} chars`}

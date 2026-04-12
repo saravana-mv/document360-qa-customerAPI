@@ -45,11 +45,11 @@ export function TagNode({ tag, tests }: TagNodeProps) {
           </svg>
           <StatusIcon status={status} />
           <span className="font-medium text-[13px] text-[#1f2328] truncate">{tag.name}</span>
-          <span className="text-[11px] text-[#656d76] ml-auto shrink-0">
+          <span className="text-xs text-[#656d76] ml-auto shrink-0">
             {tests.length}
           </span>
           {tagResult?.durationMs !== undefined && (
-            <span className="text-[11px] text-[#afb8c1] shrink-0">{tagResult.durationMs}ms</span>
+            <span className="text-xs text-[#afb8c1] shrink-0">{tagResult.durationMs}ms</span>
           )}
         </div>
       </div>
@@ -63,7 +63,7 @@ export function TagNode({ tag, tests }: TagNodeProps) {
       )}
 
       {open && tests.length === 0 && (
-        <div className="ml-7 px-2 py-1 text-[11px] text-[#656d76] italic">No tests</div>
+        <div className="ml-7 px-2 py-1 text-xs text-[#656d76] italic">No tests</div>
       )}
     </div>
   );
