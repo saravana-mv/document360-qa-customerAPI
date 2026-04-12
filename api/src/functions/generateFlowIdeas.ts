@@ -104,47 +104,61 @@ export async function generateFlowIdeasHandler(
     ? body.maxBudgetUsd
     : DEFAULT_BUDGET_USD;
 
-  // ── Read all .md files in the folder ──
-  const prefix = body.folderPath.endsWith("/") ? body.folderPath : `${body.folderPath}/`;
-  let allBlobs;
-  try {
-    allBlobs = await listBlobs(prefix);
-  } catch (e) {
-    return err(500, `Failed to list blobs: ${e instanceof Error ? e.message : String(e)}`);
-  }
+  const contextPath = body.folderPath;
+  const isSingleFile = contextPath.endsWith(".md");
 
-  const mdBlobs = allBlobs.filter((b) => b.name.endsWith(".md") && !b.name.endsWith("/.keep"));
-
-  if (mdBlobs.length === 0) {
-    return ok({
-      ideas: [],
-      usage: {
-        inputTokens: 0,
-        outputTokens: 0,
-        totalTokens: 0,
-        costUsd: 0,
-        filesAnalyzed: 0,
-        totalSpecCharacters: 0,
-      },
-      message: "No .md files found in this folder",
-    });
-  }
-
-  if (mdBlobs.length > MAX_FILES) {
-    return err(422, `Folder contains ${mdBlobs.length} .md files (max ${MAX_FILES}). Use a subfolder or reduce file count.`);
-  }
-
-  // ── Download and concatenate spec content ──
+  // ── Resolve spec files based on context (single file vs folder) ──
   let specContents: { name: string; content: string }[];
-  try {
-    specContents = await Promise.all(
-      mdBlobs.map(async (b) => ({
-        name: b.name,
-        content: await downloadBlob(b.name),
-      }))
-    );
-  } catch (e) {
-    return err(500, `Failed to read spec files: ${e instanceof Error ? e.message : String(e)}`);
+
+  if (isSingleFile) {
+    // Single file context — read just this one file
+    try {
+      const content = await downloadBlob(contextPath);
+      specContents = [{ name: contextPath, content }];
+    } catch (e) {
+      return err(500, `Failed to read spec file: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  } else {
+    // Folder context — read all .md files in the folder
+    const prefix = contextPath.endsWith("/") ? contextPath : `${contextPath}/`;
+    let allBlobs;
+    try {
+      allBlobs = await listBlobs(prefix);
+    } catch (e) {
+      return err(500, `Failed to list blobs: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
+    const mdBlobs = allBlobs.filter((b) => b.name.endsWith(".md") && !b.name.endsWith("/.keep"));
+
+    if (mdBlobs.length === 0) {
+      return ok({
+        ideas: [],
+        usage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          costUsd: 0,
+          filesAnalyzed: 0,
+          totalSpecCharacters: 0,
+        },
+        message: "No .md files found in this folder",
+      });
+    }
+
+    if (mdBlobs.length > MAX_FILES) {
+      return err(422, `Folder contains ${mdBlobs.length} .md files (max ${MAX_FILES}). Use a subfolder or reduce file count.`);
+    }
+
+    try {
+      specContents = await Promise.all(
+        mdBlobs.map(async (b) => ({
+          name: b.name,
+          content: await downloadBlob(b.name),
+        }))
+      );
+    } catch (e) {
+      return err(500, `Failed to read spec files: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   const specText = specContents
