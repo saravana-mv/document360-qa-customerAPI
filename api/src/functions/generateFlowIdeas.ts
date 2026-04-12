@@ -109,12 +109,14 @@ export async function generateFlowIdeasHandler(
 
   // ── Resolve spec files based on context (single file vs folder) ──
   let specContents: { name: string; content: string }[];
+  let filesAnalyzed = 0;
 
   if (isSingleFile) {
     // Single file context — read just this one file
     try {
       const content = await downloadBlob(contextPath);
       specContents = [{ name: contextPath, content }];
+      filesAnalyzed = 1;
     } catch (e) {
       return err(500, `Failed to read spec file: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -144,6 +146,8 @@ export async function generateFlowIdeasHandler(
         message: "No .md files found in this folder",
       });
     }
+
+    filesAnalyzed = mdBlobs.length;
 
     if (mdBlobs.length > MAX_FILES) {
       return err(422, `Folder contains ${mdBlobs.length} .md files (max ${MAX_FILES}). Use a subfolder or reduce file count.`);
@@ -185,7 +189,7 @@ export async function generateFlowIdeasHandler(
       estimatedOutputTokens: MAX_OUTPUT_TOKENS,
       estimatedCostUsd: parseFloat(estimatedCostUsd.toFixed(4)),
       budget,
-      filesFound: mdBlobs.length,
+      filesFound: filesAnalyzed,
       totalChars,
     });
   }
@@ -216,7 +220,7 @@ export async function generateFlowIdeasHandler(
     outputTokens,
     totalTokens: inputTokens + outputTokens,
     costUsd,
-    filesAnalyzed: mdBlobs.length,
+    filesAnalyzed,
     totalSpecCharacters: specText.length,
   };
 
