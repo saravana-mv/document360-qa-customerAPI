@@ -49,10 +49,6 @@ function saveWorkshop(snap: WorkshopSnapshot) {
   } catch { /* quota exceeded — ignore */ }
 }
 
-function clearWorkshop() {
-  localStorage.removeItem(STORAGE_KEY);
-}
-
 // Load snapshot once at module level to avoid repeated parsing
 const _initialSnap = loadWorkshop();
 
@@ -416,26 +412,6 @@ export function SpecFilesPage() {
 
     setGeneratingFlows(false);
     abortRef.current = null;
-  }
-
-  // ── Close workshop ────────────────────────────────────────────────────────
-
-  function closeWorkshop() {
-    if (generatingFlows) {
-      abortRef.current?.abort();
-    }
-    setIdeasContextPath(null);
-    setIdeas([]);
-    setIdeasUsage(null);
-    setIdeasError(null);
-    setIdeasRawText(undefined);
-    setSelectedIdeaIds(new Set());
-    setGeneratedFlows([]);
-    setGeneratingFlows(false);
-    setFlowProgress(null);
-    setActiveIdeaId(null);
-    setActiveFlowId(null);
-    clearWorkshop();
   }
 
   // ── Derived detail data ───────────────────────────────────────────────────

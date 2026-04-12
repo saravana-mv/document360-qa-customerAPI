@@ -46,7 +46,6 @@ jobs:
           app_location: "/" # App source code path
           api_location: "api" # Api source code path - optional
           output_location: "dist" # Built app content directory - optional
-          skip_api_build: true # API already built and pruned in pre-build step
           ###### End of Repository/Build Configurations ######
 
       # Smoke-test the live deployment — catches routing and 404 issues immediately
