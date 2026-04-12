@@ -2,6 +2,10 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import Anthropic from "@anthropic-ai/sdk";
 import { downloadBlob, listBlobs } from "../lib/blobClient";
 
+// Claude Opus 4 pricing
+const OPUS_INPUT_PRICE_PER_TOKEN = 15 / 1_000_000;   // $15 per million
+const OPUS_OUTPUT_PRICE_PER_TOKEN = 75 / 1_000_000;   // $75 per million
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -164,6 +168,16 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
             }
           }
 
+          // Send usage data before closing
+          const finalMsg = await stream.finalMessage();
+          const inTok = finalMsg.usage.input_tokens;
+          const outTok = finalMsg.usage.output_tokens;
+          const cost = parseFloat(
+            ((inTok * OPUS_INPUT_PRICE_PER_TOKEN) + (outTok * OPUS_OUTPUT_PRICE_PER_TOKEN)).toFixed(6)
+          );
+          const usageData = `data: ${JSON.stringify({ usage: { inputTokens: inTok, outputTokens: outTok, totalTokens: inTok + outTok, costUsd: cost } })}\n\n`;
+          controller.enqueue(encoder.encode(usageData));
+
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         } catch (e) {
@@ -199,10 +213,19 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       const textBlock = finalMessage.content.find((b) => b.type === "text");
       const xml = textBlock && textBlock.type === "text" ? textBlock.text : "";
 
+      const inputTokens = finalMessage.usage.input_tokens;
+      const outputTokens = finalMessage.usage.output_tokens;
+      const costUsd = parseFloat(
+        ((inputTokens * OPUS_INPUT_PRICE_PER_TOKEN) + (outputTokens * OPUS_OUTPUT_PRICE_PER_TOKEN)).toFixed(6)
+      );
+
       return {
         status: 200,
         headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-        body: JSON.stringify({ xml }),
+        body: JSON.stringify({
+          xml,
+          usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, costUsd },
+        }),
       };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

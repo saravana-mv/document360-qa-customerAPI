@@ -73,6 +73,13 @@ export interface FlowIdeasUsage {
   totalSpecCharacters: number;
 }
 
+export interface FlowUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  costUsd: number;
+}
+
 export interface GenerateFlowIdeasResponse {
   ideas: FlowIdea[];
   usage: FlowIdeasUsage;

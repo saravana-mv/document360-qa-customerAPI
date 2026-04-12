@@ -1,4 +1,4 @@
-import type { FlowIdea } from "../../lib/api/specFilesApi";
+import type { FlowIdea, FlowUsage } from "../../lib/api/specFilesApi";
 
 export interface GeneratedFlow {
   ideaId: string;
@@ -6,6 +6,7 @@ export interface GeneratedFlow {
   status: "pending" | "generating" | "done" | "error";
   xml: string;
   error?: string;
+  usage?: FlowUsage | null;
 }
 
 interface Props {
@@ -57,9 +58,9 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
         <svg className="w-4 h-4 text-[#0969da]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
         </svg>
-        <span className="text-[13px] font-semibold text-[#1f2328]">Flows</span>
+        <span className="text-sm font-semibold text-[#1f2328]">Flows</span>
         {flows.length > 0 && (
-          <span className="text-[11px] px-1.5 py-px rounded-full font-medium bg-[#0969da]/10 text-[#0969da] border border-[#0969da]/20">
+          <span className="text-xs px-1.5 py-px rounded-full font-medium bg-[#0969da]/10 text-[#0969da] border border-[#0969da]/20">
             {doneFlows.length}/{flows.length}
           </span>
         )}
@@ -68,7 +69,7 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
       {/* Progress bar */}
       {generating && progress && (
         <div className="shrink-0 px-3 py-1.5 border-b border-[#d1d9e0]/60 bg-[#ddf4ff]/40">
-          <div className="flex items-center justify-between text-[11px] text-[#0969da] mb-1">
+          <div className="flex items-center justify-between text-xs text-[#0969da] mb-1">
             <span>Generating...</span>
             <span className="font-medium">{progress.current}/{progress.total}</span>
           </div>
@@ -88,8 +89,8 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
             <svg className="w-8 h-8 mx-auto text-[#d1d9e0] mb-2" fill="none" stroke="currentColor" strokeWidth={1} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
             </svg>
-            <p className="text-xs text-[#656d76]">No flows yet</p>
-            <p className="text-xs text-[#afb8c1] mt-0.5">Select ideas and generate</p>
+            <p className="text-sm text-[#656d76]">No flows yet</p>
+            <p className="text-sm text-[#afb8c1] mt-0.5">Select ideas and generate</p>
           </div>
         )}
 
@@ -109,11 +110,11 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
                 >
                   {STATUS_ICON[flow.status]}
                   <div className="flex-1 min-w-0">
-                    <span className="text-[13px] font-medium text-[#1f2328] truncate block">{flow.title}</span>
-                    <span className="text-xs text-[#656d76]">
+                    <span className="text-sm font-medium text-[#1f2328] truncate block">{flow.title}</span>
+                    <span className="text-sm text-[#656d76]">
                       {flow.status === "generating" && "Generating..."}
                       {flow.status === "pending" && "Queued"}
-                      {flow.status === "done" && `${flow.xml.length.toLocaleString()} chars`}
+                      {flow.status === "done" && `${flow.xml.length.toLocaleString()} chars${flow.usage ? ` · $${flow.usage.costUsd.toFixed(4)}` : ""}`}
                       {flow.status === "error" && <span className="text-[#d1242f]">Failed</span>}
                     </span>
                   </div>
@@ -140,7 +141,7 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
         <div className="shrink-0 border-t border-[#d1d9e0] bg-[#f6f8fa] px-3 py-2">
           <button
             onClick={onDownloadAll}
-            className="w-full flex items-center justify-center gap-1.5 bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-xs font-medium rounded-md px-3 py-1.5 transition-colors border border-[#d1d9e0]"
+            className="w-full flex items-center justify-center gap-1.5 bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-sm font-medium rounded-md px-3 py-1.5 transition-colors border border-[#d1d9e0]"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />

@@ -1,9 +1,16 @@
-/** Generate flow XML (non-streaming). Returns the full XML string. */
+import type { FlowUsage } from "./specFilesApi";
+
+export interface FlowXmlResult {
+  xml: string;
+  usage: FlowUsage | null;
+}
+
+/** Generate flow XML (non-streaming). Returns the XML string and usage data. */
 export async function generateFlowXml(
   prompt: string,
   specFiles: string[],
   signal?: AbortSignal
-): Promise<string> {
+): Promise<FlowXmlResult> {
   const res = await fetch(`/api/generate-flow`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -20,8 +27,8 @@ export async function generateFlowXml(
     throw new Error(msg);
   }
 
-  const data = await res.json() as { xml: string };
-  return data.xml;
+  const data = await res.json() as { xml: string; usage?: FlowUsage };
+  return { xml: data.xml, usage: data.usage ?? null };
 }
 
 /** Stream flow XML from Claude via SSE. Calls onChunk for each text delta. */

@@ -17,6 +17,7 @@ import {
   type SpecFileItem,
   type FlowIdea,
   type FlowIdeasUsage,
+  type FlowUsage,
 } from "../lib/api/specFilesApi";
 import { generateFlowXml } from "../lib/api/flowApi";
 import { useAuthGuard } from "../hooks/useAuthGuard";
@@ -29,6 +30,7 @@ const STORAGE_KEY_V1 = "specfiles_workshop"; // legacy key for migration
 interface ContextData {
   ideas: FlowIdea[];
   usage: FlowIdeasUsage | null;
+  flowsUsage: FlowUsage | null;
   generatedFlows: GeneratedFlow[];
 }
 
@@ -51,6 +53,7 @@ function loadWorkshopMap(): WorkshopMap {
           [v1.ideasFolderPath]: {
             ideas: v1.ideas,
             usage: v1.ideasUsage ?? null,
+            flowsUsage: null,
             generatedFlows: (v1.generatedFlows ?? []).filter(
               (f: GeneratedFlow) => f.status === "done" || f.status === "error"
             ),
@@ -74,16 +77,20 @@ function saveWorkshopMap(map: WorkshopMap) {
 
 /** Aggregate ideas + flows from a path and all descendant paths */
 function aggregateForPath(map: WorkshopMap, path: string | null): ContextData {
-  if (!path) return { ideas: [], usage: null, generatedFlows: [] };
+  if (!path) return { ideas: [], usage: null, flowsUsage: null, generatedFlows: [] };
   const prefix = path.endsWith("/") ? path : `${path}/`;
   const matchingKeys = Object.keys(map).filter(k => k === path || k.startsWith(prefix));
 
-  if (matchingKeys.length === 0) return { ideas: [], usage: null, generatedFlows: [] };
-  if (matchingKeys.length === 1) return map[matchingKeys[0]];
+  if (matchingKeys.length === 0) return { ideas: [], usage: null, flowsUsage: null, generatedFlows: [] };
+  if (matchingKeys.length === 1) {
+    const ctx = map[matchingKeys[0]];
+    return { ...ctx, flowsUsage: ctx.flowsUsage ?? null };
+  }
 
   const allIdeas: FlowIdea[] = [];
   const allFlows: GeneratedFlow[] = [];
   let totalUsage: FlowIdeasUsage | null = null;
+  let totalFlowsUsage: FlowUsage | null = null;
 
   for (const key of matchingKeys) {
     const ctx = map[key];
@@ -103,9 +110,21 @@ function aggregateForPath(map: WorkshopMap, path: string | null): ContextData {
         };
       }
     }
+    if (ctx.flowsUsage) {
+      if (!totalFlowsUsage) {
+        totalFlowsUsage = { ...ctx.flowsUsage };
+      } else {
+        totalFlowsUsage = {
+          inputTokens: totalFlowsUsage.inputTokens + ctx.flowsUsage.inputTokens,
+          outputTokens: totalFlowsUsage.outputTokens + ctx.flowsUsage.outputTokens,
+          totalTokens: totalFlowsUsage.totalTokens + ctx.flowsUsage.totalTokens,
+          costUsd: parseFloat((totalFlowsUsage.costUsd + ctx.flowsUsage.costUsd).toFixed(6)),
+        };
+      }
+    }
   }
 
-  return { ideas: allIdeas, usage: totalUsage, generatedFlows: allFlows };
+  return { ideas: allIdeas, usage: totalUsage, flowsUsage: totalFlowsUsage, generatedFlows: allFlows };
 }
 
 /** Get next globally unique idea index across all contexts */
@@ -156,6 +175,7 @@ export function SpecFilesPage() {
   // ── Flow generation state ─────────────────────────────────────────────────
   const [generatedFlows, setGeneratedFlows] = useState<GeneratedFlow[]>([]);
   const [generatingFlows, setGeneratingFlows] = useState(false);
+  const [flowsUsage, setFlowsUsage] = useState<FlowUsage | null>(null);
   const [flowProgress, setFlowProgress] = useState<{ current: number; total: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -177,16 +197,28 @@ export function SpecFilesPage() {
     saveWorkshopMap(workshopMap);
   }, [workshopMap]);
 
-  // Persist generated flows back to workshopMap when flow generation completes
+  // Persist generated flows + flowsUsage back to workshopMap when flow generation completes
   useEffect(() => {
     if (!generatingFlows && generatedFlows.length > 0 && activePath) {
       const flowsToSave = generatedFlows.filter(f => f.status === "done" || f.status === "error");
       if (flowsToSave.length > 0) {
+        // Compute cumulative flow usage from all done flows
+        const cumulativeFlowsUsage = flowsToSave.reduce<FlowUsage | null>((acc, f) => {
+          if (!f.usage) return acc;
+          if (!acc) return { ...f.usage };
+          return {
+            inputTokens: acc.inputTokens + f.usage.inputTokens,
+            outputTokens: acc.outputTokens + f.usage.outputTokens,
+            totalTokens: acc.totalTokens + f.usage.totalTokens,
+            costUsd: parseFloat((acc.costUsd + f.usage.costUsd).toFixed(6)),
+          };
+        }, null);
         setWorkshopMap(prev => ({
           ...prev,
           [activePath]: {
-            ...(prev[activePath] ?? { ideas: [], usage: null, generatedFlows: [] }),
+            ...(prev[activePath] ?? { ideas: [], usage: null, flowsUsage: null, generatedFlows: [] }),
             generatedFlows: flowsToSave,
+            flowsUsage: cumulativeFlowsUsage,
           },
         }));
       }
@@ -218,6 +250,7 @@ export function SpecFilesPage() {
     const agg = aggregateForPath(workshopMap, path);
     setIdeas(agg.ideas);
     setIdeasUsage(agg.usage);
+    setFlowsUsage(agg.flowsUsage);
     setGeneratedFlows(agg.generatedFlows.filter(f => f.status === "done" || f.status === "error"));
     setSelectedIdeaIds(new Set());
     setIdeasError(null);
@@ -341,6 +374,7 @@ export function SpecFilesPage() {
       // Just load existing ideas — no API call, no cost
       setIdeas(existing.ideas);
       setIdeasUsage(existing.usage);
+      setFlowsUsage(existing.flowsUsage);
       setGeneratedFlows(existing.generatedFlows.filter(f => f.status === "done" || f.status === "error"));
       setSelectedIdeaIds(new Set());
       setIdeasError(null);
@@ -353,6 +387,7 @@ export function SpecFilesPage() {
 
     setIdeas([]);
     setIdeasUsage(null);
+    setFlowsUsage(null);
     setIdeasError(null);
     setIdeasRawText(undefined);
     setIdeasMessage(null);
@@ -377,6 +412,7 @@ export function SpecFilesPage() {
           [contextPath]: {
             ideas: newIdeas,
             usage: result.usage,
+            flowsUsage: null,
             generatedFlows: [],
           },
         }));
@@ -420,7 +456,7 @@ export function SpecFilesPage() {
         }));
         // Save to workshopMap under this exact context
         setWorkshopMap(prev => {
-          const existing = prev[currentPath] ?? { ideas: [], usage: null, generatedFlows: [] };
+          const existing = prev[currentPath] ?? { ideas: [], usage: null, flowsUsage: null, generatedFlows: [] };
           const mergedUsage = result.usage
             ? existing.usage
               ? {
@@ -623,10 +659,19 @@ export function SpecFilesPage() {
       setActiveIdeaId(null);
 
       try {
-        const xml = await generateFlowXml(prompt, specFileNames, ctrl.signal);
+        const result = await generateFlowXml(prompt, specFileNames, ctrl.signal);
         setGeneratedFlows((prev) =>
-          prev.map((f) => f.ideaId === idea.id ? { ...f, status: "done" as const, xml } : f)
+          prev.map((f) => f.ideaId === idea.id ? { ...f, status: "done" as const, xml: result.xml, usage: result.usage } : f)
         );
+        // Accumulate flow usage
+        if (result.usage) {
+          setFlowsUsage(prev => prev ? {
+            inputTokens: prev.inputTokens + result.usage!.inputTokens,
+            outputTokens: prev.outputTokens + result.usage!.outputTokens,
+            totalTokens: prev.totalTokens + result.usage!.totalTokens,
+            costUsd: parseFloat((prev.costUsd + result.usage!.costUsd).toFixed(6)),
+          } : result.usage!);
+        }
       } catch (e) {
         if (ctrl.signal.aborted) break;
         setGeneratedFlows((prev) =>
@@ -752,6 +797,7 @@ export function SpecFilesPage() {
                     <FlowIdeasPanel
                       ideas={ideas.length > 0 ? ideas : null}
                       usage={ideasUsage}
+                      flowsUsage={flowsUsage}
                       loading={ideasLoading}
                       appending={ideasAppending}
                       error={ideasError}
