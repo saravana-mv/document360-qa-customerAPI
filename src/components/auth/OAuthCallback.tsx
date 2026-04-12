@@ -53,10 +53,10 @@ export function OAuthCallback() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div className="min-h-screen bg-[#f6f8fa] flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
-        <Spinner size="lg" className="text-blue-600" />
-        <p className="text-sm text-gray-600">{message}</p>
+        <Spinner size="lg" className="text-[#0969da]" />
+        <p className="text-sm text-[#656d76]">{message}</p>
       </div>
     </div>
   );

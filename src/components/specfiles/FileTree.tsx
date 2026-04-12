@@ -113,7 +113,7 @@ function InlineInput({ defaultValue = "", onCommit, onCancel }: {
         e.stopPropagation();
       }}
       onBlur={() => { if (value.trim()) onCommit(value.trim()); else onCancel(); }}
-      className="flex-1 min-w-0 text-xs border border-blue-400 rounded px-1 py-0.5 outline-none bg-white text-gray-800"
+      className="flex-1 min-w-0 text-xs border border-[#0969da] rounded px-1 py-0.5 outline-none bg-white text-[#1f2328]"
     />
   );
 }
@@ -158,7 +158,7 @@ function FolderContextMenu({ folderPath: _, isSelected, onNewSubfolder, onUpload
         title="More actions"
         onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
         className={`rounded p-0.5 transition-colors ${
-          isSelected ? "hover:bg-blue-500 text-white" : "text-gray-400 hover:bg-gray-200 hover:text-gray-700"
+          isSelected ? "hover:bg-[#0969da] text-white" : "text-[#656d76] hover:bg-[#eef1f6] hover:text-[#1f2328]"
         }`}
       >
         <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
@@ -169,12 +169,12 @@ function FolderContextMenu({ folderPath: _, isSelected, onNewSubfolder, onUpload
       {open && (
         <div
           ref={menuRef}
-          className="absolute right-0 top-full mt-0.5 z-50 bg-white border border-gray-200 rounded shadow-lg py-0.5 min-w-36"
+          className="absolute right-0 top-full mt-0.5 z-50 bg-white border border-[#d1d9e0] rounded shadow-lg py-0.5 min-w-36"
           onClick={(e) => e.stopPropagation()}
         >
           <button
             onClick={() => action(onNewSubfolder)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[#1f2328] hover:bg-[#f6f8fa]"
           >
             <svg className="w-3.5 h-3.5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
               <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
@@ -183,7 +183,7 @@ function FolderContextMenu({ folderPath: _, isSelected, onNewSubfolder, onUpload
           </button>
           <button
             onClick={() => action(onUploadFiles)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[#1f2328] hover:bg-[#f6f8fa]"
           >
             <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
@@ -192,19 +192,19 @@ function FolderContextMenu({ folderPath: _, isSelected, onNewSubfolder, onUpload
           </button>
           <button
             onClick={() => action(onGenerateFlowIdeas)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[#1f2328] hover:bg-[#f6f8fa]"
           >
-            <svg className="w-3.5 h-3.5 text-purple-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5 text-[#0969da]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
             </svg>
             Generate Flow Ideas (AI)
           </button>
-          <div className="border-t border-gray-100 my-0.5" />
+          <div className="border-t border-[#d8dee4] my-0.5" />
           <button
             onClick={() => action(onRename)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[#1f2328] hover:bg-[#f6f8fa]"
           >
-            <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5 text-[#656d76]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
             </svg>
             Rename
@@ -346,7 +346,7 @@ function TreeNodeRow({
                 <button
                   title="Rename"
                   onClick={(e) => { e.stopPropagation(); onRenameStart(node.path); }}
-                  className={`rounded p-0.5 ${isSelected ? "hover:bg-blue-500" : "hover:bg-gray-200"}`}
+                  className={`rounded p-0.5 ${isSelected ? "hover:bg-[#0969da]" : "hover:bg-[#eef1f6]"}`}
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
@@ -693,8 +693,8 @@ export function FileTree({
         {draggingNode && (
           <div className={`mx-2 mt-2 mb-1 rounded border-2 border-dashed px-3 py-2 text-center text-xs transition-colors ${
             dropTargetPath === ""
-              ? "border-blue-400 text-blue-500 bg-blue-50"
-              : "border-gray-200 text-gray-400"
+              ? "border-[#0969da] text-blue-500 bg-blue-50"
+              : "border-[#d1d9e0] text-[#656d76]"
           }`}>
             Drop here to move to root
           </div>
