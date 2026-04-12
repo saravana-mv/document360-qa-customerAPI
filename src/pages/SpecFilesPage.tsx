@@ -143,6 +143,7 @@ export function SpecFilesPage() {
   const [ideas, setIdeas] = useState<FlowIdea[]>([]);
   const [ideasUsage, setIdeasUsage] = useState<FlowIdeasUsage | null>(null);
   const [ideasLoading, setIdeasLoading] = useState(false);
+  const [ideasAppending, setIdeasAppending] = useState(false);
   const [ideasError, setIdeasError] = useState<string | null>(null);
   const [ideasRawText, setIdeasRawText] = useState<string | undefined>();
   const [ideasMessage, setIdeasMessage] = useState<string | null>(null);
@@ -165,7 +166,7 @@ export function SpecFilesPage() {
 
   // Workshop is visible when aggregated data exists for the current path (or loading/error)
   const activePath = selectedPath ?? selectedFolderPath;
-  const showWorkshop = ideas.length > 0 || ideasLoading || ideasError !== null || ideasMessage !== null;
+  const showWorkshop = ideas.length > 0 || ideasLoading || ideasAppending || ideasError !== null || ideasMessage !== null;
 
   // Persist workshopMap to localStorage whenever it changes
   useEffect(() => {
@@ -396,7 +397,7 @@ export function SpecFilesPage() {
     if (!currentPath) return;
     setIdeasError(null);
     setIdeasRawText(undefined);
-    setIdeasLoading(true);
+    setIdeasAppending(true);
     // Exclude ALL visible idea titles (including from child contexts)
     const existingTitles = ideas.map((i) => i.title);
     try {
@@ -450,7 +451,7 @@ export function SpecFilesPage() {
     } catch (e) {
       setIdeasError(e instanceof Error ? e.message : String(e));
     } finally {
-      setIdeasLoading(false);
+      setIdeasAppending(false);
     }
   }
 
@@ -705,6 +706,7 @@ export function SpecFilesPage() {
                       ideas={ideas.length > 0 ? ideas : null}
                       usage={ideasUsage}
                       loading={ideasLoading}
+                      appending={ideasAppending}
                       error={ideasError}
                       rawText={ideasRawText}
                       message={ideasMessage}

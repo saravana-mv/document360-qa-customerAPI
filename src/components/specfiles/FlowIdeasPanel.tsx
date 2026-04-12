@@ -9,7 +9,10 @@ const COMPLEXITY_COLORS: Record<string, string> = {
 interface Props {
   ideas: FlowIdea[] | null;
   usage: FlowIdeasUsage | null;
+  /** Initial generation loading (no ideas yet) */
   loading: boolean;
+  /** Appending more ideas (existing ideas stay visible) */
+  appending?: boolean;
   error: string | null;
   rawText?: string;
   message?: string | null;
@@ -29,7 +32,7 @@ interface Props {
 }
 
 export function FlowIdeasPanel({
-  ideas, usage, loading, error, rawText, message,
+  ideas, usage, loading, appending, error, rawText, message,
   selectedIds, lockedIds, activeIdeaId, activeFlowId,
   onToggleSelect, onSelectAll, onDeselectAll,
   onGenerateFlows, onGenerateMore, onClickIdea, generatingFlows,
@@ -105,8 +108,8 @@ export function FlowIdeasPanel({
           </div>
         )}
 
-        {/* Ideas list */}
-        {!loading && !error && ideas && ideas.length > 0 && (
+        {/* Ideas list — visible during appending (existing ideas stay) */}
+        {!error && ideas && ideas.length > 0 && !loading && (
           <div>
             {ideas.map((idea) => {
               const isLocked = lockedIds.has(idea.id);
@@ -155,6 +158,17 @@ export function FlowIdeasPanel({
                 </div>
               );
             })}
+
+            {/* Appending spinner — shown at bottom of list while loading more */}
+            {appending && (
+              <div className="flex items-center gap-2 px-3 py-3 border-b border-[#d1d9e0]/50 bg-[#f6f8fa]/50">
+                <svg className="w-4 h-4 text-[#0969da] animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <span className="text-xs text-[#656d76]">Generating more ideas...</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -181,7 +195,7 @@ export function FlowIdeasPanel({
         <div className="shrink-0 border-t border-[#d1d9e0] bg-[#f6f8fa] px-3 py-2 flex gap-2">
           <button
             onClick={onGenerateMore}
-            disabled={generatingFlows}
+            disabled={generatingFlows || appending}
             className="flex items-center justify-center gap-1 border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-xs font-medium rounded-md px-2.5 py-1.5 transition-colors disabled:opacity-40"
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
