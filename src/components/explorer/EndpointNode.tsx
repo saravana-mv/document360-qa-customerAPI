@@ -9,11 +9,11 @@ interface EndpointNodeProps {
 }
 
 const methodColor: Record<string, string> = {
-  GET: "text-green-700",
-  POST: "text-blue-700",
-  PATCH: "text-yellow-700",
-  PUT: "text-orange-700",
-  DELETE: "text-red-700",
+  GET: "text-[#1a7f37]",
+  POST: "text-[#0969da]",
+  PATCH: "text-[#9a6700]",
+  PUT: "text-[#bc4c00]",
+  DELETE: "text-[#d1242f]",
 };
 
 export function EndpointNode({ endpoint, tests }: EndpointNodeProps) {
@@ -24,19 +24,21 @@ export function EndpointNode({ endpoint, tests }: EndpointNodeProps) {
     <div className="ml-2">
       <div
         onClick={() => hasTests && setOpen((o) => !o)}
-        className={`flex items-center gap-2 px-2 py-1 rounded text-xs ${hasTests ? "cursor-pointer hover:bg-gray-100" : "opacity-50"}`}
+        className={`flex items-center gap-2 px-2 py-1 rounded-md text-xs ${hasTests ? "cursor-pointer hover:bg-[#f6f8fa]" : "opacity-50"}`}
       >
-        <span className={`font-bold font-mono ${methodColor[endpoint.method] ?? "text-gray-600"}`}>
+        <span className={`font-semibold font-mono ${methodColor[endpoint.method] ?? "text-[#656d76]"}`}>
           {endpoint.method}
         </span>
-        <span className="text-gray-500 font-mono truncate">{endpoint.path}</span>
-        {!hasTests && <span className="text-gray-300 text-xs">(no tests)</span>}
+        <span className="text-[#656d76] font-mono truncate">{endpoint.path}</span>
+        {!hasTests && <span className="text-[#afb8c1] text-[11px]">(no tests)</span>}
         {hasTests && (
-          <span className="text-gray-400 ml-auto">{open ? "▾" : "▸"}</span>
+          <svg className={`w-3 h-3 text-[#656d76] ml-auto transition-transform ${open ? "rotate-90" : ""}`} fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clipRule="evenodd" />
+          </svg>
         )}
       </div>
       {open && hasTests && (
-        <div className="mt-0.5 space-y-0.5">
+        <div className="mt-px space-y-px">
           {tests.map((t) => <OperationNode key={t.id} test={t} />)}
         </div>
       )}

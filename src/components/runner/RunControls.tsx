@@ -77,27 +77,27 @@ export function RunControls() {
   }, [token, runner.selectedTags, runner.selectedTests]);
 
   return (
-    <div className="flex flex-col gap-3 p-4 border-b border-gray-200 bg-white">
+    <div className="flex flex-col gap-2.5 px-4 py-3 border-b border-[#d1d9e0] bg-white">
       <div className="flex items-center gap-2">
         <button
           onClick={runAll}
           disabled={runner.running}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+          className="px-3 py-[6px] bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-xs font-medium rounded-md transition-colors disabled:opacity-50 flex items-center gap-1.5 border border-[#1a7f37]/80"
         >
           {runner.running && <Spinner size="sm" className="text-white" />}
-          Run All
+          Run all
         </button>
         <button
           onClick={runSelected}
           disabled={runner.running}
-          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+          className="px-3 py-[6px] bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-xs font-medium rounded-md transition-colors disabled:opacity-50 border border-[#d1d9e0]"
         >
-          Run Selected
+          Run selected
         </button>
         {runner.running ? (
           <button
             onClick={runner.cancelRun}
-            className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 text-sm font-medium rounded-lg transition-colors"
+            className="px-3 py-[6px] bg-white hover:bg-[#ffebe9] text-[#d1242f] text-xs font-medium rounded-md transition-colors border border-[#d1d9e0]"
           >
             Stop
           </button>
@@ -105,13 +105,13 @@ export function RunControls() {
           <button
             onClick={runner.fullReset}
             disabled={runner.running}
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-500 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            className="px-3 py-[6px] bg-white hover:bg-[#f6f8fa] text-[#656d76] text-xs font-medium rounded-md transition-colors disabled:opacity-50 border border-[#d1d9e0]"
             title="Clear all results and selections"
           >
             Reset
           </button>
         )}
-        <span className="ml-auto text-xs text-gray-500">{allTests.length} tests total</span>
+        <span className="ml-auto text-[11px] text-[#656d76]">{allTests.length} tests</span>
       </div>
       {runner.running && (
         <ProgressBar total={Object.keys(runner.testResults).length} done={doneCount} />

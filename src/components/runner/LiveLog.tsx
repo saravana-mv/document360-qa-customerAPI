@@ -2,10 +2,10 @@ import { useEffect, useRef } from "react";
 import { useRunnerStore } from "../../store/runner.store";
 
 const levelColor = {
-  info: "text-gray-300",
-  success: "text-green-400",
-  error: "text-red-400",
-  warn: "text-yellow-400",
+  info: "text-[#7d8590]",
+  success: "text-[#3fb950]",
+  error: "text-[#f85149]",
+  warn: "text-[#d29922]",
 };
 
 export function LiveLog() {
@@ -17,13 +17,13 @@ export function LiveLog() {
   }, [log.length]);
 
   return (
-    <div className="flex-1 bg-gray-900 rounded-lg p-3 overflow-y-auto font-mono text-xs space-y-0.5 min-h-0">
-      {log.length === 0 && <span className="text-gray-500">Ready. Press Run to start.</span>}
+    <div className="flex-1 bg-[#0d1117] rounded-md p-3 overflow-y-auto font-mono text-xs space-y-0.5 min-h-0 border border-[#21262d]">
+      {log.length === 0 && <span className="text-[#484f58]">Ready. Press Run to start.</span>}
       {log.map((entry) => (
         <div key={entry.id} className={`${levelColor[entry.level]}`}>
-          <span className="text-gray-600">{new Date(entry.timestamp).toLocaleTimeString()}</span>
+          <span className="text-[#484f58]">{new Date(entry.timestamp).toLocaleTimeString()}</span>
           {" "}
-          {entry.tag && <span className="text-gray-500">[{entry.tag}]</span>}
+          {entry.tag && <span className="text-[#656d76]">[{entry.tag}]</span>}
           {" "}
           {entry.message}
         </div>

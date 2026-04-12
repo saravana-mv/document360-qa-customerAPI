@@ -8,27 +8,27 @@ import type { TestStatus } from "../../types/test.types";
 // ── Styles ──────────────────────────────────────────────────────────────────
 
 const methodColor: Record<string, string> = {
-  GET:    "text-green-700 bg-green-100",
-  POST:   "text-blue-700 bg-blue-100",
-  PATCH:  "text-yellow-700 bg-yellow-100",
-  PUT:    "text-orange-700 bg-orange-100",
-  DELETE: "text-red-700 bg-red-100",
+  GET:    "text-[#1a7f37] bg-[#dafbe1]",
+  POST:   "text-[#0969da] bg-[#ddf4ff]",
+  PATCH:  "text-[#9a6700] bg-[#fff8c5]",
+  PUT:    "text-[#bc4c00] bg-[#fff1e5]",
+  DELETE: "text-[#d1242f] bg-[#ffebe9]",
 };
 
 const statusBadge: Record<TestStatus, { label: string; cls: string; icon: string }> = {
-  idle:    { label: "Not run",  cls: "text-gray-400 bg-gray-100",               icon: "○" },
-  running: { label: "Running",  cls: "text-blue-600 bg-blue-50 animate-pulse",  icon: "⟳" },
-  pass:    { label: "Pass",     cls: "text-green-700 bg-green-100",              icon: "✓" },
-  fail:    { label: "Fail",     cls: "text-red-600 bg-red-100",                 icon: "✗" },
-  error:   { label: "Error",    cls: "text-red-600 bg-red-100",                 icon: "✗" },
-  skip:    { label: "Skipped",  cls: "text-gray-500 bg-gray-100",               icon: "—" },
+  idle:    { label: "Not run",  cls: "text-[#656d76] bg-[#eef1f6]",                          icon: "○" },
+  running: { label: "Running",  cls: "text-[#0969da] bg-[#ddf4ff] animate-pulse",          icon: "⟳" },
+  pass:    { label: "Pass",     cls: "text-[#1a7f37] bg-[#dafbe1]",                        icon: "✓" },
+  fail:    { label: "Fail",     cls: "text-[#d1242f] bg-[#ffebe9]",                        icon: "✗" },
+  error:   { label: "Error",    cls: "text-[#d1242f] bg-[#ffebe9]",                        icon: "✗" },
+  skip:    { label: "Skipped",  cls: "text-[#656d76] bg-[#eef1f6]",                        icon: "—" },
 };
 
 // ── Small shared components ──────────────────────────────────────────────────
 
 function Label({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+    <p className="text-[11px] font-semibold text-[#656d76] uppercase tracking-wider mb-1.5">
       {children}
     </p>
   );

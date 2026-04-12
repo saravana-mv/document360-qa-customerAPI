@@ -12,15 +12,15 @@ export function TagSummaryRow({ tagResult }: TagSummaryRowProps) {
   const total = tagResult.tests.length;
 
   return (
-    <div className="flex items-center gap-3 text-sm py-1.5">
+    <div className="flex items-center gap-2.5 text-xs py-1">
       <StatusIcon status={tagResult.status} />
-      <span className="font-medium text-gray-800 w-32">{tagResult.tag}</span>
-      <span className="text-green-600">{pass} pass</span>
-      {fail > 0 && <span className="text-red-500">{fail} fail</span>}
-      {skip > 0 && <span className="text-gray-400">{skip} skip</span>}
-      <span className="text-gray-400 text-xs">/ {total}</span>
+      <span className="font-medium text-[#1f2328] w-32">{tagResult.tag}</span>
+      <span className="text-[#1a7f37]">{pass} pass</span>
+      {fail > 0 && <span className="text-[#d1242f]">{fail} fail</span>}
+      {skip > 0 && <span className="text-[#656d76]">{skip} skip</span>}
+      <span className="text-[#afb8c1] text-[11px]">/ {total}</span>
       {tagResult.durationMs !== undefined && (
-        <span className="ml-auto text-xs text-gray-400">{tagResult.durationMs}ms</span>
+        <span className="ml-auto text-[11px] text-[#afb8c1]">{tagResult.durationMs}ms</span>
       )}
     </div>
   );

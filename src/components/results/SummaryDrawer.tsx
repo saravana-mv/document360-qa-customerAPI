@@ -5,21 +5,21 @@ export function SummaryDrawer() {
   const { summary, tagResults } = useRunnerStore();
 
   return (
-    <div className="border-t border-gray-200 bg-white px-4 py-3 shrink-0">
+    <div className="border-t border-[#d1d9e0] bg-white px-4 py-2.5 shrink-0">
       {summary ? (
-        <div className="flex items-center gap-6 text-sm">
-          <span className="text-gray-500">Total: <strong>{summary.total}</strong></span>
-          <span className="text-green-600">Pass: <strong>{summary.pass}</strong></span>
-          {summary.fail > 0 && <span className="text-red-500">Fail: <strong>{summary.fail}</strong></span>}
-          {summary.skip > 0 && <span className="text-gray-400">Skip: <strong>{summary.skip}</strong></span>}
-          <span className="text-gray-400 ml-auto text-xs">{summary.durationMs}ms total</span>
+        <div className="flex items-center gap-5 text-xs">
+          <span className="text-[#656d76]">Total: <strong className="text-[#1f2328]">{summary.total}</strong></span>
+          <span className="text-[#1a7f37]">Pass: <strong>{summary.pass}</strong></span>
+          {summary.fail > 0 && <span className="text-[#d1242f]">Fail: <strong>{summary.fail}</strong></span>}
+          {summary.skip > 0 && <span className="text-[#656d76]">Skip: <strong>{summary.skip}</strong></span>}
+          <span className="text-[#afb8c1] ml-auto text-[11px]">{summary.durationMs}ms total</span>
         </div>
       ) : (
-        <div className="flex items-center gap-6 text-xs text-gray-400">
+        <div className="flex items-center gap-5 text-xs text-[#656d76]">
           {Object.values(tagResults).map((tr) => (
             <TagSummaryRow key={tr.tag} tagResult={tr} />
           ))}
-          {Object.keys(tagResults).length === 0 && <span>No results yet</span>}
+          {Object.keys(tagResults).length === 0 && <span className="text-[#afb8c1]">No results yet</span>}
         </div>
       )}
     </div>

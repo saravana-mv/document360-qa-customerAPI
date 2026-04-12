@@ -49,7 +49,6 @@ export function TestPage() {
 
     function onMove(ev: MouseEvent) {
       if (!rhsDragging.current) return;
-      // width = distance from drag handle to right edge of window
       setDetailWidth(Math.min(RHS_MAX, Math.max(RHS_MIN, window.innerWidth - ev.clientX)));
     }
     function onUp() {
@@ -66,14 +65,11 @@ export function TestPage() {
   return (
     <Layout showTestControls>
       <div className="flex flex-col h-full">
-
-        {/* ── Three-column area ── */}
         <div className="flex flex-1 overflow-hidden min-h-0">
-
           {/* LHS sidebar */}
           <aside
             style={{ width: sidebarWidth }}
-            className="border-r border-gray-200 bg-white flex flex-col overflow-hidden shrink-0"
+            className="border-r border-[#d1d9e0] bg-white flex flex-col overflow-hidden shrink-0"
           >
             <TestExplorer />
           </aside>
@@ -81,7 +77,7 @@ export function TestPage() {
           {/* LHS drag handle */}
           <div
             onMouseDown={onLhsMouseDown}
-            className="w-1 shrink-0 cursor-col-resize bg-gray-200 hover:bg-blue-400 transition-colors active:bg-blue-500"
+            className="w-[3px] shrink-0 cursor-col-resize bg-[#d1d9e0]/40 hover:bg-[#0969da]/40 transition-colors active:bg-[#0969da]/60"
           />
 
           {/* Main results area */}
@@ -93,7 +89,7 @@ export function TestPage() {
           {selectedTestId && (
             <div
               onMouseDown={onRhsMouseDown}
-              className="w-1 shrink-0 cursor-col-resize bg-gray-200 hover:bg-blue-400 transition-colors active:bg-blue-500"
+              className="w-[3px] shrink-0 cursor-col-resize bg-[#d1d9e0]/40 hover:bg-[#0969da]/40 transition-colors active:bg-[#0969da]/60"
             />
           )}
 
@@ -105,7 +101,6 @@ export function TestPage() {
           )}
         </div>
 
-        {/* ── Summary drawer spans full width ── */}
         <SummaryDrawer />
       </div>
     </Layout>
