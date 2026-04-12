@@ -47,9 +47,9 @@ export function FlowIdeasPanel({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const totalIdeas = ideas?.length ?? 0;
   const lockedCount = ideas?.filter(i => lockedIds.has(i.id)).length ?? 0;
-  const selectableCount = totalIdeas - lockedCount;
   const selectedCount = selectedIds.size;
-  const allSelectableSelected = selectableCount > 0 && selectedCount === selectableCount;
+  const allSelected = totalIdeas > 0 && selectedCount === totalIdeas;
+  const unlockedSelectedCount = ideas?.filter(i => selectedIds.has(i.id) && !lockedIds.has(i.id)).length ?? 0;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -79,12 +79,12 @@ export function FlowIdeasPanel({
             Delete
           </button>
         )}
-        {selectableCount > 0 && (
+        {totalIdeas > 0 && (
           <button
-            onClick={allSelectableSelected ? onDeselectAll : onSelectAll}
+            onClick={allSelected ? onDeselectAll : onSelectAll}
             className="text-sm text-[#0969da] hover:underline"
           >
-            {allSelectableSelected ? "Deselect all" : "Select all"}
+            {allSelected ? "Deselect all" : "Select all"}
           </button>
         )}
       </div>
@@ -149,20 +149,16 @@ export function FlowIdeasPanel({
                           : "border-l-2 border-l-transparent hover:bg-[#f6f8fa]"
                   }`}
                 >
-                  {isLocked ? (
-                    /* Green check icon for locked ideas */
-                    <div className="mt-0.5 shrink-0 w-[13px] h-[13px] flex items-center justify-center" title="Flow already generated">
-                      <svg className="w-3.5 h-3.5 text-[#1a7f37]" fill="currentColor" viewBox="0 0 16 16">
-                        <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
-                      </svg>
-                    </div>
-                  ) : (
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={() => onToggleSelect(idea.id)}
-                      className="mt-0.5 accent-[#0969da] shrink-0"
-                    />
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => onToggleSelect(idea.id)}
+                    className={`mt-0.5 shrink-0 ${isLocked ? "accent-[#1a7f37]" : "accent-[#0969da]"}`}
+                  />
+                  {isLocked && (
+                    <svg className="w-3.5 h-3.5 text-[#1a7f37] shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 16 16" title="Flow already generated">
+                      <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
+                    </svg>
                   )}
                   <button
                     onClick={() => onClickIdea(idea.id)}
@@ -239,15 +235,15 @@ export function FlowIdeasPanel({
           </button>
           <button
             onClick={onGenerateFlows}
-            disabled={selectedCount === 0 || generatingFlows}
+            disabled={unlockedSelectedCount === 0 || generatingFlows}
             className="flex-1 flex items-center justify-center gap-1.5 bg-[#1a7f37] hover:bg-[#1a7f37]/90 disabled:bg-[#eef1f6] disabled:text-[#656d76] disabled:border-[#d1d9e0] text-white text-sm font-medium rounded-md px-3 py-1.5 transition-colors border border-[#1a7f37]/80 disabled:border-[#d1d9e0]"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
             </svg>
-            {selectedCount === 0
-              ? (selectableCount === 0 ? "All flows generated" : "Select ideas")
-              : `Generate ${selectedCount} flow${selectedCount !== 1 ? "s" : ""}`}
+            {unlockedSelectedCount === 0
+              ? (lockedCount === totalIdeas ? "All flows generated" : "Select ideas")
+              : `Generate ${unlockedSelectedCount} flow${unlockedSelectedCount !== 1 ? "s" : ""}`}
           </button>
         </div>
         );

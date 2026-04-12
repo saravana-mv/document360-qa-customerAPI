@@ -475,10 +475,9 @@ export function SpecFilesPage() {
     generatedFlows.filter(f => f.status === "done").map(f => f.ideaId)
   );
 
-  // ── Idea selection (excludes locked ideas) ─────────────────────────────
+  // ── Idea selection ──────────────────────────────────────────────────────
 
   function toggleIdeaSelect(id: string) {
-    if (completedFlowIdeaIds.has(id)) return; // locked — ignore
     setSelectedIdeaIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -487,10 +486,7 @@ export function SpecFilesPage() {
   }
 
   function selectAllIdeas() {
-    // Only select ideas that don't already have completed flows
-    setSelectedIdeaIds(new Set(
-      ideas.filter(i => !completedFlowIdeaIds.has(i.id)).map(i => i.id)
-    ));
+    setSelectedIdeaIds(new Set(ideas.map(i => i.id)));
   }
 
   function deselectAllIdeas() {
