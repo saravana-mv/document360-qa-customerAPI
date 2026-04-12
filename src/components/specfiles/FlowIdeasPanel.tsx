@@ -29,6 +29,10 @@ interface Props {
   onGenerateMore: () => void;
   onClickIdea: (id: string) => void;
   generatingFlows: boolean;
+  /** AI returned fewer ideas than the max — no more unique scenarios */
+  ideasExhausted?: boolean;
+  /** Hard cap on total ideas per context */
+  maxIdeasTotal?: number;
 }
 
 export function FlowIdeasPanel({
@@ -36,6 +40,7 @@ export function FlowIdeasPanel({
   selectedIds, lockedIds, activeIdeaId, activeFlowId,
   onToggleSelect, onSelectAll, onDeselectAll,
   onGenerateFlows, onGenerateMore, onClickIdea, generatingFlows,
+  ideasExhausted, maxIdeasTotal = 30,
 }: Props) {
   const totalIdeas = ideas?.length ?? 0;
   const lockedCount = ideas?.filter(i => lockedIds.has(i.id)).length ?? 0;
@@ -191,11 +196,24 @@ export function FlowIdeasPanel({
       </div>
 
       {/* Bottom action bar */}
-      {!loading && ideas && ideas.length > 0 && (
+      {!loading && ideas && ideas.length > 0 && (() => {
+        const atCap = totalIdeas >= maxIdeasTotal;
+        const moreDisabled = generatingFlows || !!appending || !!ideasExhausted || atCap;
+        const moreTooltip = atCap
+          ? `Maximum of ${maxIdeasTotal} ideas reached — review and generate flows for existing ideas`
+          : ideasExhausted
+            ? "AI has covered all identifiable test scenarios for this context"
+            : appending
+              ? "Generating..."
+              : generatingFlows
+                ? "Wait for flow generation to complete"
+                : "";
+        return (
         <div className="shrink-0 border-t border-[#d1d9e0] bg-[#f6f8fa] px-3 py-2 flex gap-2">
           <button
             onClick={onGenerateMore}
-            disabled={generatingFlows || appending}
+            disabled={moreDisabled}
+            title={moreTooltip || undefined}
             className="flex items-center justify-center gap-1 border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-xs font-medium rounded-md px-2.5 py-1.5 transition-colors disabled:opacity-40"
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -216,7 +234,8 @@ export function FlowIdeasPanel({
               : `Generate ${selectedCount} flow${selectedCount !== 1 ? "s" : ""}`}
           </button>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

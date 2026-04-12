@@ -122,6 +122,9 @@ function nextGlobalIdeaIndex(map: WorkshopMap): number {
 
 const _initialMap = loadWorkshopMap();
 
+const MAX_IDEAS_PER_RUN = 10;  // Must match backend MAX_IDEAS_PER_RUN
+const MAX_IDEAS_TOTAL = 30;    // Hard cap to prevent over-engineering
+
 export function SpecFilesPage() {
   useAuthGuard();
 
@@ -147,6 +150,7 @@ export function SpecFilesPage() {
   const [ideasError, setIdeasError] = useState<string | null>(null);
   const [ideasRawText, setIdeasRawText] = useState<string | undefined>();
   const [ideasMessage, setIdeasMessage] = useState<string | null>(null);
+  const [ideasExhausted, setIdeasExhausted] = useState(false);
   const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(new Set());
 
   // ── Flow generation state ─────────────────────────────────────────────────
@@ -219,6 +223,7 @@ export function SpecFilesPage() {
     setIdeasError(null);
     setIdeasRawText(undefined);
     setIdeasMessage(null);
+    setIdeasExhausted(false);
     setActiveIdeaId(null);
     setActiveFlowId(null);
   }
@@ -351,6 +356,7 @@ export function SpecFilesPage() {
     setIdeasError(null);
     setIdeasRawText(undefined);
     setIdeasMessage(null);
+    setIdeasExhausted(false);
     setSelectedIdeaIds(new Set());
     setGeneratedFlows([]);
     setActiveIdeaId(null);
@@ -378,6 +384,10 @@ export function SpecFilesPage() {
       // Update flat working set
       setIdeas(newIdeas);
       setIdeasUsage(result.usage);
+      // Mark exhausted if AI returned fewer than max
+      if (newIdeas.length < MAX_IDEAS_PER_RUN) {
+        setIdeasExhausted(true);
+      }
       if (result.parseError && result.rawText) {
         setIdeasRawText(result.rawText);
       }
@@ -444,6 +454,10 @@ export function SpecFilesPage() {
           filesAnalyzed: result.usage.filesAnalyzed,
           totalSpecCharacters: result.usage.totalSpecCharacters,
         } : result.usage);
+      }
+      // Mark exhausted if AI returned fewer than max
+      if (result.ideas.length < MAX_IDEAS_PER_RUN) {
+        setIdeasExhausted(true);
       }
       if (result.parseError && result.rawText) {
         setIdeasRawText(result.rawText);
@@ -721,6 +735,8 @@ export function SpecFilesPage() {
                       onGenerateMore={handleGenerateMoreIdeas}
                       onClickIdea={handleClickIdea}
                       generatingFlows={generatingFlows}
+                      ideasExhausted={ideasExhausted}
+                      maxIdeasTotal={MAX_IDEAS_TOTAL}
                     />
                   </div>
                   <ResizeHandle width={ideasWidth} onResize={setIdeasWidth} minWidth={200} maxWidth={500} />
