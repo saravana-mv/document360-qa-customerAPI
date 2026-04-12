@@ -579,6 +579,65 @@ export function SpecFilesPage() {
     }
   }
 
+  function handleDeleteFlow(ideaId: string) {
+    setGeneratedFlows(prev => prev.filter(f => f.ideaId !== ideaId));
+    if (activeFlowId === ideaId) setActiveFlowId(null);
+    // Remove from workshopMap
+    setWorkshopMap(prev => {
+      const next = { ...prev };
+      for (const key of Object.keys(next)) {
+        const ctx = next[key];
+        const had = ctx.generatedFlows.some(f => f.ideaId === ideaId);
+        if (had) {
+          const remaining = ctx.generatedFlows.filter(f => f.ideaId !== ideaId);
+          // Recompute flowsUsage from remaining done flows
+          const recomputed = remaining.reduce<FlowUsage | null>((acc, f) => {
+            if (!f.usage || f.status !== "done") return acc;
+            if (!acc) return { ...f.usage };
+            return {
+              inputTokens: acc.inputTokens + f.usage.inputTokens,
+              outputTokens: acc.outputTokens + f.usage.outputTokens,
+              totalTokens: acc.totalTokens + f.usage.totalTokens,
+              costUsd: parseFloat((acc.costUsd + f.usage.costUsd).toFixed(6)),
+            };
+          }, null);
+          next[key] = { ...ctx, generatedFlows: remaining, flowsUsage: recomputed };
+        }
+      }
+      return next;
+    });
+    // Recompute flat flowsUsage
+    setFlowsUsage(() => {
+      const remaining = generatedFlows.filter(f => f.ideaId !== ideaId && f.status === "done");
+      return remaining.reduce<FlowUsage | null>((acc, f) => {
+        if (!f.usage) return acc;
+        if (!acc) return { ...f.usage };
+        return {
+          inputTokens: acc.inputTokens + f.usage.inputTokens,
+          outputTokens: acc.outputTokens + f.usage.outputTokens,
+          totalTokens: acc.totalTokens + f.usage.totalTokens,
+          costUsd: parseFloat((acc.costUsd + f.usage.costUsd).toFixed(6)),
+        };
+      }, null);
+    });
+  }
+
+  function handleDeleteAllFlows() {
+    setGeneratedFlows([]);
+    setActiveFlowId(null);
+    setFlowsUsage(null);
+    // Remove all flows from workshopMap
+    setWorkshopMap(prev => {
+      const next = { ...prev };
+      for (const key of Object.keys(next)) {
+        if (next[key].generatedFlows.length > 0) {
+          next[key] = { ...next[key], generatedFlows: [], flowsUsage: null };
+        }
+      }
+      return next;
+    });
+  }
+
   function handleClickFlow(ideaId: string) {
     setActiveFlowId(ideaId);
     setActiveIdeaId(null);
@@ -832,6 +891,8 @@ export function SpecFilesPage() {
                       onClickFlow={handleClickFlow}
                       onDownloadFlow={downloadFlow}
                       onDownloadAll={downloadAllFlows}
+                      onDeleteFlow={handleDeleteFlow}
+                      onDeleteAllFlows={handleDeleteAllFlows}
                     />
                   </div>
                   <ResizeHandle width={flowsWidth} onResize={setFlowsWidth} minWidth={180} maxWidth={500} />
