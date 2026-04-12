@@ -511,23 +511,11 @@ export function SpecFilesPage() {
               {/* Content area — either markdown viewer or workshop */}
               {viewingContent && isFileContext ? (
                 /* Markdown content viewer (replaces workshop when filename link is clicked) */
-                <div className="flex-1 flex flex-col overflow-hidden">
-                  <div className="flex items-center px-4 py-1.5 border-b border-[#d1d9e0] bg-white shrink-0">
-                    <span className="text-xs text-[#656d76]">Viewing spec content</span>
-                    <div className="flex-1" />
-                    <button
-                      onClick={() => setViewingContent(false)}
-                      className="text-xs text-[#656d76] hover:text-[#1f2328] px-2 py-1 rounded-md hover:bg-[#eef1f6] border border-transparent hover:border-[#d1d9e0] transition-colors"
-                    >
-                      Close
-                    </button>
-                  </div>
-                  {loadingContent ? (
-                    <div className="flex-1 flex items-center justify-center text-[#656d76] text-sm">Loading…</div>
-                  ) : (
-                    <MarkdownViewer path={selectedPath!} content={content} />
-                  )}
-                </div>
+                loadingContent ? (
+                  <div className="flex-1 flex items-center justify-center text-[#656d76] text-sm">Loading…</div>
+                ) : (
+                  <MarkdownViewer path={selectedPath!} content={content} onClose={() => setViewingContent(false)} />
+                )
               ) : showWorkshop ? (
                 /* Three-column workshop: Ideas | Flows | Detail */
                 <div className="flex-1 flex overflow-hidden">

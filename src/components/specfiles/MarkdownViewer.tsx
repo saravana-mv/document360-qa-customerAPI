@@ -4,9 +4,10 @@ import MDEditor from "@uiw/react-md-editor";
 interface Props {
   path: string;
   content: string;
+  onClose?: () => void;
 }
 
-export function MarkdownViewer({ path, content }: Props) {
+export function MarkdownViewer({ path, content, onClose }: Props) {
   const [raw, setRaw] = useState(false);
   const parts = path.split("/");
   const fileName = parts[parts.length - 1];
@@ -37,6 +38,17 @@ export function MarkdownViewer({ path, content }: Props) {
               Raw
             </button>
           </div>
+        )}
+        {onClose && (
+          <button
+            onClick={onClose}
+            title="Close"
+            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-[#656d76] hover:text-[#1f2328] hover:bg-[#eef1f6] border border-transparent hover:border-[#d1d9e0] transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
         )}
       </div>
 
