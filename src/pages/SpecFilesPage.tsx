@@ -52,6 +52,9 @@ function clearWorkshop() {
   localStorage.removeItem(STORAGE_KEY);
 }
 
+// Load snapshot once at module level to avoid repeated parsing
+const _initialSnap = loadWorkshop();
+
 export function SpecFilesPage() {
   useAuthGuard();
 
@@ -59,30 +62,29 @@ export function SpecFilesPage() {
   const [files, setFiles] = useState<SpecFileItem[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
+  const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(
+    () => _initialSnap?.ideasFolderPath ?? null
+  );
   const [content, setContent] = useState("");
   const [loadingContent, setLoadingContent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadFolderPath, setUploadFolderPath] = useState<string | null>(null);
 
   // ── Flow ideas state (restored from localStorage on mount) ────────────────
-  const [ideasFolderPath, setIdeasFolderPath] = useState<string | null>(() => loadWorkshop()?.ideasFolderPath ?? null);
-  const [ideas, setIdeas] = useState<FlowIdea[]>(() => loadWorkshop()?.ideas ?? []);
-  const [ideasUsage, setIdeasUsage] = useState<FlowIdeasUsage | null>(() => loadWorkshop()?.ideasUsage ?? null);
+  const [ideasFolderPath, setIdeasFolderPath] = useState<string | null>(() => _initialSnap?.ideasFolderPath ?? null);
+  const [ideas, setIdeas] = useState<FlowIdea[]>(() => _initialSnap?.ideas ?? []);
+  const [ideasUsage, setIdeasUsage] = useState<FlowIdeasUsage | null>(() => _initialSnap?.ideasUsage ?? null);
   const [ideasLoading, setIdeasLoading] = useState(false);
   const [ideasError, setIdeasError] = useState<string | null>(null);
   const [ideasRawText, setIdeasRawText] = useState<string | undefined>();
-  const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(() => {
-    const snap = loadWorkshop();
-    return snap ? new Set(snap.selectedIdeaIds) : new Set();
-  });
+  const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(
+    () => new Set(_initialSnap?.selectedIdeaIds ?? [])
+  );
 
   // ── Flow generation state (restored from localStorage on mount) ───────────
-  const [generatedFlows, setGeneratedFlows] = useState<GeneratedFlow[]>(() => {
-    const snap = loadWorkshop();
-    // Only restore completed/errored flows, not in-progress ones
-    return snap?.generatedFlows.filter((f) => f.status === "done" || f.status === "error") ?? [];
-  });
+  const [generatedFlows, setGeneratedFlows] = useState<GeneratedFlow[]>(
+    () => _initialSnap?.generatedFlows.filter((f) => f.status === "done" || f.status === "error") ?? []
+  );
   const [generatingFlows, setGeneratingFlows] = useState(false);
   const [flowProgress, setFlowProgress] = useState<{ current: number; total: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -93,14 +95,6 @@ export function SpecFilesPage() {
 
   // Workshop is visible once ideas have been generated at least once
   const showWorkshop = ideas.length > 0 || ideasLoading || ideasError !== null;
-
-  // Restore selectedFolderPath on mount if workshop was active
-  useEffect(() => {
-    const snap = loadWorkshop();
-    if (snap?.ideasFolderPath && snap.ideas.length > 0) {
-      setSelectedFolderPath(snap.ideasFolderPath);
-    }
-  }, []);
 
   // Persist workshop state whenever ideas or flows change
   useEffect(() => {
