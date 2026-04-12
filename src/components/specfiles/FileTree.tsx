@@ -230,6 +230,7 @@ interface NodeProps {
   node: TreeNode;
   depth: number;
   selectedPath: string | null;
+  selectedFolderPath: string | null;
   expandedFolders: Set<string>;
   renamingPath: string | null;
   creatingUnder: string | null;
@@ -242,6 +243,7 @@ interface NodeProps {
   onDragEnd: () => void;
   // Other
   onSelect: (path: string) => void;
+  onSelectFolder: (path: string) => void;
   onToggle: (path: string) => void;
   onRenameStart: (path: string) => void;
   onRenameCommit: (node: TreeNode, newName: string) => void;
@@ -255,16 +257,16 @@ interface NodeProps {
 }
 
 function TreeNodeRow({
-  node, depth, selectedPath, expandedFolders, renamingPath,
+  node, depth, selectedPath, selectedFolderPath, expandedFolders, renamingPath,
   creatingUnder,
   draggingPath, dropTargetPath,
   onDragStart, onDragOver, onDrop, onDragEnd,
-  onSelect, onToggle, onRenameStart, onRenameCommit, onRenameCancel,
+  onSelect, onSelectFolder, onToggle, onRenameStart, onRenameCommit, onRenameCancel,
   onDeleteNode, onStartSubfolder, onUploadFiles, onGenerateFlowIdeas,
   onCreateCommit, onCreateCancel,
 }: NodeProps) {
   const indent = depth * 12;
-  const isSelected = node.path === selectedPath;
+  const isSelected = node.type === "file" ? node.path === selectedPath : node.path === selectedFolderPath;
   const isExpanded = node.type === "folder" && expandedFolders.has(node.path);
   const isRenaming = node.path === renamingPath;
   const isDragging = node.path === draggingPath;
@@ -289,15 +291,16 @@ function TreeNodeRow({
         }`}
         style={{ paddingLeft: indent + 4 }}
         onClick={() => {
-          if (node.type === "folder") onToggle(node.path);
+          if (node.type === "folder") onSelectFolder(node.path);
           else onSelect(node.path);
         }}
       >
-        {/* Expand arrow */}
+        {/* Expand arrow — clicking only toggles expand/collapse */}
         {node.type === "folder" ? (
           <svg
-            className={`w-3 h-3 shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""} ${isSelected && !isDropTarget ? "text-white" : "text-gray-400"}`}
+            className={`w-3 h-3 shrink-0 transition-transform cursor-pointer ${isExpanded ? "rotate-90" : ""} ${isSelected && !isDropTarget ? "text-white" : "text-gray-400"}`}
             fill="currentColor" viewBox="0 0 20 20"
+            onClick={(e) => { e.stopPropagation(); onToggle(node.path); }}
           >
             <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clipRule="evenodd" />
           </svg>
@@ -373,6 +376,7 @@ function TreeNodeRow({
               node={child}
               depth={depth + 1}
               selectedPath={selectedPath}
+              selectedFolderPath={selectedFolderPath}
               expandedFolders={expandedFolders}
               renamingPath={renamingPath}
               creatingUnder={creatingUnder}
@@ -383,6 +387,7 @@ function TreeNodeRow({
               onDrop={onDrop}
               onDragEnd={onDragEnd}
               onSelect={onSelect}
+              onSelectFolder={onSelectFolder}
               onToggle={onToggle}
               onRenameStart={onRenameStart}
               onRenameCommit={onRenameCommit}
@@ -420,7 +425,9 @@ interface FileTreeProps {
   files: SpecFileItem[];
   loading: boolean;
   selectedPath: string | null;
+  selectedFolderPath: string | null;
   onSelectFile: (path: string) => void;
+  onSelectFolder: (path: string) => void;
   onCreateFolder: (path: string) => Promise<void>;
   onDeleteFile: (path: string) => Promise<void>;
   onDeleteFolder: (folderPath: string) => Promise<void>;
@@ -431,8 +438,8 @@ interface FileTreeProps {
 }
 
 export function FileTree({
-  files, loading, selectedPath,
-  onSelectFile, onCreateFolder, onDeleteFile, onDeleteFolder, onRenameFile,
+  files, loading, selectedPath, selectedFolderPath,
+  onSelectFile, onSelectFolder, onCreateFolder, onDeleteFile, onDeleteFolder, onRenameFile,
   onUploadFiles, onGenerateFlowIdeas, onRefresh,
 }: FileTreeProps) {
   const tree = buildTree(files);
@@ -583,6 +590,7 @@ export function FileTree({
 
   const sharedProps = {
     selectedPath,
+    selectedFolderPath,
     expandedFolders,
     renamingPath,
     creatingUnder,
@@ -593,6 +601,7 @@ export function FileTree({
     onDrop: handleDrop,
     onDragEnd: handleDragEnd,
     onSelect: onSelectFile,
+    onSelectFolder: onSelectFolder,
     onToggle: toggleFolder,
     onRenameStart: (path: string) => setRenamingPath(path),
     onRenameCommit: (n: TreeNode, name: string) => void handleRenameCommit(n, name),
