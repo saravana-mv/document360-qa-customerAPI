@@ -20,6 +20,38 @@ import {
 import { generateFlowXml } from "../lib/api/flowApi";
 import { useAuthGuard } from "../hooks/useAuthGuard";
 
+// ── localStorage persistence helpers ────────────────────────────────────────
+
+const STORAGE_KEY = "specfiles_workshop";
+
+interface WorkshopSnapshot {
+  ideasFolderPath: string | null;
+  ideas: FlowIdea[];
+  ideasUsage: FlowIdeasUsage | null;
+  selectedIdeaIds: string[];
+  generatedFlows: GeneratedFlow[];
+}
+
+function loadWorkshop(): WorkshopSnapshot | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as WorkshopSnapshot;
+  } catch {
+    return null;
+  }
+}
+
+function saveWorkshop(snap: WorkshopSnapshot) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
+  } catch { /* quota exceeded — ignore */ }
+}
+
+function clearWorkshop() {
+  localStorage.removeItem(STORAGE_KEY);
+}
+
 export function SpecFilesPage() {
   useAuthGuard();
 
@@ -33,17 +65,24 @@ export function SpecFilesPage() {
   const [error, setError] = useState<string | null>(null);
   const [uploadFolderPath, setUploadFolderPath] = useState<string | null>(null);
 
-  // ── Flow ideas state ───────────────────────────────────────────────────────
-  const [ideasFolderPath, setIdeasFolderPath] = useState<string | null>(null);
-  const [ideas, setIdeas] = useState<FlowIdea[]>([]);
-  const [ideasUsage, setIdeasUsage] = useState<FlowIdeasUsage | null>(null);
+  // ── Flow ideas state (restored from localStorage on mount) ────────────────
+  const [ideasFolderPath, setIdeasFolderPath] = useState<string | null>(() => loadWorkshop()?.ideasFolderPath ?? null);
+  const [ideas, setIdeas] = useState<FlowIdea[]>(() => loadWorkshop()?.ideas ?? []);
+  const [ideasUsage, setIdeasUsage] = useState<FlowIdeasUsage | null>(() => loadWorkshop()?.ideasUsage ?? null);
   const [ideasLoading, setIdeasLoading] = useState(false);
   const [ideasError, setIdeasError] = useState<string | null>(null);
   const [ideasRawText, setIdeasRawText] = useState<string | undefined>();
-  const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(new Set());
+  const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(() => {
+    const snap = loadWorkshop();
+    return snap ? new Set(snap.selectedIdeaIds) : new Set();
+  });
 
-  // ── Flow generation state ──────────────────────────────────────────────────
-  const [generatedFlows, setGeneratedFlows] = useState<GeneratedFlow[]>([]);
+  // ── Flow generation state (restored from localStorage on mount) ───────────
+  const [generatedFlows, setGeneratedFlows] = useState<GeneratedFlow[]>(() => {
+    const snap = loadWorkshop();
+    // Only restore completed/errored flows, not in-progress ones
+    return snap?.generatedFlows.filter((f) => f.status === "done" || f.status === "error") ?? [];
+  });
   const [generatingFlows, setGeneratingFlows] = useState(false);
   const [flowProgress, setFlowProgress] = useState<{ current: number; total: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -54,6 +93,27 @@ export function SpecFilesPage() {
 
   // Workshop is visible once ideas have been generated at least once
   const showWorkshop = ideas.length > 0 || ideasLoading || ideasError !== null;
+
+  // Restore selectedFolderPath on mount if workshop was active
+  useEffect(() => {
+    const snap = loadWorkshop();
+    if (snap?.ideasFolderPath && snap.ideas.length > 0) {
+      setSelectedFolderPath(snap.ideasFolderPath);
+    }
+  }, []);
+
+  // Persist workshop state whenever ideas or flows change
+  useEffect(() => {
+    if (ideas.length > 0 || generatedFlows.length > 0) {
+      saveWorkshop({
+        ideasFolderPath,
+        ideas,
+        ideasUsage,
+        selectedIdeaIds: Array.from(selectedIdeaIds),
+        generatedFlows: generatedFlows.filter((f) => f.status === "done" || f.status === "error"),
+      });
+    }
+  }, [ideasFolderPath, ideas, ideasUsage, selectedIdeaIds, generatedFlows]);
 
   // ── File list ──────────────────────────────────────────────────────────────
 
@@ -359,6 +419,7 @@ export function SpecFilesPage() {
     setFlowProgress(null);
     setActiveIdeaId(null);
     setActiveFlowId(null);
+    clearWorkshop();
   }
 
   // ── Derived detail data ───────────────────────────────────────────────────
