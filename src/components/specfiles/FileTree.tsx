@@ -617,18 +617,21 @@ export function FileTree({
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+      <div className="flex items-center gap-2 px-3 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+        <svg className="w-4 h-4 text-[#656d76] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v8.25m19.5 0v2.25a2.25 2.25 0 0 1-2.25 2.25H4.5A2.25 2.25 0 0 1 2.25 16.5v-2.25" />
+        </svg>
+        <span className="text-xs font-semibold text-[#1f2328]">Spec Files</span>
+        <div className="flex-1" />
         <button
           onClick={startRootFolder}
           title="New API Version"
-          className="flex items-center gap-1 text-xs text-[#1f2328] hover:bg-[#eef1f6] rounded-md px-1.5 py-1 transition-colors font-medium"
+          className="flex items-center gap-1 text-[11px] text-[#656d76] hover:text-[#1f2328] hover:bg-[#eef1f6] rounded-md px-1.5 py-1 transition-colors"
         >
-          <svg className="w-3.5 h-3.5 text-[#656d76]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
           </svg>
-          New API Version
         </button>
-        <div className="flex-1" />
         <button
           onClick={onRefresh}
           title="Refresh"

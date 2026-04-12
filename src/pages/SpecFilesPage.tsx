@@ -428,12 +428,6 @@ export function SpecFilesPage() {
       <div className="h-full flex overflow-hidden">
         {/* LHS tree */}
         <aside className="w-60 shrink-0 border-r border-[#d1d9e0] bg-white flex flex-col overflow-hidden">
-          <div className="flex items-center px-3 py-2 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
-            <svg className="w-4 h-4 text-[#656d76] mr-1.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v8.25m19.5 0v2.25a2.25 2.25 0 0 1-2.25 2.25H4.5A2.25 2.25 0 0 1 2.25 16.5v-2.25" />
-            </svg>
-            <span className="text-xs font-semibold text-[#1f2328]">Spec Files</span>
-          </div>
           {error && (
             <div className="mx-2 mt-2 text-xs text-[#d1242f] bg-[#ffebe9] border border-[#ffcecb] rounded-md px-2 py-1.5 shrink-0">
               {error}
