@@ -55,19 +55,21 @@ Each flow file must conform to this structure:
 
 ## Key Rules
 
-1. **Category dependency**: If a flow creates articles, ALWAYS add a Create Category step first and a Delete Category teardown step last. The API requires category_id for article creation.
+1. **STRICT SCOPE**: Only use API endpoints, methods, and paths that are explicitly described in the provided spec files. Do NOT reference, invent, or assume endpoints that are not in the provided context. If the spec describes only a GET endpoint, the flow must only use GET — do NOT add POST, PUT, PATCH, or DELETE steps unless those methods are explicitly in the specs provided.
 
-2. **Teardown order**: Delete child resources before parent resources (e.g., delete article before category).
+2. **Category dependency**: If a flow creates articles, ALWAYS add a Create Category step first and a Delete Category teardown step last. The API requires category_id for article creation.
 
-3. **State passing**: Use state.* variables to pass IDs between steps. Capture them from response.data.* fields.
+3. **Teardown order**: Delete child resources before parent resources (e.g., delete article before category).
 
-4. **Step IDs**: Use dot notation like "articles.create", "articles.publish", "articles.delete".
+4. **State passing**: Use state.* variables to pass IDs between steps. Capture them from response.data.* fields.
 
-5. **Version paths**: Use /{apiVersion}/ or /v3/ for paths. Category endpoints use /{apiVersion}/, article endpoints use /v3/.
+5. **Step IDs**: Use dot notation like "articles.create", "articles.publish", "articles.delete".
 
-6. **Timestamps**: For unique names, use expressions like "[TEST] Name - <timestamp>".
+6. **Version paths**: Use /{apiVersion}/ or /v3/ for paths. Category endpoints use /{apiVersion}/, article endpoints use /v3/.
 
-7. **Assertions**: Every step needs at minimum an assertStatus assertion. Write operations also need assertBodyHasField for the created resource ID.
+7. **Timestamps**: For unique names, use expressions like "[TEST] Name - <timestamp>".
+
+8. **Assertions**: Every step needs at minimum an assertStatus assertion. Write operations also need assertBodyHasField for the created resource ID.
 
 Output ONLY the XML — no markdown code fences, no explanation, just the raw XML starting with <?xml.`;
 
@@ -139,8 +141,14 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
 
   // Build spec context from selected files
   const specContext = await buildSpecContext(body.specFiles ?? []);
+  const specCount = body.specFiles?.length ?? 0;
+  const scopeNote = specCount === 1
+    ? `\n\nIMPORTANT: You are working with a SINGLE endpoint specification. The flow MUST only use this endpoint. Do not add steps that call other endpoints not described in the spec above.`
+    : specCount > 1
+      ? `\n\nIMPORTANT: You are working with ${specCount} endpoint specifications. The flow MUST only use endpoints described in the specs above. Do not add steps that call endpoints outside this set.`
+      : "";
   const userMessage = specContext
-    ? `${body.prompt}\n\n# Relevant API Specification\n\n${specContext}`
+    ? `${body.prompt}${scopeNote}\n\n# Relevant API Specification\n\n${specContext}`
     : body.prompt;
 
   const shouldStream = body.stream !== false; // default to streaming
