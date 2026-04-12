@@ -95,8 +95,9 @@ export function SpecFilesPage() {
   const [ideasWidth, setIdeasWidth] = useState(320);
   const [flowsWidth, setFlowsWidth] = useState(288);
 
-  // Workshop is visible once ideas have been generated at least once
-  const showWorkshop = ideas.length > 0 || ideasLoading || ideasError !== null;
+  // Workshop is visible only when the current selection matches the context it was generated for
+  const activePath = selectedPath ?? selectedFolderPath;
+  const showWorkshop = activePath === ideasContextPath && (ideas.length > 0 || ideasLoading || ideasError !== null);
 
   // Persist workshop state whenever ideas or flows change
   useEffect(() => {
@@ -421,8 +422,6 @@ export function SpecFilesPage() {
 
   // ── Derived header info ──────────────────────────────────────────────────
 
-  // The active context path for display (either folder or file)
-  const activePath = selectedPath ?? selectedFolderPath;
   const isFileContext = !!selectedPath;
   const hasSelection = !!activePath;
 
