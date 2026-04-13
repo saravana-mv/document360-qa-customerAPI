@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { XmlCodeBlock } from "../common/XmlCodeBlock";
 
 interface Props {
   xml: string;
@@ -6,8 +6,6 @@ interface Props {
 }
 
 export function XmlViewer({ xml, streaming }: Props) {
-  const preRef = useRef<HTMLPreElement>(null);
-
   function copyToClipboard() {
     void navigator.clipboard.writeText(xml);
   }
@@ -73,13 +71,16 @@ export function XmlViewer({ xml, streaming }: Props) {
       </div>
 
       {/* XML content */}
-      <pre
-        ref={preRef}
-        className="flex-1 overflow-auto bg-[#0d1117] text-[#7ee787] rounded-md p-4 text-xs font-mono leading-relaxed whitespace-pre-wrap break-all border border-[#30363d]"
-      >
-        {xml}
-        {streaming && <span className="inline-block w-1.5 h-3.5 bg-[#7ee787] animate-pulse ml-0.5 align-middle" />}
-      </pre>
+      {streaming && !xml ? (
+        <div className="flex-1 flex items-center justify-center text-[#656d76] text-sm border border-[#d1d9e0] rounded-md bg-[#f6f8fa]">
+          Waiting for stream…
+        </div>
+      ) : (
+        <XmlCodeBlock
+          value={xml}
+          className="flex-1 min-h-0 overflow-hidden border border-[#d1d9e0] rounded-md bg-white"
+        />
+      )}
     </div>
   );
 }

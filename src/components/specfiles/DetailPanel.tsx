@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FlowIdea } from "../../lib/api/specFilesApi";
 import type { GeneratedFlow } from "./FlowsPanel";
 import { buildFlowPrompt } from "../../lib/flow/buildPrompt";
+import { XmlCodeBlock } from "../common/XmlCodeBlock";
 
 const COMPLEXITY_COLORS: Record<string, string> = {
   simple: "bg-[#dafbe1] text-[#1a7f37] border-[#aceebb]",
@@ -52,9 +53,12 @@ export function DetailPanel({ selectedIdea, selectedFlow, onDownloadFlow }: Prop
             </button>
           )}
         </div>
-        <div className="flex-1 overflow-auto p-4">
+        <div className="flex-1 flex flex-col overflow-hidden p-4">
           {selectedFlow.status === "done" && (
-            <pre className="text-[12px] font-mono text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md p-4 overflow-x-auto leading-relaxed whitespace-pre">{selectedFlow.xml}</pre>
+            <XmlCodeBlock
+              value={selectedFlow.xml}
+              className="flex-1 min-h-0 overflow-hidden border border-[#d1d9e0] rounded-md bg-white"
+            />
           )}
           {selectedFlow.status === "generating" && (
             <div className="flex items-center gap-2 py-8 justify-center">
