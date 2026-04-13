@@ -91,12 +91,13 @@ export interface GenerateFlowIdeasResponse {
 export async function generateFlowIdeas(
   folderPath: string,
   existingIdeas?: string[],
-  maxBudgetUsd?: number
+  maxBudgetUsd?: number,
+  model?: string
 ): Promise<GenerateFlowIdeasResponse> {
   const res = await apiFetch("/api/generate-flow-ideas", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ folderPath, existingIdeas, maxBudgetUsd }),
+    body: JSON.stringify({ folderPath, existingIdeas, maxBudgetUsd, ...(model ? { model } : {}) }),
   });
   return res.json() as Promise<GenerateFlowIdeasResponse>;
 }

@@ -1,6 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import Anthropic from "@anthropic-ai/sdk";
 import { downloadBlob, listBlobs } from "../lib/blobClient";
+import { DEFAULT_IDEAS_MODEL, resolveModel, priceFor, computeCost } from "../lib/modelPricing";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -8,9 +9,6 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-// Claude Sonnet 4 pricing
-const INPUT_PRICE_PER_TOKEN = 3 / 1_000_000;   // $3 per million
-const OUTPUT_PRICE_PER_TOKEN = 15 / 1_000_000;  // $15 per million
 const CHARS_PER_TOKEN = 3.5;  // conservative estimate
 const MAX_OUTPUT_TOKENS = 4096;
 const DEFAULT_BUDGET_USD = 1.0;
@@ -90,7 +88,7 @@ export async function generateFlowIdeasHandler(
   }
 
   // ── Parse body ──
-  let body: { folderPath?: string; maxBudgetUsd?: number; existingIdeas?: string[] };
+  let body: { folderPath?: string; maxBudgetUsd?: number; existingIdeas?: string[]; model?: string };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -180,12 +178,16 @@ export async function generateFlowIdeasHandler(
 
   const userMessage = `Analyze these API specifications and generate up to ${MAX_IDEAS_PER_RUN} NEW test flow ideas.${scopeNote}${existingList}\n\n## Spec Files\n\n${specText}`;
 
+  // ── Resolve model ──
+  const model = resolveModel(body.model, DEFAULT_IDEAS_MODEL);
+  const { inputPrice, outputPrice } = priceFor(model);
+
   // ── Pre-estimate cost and enforce budget ──
   const totalChars = SYSTEM_PROMPT.length + userMessage.length;
   const estimatedInputTokens = Math.ceil(totalChars / CHARS_PER_TOKEN);
   const estimatedCostUsd =
-    estimatedInputTokens * INPUT_PRICE_PER_TOKEN +
-    MAX_OUTPUT_TOKENS * OUTPUT_PRICE_PER_TOKEN;
+    estimatedInputTokens * inputPrice +
+    MAX_OUTPUT_TOKENS * outputPrice;
 
   if (estimatedCostUsd > budget) {
     return err(422, {
@@ -204,7 +206,7 @@ export async function generateFlowIdeasHandler(
   let response;
   try {
     response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model,
       max_tokens: MAX_OUTPUT_TOKENS,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userMessage }],
@@ -216,9 +218,7 @@ export async function generateFlowIdeasHandler(
   // ── Extract usage ──
   const inputTokens = response.usage.input_tokens;
   const outputTokens = response.usage.output_tokens;
-  const costUsd = parseFloat(
-    ((inputTokens * INPUT_PRICE_PER_TOKEN) + (outputTokens * OUTPUT_PRICE_PER_TOKEN)).toFixed(6)
-  );
+  const costUsd = computeCost(model, inputTokens, outputTokens);
 
   const usage = {
     inputTokens,

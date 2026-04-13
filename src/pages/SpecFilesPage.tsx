@@ -32,6 +32,7 @@ import {
 import { buildFlowPrompt } from "../lib/flow/buildPrompt";
 import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
 import { useAuthGuard } from "../hooks/useAuthGuard";
+import { useSetupStore } from "../store/setup.store";
 
 // ── localStorage persistence helpers (multi-context map) ─────────────────────
 
@@ -157,6 +158,8 @@ const MAX_IDEAS_TOTAL = 30;    // Hard cap to prevent over-engineering
 
 export function SpecFilesPage() {
   useAuthGuard();
+
+  const aiModel = useSetupStore((s) => s.aiModel);
 
   // ── File tree state ────────────────────────────────────────────────────────
   const [files, setFiles] = useState<SpecFileItem[]>([]);
@@ -517,7 +520,7 @@ export function SpecFilesPage() {
     setActiveFlowId(null);
     setIdeasLoading(true);
     try {
-      const result = await generateFlowIdeas(contextPath, []);
+      const result = await generateFlowIdeas(contextPath, [], undefined, aiModel);
       // Assign globally unique IDs to avoid collisions across contexts
       const startIdx = nextGlobalIdeaIndex(workshopMap);
       const newIdeas = result.ideas.map((idea, i) => ({
@@ -566,7 +569,7 @@ export function SpecFilesPage() {
     // Exclude ALL visible idea titles (including from child contexts)
     const existingTitles = ideas.map((i) => i.title);
     try {
-      const result = await generateFlowIdeas(currentPath, existingTitles);
+      const result = await generateFlowIdeas(currentPath, existingTitles, undefined, aiModel);
       if (result.ideas.length > 0) {
         const startIdx = nextGlobalIdeaIndex(workshopMap);
         const newIdeas = result.ideas.map((idea, i) => ({
@@ -837,7 +840,7 @@ export function SpecFilesPage() {
       setActiveIdeaId(null);
 
       try {
-        const result = await generateFlowXml(prompt, specFileNames, ctrl.signal);
+        const result = await generateFlowXml(prompt, specFileNames, aiModel, ctrl.signal);
         setGeneratedFlows((prev) =>
           prev.map((f) => f.ideaId === idea.id ? { ...f, status: "done" as const, xml: result.xml, usage: result.usage } : f)
         );
@@ -900,7 +903,7 @@ export function SpecFilesPage() {
     setFlowProgress({ current: 0, total: 1 });
 
     try {
-      const result = await generateFlowXml(prompt, specFileNames, ctrl.signal);
+      const result = await generateFlowXml(prompt, specFileNames, aiModel, ctrl.signal);
       setGeneratedFlows((prev) =>
         prev.map((f) => f.ideaId === manualId ? { ...f, status: "done", xml: result.xml, usage: result.usage } : f)
       );

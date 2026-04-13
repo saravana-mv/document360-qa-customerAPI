@@ -9,12 +9,13 @@ export interface FlowXmlResult {
 export async function generateFlowXml(
   prompt: string,
   specFiles: string[],
+  model?: string,
   signal?: AbortSignal
 ): Promise<FlowXmlResult> {
   const res = await fetch(`/api/generate-flow`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, specFiles, stream: false }),
+    body: JSON.stringify({ prompt, specFiles, stream: false, ...(model ? { model } : {}) }),
     signal,
   });
 
@@ -36,12 +37,13 @@ export async function generateFlowStream(
   prompt: string,
   specFiles: string[],
   onChunk: (text: string) => void,
+  model?: string,
   signal?: AbortSignal
 ): Promise<void> {
   const res = await fetch(`/api/generate-flow`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, specFiles, stream: true }),
+    body: JSON.stringify({ prompt, specFiles, stream: true, ...(model ? { model } : {}) }),
     signal,
   });
 

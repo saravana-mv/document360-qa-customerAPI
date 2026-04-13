@@ -1,10 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import Anthropic from "@anthropic-ai/sdk";
 import { downloadBlob, listBlobs } from "../lib/blobClient";
-
-// Claude Opus 4 pricing
-const OPUS_INPUT_PRICE_PER_TOKEN = 15 / 1_000_000;   // $15 per million
-const OPUS_OUTPUT_PRICE_PER_TOKEN = 75 / 1_000_000;   // $75 per million
+import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -240,7 +237,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     };
   }
 
-  let body: { prompt: string; specFiles?: string[]; stream?: boolean };
+  let body: { prompt: string; specFiles?: string[]; stream?: boolean; model?: string };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -274,6 +271,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     : body.prompt;
 
   const shouldStream = body.stream !== false; // default to streaming
+  const model = resolveModel(body.model, DEFAULT_FLOW_MODEL);
 
   if (shouldStream) {
     // SSE streaming response
@@ -282,7 +280,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       async start(controller) {
         try {
           const stream = client.messages.stream({
-            model: "claude-opus-4-6",
+            model,
             max_tokens: 8192,
             system: FLOW_SYSTEM_PROMPT,
             messages: [{ role: "user", content: userMessage }],
@@ -302,9 +300,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
           const finalMsg = await stream.finalMessage();
           const inTok = finalMsg.usage.input_tokens;
           const outTok = finalMsg.usage.output_tokens;
-          const cost = parseFloat(
-            ((inTok * OPUS_INPUT_PRICE_PER_TOKEN) + (outTok * OPUS_OUTPUT_PRICE_PER_TOKEN)).toFixed(6)
-          );
+          const cost = computeCost(model, inTok, outTok);
           const usageData = `data: ${JSON.stringify({ usage: { inputTokens: inTok, outputTokens: outTok, totalTokens: inTok + outTok, costUsd: cost } })}\n\n`;
           controller.enqueue(encoder.encode(usageData));
 
@@ -333,7 +329,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     // Non-streaming: collect full response
     try {
       const stream = client.messages.stream({
-        model: "claude-opus-4-6",
+        model,
         max_tokens: 8192,
         system: FLOW_SYSTEM_PROMPT,
         messages: [{ role: "user", content: userMessage }],
@@ -345,9 +341,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
 
       const inputTokens = finalMessage.usage.input_tokens;
       const outputTokens = finalMessage.usage.output_tokens;
-      const costUsd = parseFloat(
-        ((inputTokens * OPUS_INPUT_PRICE_PER_TOKEN) + (outputTokens * OPUS_OUTPUT_PRICE_PER_TOKEN)).toFixed(6)
-      );
+      const costUsd = computeCost(model, inputTokens, outputTokens);
 
       return {
         status: 200,

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../store/auth.store";
-import { useSetupStore } from "../../store/setup.store";
+import { useSetupStore, AI_MODELS, type AiModelId } from "../../store/setup.store";
 import { useSpecStore } from "../../store/spec.store";
 import { getProjectIdFromToken, fetchProject } from "../../lib/api/projects";
 import { fetchProjectVersions } from "../../lib/api/project-versions";
@@ -162,6 +162,25 @@ export function SetupPanel() {
               placeholder="en"
               className="w-full px-3 py-[7px] border border-[#d1d9e0] rounded-md text-sm bg-[#f6f8fa] focus:bg-white text-[#1f2328] placeholder:text-[#afb8c1]"
             />
+          </div>
+
+          {/* AI Model */}
+          <div>
+            <label className="block text-sm font-medium text-[#1f2328] mb-1">
+              AI Model <span className="text-[#656d76] font-normal">(flow ideas + XML generation)</span>
+            </label>
+            <select
+              value={setup.aiModel}
+              onChange={(e) => setup.setAiModel(e.target.value as AiModelId)}
+              className="w-full px-3 py-[7px] border border-[#d1d9e0] rounded-md text-sm bg-[#f6f8fa] focus:bg-white text-[#1f2328]"
+            >
+              {AI_MODELS.map((m) => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+            </select>
+            <p className="text-[11px] text-[#656d76] mt-1">
+              Sonnet 4.6 is the recommended default — 5× cheaper than Opus and produces valid flow XML reliably.
+            </p>
           </div>
 
           {/* Test Article ID */}

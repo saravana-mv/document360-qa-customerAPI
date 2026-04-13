@@ -5,6 +5,14 @@ import { setApiBaseUrl, setApiVersion } from "../lib/api/client";
 const DEFAULT_BASE_URL = "https://apihub.berlin.document360.net";
 const DEFAULT_API_VERSION = "v3";
 
+export const AI_MODELS = [
+  { id: "claude-opus-4-6",           label: "Opus 4.6 ($15 / $75 per Mtok)" },
+  { id: "claude-sonnet-4-6",         label: "Sonnet 4.6 ($3 / $15 per Mtok)" },
+  { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5 ($1 / $5 per Mtok)" },
+] as const;
+export type AiModelId = typeof AI_MODELS[number]["id"];
+const DEFAULT_AI_MODEL: AiModelId = "claude-sonnet-4-6";
+
 interface SetupState {
   projects: Project[];
   versions: ProjectVersion[];
@@ -19,6 +27,8 @@ interface SetupState {
    * flow, etc.). Persisted across sessions.
    */
   articleId: string;
+  /** Model used for AI generation (flow ideas + flow XML). Persisted. */
+  aiModel: AiModelId;
   loadingProjects: boolean;
   loadingVersions: boolean;
   error: string | null;
@@ -30,6 +40,7 @@ interface SetupState {
   setBaseUrl: (url: string) => void;
   setApiVersion: (version: string) => void;
   setArticleId: (articleId: string) => void;
+  setAiModel: (model: AiModelId) => void;
   setLoadingProjects: (v: boolean) => void;
   setLoadingVersions: (v: boolean) => void;
   setError: (error: string | null) => void;
@@ -62,6 +73,7 @@ function persist(state: Partial<SetupState>) {
     baseUrl: state.baseUrl ?? DEFAULT_BASE_URL,
     apiVersion: state.apiVersion ?? DEFAULT_API_VERSION,
     articleId: state.articleId ?? "",
+    aiModel: state.aiModel ?? DEFAULT_AI_MODEL,
   }));
 }
 
@@ -74,6 +86,7 @@ export const useSetupStore = create<SetupState>((set, get) => ({
   baseUrl: initialBaseUrl,
   apiVersion: (saved.apiVersion as string) || DEFAULT_API_VERSION,
   articleId: (saved.articleId as string) || "",
+  aiModel: (AI_MODELS.some((m) => m.id === saved.aiModel) ? (saved.aiModel as AiModelId) : DEFAULT_AI_MODEL),
   loadingProjects: false,
   loadingVersions: false,
   error: null,
@@ -107,6 +120,10 @@ export const useSetupStore = create<SetupState>((set, get) => ({
   setArticleId: (articleId) => {
     set({ articleId });
     persist({ ...get(), articleId });
+  },
+  setAiModel: (aiModel) => {
+    set({ aiModel });
+    persist({ ...get(), aiModel });
   },
 
   setLoadingProjects: (v) => set({ loadingProjects: v }),
