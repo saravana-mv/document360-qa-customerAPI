@@ -99,12 +99,31 @@ export function FlowManagerPage() {
       setEditing(false);
       setValidationError(null);
       setValidationOk(false);
-      // Re-parse + re-register tests so the Test Manager picks up changes.
-      void loadFlowsFromQueue();
+      // Saving only persists the XML. Use the "Create tests" button to
+      // re-register with the Test Manager.
     } catch (err) {
       setValidationError(err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(false);
+    }
+  }
+
+  const [creatingTests, setCreatingTests] = useState(false);
+  const [createTestsMsg, setCreateTestsMsg] = useState<string | null>(null);
+
+  async function handleCreateTests() {
+    setCreatingTests(true);
+    setCreateTestsMsg(null);
+    try {
+      await loadFlowsFromQueue();
+      const state = useFlowStatusStore.getState();
+      const implemented = Object.values(state.byName).filter((e) => e.status === "implemented").length;
+      const invalid = Object.values(state.byName).filter((e) => e.status === "invalid").length;
+      setCreateTestsMsg(`Registered ${implemented} flow${implemented === 1 ? "" : "s"}${invalid > 0 ? ` · ${invalid} invalid` : ""}`);
+    } catch (err) {
+      setCreateTestsMsg(`Failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setCreatingTests(false);
     }
   }
 
@@ -276,6 +295,17 @@ export function FlowManagerPage() {
                       Edit
                     </button>
                     <button
+                      onClick={() => void handleCreateTests()}
+                      disabled={creatingTests}
+                      title="Parse every flow in the queue and register its steps as runnable tests"
+                      className="flex items-center gap-1 text-xs text-white bg-[#0969da] hover:bg-[#0969da]/90 disabled:opacity-50 border border-[#0969da]/80 rounded-md px-2 py-1 transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                      </svg>
+                      {creatingTests ? "Creating…" : "Create tests"}
+                    </button>
+                    <button
                       onClick={() => { void navigator.clipboard.writeText(selectedXml); }}
                       disabled={!selectedXml}
                       className="flex items-center gap-1 text-xs text-[#656d76] hover:text-[#1f2328] disabled:opacity-40 border border-[#d1d9e0] rounded-md px-2 py-1 hover:bg-white transition-colors"
@@ -307,6 +337,16 @@ export function FlowManagerPage() {
                   </>
                 )}
               </div>
+              {!editing && createTestsMsg && (
+                <div className="shrink-0 px-4 py-2 bg-[#ddf4ff] border-b border-[#b6e3ff] text-xs text-[#0969da] flex items-center justify-between gap-2">
+                  <span>{createTestsMsg}</span>
+                  <button onClick={() => setCreateTestsMsg(null)} className="text-[#0969da] hover:text-[#054da7]">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
               {editing && validationError && (
                 <div className="shrink-0 px-4 py-2 bg-[#ffebe9] border-b border-[#ffcecb] text-xs text-[#d1242f] flex items-start gap-2">
                   <svg className="w-3.5 h-3.5 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
