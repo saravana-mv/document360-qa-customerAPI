@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { useRunnerStore } from "../../store/runner.store";
-import { useAuthStore } from "../../store/auth.store";
+import { useAuthStore, isSessionValid } from "../../store/auth.store";
 import { useSetupStore } from "../../store/setup.store";
+import { useSpecStore } from "../../store/spec.store";
 import { getAllTests, getTestsByTag } from "../../lib/tests/registry";
 import { runTests } from "../../lib/tests/runner";
 import { buildTestContext } from "../../lib/tests/context";
@@ -10,8 +11,21 @@ import { Spinner } from "../common/Spinner";
 
 export function RunControls() {
   const runner = useRunnerStore();
-  const { token } = useAuthStore();
+  const { token, logout } = useAuthStore();
   const setup = useSetupStore();
+  const spec = useSpecStore();
+
+  /**
+   * If the session is no longer valid, clear auth + loaded tests so the
+   * Test Manager drops back to the ProjectSettingsCard (sign-in prompt).
+   * Returns true when the caller should abort the run.
+   */
+  function guardSession(): boolean {
+    if (isSessionValid()) return false;
+    logout();
+    spec.setSpec(null, [], null);
+    return true;
+  }
 
   const allTests = getAllTests();
   const doneCount = Object.values(runner.testResults).filter(
@@ -19,7 +33,7 @@ export function RunControls() {
   ).length;
 
   async function runAll() {
-    if (!token) return;
+    if (guardSession() || !token) return;
     runner.resetRun();
 
     const ctx = buildTestContext(
@@ -43,7 +57,7 @@ export function RunControls() {
   }
 
   async function runSelected() {
-    if (!token) return;
+    if (guardSession() || !token) return;
     runner.resetRun();
 
     const ctx = buildTestContext(

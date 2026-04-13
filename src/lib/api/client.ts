@@ -55,6 +55,12 @@ async function request<T>(path: string, options: RequestOptions): Promise<T> {
       continue;
     }
 
+    if (response.status === 401) {
+      // Notify the app that auth is stale so the UI can fall back to the
+      // sign-in prompt. Handled in main.tsx.
+      window.dispatchEvent(new CustomEvent("session-expired"));
+    }
+
     if (!response.ok) {
       let message = `HTTP ${response.status}`;
       let raw: unknown;

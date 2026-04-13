@@ -52,3 +52,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ status, token });
   },
 }));
+
+/** Returns true when a non-expired token is present. */
+export function isSessionValid(): boolean {
+  const { token, status } = useAuthStore.getState();
+  if (status !== "authenticated" || !token) return false;
+  if (token.expires_at && token.expires_at < Date.now()) return false;
+  return true;
+}
