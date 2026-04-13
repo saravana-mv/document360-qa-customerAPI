@@ -8,6 +8,7 @@ import type {
   AssertionDef,
 } from "../../../types/test.types";
 import type { ParsedFlow, ParsedStep, ParsedAssertion } from "./types";
+import { enumMatches } from "./enumAliases";
 
 interface BuiltFlow {
   tag: string;             // ParsedFlow.name
@@ -142,8 +143,16 @@ function readPath(obj: unknown, path: string): unknown {
 function jsonEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   // Loose number/string compare for "5" vs 5
-  if (typeof a === "number" && typeof b === "string") return String(a) === b;
-  if (typeof a === "string" && typeof b === "number") return a === String(b);
+  if (typeof a === "number" && typeof b === "string") {
+    if (String(a) === b) return true;
+    // Document360 enums: API returns integers (e.g. 0) while specs and flow
+    // XML often use the string name (e.g. "draft"). Treat them as equal.
+    if (enumMatches(b, a)) return true;
+  }
+  if (typeof a === "string" && typeof b === "number") {
+    if (a === String(b)) return true;
+    if (enumMatches(a, b)) return true;
+  }
   return false;
 }
 
