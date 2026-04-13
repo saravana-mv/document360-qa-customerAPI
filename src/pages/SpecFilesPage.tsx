@@ -160,8 +160,14 @@ export function SpecFilesPage() {
   // ── File tree state ────────────────────────────────────────────────────────
   const [files, setFiles] = useState<SpecFileItem[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
-  const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
+  // Restore the last-viewed file/folder so navigating to Flow Manager and
+  // back doesn't lose the user's place in the tree.
+  const [selectedPath, setSelectedPath] = useState<string | null>(
+    () => localStorage.getItem("specfiles_selected_path") || null
+  );
+  const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(
+    () => localStorage.getItem("specfiles_selected_folder_path") || null
+  );
   const [content, setContent] = useState("");
   const [loadingContent, setLoadingContent] = useState(false);
   const [viewingContent, setViewingContent] = useState(false);
@@ -225,6 +231,16 @@ export function SpecFilesPage() {
   useEffect(() => {
     saveWorkshopMap(workshopMap);
   }, [workshopMap]);
+
+  // Persist tree selection so the view survives navigation away and back
+  useEffect(() => {
+    if (selectedPath) localStorage.setItem("specfiles_selected_path", selectedPath);
+    else localStorage.removeItem("specfiles_selected_path");
+  }, [selectedPath]);
+  useEffect(() => {
+    if (selectedFolderPath) localStorage.setItem("specfiles_selected_folder_path", selectedFolderPath);
+    else localStorage.removeItem("specfiles_selected_folder_path");
+  }, [selectedFolderPath]);
 
   // ── Sync marked-for-implementation state from the server ────────────────────
   // Source of truth is the flow-files blob container. If a flow file has been
@@ -305,6 +321,45 @@ export function SpecFilesPage() {
   }, []);
 
   useEffect(() => { void loadFiles(); }, [loadFiles]);
+
+  // After the file list loads for the first time, rehydrate the restored
+  // selection: drop it if the file/folder no longer exists, otherwise
+  // pre-load the working set (and content for a file) so the panels appear
+  // as the user left them.
+  const didRehydrateRef = useRef(false);
+  useEffect(() => {
+    if (didRehydrateRef.current) return;
+    if (loadingFiles || files.length === 0) return;
+    didRehydrateRef.current = true;
+
+    if (selectedPath) {
+      const stillExists = files.some(f => f.name === selectedPath);
+      if (!stillExists) {
+        setSelectedPath(null);
+        return;
+      }
+      loadWorkingSet(selectedPath);
+      setLoadingContent(true);
+      void (async () => {
+        try {
+          const text = await getSpecFileContent(selectedPath);
+          setContent(text);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        } finally {
+          setLoadingContent(false);
+        }
+      })();
+    } else if (selectedFolderPath) {
+      const stillExists = files.some(f => f.name === selectedFolderPath || f.name.startsWith(`${selectedFolderPath}/`));
+      if (!stillExists) {
+        setSelectedFolderPath(null);
+        return;
+      }
+      loadWorkingSet(selectedFolderPath);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingFiles, files]);
 
   // ── Select file ────────────────────────────────────────────────────────────
 
