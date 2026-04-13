@@ -125,7 +125,7 @@ export function DetailPanel({ selectedIdea, selectedFlow, onDownloadFlow }: Prop
 
           {/* Flow-generation prompt */}
           <div>
-            <h4 className="text-[11px] font-semibold text-[#656d76] uppercase tracking-wider mb-2">Prompt</h4>
+            <h4 className="text-[11px] font-semibold text-[#656d76] uppercase tracking-wider mb-2">Prompt (Flow generation)</h4>
             <pre className="text-sm font-mono text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md p-3 whitespace-pre-wrap leading-relaxed">{buildFlowPrompt(selectedIdea)}</pre>
           </div>
         </div>

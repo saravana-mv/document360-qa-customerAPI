@@ -186,8 +186,17 @@ export function SpecFilesPage() {
 
   // ── Resizable panel widths ────────────────────────────────────────────────
   const [treeWidth, setTreeWidth] = useState(240);
-  const [ideasWidth, setIdeasWidth] = useState(320);
-  const [flowsWidth, setFlowsWidth] = useState(288);
+  // Default: split the area right of the tree into three equal columns
+  // (ideas / flows / detail). Detail uses flex-1 so only ideas & flows
+  // need an explicit width.
+  const [ideasWidth, setIdeasWidth] = useState(() => {
+    const available = (typeof window !== "undefined" ? window.innerWidth : 1440) - 240;
+    return Math.max(240, Math.floor(available / 3));
+  });
+  const [flowsWidth, setFlowsWidth] = useState(() => {
+    const available = (typeof window !== "undefined" ? window.innerWidth : 1440) - 240;
+    return Math.max(240, Math.floor(available / 3));
+  });
 
   // Workshop is visible when aggregated data exists for the current path (or loading/error)
   const activePath = selectedPath ?? selectedFolderPath;
@@ -749,6 +758,67 @@ export function SpecFilesPage() {
     abortRef.current = null;
   }
 
+  // ── Generate a flow from a manually entered prompt ────────────────────────
+
+  async function handleCreateManualFlow(title: string, prompt: string) {
+    if (!activePath) return;
+
+    // Resolve spec files from the current context (same logic as handleGenerateFlows)
+    let specFileNames: string[];
+    if (activePath.endsWith(".md")) {
+      specFileNames = [activePath];
+    } else {
+      const prefix = activePath.endsWith("/") ? activePath : `${activePath}/`;
+      specFileNames = files
+        .filter((f) => f.name.startsWith(prefix) && f.name.endsWith(".md"))
+        .map((f) => f.name);
+    }
+
+    const manualId = `manual-${Date.now()}`;
+    const pending: GeneratedFlow = {
+      ideaId: manualId,
+      title,
+      status: "generating",
+      xml: "",
+    };
+    setGeneratedFlows((prev) => [...prev, pending]);
+    setActiveFlowId(manualId);
+    setActiveIdeaId(null);
+
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setGeneratingFlows(true);
+    setFlowProgress({ current: 0, total: 1 });
+
+    try {
+      const result = await generateFlowXml(prompt, specFileNames, ctrl.signal);
+      setGeneratedFlows((prev) =>
+        prev.map((f) => f.ideaId === manualId ? { ...f, status: "done", xml: result.xml, usage: result.usage } : f)
+      );
+      if (result.usage) {
+        setFlowsUsage(prev => prev ? {
+          inputTokens: prev.inputTokens + result.usage!.inputTokens,
+          outputTokens: prev.outputTokens + result.usage!.outputTokens,
+          totalTokens: prev.totalTokens + result.usage!.totalTokens,
+          costUsd: parseFloat((prev.costUsd + result.usage!.costUsd).toFixed(6)),
+        } : result.usage!);
+      }
+    } catch (e) {
+      if (!ctrl.signal.aborted) {
+        setGeneratedFlows((prev) =>
+          prev.map((f) => f.ideaId === manualId
+            ? { ...f, status: "error", error: e instanceof Error ? e.message : String(e) }
+            : f
+          )
+        );
+      }
+    }
+
+    setFlowProgress({ current: 1, total: 1 });
+    setGeneratingFlows(false);
+    abortRef.current = null;
+  }
+
   // ── Derived detail data ───────────────────────────────────────────────────
 
   const selectedIdea = activeIdeaId ? ideas.find((i) => i.id === activeIdeaId) ?? null : null;
@@ -908,6 +978,7 @@ export function SpecFilesPage() {
                       onDownloadAll={downloadAllFlows}
                       onDeleteFlow={handleDeleteFlow}
                       onDeleteAllFlows={handleDeleteAllFlows}
+                      onCreateManualFlow={handleCreateManualFlow}
                     />
                   </div>
                   <ResizeHandle width={flowsWidth} onResize={setFlowsWidth} minWidth={180} maxWidth={500} />
