@@ -34,6 +34,21 @@ jobs:
           npm run build
           npm prune --production
 
+      # Pre-build the frontend here (instead of letting Oryx build it during
+      # the SWA upload step). Oryx has intermittently produced an index.html
+      # that still references /src/main.tsx (the Vite dev entry) instead of
+      # the built /assets/index-*.js bundle, which causes a white screen +
+      # "application/octet-stream" MIME error for module scripts. Building
+      # locally and passing skip_app_build: true guarantees dist/ is what
+      # gets deployed.
+      - name: Pre-build frontend
+        run: |
+          npm ci
+          npm run build
+          # app_location: "dist" means SWA looks for staticwebapp.config.json
+          # inside dist/. Copy it in from the repo root.
+          cp staticwebapp.config.json dist/staticwebapp.config.json
+
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
@@ -41,11 +56,12 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_JOLLY_FLOWER_0E2E3BD10 }}
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for Github integrations (i.e. PR comments)
           action: "upload"
+          skip_app_build: true
           ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
           # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
-          app_location: "/" # App source code path
+          app_location: "dist" # Pre-built app content path (skip_app_build: true)
           api_location: "api" # Api source code path - optional
-          output_location: "dist" # Built app content directory - optional
+          output_location: "" # Not used when skip_app_build is true
           # staticwebapp.config.json lives at the repo root (SWA's default
           # config_file_location is app_location). Do NOT move it into /public
           # or set config_file_location: "dist" — the SWA action validates the
