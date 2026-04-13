@@ -151,8 +151,6 @@ function nextGlobalIdeaIndex(map: WorkshopMap): number {
   return max + 1;
 }
 
-const _initialMap = loadWorkshopMap();
-
 const MAX_IDEAS_PER_RUN = 10;  // Must match backend MAX_IDEAS_PER_RUN
 const MAX_IDEAS_TOTAL = 30;    // Hard cap to prevent over-engineering
 
@@ -179,7 +177,10 @@ export function SpecFilesPage() {
   const [uploadFolderPath, setUploadFolderPath] = useState<string | null>(null);
 
   // ── Multi-context workshop state ──────────────────────────────────────────
-  const [workshopMap, setWorkshopMap] = useState<WorkshopMap>(() => _initialMap);
+  // Read localStorage on every mount (not a module-level snapshot) so that
+  // edits persisted in an earlier mount are picked up when the page remounts
+  // (e.g. after navigating to Flow Manager and back).
+  const [workshopMap, setWorkshopMap] = useState<WorkshopMap>(() => loadWorkshopMap());
 
   // Working set — flat state loaded from workshopMap when navigating
   const [ideas, setIdeas] = useState<FlowIdea[]>([]);
