@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import JsonView from "@uiw/react-json-view";
+import { JsonCodeBlock } from "../common/JsonCodeBlock";
 import { useRunnerStore } from "../../store/runner.store";
 import { useSetupStore } from "../../store/setup.store";
 import { getTest } from "../../lib/tests/registry";
@@ -74,18 +74,19 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
   );
 }
 
-/** JSON viewer with a copy button in the top-right corner. */
+/** JSON viewer (CodeMirror, read-only) with a copy button in the top-right corner. */
 function JsonBlock({ value }: { value: unknown }) {
   if (value === undefined || value === null)
     return <span className="text-[#afb8c1] italic text-xs">—</span>;
-  const jsonStr = JSON.stringify(value, null, 2);
+  const jsonStr =
+    typeof value === "string" ? value : JSON.stringify(value, null, 2);
   return (
-    <div className="relative group/json text-xs border border-[#d1d9e0] rounded-md overflow-auto max-h-56 p-2 bg-[#f6f8fa]">
+    <div className="relative group/json border border-[#d1d9e0] rounded-md overflow-hidden max-h-56 bg-white">
       <CopyButton
         value={jsonStr}
-        className="absolute top-1.5 right-1.5 opacity-0 group-hover/json:opacity-100 transition-opacity"
+        className="absolute top-1.5 right-1.5 z-10 opacity-0 group-hover/json:opacity-100 transition-opacity bg-white/80 rounded"
       />
-      <JsonView value={value as object} style={{ background: "transparent", fontSize: "11px" }} />
+      <JsonCodeBlock value={value} height="14rem" />
     </div>
   );
 }
