@@ -78,7 +78,8 @@ export function SetupPanel() {
   const project = setup.projects[0];
 
   return (
-    <div className="min-h-screen bg-[#f6f8fa] flex flex-col items-center justify-center px-4 py-8 gap-4">
+    <div className="min-h-screen bg-[#f6f8fa] flex items-start justify-center px-4 py-8">
+      <div className="flex flex-col md:flex-row gap-4 items-start w-full max-w-4xl justify-center">
       <div className="bg-white rounded-xl border border-[#d1d9e0] shadow-sm p-6 w-full max-w-md">
         <h2 className="text-base font-semibold text-[#1f2328] mb-0.5">Configure test session</h2>
         <p className="text-sm text-[#656d76] mb-5">Select your project and environment settings.</p>
@@ -228,6 +229,7 @@ export function SetupPanel() {
             Sonnet 4.6 is the recommended default — 5× cheaper than Opus and produces valid flow XML reliably.
           </p>
         </div>
+      </div>
       </div>
     </div>
   );
