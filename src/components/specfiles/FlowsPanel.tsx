@@ -198,7 +198,20 @@ Generate the complete flow XML with proper step IDs, request bodies, path parame
                     STATUS_ICON[flow.status]
                   )}
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-[#1f2328] truncate block">{flow.title}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-medium text-[#1f2328] truncate">{flow.title}</span>
+                      {markedIds.has(flow.ideaId) && (
+                        <span
+                          title="Flow is in the Flow Manager implementation queue"
+                          className="text-xs px-1.5 py-px rounded-full font-medium shrink-0 border bg-[#ddf4ff] text-[#0969da] border-[#54aeff]/40 inline-flex items-center gap-0.5"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                          </svg>
+                          Queued
+                        </span>
+                      )}
+                    </div>
                     <span className="text-sm text-[#656d76]">
                       {flow.status === "generating" && "Generating..."}
                       {flow.status === "pending" && "Queued"}
