@@ -36,8 +36,8 @@ export function MarkConflictModal({ existingName, suggestedNewName, flowTitle, o
 
         <div className="px-4 py-3 space-y-3">
           <p className="text-sm text-[#656d76] leading-relaxed">
-            You're trying to mark <strong className="text-[#1f2328]">{flowTitle}</strong> for implementation, but a flow
-            file already exists at:
+            You're trying to mark <strong className="text-[#1f2328]">{flowTitle}</strong> for implementation, but the
+            Flow Manager queue already has a flow at:
           </p>
           <code className="block text-sm font-mono bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 text-[#1f2328] break-all">
             {existingName}

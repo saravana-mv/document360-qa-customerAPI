@@ -214,7 +214,11 @@ Generate the complete flow XML with proper step IDs, request bodies, path parame
                         return (
                           <button
                             onClick={(e) => { e.stopPropagation(); if (!isMarking) onMarkForImplementation(flow); }}
-                            title={isMarked ? "Marked for implementation (click to mark again)" : "Mark for implementation"}
+                            title={
+                              isMarked
+                                ? "In Flow Manager implementation queue — click to push again"
+                                : "Mark this flow for implementation (adds it to the Flow Manager queue)"
+                            }
                             disabled={isMarking}
                             className={`rounded-md p-0.5 transition-colors ${
                               isMarked
@@ -322,7 +326,7 @@ Generate the complete flow XML with proper step IDs, request bodies, path parame
               </div>
               <div className="px-4 py-3">
                 <p className="text-sm text-[#656d76] leading-relaxed">
-                  This will delete the generated flow for <strong className="text-[#1f2328]">{flow?.title}</strong>. The idea will be unlocked so you can regenerate the flow.
+                  This will delete the generated flow for <strong className="text-[#1f2328]">{flow?.title}</strong>. The idea will be unlocked so you can regenerate the flow. If this flow was already marked for implementation, the copy in the Flow Manager queue is not removed — remove it from Flow Manager separately.
                 </p>
               </div>
               <div className="flex justify-end gap-2 px-4 py-3 border-t border-[#d1d9e0] bg-[#f6f8fa] rounded-b-lg">

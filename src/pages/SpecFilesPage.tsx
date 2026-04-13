@@ -22,6 +22,7 @@ import {
 import { generateFlowXml } from "../lib/api/flowApi";
 import {
   saveFlowFile,
+  listFlowFiles,
   FlowFileConflictError,
   parentFolderOf,
   buildFlowFilePath,
@@ -224,6 +225,40 @@ export function SpecFilesPage() {
   useEffect(() => {
     saveWorkshopMap(workshopMap);
   }, [workshopMap]);
+
+  // ── Sync marked-for-implementation state from the server ────────────────────
+  // Source of truth is the flow-files blob container. If a flow file has been
+  // deleted in Flow Manager, its idea gets automatically unblocked here.
+  const syncMarkedFromServer = useCallback(async () => {
+    if (generatedFlows.length === 0) {
+      setMarkedIds(new Set());
+      return;
+    }
+    const folder = parentFolderOf(activePath);
+    try {
+      const items = await listFlowFiles(folder || undefined);
+      const existingPaths = new Set(items.map(i => i.name));
+      const next = new Set<string>();
+      for (const flow of generatedFlows) {
+        if (flow.status !== "done") continue;
+        const target = buildFlowFilePath(folder, flow.title);
+        if (existingPaths.has(target)) next.add(flow.ideaId);
+      }
+      setMarkedIds(next);
+    } catch {
+      // Leave existing markedIds in place on network failure
+    }
+  }, [activePath, generatedFlows]);
+
+  useEffect(() => { void syncMarkedFromServer(); }, [syncMarkedFromServer]);
+
+  // Re-sync when the window regains focus (covers the case where the user
+  // removed a flow in Flow Manager and came back to Spec Manager).
+  useEffect(() => {
+    const onFocus = () => { void syncMarkedFromServer(); };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [syncMarkedFromServer]);
 
   // Persist generated flows + flowsUsage back to workshopMap when flow generation completes
   useEffect(() => {
@@ -1059,7 +1094,9 @@ export function SpecFilesPage() {
                       onGenerateFlows={handleGenerateFlows}
                       onGenerateMore={handleGenerateMoreIdeas}
                       onDeleteSelected={handleDeleteSelectedIdeas}
+                      onDeleteIdea={(id) => handleDeleteSelectedIdeas(new Set([id]))}
                       onClickIdea={handleClickIdea}
+                      markedIds={markedIds}
                       generatingFlows={generatingFlows}
                       ideasExhausted={ideasExhausted}
                       maxIdeasTotal={MAX_IDEAS_TOTAL}
