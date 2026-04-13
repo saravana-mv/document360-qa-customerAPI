@@ -27,3 +27,15 @@ export function getTestsByTag(tag: string): TestDef[] {
 export function getAllTags(): string[] {
   return [...new Set(getAllTests().map((t) => t.tag))];
 }
+
+/** Drop every registered test whose id matches the predicate. */
+export function unregisterWhere(predicate: (def: TestDef) => boolean): number {
+  let removed = 0;
+  for (const [id, def] of registry) {
+    if (predicate(def)) {
+      registry.delete(id);
+      removed++;
+    }
+  }
+  return removed;
+}

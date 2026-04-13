@@ -26,6 +26,8 @@ interface FlowStatusState {
   loading: boolean;
   setEntry: (entry: FlowStatusEntry) => void;
   setLoading: (loading: boolean) => void;
+  /** Drop status entries whose blob name is not in the given set. */
+  pruneTo: (keepNames: Set<string>) => void;
   reset: () => void;
 }
 
@@ -34,5 +36,12 @@ export const useFlowStatusStore = create<FlowStatusState>((set) => ({
   loading: false,
   setEntry: (entry) => set((s) => ({ byName: { ...s.byName, [entry.name]: entry } })),
   setLoading: (loading) => set({ loading }),
+  pruneTo: (keepNames) => set((s) => {
+    const next: Record<string, FlowStatusEntry> = {};
+    for (const [name, entry] of Object.entries(s.byName)) {
+      if (keepNames.has(name)) next[name] = entry;
+    }
+    return { byName: next };
+  }),
   reset: () => set({ byName: {}, loading: false }),
 }));

@@ -4,7 +4,7 @@
 
 import { listFlowFiles, getFlowFileContent } from "../../api/flowFilesApi";
 import { useFlowStatusStore } from "../../../store/flowStatus.store";
-import { registerSuite } from "../registry";
+import { registerSuite, unregisterWhere } from "../registry";
 import { parseFlowXml, FlowXmlParseError } from "./parser";
 import { buildFlow } from "./builder";
 import { seedBuiltinFlows } from "./builtins";
@@ -45,6 +45,12 @@ async function doLoad(): Promise<void> {
     status.setLoading(false);
     return;
   }
+
+  // Clean slate — drop every previously registered xml-sourced test and
+  // prune status entries for files that no longer exist in the queue.
+  // Any current file will be re-added below.
+  unregisterWhere((def) => def.id.startsWith("xml:"));
+  status.pruneTo(new Set(files.map((f) => f.name)));
 
   // Mark every known file as "loading" up-front so the UI can show progress.
   for (const f of files) {
