@@ -20,13 +20,21 @@ function slug(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "flow";
 }
 
-export function buildFlow(parsed: ParsedFlow): BuiltFlow {
+/**
+ * Replace the leading /vN/ version segment of a path with the user's selected
+ * API version. Paths without a version segment are returned unchanged.
+ */
+export function rewriteApiVersion(path: string, apiVersion: string): string {
+  return path.replace(/^\/v\d+(?=\/)/, `/${apiVersion}`);
+}
+
+export function buildFlow(parsed: ParsedFlow, flowFileName?: string): BuiltFlow {
   const flowSlug = slug(parsed.name);
-  const tests: TestDef[] = parsed.steps.map((step) => buildStep(parsed, flowSlug, step));
+  const tests: TestDef[] = parsed.steps.map((step) => buildStep(parsed, flowSlug, step, flowFileName));
   return { tag: parsed.name, group: parsed.group, tests };
 }
 
-function buildStep(flow: ParsedFlow, flowSlug: string, step: ParsedStep): TestDef {
+function buildStep(flow: ParsedFlow, flowSlug: string, step: ParsedStep, flowFileName?: string): TestDef {
   const id = `xml:${flowSlug}.s${step.number}`;
   const description = step.notes?.trim() || undefined;
 
@@ -62,6 +70,7 @@ function buildStep(flow: ParsedFlow, flowSlug: string, step: ParsedStep): TestDe
     pathParamsMeta: Object.keys(pathParamsMeta).length > 0 ? pathParamsMeta : undefined,
     assertions,
     isTeardown: step.teardown || undefined,
+    flowFileName,
     execute: (ctx, state) => executeStep(step, ctx, state),
   };
 
@@ -163,6 +172,10 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
       if (name === "article_id" && ctx.articleId) return ctx.articleId;
       throw new Error(`Path placeholder {${name}} has no value`);
     });
+    // Force the path to use the currently selected API version. Flow XML files
+    // may hard-code /v2/ or /v3/ (for historical reasons); the selected
+    // version in Settings is authoritative at runtime.
+    resolvedPath = rewriteApiVersion(resolvedPath, ctx.apiVersion);
 
     // Resolve query params
     const qParts: string[] = [];

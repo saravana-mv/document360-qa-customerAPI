@@ -111,7 +111,7 @@ export function SetupPanel() {
                   ))}
                 </select>
                 <p className="text-[11px] text-[#656d76] mt-1">
-                  Article endpoints use selected version. Category endpoints always use v2.
+                  All endpoints use the selected version at runtime.
                 </p>
               </div>
             </div>

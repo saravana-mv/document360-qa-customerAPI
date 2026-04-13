@@ -62,7 +62,7 @@ async function loadOne(name: string): Promise<void> {
   try {
     const xml = await getFlowFileContent(name);
     const parsed = parseFlowXml(xml);
-    const built = buildFlow(parsed);
+    const built = buildFlow(parsed, name);
     registerSuite(built.tests);
     status.setEntry({
       name,

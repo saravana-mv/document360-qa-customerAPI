@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
 import { JsonCodeBlock } from "../common/JsonCodeBlock";
+import { XmlCodeBlock } from "../common/XmlCodeBlock";
 import { useRunnerStore } from "../../store/runner.store";
 import { useSetupStore } from "../../store/setup.store";
 import { getTest } from "../../lib/tests/registry";
+import { rewriteApiVersion } from "../../lib/tests/flowXml/builder";
+import { getFlowFileContent } from "../../lib/api/flowFilesApi";
 import type { TestStatus } from "../../types/test.types";
 
 // ── Styles ──────────────────────────────────────────────────────────────────
@@ -105,10 +108,13 @@ function CopyableText({ value, mono = true, className = "" }: { value: string; m
 
 function DesignTab({ testId }: { testId: string }) {
   const def = getTest(testId);
-  const { selectedProjectId, selectedVersionId } = useSetupStore();
+  const { selectedProjectId, selectedVersionId, apiVersion } = useSetupStore();
   if (!def) return null;
 
-  const pathTokens = def.path.match(/\{[^}]+\}/g) ?? [];
+  // Rewrite the leading /vN/ to the currently-selected API version so the
+  // preview matches what the runner will actually hit.
+  const displayPath = rewriteApiVersion(def.path, apiVersion);
+  const pathTokens = displayPath.match(/\{[^}]+\}/g) ?? [];
 
   // Ctx param values resolved from setup store (fallback for params without explicit metadata)
   const ctxParamValues: Record<string, string> = {
@@ -125,7 +131,7 @@ function DesignTab({ testId }: { testId: string }) {
     const meta = def.pathParamsMeta?.[paramName];
     const replacement = meta ? meta.value : (ctxParamValues[token] ?? token);
     return path.replace(token, replacement);
-  }, def.path);
+  }, displayPath);
 
   return (
     <div className="p-4 space-y-5 text-sm">
@@ -143,8 +149,8 @@ function DesignTab({ testId }: { testId: string }) {
           <span className={`font-bold mr-1 shrink-0 ${methodColor[def.method]?.split(" ")[0] ?? "text-[#656d76]"}`}>
             {def.method}
           </span>
-          <span className="break-all flex-1">{def.path}</span>
-          <CopyButton value={`${def.method} ${def.path}`} className="opacity-0 group-hover/ep:opacity-100 transition-opacity" />
+          <span className="break-all flex-1">{displayPath}</span>
+          <CopyButton value={`${def.method} ${displayPath}`} className="opacity-0 group-hover/ep:opacity-100 transition-opacity" />
         </div>
       </div>
 
@@ -383,7 +389,46 @@ interface DetailPaneProps {
   onClose: () => void;
 }
 
-type Tab = "design" | "run";
+type Tab = "design" | "run" | "xml";
+
+// ── Flow XML Tab ─────────────────────────────────────────────────────────────
+
+function FlowXmlTab({ fileName }: { fileName: string }) {
+  const [xml, setXml] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setXml(null);
+    setError(null);
+    getFlowFileContent(fileName)
+      .then((content) => { if (!cancelled) setXml(content); })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : String(err)); });
+    return () => { cancelled = true; };
+  }, [fileName]);
+
+  if (error) {
+    return (
+      <div className="p-4 text-xs text-[#d1242f] bg-[#ffebe9] border border-[#ffcecb] rounded-md m-4">
+        Failed to load flow XML: {error}
+      </div>
+    );
+  }
+  if (xml === null) {
+    return <div className="p-4 text-xs text-[#afb8c1] italic">Loading flow XML…</div>;
+  }
+  return (
+    <div className="p-4 space-y-2">
+      <div className="flex items-center gap-1.5 group/fn">
+        <span className="text-xs font-mono text-[#656d76] flex-1 break-all">{fileName}</span>
+        <CopyButton value={xml} className="opacity-0 group-hover/fn:opacity-100 transition-opacity" />
+      </div>
+      <div className="border border-[#d1d9e0] rounded-md overflow-hidden bg-white">
+        <XmlCodeBlock value={xml} height="70vh" />
+      </div>
+    </div>
+  );
+}
 
 export function DetailPane({ testId, onClose }: DetailPaneProps) {
   const [activeTab, setActiveTab] = useState<Tab>("design");
@@ -434,17 +479,17 @@ export function DetailPane({ testId, onClose }: DetailPaneProps) {
 
         {/* ── Tabs ── */}
         <div className="flex gap-1">
-          {(["design", "run"] as Tab[]).map((tab) => (
+          {((["design", "run", ...(def.flowFileName ? ["xml"] : [])]) as Tab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-1.5 text-[13px] font-semibold capitalize border-b-2 transition-colors ${
+              className={`px-4 py-1.5 text-[13px] font-semibold border-b-2 transition-colors ${
                 activeTab === tab
                   ? "border-[#fd8c73] text-[#1f2328]"
                   : "border-transparent text-[#656d76] hover:text-[#1f2328]"
               }`}
             >
-              {tab}
+              {tab === "xml" ? "Flow XML" : <span className="capitalize">{tab}</span>}
               {tab === "run" && status !== "idle" && (
                 <span className={`ml-1.5 inline-block w-1.5 h-1.5 rounded-full ${
                   status === "pass" ? "bg-[#1a7f37]" : status === "running" ? "bg-[#0969da]" : "bg-[#d1242f]"
@@ -457,10 +502,9 @@ export function DetailPane({ testId, onClose }: DetailPaneProps) {
 
       {/* ── Tab content ── */}
       <div className="flex-1 overflow-y-auto">
-        {activeTab === "design"
-          ? <DesignTab testId={testId} />
-          : <RunTab testId={testId} />
-        }
+        {activeTab === "design" && <DesignTab testId={testId} />}
+        {activeTab === "run" && <RunTab testId={testId} />}
+        {activeTab === "xml" && def.flowFileName && <FlowXmlTab fileName={def.flowFileName} />}
       </div>
     </div>
   );

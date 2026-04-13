@@ -183,7 +183,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 2. **Category dependency**: If a flow creates articles, ALWAYS add a Create Category step first (POST /v2/…/categories) and a Delete Category teardown step last. The API requires category_id even though the spec marks it nullable.
 3. **Teardown order**: Delete child resources before parent (article before category). Mark teardown steps with \`<flags teardown="true"/>\`.
 4. **State passing**: Use \`<capture variable="state.X" source="response.data.Y"/>\` then reference \`{{state.X}}\` in later steps.
-5. **Version paths**: Article endpoints use \`/v3/…\`. Category endpoints use \`/v2/…\`.
+5. **Version paths**: Use \`/v3/…\` for every endpoint — the test runner rewrites the version segment at runtime to match the user's selected API version.
 6. **Unique names**: For resource names, use \`[TEST] Something - {{timestamp}}\`.
 7. **Assertions**: Every step needs at least one \`<assertion type="status" code="…"/>\`. Write operations should also assert \`field-exists\` on the created resource id.
 8. **Schema exactness**: Elements must appear in the order listed above. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status. Use \`field-exists\` / \`field-equals\` / \`array-not-empty\` — no other assertion types exist.

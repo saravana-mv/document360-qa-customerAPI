@@ -60,6 +60,12 @@ export interface TestDef {
    */
   isTeardown?: boolean;
   assertions: AssertionDef[];
+  /**
+   * For tests built from a .flow.xml file: the blob name of the source file
+   * (e.g. "articles/article-version-lifecycle.flow.xml"). Undefined for
+   * programmatically registered tests. Used by the detail pane's Flow XML tab.
+   */
+  flowFileName?: string;
 }
 
 export interface TestExecutionResult {
