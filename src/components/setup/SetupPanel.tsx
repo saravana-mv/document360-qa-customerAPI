@@ -80,43 +80,12 @@ export function SetupPanel() {
   return (
     <div className="min-h-screen bg-[#f6f8fa] flex items-start justify-center px-4 py-8">
       <div className="flex flex-col md:flex-row gap-4 items-start w-full max-w-4xl justify-center">
-      <div className="bg-white rounded-xl border border-[#d1d9e0] shadow-sm p-6 w-full max-w-md">
-        <h2 className="text-base font-semibold text-[#1f2328] mb-0.5">Configure test session</h2>
-        <p className="text-sm text-[#656d76] mb-5">Select your project and environment settings.</p>
+      <div className="flex flex-col gap-4 w-full max-w-md">
+      <div className="bg-white rounded-xl border border-[#d1d9e0] shadow-sm p-6">
+        <h2 className="text-base font-semibold text-[#1f2328] mb-0.5">Project settings</h2>
+        <p className="text-sm text-[#656d76] mb-5">Select your project and run-time context.</p>
 
         <div className="space-y-4">
-
-          {/* ── Environment ───────────────────────────────────── */}
-          <fieldset className="pb-4 border-b border-[#d1d9e0]">
-            <legend className="text-[11px] font-semibold text-[#656d76] uppercase tracking-wider mb-3">Environment</legend>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-[#1f2328] mb-1">Base URL</label>
-                <input
-                  type="url"
-                  value={setup.baseUrl}
-                  onChange={(e) => setup.setBaseUrl(e.target.value)}
-                  placeholder="https://apihub.berlin.document360.net"
-                  className="w-full px-3 py-[7px] border border-[#d1d9e0] rounded-md text-sm bg-[#f6f8fa] focus:bg-white font-mono text-[#1f2328] placeholder:text-[#afb8c1]"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[#1f2328] mb-1">API Version</label>
-                <select
-                  value={setup.apiVersion}
-                  onChange={(e) => setup.setApiVersion(e.target.value)}
-                  className="w-full px-3 py-[7px] border border-[#d1d9e0] rounded-md text-sm bg-[#f6f8fa] focus:bg-white text-[#1f2328]"
-                >
-                  {API_VERSIONS.map((v) => (
-                    <option key={v} value={v}>{v}</option>
-                  ))}
-                </select>
-                <p className="text-[11px] text-[#656d76] mt-1">
-                  All endpoints use the selected version at runtime.
-                </p>
-              </div>
-            </div>
-          </fieldset>
 
           {/* ── Project ───────────────────────────────────────── */}
           <div>
@@ -206,9 +175,46 @@ export function SetupPanel() {
           {starting ? "Loading..." : "Start testing"}
         </button>
       </div>
+      </div>
+
+      <div className="flex flex-col gap-4 w-full max-w-md">
+
+      {/* ── Environment ─────────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-[#d1d9e0] shadow-sm p-6">
+        <h2 className="text-base font-semibold text-[#1f2328] mb-0.5">Environment</h2>
+        <p className="text-sm text-[#656d76] mb-5">API host and version used by every request.</p>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-[#1f2328] mb-1">Base URL</label>
+            <input
+              type="url"
+              value={setup.baseUrl}
+              onChange={(e) => setup.setBaseUrl(e.target.value)}
+              placeholder="https://apihub.berlin.document360.net"
+              className="w-full px-3 py-[7px] border border-[#d1d9e0] rounded-md text-sm bg-[#f6f8fa] focus:bg-white font-mono text-[#1f2328] placeholder:text-[#afb8c1]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[#1f2328] mb-1">API Version</label>
+            <select
+              value={setup.apiVersion}
+              onChange={(e) => setup.setApiVersion(e.target.value)}
+              className="w-full px-3 py-[7px] border border-[#d1d9e0] rounded-md text-sm bg-[#f6f8fa] focus:bg-white text-[#1f2328]"
+            >
+              {API_VERSIONS.map((v) => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
+            <p className="text-[11px] text-[#656d76] mt-1">
+              All endpoints use the selected version at runtime.
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* ── Application settings (cross-cutting, not per-project) ──────────── */}
-      <div className="bg-white rounded-xl border border-[#d1d9e0] shadow-sm p-6 w-full max-w-md">
+      <div className="bg-white rounded-xl border border-[#d1d9e0] shadow-sm p-6">
         <h2 className="text-base font-semibold text-[#1f2328] mb-0.5">Application settings</h2>
         <p className="text-sm text-[#656d76] mb-5">Preferences that apply across all projects.</p>
 
