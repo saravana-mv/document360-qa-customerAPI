@@ -237,6 +237,7 @@ export function SetupPanel() {
         </div>
       </div>
       </div>
+      </div>
     </div>
   );
 }
