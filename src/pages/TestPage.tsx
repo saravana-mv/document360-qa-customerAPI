@@ -4,8 +4,10 @@ import { TestExplorer } from "../components/explorer/TestExplorer";
 import { ResultsPanel } from "../components/results/ResultsPanel";
 import { SummaryDrawer } from "../components/results/SummaryDrawer";
 import { DetailPane } from "../components/results/DetailPane";
+import { SetupPanel } from "../components/setup/SetupPanel";
 import { useAuthGuard } from "../hooks/useAuthGuard";
 import { useRunnerStore } from "../store/runner.store";
+import { useSpecStore } from "../store/spec.store";
 
 const LHS_MIN = 180;
 const LHS_MAX = 520;
@@ -19,6 +21,8 @@ export function TestPage() {
   const lhsDragging = useRef(false);
   const rhsDragging = useRef(false);
   const { selectedTestId, selectTest } = useRunnerStore();
+  const { parsedTags } = useSpecStore();
+  const hasSpec = parsedTags.length > 0;
 
   function onLhsMouseDown(e: React.MouseEvent) {
     e.preventDefault();
@@ -60,6 +64,14 @@ export function TestPage() {
     }
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
+  }
+
+  if (!hasSpec) {
+    return (
+      <Layout showTestControls>
+        <SetupPanel />
+      </Layout>
+    );
   }
 
   return (
