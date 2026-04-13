@@ -3,6 +3,7 @@ import { useSpecStore } from "../../store/spec.store";
 import { useRunnerStore } from "../../store/runner.store";
 import { useAuthStore } from "../../store/auth.store";
 import { useSetupStore } from "../../store/setup.store";
+import { useFlowStatusStore } from "../../store/flowStatus.store";
 import { getAllTests } from "../../lib/tests/registry";
 import { getProjectIdFromToken, fetchProject } from "../../lib/api/projects";
 import { fetchProjectVersions } from "../../lib/api/project-versions";
@@ -18,6 +19,12 @@ export function TestExplorer() {
   const { selectAll, clearSelection } = useRunnerStore();
   const { status, token } = useAuthStore();
   const setup = useSetupStore();
+  // Subscribe to the flow-status store so this component re-renders once the
+  // background loader finishes registering tests from blob storage. Without
+  // this, a page refresh races the loader and parsedTags gets populated with
+  // an empty registry.
+  const flowsLoading = useFlowStatusStore((s) => s.loading);
+  const flowsByName = useFlowStatusStore((s) => s.byName);
   const allTests = getAllTests();
 
   const [expandSignal, setExpandSignal] = useState(0);
@@ -30,6 +37,11 @@ export function TestExplorer() {
   useEffect(() => {
     if (parsedTags.length > 0) return;
     if (status !== "authenticated" || !token) return;
+    // Wait for the flow loader to finish and for at least one test to be
+    // registered before building the tag list. This handles the refresh race
+    // where loadFlowsFromQueue() in App.tsx is still in flight.
+    if (flowsLoading) return;
+    if (getAllTests().length === 0) return;
     let cancelled = false;
     (async () => {
       setAutoLoading(true);
@@ -65,7 +77,7 @@ export function TestExplorer() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, token, parsedTags.length]);
+  }, [status, token, parsedTags.length, flowsLoading, flowsByName]);
 
   function handleExpandAll() {
     setExpandAll(true);
@@ -92,9 +104,10 @@ export function TestExplorer() {
         </div>
       );
     }
+    const showSpinner = autoLoading || flowsLoading;
     return (
       <div className="flex items-center justify-center h-full text-xs text-[#656d76] gap-2">
-        {autoLoading && <Spinner size="sm" className="text-[#656d76]" />}
+        {showSpinner && <Spinner size="sm" className="text-[#656d76]" />}
         Loading tests…
       </div>
     );
