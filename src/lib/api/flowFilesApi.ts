@@ -7,8 +7,10 @@ export interface FlowFileItem {
 
 /** Thrown when POST /api/flow-files returns 409 (file already exists). */
 export class FlowFileConflictError extends Error {
-  constructor(public readonly name: string) {
-    super(`A flow already exists at ${name}`);
+  readonly conflictName: string;
+  constructor(conflictName: string) {
+    super(`A flow already exists at ${conflictName}`);
+    this.conflictName = conflictName;
     this.name = "FlowFileConflictError";
   }
 }
@@ -78,7 +80,7 @@ export function slugifyFlowTitle(title: string): string {
 }
 
 /** Resolve the parent folder for a given active path (file or folder). */
-export function parentFolderOf(activePath: string): string {
+export function parentFolderOf(activePath: string | null): string {
   if (!activePath) return "";
   // File → strip filename
   if (activePath.endsWith(".md")) {
