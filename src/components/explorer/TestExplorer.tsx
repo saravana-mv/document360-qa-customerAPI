@@ -4,6 +4,7 @@ import { useRunnerStore } from "../../store/runner.store";
 import { getAllTests } from "../../lib/tests/registry";
 import { GroupNode } from "./GroupNode";
 import { ExplorerContext } from "./ExplorerContext";
+import { ProjectSettingsCard } from "../setup/ProjectSettingsCard";
 import type { ParsedTag } from "../../types/spec.types";
 
 export function TestExplorer() {
@@ -25,14 +26,7 @@ export function TestExplorer() {
   }
 
   if (parsedTags.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-2">
-        <span className="w-8 h-8 rounded-full bg-[#eef1f6] flex items-center justify-center">
-          <span className="w-3 h-3 rounded-full bg-[#d1d9e0]" />
-        </span>
-        <span className="text-sm text-[#656d76]">No spec loaded</span>
-      </div>
-    );
+    return <ProjectSettingsCard />;
   }
 
   // Group parsedTags by test.group (fall back to "General" if not set)
