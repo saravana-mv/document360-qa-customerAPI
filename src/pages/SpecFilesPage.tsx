@@ -195,6 +195,7 @@ export function SpecFilesPage() {
   // ── Mark-for-implementation state ─────────────────────────────────────────
   const [markedIds, setMarkedIds] = useState<Set<string>>(new Set());
   const [markingIds, setMarkingIds] = useState<Set<string>>(new Set());
+  const [selectedFlowIds, setSelectedFlowIds] = useState<Set<string>>(new Set());
   const [conflict, setConflict] = useState<{
     flow: GeneratedFlow;
     existingName: string;
@@ -876,6 +877,33 @@ export function SpecFilesPage() {
     void markFlow(flow, target, false);
   }
 
+  function handleMarkSelectedForImplementation() {
+    const folder = parentFolderOf(activePath);
+    const toMark = generatedFlows.filter(
+      (f) => f.status === "done" && selectedFlowIds.has(f.ideaId) && !markedIds.has(f.ideaId),
+    );
+    for (const flow of toMark) {
+      const target = buildFlowFilePath(folder, flow.title);
+      void markFlow(flow, target, false);
+    }
+  }
+
+  function toggleSelectFlow(ideaId: string) {
+    setSelectedFlowIds(prev => {
+      const n = new Set(prev);
+      if (n.has(ideaId)) n.delete(ideaId); else n.add(ideaId);
+      return n;
+    });
+  }
+
+  function selectAllFlows() {
+    setSelectedFlowIds(new Set(generatedFlows.filter(f => f.status === "done").map(f => f.ideaId)));
+  }
+
+  function deselectAllFlows() {
+    setSelectedFlowIds(new Set());
+  }
+
   function handleConflictResolve(resolution: import("../components/specfiles/MarkConflictModal").ConflictResolution) {
     if (!conflict) return;
     const { flow, existingName } = conflict;
@@ -1054,8 +1082,13 @@ export function SpecFilesPage() {
                       onDeleteAllFlows={handleDeleteAllFlows}
                       onCreateManualFlow={handleCreateManualFlow}
                       onMarkForImplementation={handleMarkForImplementation}
+                      onMarkSelectedForImplementation={handleMarkSelectedForImplementation}
                       markedIds={markedIds}
                       markingIds={markingIds}
+                      selectedFlowIds={selectedFlowIds}
+                      onToggleSelectFlow={toggleSelectFlow}
+                      onSelectAllFlows={selectAllFlows}
+                      onDeselectAllFlows={deselectAllFlows}
                     />
                   </div>
                   <ResizeHandle width={flowsWidth} onResize={setFlowsWidth} minWidth={180} maxWidth={500} />

@@ -23,10 +23,17 @@ interface Props {
   onDeleteAllFlows: () => void;
   onCreateManualFlow: (title: string, prompt: string) => void;
   onMarkForImplementation: (flow: GeneratedFlow) => void;
+  /** Batch mark: mark every currently-selected done flow for implementation */
+  onMarkSelectedForImplementation: () => void;
   /** ideaIds that have already been marked for implementation this session */
   markedIds: Set<string>;
   /** ideaIds currently being marked (in-flight) */
   markingIds: Set<string>;
+  /** ideaIds selected via the row checkbox (done flows only) */
+  selectedFlowIds: Set<string>;
+  onToggleSelectFlow: (ideaId: string) => void;
+  onSelectAllFlows: () => void;
+  onDeselectAllFlows: () => void;
 }
 
 const STATUS_ICON: Record<string, React.ReactNode> = {
@@ -57,7 +64,7 @@ const STATUS_ICON: Record<string, React.ReactNode> = {
   ),
 };
 
-export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickFlow, onDownloadFlow, onDownloadAll, onDeleteFlow, onDeleteAllFlows, onCreateManualFlow, onMarkForImplementation, markedIds, markingIds }: Props) {
+export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickFlow, onDownloadFlow, onDownloadAll, onDeleteFlow, onDeleteAllFlows, onCreateManualFlow, onMarkForImplementation, onMarkSelectedForImplementation, markedIds, markingIds, selectedFlowIds, onToggleSelectFlow, onSelectAllFlows, onDeselectAllFlows }: Props) {
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [deleteFlowId, setDeleteFlowId] = useState<string | null>(null);
   const [showNewFlow, setShowNewFlow] = useState(false);
@@ -80,6 +87,11 @@ Generate the complete flow XML with proper step IDs, request bodies, path parame
   const EXAMPLE_TITLE = "Article settings configuration and SEO optimization";
   const doneFlows = flows.filter((f) => f.status === "done");
   const completedFlows = flows.filter((f) => f.status === "done" || f.status === "error");
+  const selectedCount = doneFlows.filter((f) => selectedFlowIds.has(f.ideaId)).length;
+  const allDoneSelected = doneFlows.length > 0 && selectedCount === doneFlows.length;
+  const selectedUnmarkedCount = doneFlows.filter(
+    (f) => selectedFlowIds.has(f.ideaId) && !markedIds.has(f.ideaId),
+  ).length;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -105,6 +117,14 @@ Generate the complete flow XML with proper step IDs, request bodies, path parame
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
             </svg>
             New flow
+          </button>
+        )}
+        {doneFlows.length > 0 && !generating && (
+          <button
+            onClick={allDoneSelected ? onDeselectAllFlows : onSelectAllFlows}
+            className="text-sm text-[#0969da] hover:underline"
+          >
+            {allDoneSelected ? "Deselect all" : "Select all"}
           </button>
         )}
         {completedFlows.length > 0 && !generating && (
@@ -152,6 +172,8 @@ Generate the complete flow XML with proper step IDs, request bodies, path parame
           <div>
             {flows.map((flow) => {
               const isActive = activeFlowId === flow.ideaId;
+              const isDone = flow.status === "done";
+              const isChecked = selectedFlowIds.has(flow.ideaId);
               return (
                 <div
                   key={flow.ideaId}
@@ -159,10 +181,22 @@ Generate the complete flow XML with proper step IDs, request bodies, path parame
                   className={`flex items-center gap-2 px-3 py-2.5 cursor-pointer border-b border-[#d1d9e0]/50 transition-colors ${
                     isActive
                       ? "bg-[#ddf4ff] border-l-2 border-l-[#0969da]"
-                      : "border-l-2 border-l-transparent hover:bg-[#f6f8fa]"
+                      : isChecked
+                        ? "bg-[#ddf4ff]/40 border-l-2 border-l-[#0969da]/40"
+                        : "border-l-2 border-l-transparent hover:bg-[#f6f8fa]"
                   }`}
                 >
-                  {STATUS_ICON[flow.status]}
+                  {isDone ? (
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => onToggleSelectFlow(flow.ideaId)}
+                      className="shrink-0 accent-[#0969da]"
+                    />
+                  ) : (
+                    STATUS_ICON[flow.status]
+                  )}
                   <div className="flex-1 min-w-0">
                     <span className="text-sm font-medium text-[#1f2328] truncate block">{flow.title}</span>
                     <span className="text-sm text-[#656d76]">
@@ -234,17 +268,41 @@ Generate the complete flow XML with proper step IDs, request bodies, path parame
         )}
       </div>
 
-      {/* Download all */}
-      {doneFlows.length > 1 && !generating && (
-        <div className="shrink-0 border-t border-[#d1d9e0] bg-[#f6f8fa] px-3 py-2">
+      {/* Bottom action bar */}
+      {doneFlows.length > 0 && !generating && (
+        <div className="shrink-0 border-t border-[#d1d9e0] bg-[#f6f8fa] px-3 py-2 flex gap-2">
+          {doneFlows.length > 1 && (
+            <button
+              onClick={onDownloadAll}
+              title="Download every generated flow as XML"
+              className="flex items-center justify-center gap-1.5 bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-sm font-medium rounded-md px-3 py-1.5 transition-colors border border-[#d1d9e0]"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              Download all
+            </button>
+          )}
           <button
-            onClick={onDownloadAll}
-            className="w-full flex items-center justify-center gap-1.5 bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-sm font-medium rounded-md px-3 py-1.5 transition-colors border border-[#d1d9e0]"
+            onClick={onMarkSelectedForImplementation}
+            disabled={selectedUnmarkedCount === 0 || markingIds.size > 0}
+            title={
+              selectedCount === 0
+                ? "Select one or more flows to mark for implementation"
+                : selectedUnmarkedCount === 0
+                  ? "All selected flows are already marked"
+                  : `Push ${selectedUnmarkedCount} selected flow${selectedUnmarkedCount !== 1 ? "s" : ""} to the implementation queue`
+            }
+            className="flex-1 flex items-center justify-center gap-1.5 bg-[#1a7f37] hover:bg-[#1a7f37]/90 disabled:bg-[#eef1f6] disabled:text-[#656d76] disabled:border-[#d1d9e0] text-white text-sm font-medium rounded-md px-3 py-1.5 transition-colors border border-[#1a7f37]/80"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
             </svg>
-            Download all ({doneFlows.length})
+            {selectedCount === 0
+              ? "Mark for implementation"
+              : selectedUnmarkedCount === 0
+                ? `${selectedCount} already marked`
+                : `Mark ${selectedUnmarkedCount} for implementation`}
           </button>
         </div>
       )}
