@@ -3,15 +3,18 @@ import { Layout } from "../components/common/Layout";
 import { ResizeHandle } from "../components/common/ResizeHandle";
 import { FlowFileTree } from "../components/flowmanager/FlowFileTree";
 import { XmlViewer } from "../components/flowcreator/XmlViewer";
+import { XmlEditor } from "../components/common/XmlEditor";
 import {
   listFlowFiles,
   getFlowFileContent,
   deleteFlowFile,
+  saveFlowFile,
   type FlowFileItem,
 } from "../lib/api/flowFilesApi";
 import { useAuthGuard } from "../hooks/useAuthGuard";
 import { useFlowStatusStore } from "../store/flowStatus.store";
 import { loadFlowsFromQueue } from "../lib/tests/flowXml/loader";
+import { parseFlowXml, FlowXmlParseError } from "../lib/tests/flowXml/parser";
 
 export function FlowManagerPage() {
   useAuthGuard();
@@ -32,6 +35,78 @@ export function FlowManagerPage() {
 
   const [removeConfirm, setRemoveConfirm] = useState<string | null>(null);
   const [treeWidth, setTreeWidth] = useState(320);
+
+  // ── Edit mode ──────────────────────────────────────────────────────────────
+  const [editing, setEditing] = useState(false);
+  const [draftXml, setDraftXml] = useState("");
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [validationOk, setValidationOk] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Leaving a file or changing selection cancels edit mode.
+  useEffect(() => {
+    setEditing(false);
+    setDraftXml("");
+    setValidationError(null);
+    setValidationOk(false);
+  }, [selectedPath]);
+
+  function handleEdit() {
+    setDraftXml(selectedXml);
+    setValidationError(null);
+    setValidationOk(false);
+    setEditing(true);
+  }
+
+  function handleCancelEdit() {
+    setEditing(false);
+    setDraftXml("");
+    setValidationError(null);
+    setValidationOk(false);
+  }
+
+  function handleValidate() {
+    try {
+      parseFlowXml(draftXml);
+      setValidationError(null);
+      setValidationOk(true);
+    } catch (err) {
+      const msg = err instanceof FlowXmlParseError
+        ? err.message
+        : err instanceof Error ? err.message : String(err);
+      setValidationError(msg);
+      setValidationOk(false);
+    }
+  }
+
+  async function handleSave() {
+    if (!selectedPath) return;
+    // Validate first — we never persist malformed XML.
+    try {
+      parseFlowXml(draftXml);
+    } catch (err) {
+      const msg = err instanceof FlowXmlParseError
+        ? err.message
+        : err instanceof Error ? err.message : String(err);
+      setValidationError(msg);
+      setValidationOk(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      await saveFlowFile(selectedPath, draftXml, true);
+      setSelectedXml(draftXml);
+      setEditing(false);
+      setValidationError(null);
+      setValidationOk(false);
+      // Re-parse + re-register tests so the Test Manager picks up changes.
+      void loadFlowsFromQueue();
+    } catch (err) {
+      setValidationError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   // ── Load file list ────────────────────────────────────────────────────────
   const loadFiles = useCallback(async () => {
@@ -164,36 +239,90 @@ export function FlowManagerPage() {
                 </svg>
                 <span className="text-sm font-mono text-[#656d76] truncate" title={selectedPath}>{selectedPath}</span>
                 <div className="flex-1" />
-                <button
-                  onClick={() => { void navigator.clipboard.writeText(selectedXml); }}
-                  disabled={!selectedXml}
-                  className="flex items-center gap-1 text-xs text-[#656d76] hover:text-[#1f2328] disabled:opacity-40 border border-[#d1d9e0] rounded-md px-2 py-1 hover:bg-white transition-colors"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
-                  </svg>
-                  Copy
-                </button>
-                <button
-                  onClick={() => {
-                    if (!selectedXml) return;
-                    const blob = new Blob([selectedXml], { type: "application/xml" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = selectedName || "flow.xml";
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }}
-                  disabled={!selectedXml}
-                  className="flex items-center gap-1 text-xs text-[#656d76] hover:text-[#1f2328] disabled:opacity-40 border border-[#d1d9e0] rounded-md px-2 py-1 hover:bg-white transition-colors"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                  </svg>
-                  Download
-                </button>
+                {editing ? (
+                  <>
+                    <button
+                      onClick={handleValidate}
+                      disabled={saving}
+                      className="flex items-center gap-1 text-xs text-[#656d76] hover:text-[#1f2328] disabled:opacity-40 border border-[#d1d9e0] rounded-md px-2 py-1 hover:bg-white transition-colors"
+                    >
+                      Validate
+                    </button>
+                    <button
+                      onClick={handleCancelEdit}
+                      disabled={saving}
+                      className="flex items-center gap-1 text-xs text-[#656d76] hover:text-[#1f2328] disabled:opacity-40 border border-[#d1d9e0] rounded-md px-2 py-1 hover:bg-white transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => void handleSave()}
+                      disabled={saving || draftXml === selectedXml}
+                      className="flex items-center gap-1 text-xs text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 disabled:opacity-50 border border-[#1a7f37]/80 rounded-md px-2 py-1 transition-colors"
+                    >
+                      {saving ? "Saving…" : "Save"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={handleEdit}
+                      disabled={!selectedXml}
+                      className="flex items-center gap-1 text-xs text-[#656d76] hover:text-[#1f2328] disabled:opacity-40 border border-[#d1d9e0] rounded-md px-2 py-1 hover:bg-white transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                      </svg>
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => { void navigator.clipboard.writeText(selectedXml); }}
+                      disabled={!selectedXml}
+                      className="flex items-center gap-1 text-xs text-[#656d76] hover:text-[#1f2328] disabled:opacity-40 border border-[#d1d9e0] rounded-md px-2 py-1 hover:bg-white transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
+                      </svg>
+                      Copy
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!selectedXml) return;
+                        const blob = new Blob([selectedXml], { type: "application/xml" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = selectedName || "flow.xml";
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      disabled={!selectedXml}
+                      className="flex items-center gap-1 text-xs text-[#656d76] hover:text-[#1f2328] disabled:opacity-40 border border-[#d1d9e0] rounded-md px-2 py-1 hover:bg-white transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                      </svg>
+                      Download
+                    </button>
+                  </>
+                )}
               </div>
+              {editing && validationError && (
+                <div className="shrink-0 px-4 py-2 bg-[#ffebe9] border-b border-[#ffcecb] text-xs text-[#d1242f] flex items-start gap-2">
+                  <svg className="w-3.5 h-3.5 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A9.05 9.05 0 0 0 11.484 21h.032A9.05 9.05 0 0 0 12 2.714ZM12 17.25h.008v.008H12v-.008Z" />
+                  </svg>
+                  <span className="font-mono break-all">{validationError}</span>
+                </div>
+              )}
+              {editing && validationOk && !validationError && (
+                <div className="shrink-0 px-4 py-2 bg-[#dafbe1] border-b border-[#aceebb] text-xs text-[#1a7f37] flex items-center gap-2">
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                  XML is valid
+                </div>
+              )}
               {statusByName[selectedPath]?.status === "invalid" && (
                 <div className="shrink-0 px-4 py-2.5 bg-[#ffebe9] border-b border-[#ffcecb] text-sm text-[#d1242f] flex items-start gap-2">
                   <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -210,6 +339,19 @@ export function FlowManagerPage() {
                   <div className="flex-1 flex items-center justify-center text-[#656d76] text-sm">Loading XML…</div>
                 ) : contentError ? (
                   <div className="flex-1 flex items-center justify-center text-[#d1242f] text-sm p-4">{contentError}</div>
+                ) : editing ? (
+                  <div className="flex-1 min-h-0 m-4">
+                    <XmlEditor
+                      value={draftXml}
+                      onChange={(next) => {
+                        setDraftXml(next);
+                        // Any edit invalidates the last validation verdict.
+                        if (validationOk) setValidationOk(false);
+                        if (validationError) setValidationError(null);
+                      }}
+                      className="h-full border border-[#d1d9e0] rounded-md bg-white overflow-hidden"
+                    />
+                  </div>
                 ) : (
                   <XmlViewer xml={selectedXml} streaming={false} showToolbar={false} />
                 )}
