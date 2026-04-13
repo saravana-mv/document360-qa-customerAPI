@@ -13,9 +13,9 @@ export interface BuiltinFlow {
 }
 
 export const BUILTIN_FLOWS: BuiltinFlow[] = [
-  { name: "articles/article-version-lifecycle.flow.xml", xml: versionLifecycleXml },
-  { name: "articles/full-article-crud-lifecycle.flow.xml", xml: fullCrudXml },
-  { name: "articles/article-settings-flow.flow.xml", xml: settingsXml },
+  { name: "v3/articles/article-version-lifecycle.flow.xml", xml: versionLifecycleXml },
+  { name: "v3/articles/full-article-crud-lifecycle.flow.xml", xml: fullCrudXml },
+  { name: "v3/articles/article-settings-flow.flow.xml", xml: settingsXml },
 ];
 
 /**
