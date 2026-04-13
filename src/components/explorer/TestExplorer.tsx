@@ -1,19 +1,71 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSpecStore } from "../../store/spec.store";
 import { useRunnerStore } from "../../store/runner.store";
+import { useAuthStore } from "../../store/auth.store";
+import { useSetupStore } from "../../store/setup.store";
 import { getAllTests } from "../../lib/tests/registry";
+import { getProjectIdFromToken, fetchProject } from "../../lib/api/projects";
+import { fetchProjectVersions } from "../../lib/api/project-versions";
+import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import { GroupNode } from "./GroupNode";
 import { ExplorerContext } from "./ExplorerContext";
 import { ProjectSettingsCard } from "../setup/ProjectSettingsCard";
+import { Spinner } from "../common/Spinner";
 import type { ParsedTag } from "../../types/spec.types";
 
 export function TestExplorer() {
-  const { parsedTags } = useSpecStore();
+  const { parsedTags, setSpec } = useSpecStore();
   const { selectAll, clearSelection } = useRunnerStore();
+  const { status, token } = useAuthStore();
+  const setup = useSetupStore();
   const allTests = getAllTests();
 
   const [expandSignal, setExpandSignal] = useState(0);
   const [expandAll, setExpandAll] = useState(false);
+  const [autoLoadError, setAutoLoadError] = useState<string | null>(null);
+  const [autoLoading, setAutoLoading] = useState(false);
+
+  // Auto-load tests as soon as we have a valid token — the project settings
+  // card should only appear when the session is missing/expired.
+  useEffect(() => {
+    if (parsedTags.length > 0) return;
+    if (status !== "authenticated" || !token) return;
+    let cancelled = false;
+    (async () => {
+      setAutoLoading(true);
+      setAutoLoadError(null);
+      try {
+        let projectId = setup.selectedProjectId;
+        if (!projectId) {
+          projectId = getProjectIdFromToken(token.access_token);
+          if (!projectId) throw new Error("doc360_project_id not found in token — sign out and back in.");
+          const project = await fetchProject(projectId, token.access_token);
+          if (cancelled) return;
+          setup.setProjects([project]);
+          setup.selectProject(projectId);
+        }
+        let versionId = setup.selectedVersionId;
+        if (!versionId) {
+          const versions = await fetchProjectVersions(projectId, token.access_token);
+          if (cancelled) return;
+          if (versions.length === 0) throw new Error("No versions returned from API.");
+          setup.setVersions(versions);
+          const def = versions.find((v) => v.isDefault) ?? versions[0];
+          versionId = def.id;
+          setup.selectVersion(versionId);
+        }
+        const built = buildParsedTagsFromRegistry();
+        if (cancelled) return;
+        setSpec(null as never, built, null as never);
+      } catch (err) {
+        if (!cancelled) setAutoLoadError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setAutoLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, token, parsedTags.length]);
 
   function handleExpandAll() {
     setExpandAll(true);
@@ -26,7 +78,26 @@ export function TestExplorer() {
   }
 
   if (parsedTags.length === 0) {
-    return <ProjectSettingsCard />;
+    // Session expired or missing → show the settings card so user can re-auth
+    // or enter project details manually.
+    if (status !== "authenticated" || !token) {
+      return <ProjectSettingsCard />;
+    }
+    if (autoLoadError) {
+      return (
+        <div className="p-4">
+          <div className="px-3 py-2 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-xs text-[#d1242f]">
+            {autoLoadError}
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center justify-center h-full text-xs text-[#656d76] gap-2">
+        {autoLoading && <Spinner size="sm" className="text-[#656d76]" />}
+        Loading tests…
+      </div>
+    );
   }
 
   // Group parsedTags by test.group (fall back to "General" if not set)
