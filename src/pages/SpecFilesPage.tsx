@@ -774,7 +774,7 @@ export function SpecFilesPage() {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "")
-      .slice(0, 35) + ".flow.xml";
+      .slice(0, 80 - ".flow.xml".length) + ".flow.xml";
     const blob = new Blob([flow.xml], { type: "application/xml" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -944,7 +944,7 @@ export function SpecFilesPage() {
         // Suggest `<slug>-2.flow.xml`, `-3.flow.xml`, etc. when collisions occur
         const folder = parentFolderOf(activePath);
         const slug = slugifyFlowTitle(flow.title);
-        const maxBase = 40 - ".flow.xml".length;
+        const maxBase = 80 - ".flow.xml".length;
         let n = 2;
         let suggestedBase = `${slug}-${n}`.slice(0, maxBase);
         let suggested = folder ? `${folder}/${suggestedBase}.flow.xml` : `${suggestedBase}.flow.xml`;

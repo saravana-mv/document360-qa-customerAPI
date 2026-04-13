@@ -66,7 +66,7 @@ export async function deleteFlowFile(name: string): Promise<void> {
 // ── Path / filename helpers ──────────────────────────────────────────────────
 
 const FLOW_SUFFIX = ".flow.xml";
-const MAX_FILENAME_LEN = 40; // includes the .flow.xml suffix
+const MAX_FILENAME_LEN = 80; // includes the .flow.xml suffix
 
 /** Slugify an idea title into a filesystem-safe kebab-case name. */
 export function slugifyFlowTitle(title: string): string {
