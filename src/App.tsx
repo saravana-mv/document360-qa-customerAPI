@@ -8,7 +8,7 @@ import { TestPage } from "./pages/TestPage";
 import { Spinner } from "./components/common/Spinner";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 
-const FlowCreatorPage = lazy(() => import("./pages/FlowCreatorPage").then((m) => ({ default: m.FlowCreatorPage })));
+const FlowManagerPage = lazy(() => import("./pages/FlowManagerPage").then((m) => ({ default: m.FlowManagerPage })));
 const SpecFilesPage = lazy(() => import("./pages/SpecFilesPage").then((m) => ({ default: m.SpecFilesPage })));
 
 // Register all test suites (side-effect imports)
@@ -39,7 +39,7 @@ function AppRoutes() {
       <Route path="/settings" element={<SetupPage />} />
       <Route path="/setup" element={<Navigate to="/settings" replace />} />
       <Route path="/test" element={<TestPage />} />
-      <Route path="/flow" element={<Suspense fallback={<PageLoader />}><FlowCreatorPage /></Suspense>} />
+      <Route path="/flow" element={<Suspense fallback={<PageLoader />}><FlowManagerPage /></Suspense>} />
       <Route path="/spec-files" element={<Suspense fallback={<PageLoader />}><SpecFilesPage /></Suspense>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

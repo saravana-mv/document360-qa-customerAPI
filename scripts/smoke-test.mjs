@@ -63,6 +63,39 @@ const checks = [
     body: {},
     expectStatus: 400,
   },
+
+  // ── flow-files GET returns array (container auto-creates on first upload)
+  {
+    label: "GET /api/flow-files returns 200 with array",
+    path: "/api/flow-files",
+    expectStatus: 200,
+    expectArray: true,
+  },
+
+  // ── flow-files OPTIONS (CORS) ────────────────────────────────────────────
+  {
+    label: "OPTIONS /api/flow-files returns 204",
+    path: "/api/flow-files",
+    method: "OPTIONS",
+    expectStatus: 204,
+  },
+
+  // ── flow-files POST with empty body → 400 (function reachable) ───────────
+  {
+    label: "POST /api/flow-files with empty body returns 400",
+    path: "/api/flow-files",
+    method: "POST",
+    body: {},
+    expectStatus: 400,
+  },
+
+  // ── flow-files DELETE without name → 400 ─────────────────────────────────
+  {
+    label: "DELETE /api/flow-files without name returns 400",
+    path: "/api/flow-files",
+    method: "DELETE",
+    expectStatus: 400,
+  },
 ];
 
 async function runCheck(check) {

@@ -20,7 +20,15 @@ import {
   type FlowUsage,
 } from "../lib/api/specFilesApi";
 import { generateFlowXml } from "../lib/api/flowApi";
+import {
+  saveFlowFile,
+  FlowFileConflictError,
+  parentFolderOf,
+  buildFlowFilePath,
+  slugifyFlowTitle,
+} from "../lib/api/flowFilesApi";
 import { buildFlowPrompt } from "../lib/flow/buildPrompt";
+import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
 import { useAuthGuard } from "../hooks/useAuthGuard";
 
 // ── localStorage persistence helpers (multi-context map) ─────────────────────
@@ -183,6 +191,15 @@ export function SpecFilesPage() {
   // ── Detail panel state ─────────────────────────────────────────────────────
   const [activeIdeaId, setActiveIdeaId] = useState<string | null>(null);
   const [activeFlowId, setActiveFlowId] = useState<string | null>(null);
+
+  // ── Mark-for-implementation state ─────────────────────────────────────────
+  const [markedIds, setMarkedIds] = useState<Set<string>>(new Set());
+  const [markingIds, setMarkingIds] = useState<Set<string>>(new Set());
+  const [conflict, setConflict] = useState<{
+    flow: GeneratedFlow;
+    existingName: string;
+    suggestedNewName: string;
+  } | null>(null);
 
   // ── Resizable panel widths ────────────────────────────────────────────────
   const [treeWidth, setTreeWidth] = useState(240);
@@ -819,6 +836,63 @@ export function SpecFilesPage() {
     abortRef.current = null;
   }
 
+  // ── Mark a flow for implementation ────────────────────────────────────────
+
+  async function markFlow(flow: GeneratedFlow, targetName: string, overwrite: boolean) {
+    setMarkingIds(prev => { const n = new Set(prev); n.add(flow.ideaId); return n; });
+    try {
+      await saveFlowFile(targetName, flow.xml, overwrite);
+      setMarkedIds(prev => { const n = new Set(prev); n.add(flow.ideaId); return n; });
+    } catch (e) {
+      if (e instanceof FlowFileConflictError) {
+        // Suggest `<slug>-2.flow.xml`, `-3.flow.xml`, etc. when collisions occur
+        const folder = parentFolderOf(activePath);
+        const slug = slugifyFlowTitle(flow.title);
+        const maxBase = 40 - ".flow.xml".length;
+        let n = 2;
+        let suggestedBase = `${slug}-${n}`.slice(0, maxBase);
+        let suggested = folder ? `${folder}/${suggestedBase}.flow.xml` : `${suggestedBase}.flow.xml`;
+        // Not perfect (no server-side re-check) but good enough UX — user can edit freely
+        while (suggested === targetName && n < 99) {
+          n += 1;
+          suggestedBase = `${slug}-${n}`.slice(0, maxBase);
+          suggested = folder ? `${folder}/${suggestedBase}.flow.xml` : `${suggestedBase}.flow.xml`;
+        }
+        setConflict({ flow, existingName: targetName, suggestedNewName: suggested });
+      } else {
+        console.error("Failed to mark flow for implementation:", e);
+      }
+    } finally {
+      setMarkingIds(prev => { const n = new Set(prev); n.delete(flow.ideaId); return n; });
+    }
+  }
+
+  function handleMarkForImplementation(flow: GeneratedFlow) {
+    if (!activePath && flow.ideaId.startsWith("manual-")) {
+      // manual flow with no active path — drop at root
+    }
+    const folder = parentFolderOf(activePath);
+    const target = buildFlowFilePath(folder, flow.title);
+    void markFlow(flow, target, false);
+  }
+
+  function handleConflictResolve(resolution: import("../components/specfiles/MarkConflictModal").ConflictResolution) {
+    if (!conflict) return;
+    const { flow, existingName } = conflict;
+    setConflict(null);
+    if (resolution.kind === "keep") {
+      // User kept existing — treat this as "marked"
+      setMarkedIds(prev => { const n = new Set(prev); n.add(flow.ideaId); return n; });
+      return;
+    }
+    if (resolution.kind === "overwrite") {
+      void markFlow(flow, existingName, true);
+      return;
+    }
+    // rename
+    void markFlow(flow, resolution.newName, false);
+  }
+
   // ── Derived detail data ───────────────────────────────────────────────────
 
   const selectedIdea = activeIdeaId ? ideas.find((i) => i.id === activeIdeaId) ?? null : null;
@@ -979,6 +1053,9 @@ export function SpecFilesPage() {
                       onDeleteFlow={handleDeleteFlow}
                       onDeleteAllFlows={handleDeleteAllFlows}
                       onCreateManualFlow={handleCreateManualFlow}
+                      onMarkForImplementation={handleMarkForImplementation}
+                      markedIds={markedIds}
+                      markingIds={markingIds}
                     />
                   </div>
                   <ResizeHandle width={flowsWidth} onResize={setFlowsWidth} minWidth={180} maxWidth={500} />
@@ -1042,6 +1119,17 @@ export function SpecFilesPage() {
           folderPath={uploadFolderPath}
           onUpload={handleUpload}
           onClose={() => setUploadFolderPath(null)}
+        />
+      )}
+
+      {/* Mark-for-implementation conflict modal */}
+      {conflict && (
+        <MarkConflictModal
+          flowTitle={conflict.flow.title}
+          existingName={conflict.existingName}
+          suggestedNewName={conflict.suggestedNewName}
+          onResolve={handleConflictResolve}
+          onCancel={() => setConflict(null)}
         />
       )}
     </Layout>

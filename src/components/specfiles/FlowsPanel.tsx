@@ -22,6 +22,11 @@ interface Props {
   onDeleteFlow: (ideaId: string) => void;
   onDeleteAllFlows: () => void;
   onCreateManualFlow: (title: string, prompt: string) => void;
+  onMarkForImplementation: (flow: GeneratedFlow) => void;
+  /** ideaIds that have already been marked for implementation this session */
+  markedIds: Set<string>;
+  /** ideaIds currently being marked (in-flight) */
+  markingIds: Set<string>;
 }
 
 const STATUS_ICON: Record<string, React.ReactNode> = {
@@ -52,7 +57,7 @@ const STATUS_ICON: Record<string, React.ReactNode> = {
   ),
 };
 
-export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickFlow, onDownloadFlow, onDownloadAll, onDeleteFlow, onDeleteAllFlows, onCreateManualFlow }: Props) {
+export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickFlow, onDownloadFlow, onDownloadAll, onDeleteFlow, onDeleteAllFlows, onCreateManualFlow, onMarkForImplementation, markedIds, markingIds }: Props) {
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [deleteFlowId, setDeleteFlowId] = useState<string | null>(null);
   const [showNewFlow, setShowNewFlow] = useState(false);
@@ -169,6 +174,37 @@ Generate the complete flow XML with proper step IDs, request bodies, path parame
                   </div>
                   {(flow.status === "done" || flow.status === "error") && !generating && (
                     <div className="flex items-center gap-0.5 shrink-0">
+                      {flow.status === "done" && (() => {
+                        const isMarked = markedIds.has(flow.ideaId);
+                        const isMarking = markingIds.has(flow.ideaId);
+                        return (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); if (!isMarking) onMarkForImplementation(flow); }}
+                            title={isMarked ? "Marked for implementation (click to mark again)" : "Mark for implementation"}
+                            disabled={isMarking}
+                            className={`rounded-md p-0.5 transition-colors ${
+                              isMarked
+                                ? "text-[#1a7f37] hover:text-[#1a7f37] hover:bg-[#dafbe1]"
+                                : "text-[#afb8c1] hover:text-[#1a7f37] hover:bg-[#dafbe1]"
+                            } ${isMarking ? "opacity-50 cursor-wait" : ""}`}
+                          >
+                            {isMarking ? (
+                              <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                              </svg>
+                            ) : isMarked ? (
+                              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                                <path fillRule="evenodd" clipRule="evenodd" d="M20.03 6.53a.75.75 0 0 1 0 1.06l-11 11a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 1 1 1.06-1.06L8.5 16.94 18.97 6.47a.75.75 0 0 1 1.06.06Z" />
+                              </svg>
+                            ) : (
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                              </svg>
+                            )}
+                          </button>
+                        );
+                      })()}
                       {flow.status === "done" && (
                         <button
                           onClick={(e) => { e.stopPropagation(); onDownloadFlow(flow); }}
