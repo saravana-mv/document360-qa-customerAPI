@@ -219,6 +219,14 @@ Generate the complete flow XML with proper step IDs, request bodies, path parame
                         {flow.status === "error" && <span className="text-[#d1242f]">Failed</span>}
                       </span>
                     )}
+                    {flow.status === "done" && flow.usage && (
+                      <span
+                        className="text-xs text-[#656d76] mt-0.5 block"
+                        title={`Input: ${flow.usage.inputTokens.toLocaleString()} tokens · Output: ${flow.usage.outputTokens.toLocaleString()} tokens`}
+                      >
+                        ${flow.usage.costUsd.toFixed(4)} · {flow.usage.totalTokens.toLocaleString()} tokens
+                      </span>
+                    )}
                   </div>
                   {(flow.status === "done" || flow.status === "error") && !generating && (
                     <div className="flex items-center gap-0.5 shrink-0">
