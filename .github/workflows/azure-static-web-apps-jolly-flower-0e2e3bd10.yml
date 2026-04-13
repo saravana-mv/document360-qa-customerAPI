@@ -46,7 +46,11 @@ jobs:
           app_location: "/" # App source code path
           api_location: "api" # Api source code path - optional
           output_location: "dist" # Built app content directory - optional
-          config_file_location: "dist" # staticwebapp.config.json lives with the built output (copied from /public by Vite)
+          # staticwebapp.config.json lives at the repo root (SWA's default
+          # config_file_location is app_location). Do NOT move it into /public
+          # or set config_file_location: "dist" — the SWA action validates the
+          # config file path BEFORE running the app build, so dist/ doesn't
+          # exist yet at that point.
           ###### End of Repository/Build Configurations ######
 
       # Smoke-test the live deployment — catches routing and 404 issues immediately
