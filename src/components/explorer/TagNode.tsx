@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useRunnerStore } from "../../store/runner.store";
 import { StatusIcon } from "./StatusIcon";
 import { OperationNode } from "./OperationNode";
@@ -13,11 +14,14 @@ interface TagNodeProps {
 
 export function TagNode({ tag, tests }: TagNodeProps) {
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
   const { tagResults, selectedTags, toggleFlowSelection } = useRunnerStore();
   const { expandSignal, expandAll } = useExplorerContext();
   const tagResult = tagResults[tag.name];
   const status = tagResult?.status ?? "idle";
   const isSelected = selectedTags.has(tag.name);
+  // Every test in a flow carries the same flowFileName — grab the first.
+  const flowFileName = tests[0]?.flowFileName;
 
   useEffect(() => {
     if (expandSignal > 0) setOpen(expandAll);
@@ -25,7 +29,7 @@ export function TagNode({ tag, tests }: TagNodeProps) {
 
   return (
     <div className="mb-px">
-      <div className="flex items-center gap-1">
+      <div className="group flex items-center gap-1">
         <button
           onClick={() => setOpen((o) => !o)}
           className="text-[#656d76] hover:text-[#1f2328] w-4 flex items-center justify-center shrink-0"
@@ -45,6 +49,20 @@ export function TagNode({ tag, tests }: TagNodeProps) {
           </svg>
           <StatusIcon status={status} />
           <span className="font-medium text-[13px] text-[#1f2328] truncate">{tag.name}</span>
+          {flowFileName && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate("/flow", { state: { selectPath: flowFileName } });
+              }}
+              title="Edit flow XML in Flow Manager"
+              className="shrink-0 opacity-0 group-hover:opacity-100 text-[#656d76] hover:text-[#0969da] rounded p-0.5 hover:bg-white transition-opacity"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+              </svg>
+            </button>
+          )}
           <span className="text-xs text-[#656d76] ml-auto shrink-0">
             {tests.length}
           </span>

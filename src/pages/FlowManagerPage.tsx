@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Layout } from "../components/common/Layout";
 import { ResizeHandle } from "../components/common/ResizeHandle";
 import { FlowFileTree } from "../components/flowmanager/FlowFileTree";
@@ -18,6 +19,7 @@ import { parseFlowXml, FlowXmlParseError } from "../lib/tests/flowXml/parser";
 
 export function FlowManagerPage() {
   useAuthGuard();
+  const location = useLocation();
   const statusByName = useFlowStatusStore((s) => s.byName);
   const statusLoading = useFlowStatusStore((s) => s.loading);
 
@@ -142,6 +144,12 @@ export function FlowManagerPage() {
   }, []);
 
   useEffect(() => { void loadFiles(); }, [loadFiles]);
+
+  // Pre-select a flow when navigated from Test Manager's edit icon.
+  useEffect(() => {
+    const selectPath = (location.state as { selectPath?: string } | null)?.selectPath;
+    if (selectPath) setSelectedPath(selectPath);
+  }, [location.state]);
 
   // ── Load file content on selection ────────────────────────────────────────
   useEffect(() => {
