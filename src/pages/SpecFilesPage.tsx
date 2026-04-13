@@ -20,6 +20,7 @@ import {
   type FlowUsage,
 } from "../lib/api/specFilesApi";
 import { generateFlowXml } from "../lib/api/flowApi";
+import { buildFlowPrompt } from "../lib/flow/buildPrompt";
 import { useAuthGuard } from "../hooks/useAuthGuard";
 
 // ── localStorage persistence helpers (multi-context map) ─────────────────────
@@ -976,19 +977,3 @@ export function SpecFilesPage() {
   );
 }
 
-// ── Build prompt for flow XML generation ──────────────────────────────────────
-
-function buildFlowPrompt(idea: FlowIdea): string {
-  const steps = idea.steps.map((s, i) => `  ${i + 1}. ${s}`).join("\n");
-  return `Create a detailed test flow XML for the following test scenario:
-
-Title: ${idea.title}
-Description: ${idea.description}
-Complexity: ${idea.complexity}
-Entities involved: ${idea.entities.join(", ")}
-
-Expected steps:
-${steps}
-
-Generate the complete flow XML with proper step IDs, request bodies, path parameters, captures, and assertions. Include setup and teardown steps where needed (e.g., create category before article, delete in reverse order).`;
-}

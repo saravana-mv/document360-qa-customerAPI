@@ -1,5 +1,6 @@
 import type { FlowIdea } from "../../lib/api/specFilesApi";
 import type { GeneratedFlow } from "./FlowsPanel";
+import { buildFlowPrompt } from "../../lib/flow/buildPrompt";
 
 const COMPLEXITY_COLORS: Record<string, string> = {
   simple: "bg-[#dafbe1] text-[#1a7f37] border-[#aceebb]",
@@ -120,6 +121,12 @@ export function DetailPanel({ selectedIdea, selectedFlow, onDownloadFlow }: Prop
                 </li>
               ))}
             </ol>
+          </div>
+
+          {/* Flow-generation prompt */}
+          <div>
+            <h4 className="text-[11px] font-semibold text-[#656d76] uppercase tracking-wider mb-2">Prompt</h4>
+            <pre className="text-sm font-mono text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md p-3 whitespace-pre-wrap leading-relaxed">{buildFlowPrompt(selectedIdea)}</pre>
           </div>
         </div>
       </div>
