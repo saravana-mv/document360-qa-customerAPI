@@ -41,7 +41,7 @@ export function OperationNode({ test }: OperationNodeProps) {
       }`}
     >
       <StatusIcon status={status} />
-      <span className={`font-mono px-1.5 py-px rounded text-[11px] font-semibold border ${methodColor[test.method] ?? "text-[#656d76] bg-[#eef1f6] border-[#d1d9e0]"}`}>
+      <span className={`font-mono px-1.5 py-px rounded text-[11px] font-semibold border text-center w-[52px] shrink-0 ${methodColor[test.method] ?? "text-[#656d76] bg-[#eef1f6] border-[#d1d9e0]"}`}>
         {test.method}
       </span>
       <span className="flex-1 text-[#1f2328] truncate">{test.name}</span>
