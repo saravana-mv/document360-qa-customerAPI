@@ -212,12 +212,13 @@ Generate the complete flow XML with proper step IDs, request bodies, path parame
                         </span>
                       )}
                     </div>
-                    <span className="text-sm text-[#656d76]">
-                      {flow.status === "generating" && "Generating..."}
-                      {flow.status === "pending" && "Queued"}
-                      {flow.status === "done" && `${flow.xml.length.toLocaleString()} chars${flow.usage ? ` · $${flow.usage.costUsd.toFixed(4)}` : ""}`}
-                      {flow.status === "error" && <span className="text-[#d1242f]">Failed</span>}
-                    </span>
+                    {flow.status !== "done" && (
+                      <span className="text-sm text-[#656d76]">
+                        {flow.status === "generating" && "Generating..."}
+                        {flow.status === "pending" && "Queued"}
+                        {flow.status === "error" && <span className="text-[#d1242f]">Failed</span>}
+                      </span>
+                    )}
                   </div>
                   {(flow.status === "done" || flow.status === "error") && !generating && (
                     <div className="flex items-center gap-0.5 shrink-0">

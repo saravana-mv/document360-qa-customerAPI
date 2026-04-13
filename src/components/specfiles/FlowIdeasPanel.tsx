@@ -177,7 +177,6 @@ export function FlowIdeasPanel({
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-[#656d76] mt-0.5 line-clamp-1">{idea.description}</p>
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); setRowDeleteId(idea.id); }}
