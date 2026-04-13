@@ -166,6 +166,17 @@ export function FlowManagerPage() {
                 <div className="flex-1" />
                 <span className="text-xs text-[#656d76]">{selectedName}</span>
               </div>
+              {statusByName[selectedPath]?.status === "invalid" && (
+                <div className="shrink-0 px-4 py-2.5 bg-[#ffebe9] border-b border-[#ffcecb] text-sm text-[#d1242f] flex items-start gap-2">
+                  <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A9.05 9.05 0 0 0 11.484 21h.032A9.05 9.05 0 0 0 12 2.714ZM12 17.25h.008v.008H12v-.008Z" />
+                  </svg>
+                  <div className="min-w-0">
+                    <div className="font-medium">Schema validation failed</div>
+                    <div className="font-mono text-xs mt-0.5 break-all">{statusByName[selectedPath]?.error ?? "Unknown error"}</div>
+                  </div>
+                </div>
+              )}
               <div className="flex-1 flex flex-col overflow-hidden">
                 {loadingContent ? (
                   <div className="flex-1 flex items-center justify-center text-[#656d76] text-sm">Loading XML…</div>

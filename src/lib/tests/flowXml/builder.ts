@@ -85,6 +85,16 @@ function toAssertionDef(a: ParsedAssertion): AssertionDef {
       check: (result) => fieldExists(result.responseBody, a.field),
     };
   }
+  if (a.type === "array-not-empty") {
+    return {
+      id: `array-not-empty-${a.field}`,
+      description: `Response body field "${a.field}" is a non-empty array`,
+      check: (result) => {
+        const v = readPath(result.responseBody, a.field);
+        return Array.isArray(v) && v.length > 0;
+      },
+    };
+  }
   // field-equals
   return {
     id: `field-equals-${a.field}`,
@@ -362,8 +372,16 @@ interface CaptureSources {
   response: unknown;
 }
 
-function resolveCapture(cap: { source: string; from: "response" | "request" }, sources: CaptureSources): unknown {
+function resolveCapture(
+  cap: { source: string; from: "response" | "request" | "computed" },
+  sources: CaptureSources,
+): unknown {
   const { source, from } = cap;
+  if (from === "computed") {
+    // Runtime-derived values are described in prose in the source attribute.
+    // The runtime interpreter can't execute them automatically — skip.
+    return undefined;
+  }
   if (from === "request") {
     if (source.startsWith("body.")) return readDotPath(sources.request.body, source.slice("body.".length));
     if (source.startsWith("pathParam.")) return sources.request.pathParams[source.slice("pathParam.".length)];

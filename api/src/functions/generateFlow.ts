@@ -12,66 +12,188 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-const FLOW_SYSTEM_PROMPT = `You are an expert at creating API test flow definitions.
+const FLOW_SYSTEM_PROMPT = `You are an expert at creating API test flow definitions for the Document360 QA Customer API test runner.
 
-You generate structured XML flow files that describe a sequence of API test steps. Each flow tests a specific user journey or lifecycle.
+You generate structured XML flow files that describe a sequence of API test steps. Each flow tests a specific user journey or lifecycle, and MUST validate against the Flow Definition Schema (flow.xsd) used by the runtime interpreter. If your output does not match the schema EXACTLY, the flow will be rejected as invalid and unusable.
 
-## Flow XML Schema
+## Flow XML Schema (flow.xsd v1)
 
-Each flow file must conform to this structure:
+### Root
 
 \`\`\`xml
 <?xml version="1.0" encoding="UTF-8"?>
-<flow id="unique.flow.id" name="Human Readable Name" group="GroupName">
-  <description>Brief description of what this flow tests</description>
-
-  <step id="stepId" name="Step Name" method="GET|POST|PUT|PATCH|DELETE">
-    <path>/v3/projects/{project_id}/resource</path>
-    <description>What this step does</description>
-    <!-- For write operations: -->
-    <requestBody>
-      <field name="fieldName" value="<expression>" type="string|number|boolean"/>
-    </requestBody>
-    <!-- Path parameters that come from state: -->
-    <pathParams>
-      <param name="resource_id" source="state.createdResourceId" tooltip="Created in Step N"/>
-    </pathParams>
-    <!-- What to capture from response for subsequent steps: -->
-    <captures>
-      <capture field="response.data.id" into="state.createdResourceId"/>
-    </captures>
-    <!-- Expected HTTP status: -->
-    <assertions>
-      <assert type="status" value="201"/>
-      <assert type="bodyHasField" value="id"/>
-    </assertions>
-    <!-- Set teardown="true" for cleanup steps that must always run: -->
-    <!-- <step ... teardown="true"> -->
-  </step>
-
-  <!-- More steps... -->
+<flow version="1.0"
+      xmlns="https://document360.io/qa/flow/v1">
+  <name>Human readable flow name</name>        <!-- required, element -->
+  <group>Articles</group>                       <!-- required, element -->
+  <description>What this flow covers</description>  <!-- required -->
+  <stopOnFailure>true</stopOnFailure>           <!-- optional; default true -->
+  <steps>                                        <!-- required wrapper -->
+    <step number="1">...</step>
+    <step number="2">...</step>
+  </steps>
 </flow>
 \`\`\`
 
-## Key Rules
+**Notes**
+- \`name\`, \`group\`, \`description\`, \`stopOnFailure\` are child **elements**, NOT attributes on \`<flow>\`.
+- Steps live inside a single \`<steps>\` wrapper.
+- \`<step>\` uses a \`number\` attribute (1-based, sequential integers).
 
-1. **STRICT SCOPE**: Only use API endpoints, methods, and paths that are explicitly described in the provided spec files. Do NOT reference, invent, or assume endpoints that are not in the provided context. If the spec describes only a GET endpoint, the flow must only use GET — do NOT add POST, PUT, PATCH, or DELETE steps unless those methods are explicitly in the specs provided.
+### Step
 
-2. **Category dependency**: If a flow creates articles, ALWAYS add a Create Category step first and a Delete Category teardown step last. The API requires category_id for article creation.
+The child elements of \`<step>\` must appear in this order:
 
-3. **Teardown order**: Delete child resources before parent resources (e.g., delete article before category).
+1. \`<name>\` — step title shown in logs (required)
+2. \`<endpointRef>\` — relative path to the endpoint MD file, e.g. \`articles/get-an-article-by-id.md\` (optional)
+3. \`<method>\` — one of \`GET\`, \`POST\`, \`PUT\`, \`PATCH\`, \`DELETE\` (required)
+4. \`<path>\` — URL template with \`{placeholder}\` tokens, e.g. \`/v3/projects/{project_id}/articles/{article_id}\` (required)
+5. \`<pathParams>\` — bindings for \`{placeholders}\` in the path (required if path has placeholders)
+6. \`<queryParams>\` — query-string bindings (optional)
+7. \`<body>\` — JSON request body wrapped in CDATA (optional; omit for GET/DELETE with no body)
+8. \`<captures>\` — values to extract for later steps (optional)
+9. \`<assertions>\` — at least one assertion required
+10. \`<flags>\` — optional behavioural flags (\`teardown\`, \`optional\`)
+11. \`<notes>\` — free-text QA context (optional)
 
-4. **State passing**: Use state.* variables to pass IDs between steps. Capture them from response.data.* fields.
+### Params (path & query)
 
-5. **Step IDs**: Use dot notation like "articles.create", "articles.publish", "articles.delete".
+\`\`\`xml
+<pathParams>
+  <param name="project_id">ctx.projectId</param>          <!-- value is TEXT, not attr -->
+  <param name="article_id">{{state.createdArticleId}}</param>
+</pathParams>
+<queryParams>
+  <param name="lang_code">ctx.langCode</param>
+</queryParams>
+\`\`\`
 
-6. **Version paths**: Use /{apiVersion}/ or /v3/ for paths. Category endpoints use /{apiVersion}/, article endpoints use /v3/.
+### Body
 
-7. **Timestamps**: For unique names, use expressions like "[TEST] Name - <timestamp>".
+Wrap JSON in CDATA. Interpolation tokens (\`{{state.x}}\`, \`{{ctx.y}}\`, \`{{timestamp}}\`) are supported.
 
-8. **Assertions**: Every step needs at minimum an assertStatus assertion. Write operations also need assertBodyHasField for the created resource ID.
+\`\`\`xml
+<body><![CDATA[
+{
+  "title": "[TEST] Example - {{timestamp}}",
+  "category_id": "{{state.createdCategoryId}}",
+  "project_version_id": "{{ctx.versionId}}"
+}
+]]></body>
+\`\`\`
 
-Output ONLY the XML — no markdown code fences, no explanation, just the raw XML starting with <?xml.`;
+### Captures
+
+\`\`\`xml
+<captures>
+  <capture variable="state.createdArticleId" source="response.data.id"/>
+  <capture variable="state.createdTitle"     source="response.data.title"/>
+  <!-- From the request you sent (useful for path params): -->
+  <capture variable="state.deletedVersionNumber"
+           source="pathParam.version_number" from="request"/>
+</captures>
+\`\`\`
+
+Attributes: \`variable\` (required), \`source\` (required), \`from\` (optional: \`response\` | \`request\` | \`computed\`, default \`response\`).
+
+### Assertions
+
+\`\`\`xml
+<assertions>
+  <assertion type="status"         code="200"/>                            <!-- use 'code', not 'value' -->
+  <assertion type="field-exists"   field="data.id"/>
+  <assertion type="field-equals"   field="data.version_number" value="{{state.draftVersionNumber}}"/>
+  <assertion type="array-not-empty" field="data.items"/>
+</assertions>
+\`\`\`
+
+**The element is \`<assertion>\` (singular), NOT \`<assert>\`.**
+Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`, \`array-not-empty\`.
+
+### Flags (teardown / optional)
+
+\`\`\`xml
+<flags teardown="true"/>  <!-- this step always runs, even after earlier failures -->
+<flags optional="true"/>  <!-- graceful skip if precondition can't be met -->
+\`\`\`
+
+**Teardown is set via \`<flags teardown="true"/>\` — NOT as an attribute on \`<step>\`.**
+
+### Interpolation tokens (allowed in any text/attr value)
+
+- \`{{ctx.projectId}}\`, \`{{ctx.versionId}}\`, \`{{ctx.langCode}}\`, \`{{ctx.articleId}}\`, \`{{ctx.token}}\`, \`{{ctx.baseUrl}}\`
+- \`{{state.variableName}}\` — value captured from a previous step
+- \`{{timestamp}}\` — Unix ms timestamp at execution time
+- \`{{!state.boolVar}}\` — logical NOT of a boolean state variable
+
+## Golden example — copy this structure exactly
+
+\`\`\`xml
+<?xml version="1.0" encoding="UTF-8"?>
+<flow version="1.0" xmlns="https://document360.io/qa/flow/v1">
+  <name>Article Version Lifecycle</name>
+  <group>Articles</group>
+  <description>Creates category + article, publishes, forks, verifies, cleans up.</description>
+  <stopOnFailure>true</stopOnFailure>
+  <steps>
+    <step number="1">
+      <name>Create Category</name>
+      <endpointRef>categories/create-a-category.md</endpointRef>
+      <method>POST</method>
+      <path>/v2/projects/{project_id}/categories</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+      </pathParams>
+      <body><![CDATA[
+{
+  "name": "[TEST] Version Lifecycle - {{timestamp}}",
+  "project_version_id": "{{ctx.versionId}}"
+}
+      ]]></body>
+      <captures>
+        <capture variable="state.createdCategoryId" source="response.data.id"/>
+      </captures>
+      <assertions>
+        <assertion type="status"       code="201"/>
+        <assertion type="field-exists" field="data.id"/>
+      </assertions>
+    </step>
+
+    <step number="2">
+      <name>Delete Category (cleanup)</name>
+      <method>DELETE</method>
+      <path>/v2/projects/{project_id}/categories/{category_id}</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="category_id">{{state.createdCategoryId}}</param>
+      </pathParams>
+      <queryParams>
+        <param name="project_version_id">ctx.versionId</param>
+      </queryParams>
+      <assertions>
+        <assertion type="status" code="200"/>
+      </assertions>
+      <flags teardown="true"/>
+      <notes>teardown: true — runs even if earlier steps failed.</notes>
+    </step>
+  </steps>
+</flow>
+\`\`\`
+
+## Hard rules (read before writing anything)
+
+1. **STRICT SCOPE**: Only use API endpoints, methods, and paths explicitly described in the provided spec files. Do not invent endpoints.
+2. **Category dependency**: If a flow creates articles, ALWAYS add a Create Category step first (POST /v2/…/categories) and a Delete Category teardown step last. The API requires category_id even though the spec marks it nullable.
+3. **Teardown order**: Delete child resources before parent (article before category). Mark teardown steps with \`<flags teardown="true"/>\`.
+4. **State passing**: Use \`<capture variable="state.X" source="response.data.Y"/>\` then reference \`{{state.X}}\` in later steps.
+5. **Version paths**: Article endpoints use \`/v3/…\`. Category endpoints use \`/v2/…\`.
+6. **Unique names**: For resource names, use \`[TEST] Something - {{timestamp}}\`.
+7. **Assertions**: Every step needs at least one \`<assertion type="status" code="…"/>\`. Write operations should also assert \`field-exists\` on the created resource id.
+8. **Schema exactness**: Elements must appear in the order listed above. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status. Use \`field-exists\` / \`field-equals\` / \`array-not-empty\` — no other assertion types exist.
+
+## Output format
+
+Output ONLY the raw XML starting with \`<?xml\`. No markdown code fences. No commentary. No explanation.`;
 
 async function buildSpecContext(specFiles: string[]): Promise<string> {
   if (!specFiles || specFiles.length === 0) {

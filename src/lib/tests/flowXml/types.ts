@@ -35,11 +35,12 @@ export interface ParsedCapture {
   variable: string;
   /** Source expression, e.g. "response.data.id" or "body.title" or "pathParam.version_number". */
   source: string;
-  /** Where to read from — defaults to "response". */
-  from: "response" | "request";
+  /** Where to read from — defaults to "response". "computed" = runtime-derived; `source` is prose. */
+  from: "response" | "request" | "computed";
 }
 
 export type ParsedAssertion =
   | { type: "status"; code: number }
   | { type: "field-exists"; field: string }
-  | { type: "field-equals"; field: string; value: string };
+  | { type: "field-equals"; field: string; value: string }
+  | { type: "array-not-empty"; field: string };

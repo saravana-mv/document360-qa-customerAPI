@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { FlowIdea, FlowUsage } from "../../lib/api/specFilesApi";
+import { validateFlowXml } from "../../lib/tests/flowXml/validate";
 
 export interface GeneratedFlow {
   ideaId: string;
@@ -87,10 +88,20 @@ Generate the complete flow XML with proper step IDs, request bodies, path parame
   const EXAMPLE_TITLE = "Article settings configuration and SEO optimization";
   const doneFlows = flows.filter((f) => f.status === "done");
   const completedFlows = flows.filter((f) => f.status === "done" || f.status === "error");
+  // Validate every done flow once per render. Cheap — runs a DOM parser over a small string.
+  const validByIdea = useMemo(() => {
+    const map: Record<string, boolean> = {};
+    for (const f of doneFlows) map[f.ideaId] = validateFlowXml(f.xml).ok;
+    return map;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flows]);
   const selectedCount = doneFlows.filter((f) => selectedFlowIds.has(f.ideaId)).length;
   const allDoneSelected = doneFlows.length > 0 && selectedCount === doneFlows.length;
   const selectedUnmarkedCount = doneFlows.filter(
-    (f) => selectedFlowIds.has(f.ideaId) && !markedIds.has(f.ideaId),
+    (f) => selectedFlowIds.has(f.ideaId) && !markedIds.has(f.ideaId) && validByIdea[f.ideaId],
+  ).length;
+  const selectedInvalidCount = doneFlows.filter(
+    (f) => selectedFlowIds.has(f.ideaId) && !validByIdea[f.ideaId],
   ).length;
 
   return (
@@ -200,6 +211,17 @@ Generate the complete flow XML with proper step IDs, request bodies, path parame
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm font-medium text-[#1f2328] truncate">{flow.title}</span>
+                      {isDone && validByIdea[flow.ideaId] === false && (
+                        <span
+                          title="Generated XML does not match the flow schema — cannot be marked for implementation"
+                          className="text-xs px-1.5 py-px rounded-full font-medium shrink-0 border bg-[#ffebe9] text-[#d1242f] border-[#d1242f]/30 inline-flex items-center gap-0.5"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A9.05 9.05 0 0 0 11.484 21h.032A9.05 9.05 0 0 0 12 2.714ZM12 17.25h.008v.008H12v-.008Z" />
+                          </svg>
+                          Invalid
+                        </span>
+                      )}
                       {markedIds.has(flow.ideaId) && (
                         <span
                           title="Flow is in the Flow Manager implementation queue"
@@ -233,19 +255,25 @@ Generate the complete flow XML with proper step IDs, request bodies, path parame
                       {flow.status === "done" && (() => {
                         const isMarked = markedIds.has(flow.ideaId);
                         const isMarking = markingIds.has(flow.ideaId);
+                        const isValid = validByIdea[flow.ideaId];
+                        const disabled = isMarking || !isValid;
                         return (
                           <button
-                            onClick={(e) => { e.stopPropagation(); if (!isMarking) onMarkForImplementation(flow); }}
+                            onClick={(e) => { e.stopPropagation(); if (!disabled) onMarkForImplementation(flow); }}
                             title={
-                              isMarked
-                                ? "In Flow Manager implementation queue — click to push again"
-                                : "Mark this flow for implementation (adds it to the Flow Manager queue)"
+                              !isValid
+                                ? "Flow XML is invalid — fix validation errors before marking for implementation"
+                                : isMarked
+                                  ? "In Flow Manager implementation queue — click to push again"
+                                  : "Mark this flow for implementation (adds it to the Flow Manager queue)"
                             }
-                            disabled={isMarking}
+                            disabled={disabled}
                             className={`rounded-md p-0.5 transition-colors ${
-                              isMarked
-                                ? "text-[#1a7f37] hover:text-[#1a7f37] hover:bg-[#dafbe1]"
-                                : "text-[#afb8c1] hover:text-[#1a7f37] hover:bg-[#dafbe1]"
+                              !isValid
+                                ? "text-[#afb8c1] cursor-not-allowed opacity-40"
+                                : isMarked
+                                  ? "text-[#1a7f37] hover:text-[#1a7f37] hover:bg-[#dafbe1]"
+                                  : "text-[#afb8c1] hover:text-[#1a7f37] hover:bg-[#dafbe1]"
                             } ${isMarking ? "opacity-50 cursor-wait" : ""}`}
                           >
                             {isMarking ? (
@@ -315,9 +343,13 @@ Generate the complete flow XML with proper step IDs, request bodies, path parame
             title={
               selectedCount === 0
                 ? "Select one or more flows to mark for implementation"
-                : selectedUnmarkedCount === 0
-                  ? "All selected flows are already marked"
-                  : `Push ${selectedUnmarkedCount} selected flow${selectedUnmarkedCount !== 1 ? "s" : ""} to the implementation queue`
+                : selectedInvalidCount > 0 && selectedUnmarkedCount === 0
+                  ? `${selectedInvalidCount} selected flow${selectedInvalidCount !== 1 ? "s are" : " is"} invalid — fix validation errors first`
+                  : selectedUnmarkedCount === 0
+                    ? "All selected flows are already marked"
+                    : selectedInvalidCount > 0
+                      ? `Push ${selectedUnmarkedCount} valid flow${selectedUnmarkedCount !== 1 ? "s" : ""}; ${selectedInvalidCount} invalid flow${selectedInvalidCount !== 1 ? "s" : ""} will be skipped`
+                      : `Push ${selectedUnmarkedCount} selected flow${selectedUnmarkedCount !== 1 ? "s" : ""} to the implementation queue`
             }
             className="flex-1 flex items-center justify-center gap-1.5 bg-[#1a7f37] hover:bg-[#1a7f37]/90 disabled:bg-[#eef1f6] disabled:text-[#656d76] disabled:border-[#d1d9e0] text-white text-sm font-medium rounded-md px-3 py-1.5 transition-colors border border-[#1a7f37]/80"
           >

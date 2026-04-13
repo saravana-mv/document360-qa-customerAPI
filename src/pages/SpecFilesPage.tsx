@@ -20,6 +20,7 @@ import {
   type FlowUsage,
 } from "../lib/api/specFilesApi";
 import { generateFlowXml } from "../lib/api/flowApi";
+import { validateFlowXml } from "../lib/tests/flowXml/validate";
 import {
   saveFlowFile,
   listFlowFiles,
@@ -959,6 +960,8 @@ export function SpecFilesPage() {
   }
 
   function handleMarkForImplementation(flow: GeneratedFlow) {
+    // Defensive: UI already blocks this, but don't let an invalid flow slip into the queue.
+    if (!validateFlowXml(flow.xml).ok) return;
     if (!activePath && flow.ideaId.startsWith("manual-")) {
       // manual flow with no active path — drop at root
     }
@@ -970,7 +973,11 @@ export function SpecFilesPage() {
   function handleMarkSelectedForImplementation() {
     const folder = parentFolderOf(activePath);
     const toMark = generatedFlows.filter(
-      (f) => f.status === "done" && selectedFlowIds.has(f.ideaId) && !markedIds.has(f.ideaId),
+      (f) =>
+        f.status === "done" &&
+        selectedFlowIds.has(f.ideaId) &&
+        !markedIds.has(f.ideaId) &&
+        validateFlowXml(f.xml).ok,
     );
     for (const flow of toMark) {
       const target = buildFlowFilePath(folder, flow.title);

@@ -88,11 +88,11 @@ function parseStep(el: Element): ParsedStep {
       if (!variable || !source) {
         throw new FlowXmlParseError(`Step ${number}: <capture> requires 'variable' and 'source' attributes`);
       }
-      captures.push({
-        variable,
-        source,
-        from: fromAttr === "request" ? "request" : "response",
-      });
+      const from: "response" | "request" | "computed" =
+        fromAttr === "request" ? "request" :
+        fromAttr === "computed" ? "computed" :
+        "response";
+      captures.push({ variable, source, from });
     }
   }
 
@@ -115,6 +115,10 @@ function parseStep(el: Element): ParsedStep {
         const value = a.getAttribute("value") ?? "";
         if (!field) throw new FlowXmlParseError(`Step ${number}: field-equals assertion missing 'field'`);
         assertions.push({ type: "field-equals", field, value });
+      } else if (type === "array-not-empty") {
+        const field = a.getAttribute("field") || "";
+        if (!field) throw new FlowXmlParseError(`Step ${number}: array-not-empty assertion missing 'field'`);
+        assertions.push({ type: "array-not-empty", field });
       } else {
         throw new FlowXmlParseError(`Step ${number}: unknown assertion type "${type}"`);
       }

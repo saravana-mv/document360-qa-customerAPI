@@ -50,8 +50,8 @@
         </xs:complexType>
       </xs:element>
     </xs:sequence>
-    <!-- Schema version — must be "1.0" -->
-    <xs:attribute name="version" type="xs:string" use="required"/>
+    <!-- Schema version — optional, informational only (parser does not enforce) -->
+    <xs:attribute name="version" type="xs:string" use="optional"/>
   </xs:complexType>
 
   <!-- ═══════════════════════════════════════

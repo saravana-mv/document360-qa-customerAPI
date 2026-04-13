@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { FlowIdea } from "../../lib/api/specFilesApi";
 import type { GeneratedFlow } from "./FlowsPanel";
 import { buildFlowPrompt } from "../../lib/flow/buildPrompt";
 import { XmlCodeBlock } from "../common/XmlCodeBlock";
+import { validateFlowXml } from "../../lib/tests/flowXml/validate";
 
 const COMPLEXITY_COLORS: Record<string, string> = {
   simple: "bg-[#dafbe1] text-[#1a7f37] border-[#aceebb]",
@@ -18,6 +19,10 @@ interface Props {
 
 export function DetailPanel({ selectedIdea, selectedFlow, onDownloadFlow }: Props) {
   const [promptCopied, setPromptCopied] = useState(false);
+  const validation = useMemo(
+    () => (selectedFlow && selectedFlow.status === "done" ? validateFlowXml(selectedFlow.xml) : null),
+    [selectedFlow?.status, selectedFlow?.xml],
+  );
   // Nothing selected
   if (!selectedIdea && !selectedFlow) {
     return (
@@ -41,6 +46,29 @@ export function DetailPanel({ selectedIdea, selectedFlow, onDownloadFlow }: Prop
             <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
           </svg>
           <span className="text-[13px] font-semibold text-[#1f2328] truncate flex-1">{selectedFlow.title}</span>
+          {validation && (
+            validation.ok ? (
+              <span
+                title={`Valid · ${validation.flow?.steps.length ?? 0} step${validation.flow?.steps.length === 1 ? "" : "s"}`}
+                className="shrink-0 inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-px rounded-full bg-[#dafbe1] text-[#1a7f37] border border-[#1a7f37]/30"
+              >
+                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                </svg>
+                Valid · {validation.flow?.steps.length ?? 0} step{validation.flow?.steps.length === 1 ? "" : "s"}
+              </span>
+            ) : (
+              <span
+                title={validation.error ?? "Invalid"}
+                className="shrink-0 inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-px rounded-full bg-[#ffebe9] text-[#d1242f] border border-[#d1242f]/30"
+              >
+                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A9.05 9.05 0 0 0 11.484 21h.032A9.05 9.05 0 0 0 12 2.714ZM12 17.25h.008v.008H12v-.008Z" />
+                </svg>
+                Invalid
+              </span>
+            )
+          )}
           {selectedFlow.status === "done" && onDownloadFlow && (
             <button
               onClick={() => onDownloadFlow(selectedFlow)}
@@ -54,6 +82,17 @@ export function DetailPanel({ selectedIdea, selectedFlow, onDownloadFlow }: Prop
           )}
         </div>
         <div className="flex-1 flex flex-col overflow-hidden p-4">
+          {selectedFlow.status === "done" && validation && !validation.ok && (
+            <div className="mb-3 px-3 py-2 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-sm text-[#d1242f] flex items-start gap-2 shrink-0">
+              <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A9.05 9.05 0 0 0 11.484 21h.032A9.05 9.05 0 0 0 12 2.714ZM12 17.25h.008v.008H12v-.008Z" />
+              </svg>
+              <div className="min-w-0">
+                <div className="font-medium">Schema validation failed — cannot be marked for implementation</div>
+                <div className="font-mono text-xs mt-0.5 break-all">{validation.error}</div>
+              </div>
+            </div>
+          )}
           {selectedFlow.status === "done" && (
             <XmlCodeBlock
               value={selectedFlow.xml}
