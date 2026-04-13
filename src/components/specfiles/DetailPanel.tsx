@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { FlowIdea } from "../../lib/api/specFilesApi";
 import type { GeneratedFlow } from "./FlowsPanel";
 import { buildFlowPrompt } from "../../lib/flow/buildPrompt";
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function DetailPanel({ selectedIdea, selectedFlow, onDownloadFlow }: Props) {
+  const [promptCopied, setPromptCopied] = useState(false);
   // Nothing selected
   if (!selectedIdea && !selectedFlow) {
     return (
@@ -125,7 +127,36 @@ export function DetailPanel({ selectedIdea, selectedFlow, onDownloadFlow }: Prop
 
           {/* Flow-generation prompt */}
           <div>
-            <h4 className="text-[11px] font-semibold text-[#656d76] uppercase tracking-wider mb-2">Prompt (Flow generation)</h4>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-[11px] font-semibold text-[#656d76] uppercase tracking-wider">Prompt (Flow generation)</h4>
+              <button
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(buildFlowPrompt(selectedIdea));
+                    setPromptCopied(true);
+                    setTimeout(() => setPromptCopied(false), 1500);
+                  } catch { /* ignore */ }
+                }}
+                title="Copy prompt"
+                className="flex items-center gap-1 text-xs text-[#656d76] hover:text-[#0969da] rounded-md px-1.5 py-0.5 hover:bg-[#ddf4ff] transition-colors"
+              >
+                {promptCopied ? (
+                  <>
+                    <svg className="w-3.5 h-3.5 text-[#1a7f37]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                    <span className="text-[#1a7f37]">Copied</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+                    </svg>
+                    <span>Copy</span>
+                  </>
+                )}
+              </button>
+            </div>
             <pre className="text-sm font-mono text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md p-3 whitespace-pre-wrap leading-relaxed">{buildFlowPrompt(selectedIdea)}</pre>
           </div>
         </div>

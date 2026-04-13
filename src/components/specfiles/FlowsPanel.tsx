@@ -58,6 +58,21 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
   const [showNewFlow, setShowNewFlow] = useState(false);
   const [newFlowTitle, setNewFlowTitle] = useState("");
   const [newFlowPrompt, setNewFlowPrompt] = useState("");
+
+  const EXAMPLE_PROMPT = `Create a detailed test flow XML for the following test scenario:
+
+Title: Article settings configuration and SEO optimization
+Description: Creates article, configures comprehensive settings including tags, SEO metadata, and related articles
+Complexity: moderate
+Entities involved: articles
+
+Expected steps:
+  1. POST /v3/projects/{project_id}/articles
+  2. PATCH /v3/projects/{project_id}/articles/{article_id}/settings
+  3. GET /v3/projects/{project_id}/articles/{article_id}/settings
+
+Generate the complete flow XML with proper step IDs, request bodies, path parameters, captures, and assertions. Include setup and teardown steps where needed (e.g., create category before article, delete in reverse order).`;
+  const EXAMPLE_TITLE = "Article settings configuration and SEO optimization";
   const doneFlows = flows.filter((f) => f.status === "done");
   const completedFlows = flows.filter((f) => f.status === "done" || f.status === "error");
 
@@ -268,7 +283,30 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-[#1f2328] mb-1">Prompt</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-[#1f2328]">Prompt</label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewFlowPrompt(EXAMPLE_PROMPT);
+                        if (!newFlowTitle.trim()) setNewFlowTitle(EXAMPLE_TITLE);
+                      }}
+                      className="text-xs font-medium text-[#0969da] hover:underline"
+                    >
+                      Insert example
+                    </button>
+                    {newFlowPrompt && (
+                      <button
+                        type="button"
+                        onClick={() => setNewFlowPrompt("")}
+                        className="text-xs font-medium text-[#656d76] hover:text-[#d1242f] hover:underline"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
                 <textarea
                   value={newFlowPrompt}
                   onChange={(e) => setNewFlowPrompt(e.target.value)}
