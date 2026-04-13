@@ -54,14 +54,54 @@ const FlowIcon = () => (
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
+import type { FlowImplStatus, FlowStatusEntry } from "../../store/flowStatus.store";
+
 interface Props {
   files: FlowFileItem[];
   activePath: string | null;
   onSelectFile: (path: string) => void;
   onRemoveFile: (path: string) => void;
+  /** Implementation status keyed by blob name. */
+  statusByName: Record<string, FlowStatusEntry>;
 }
 
-export function FlowFileTree({ files, activePath, onSelectFile, onRemoveFile }: Props) {
+function StatusBadge({ status, error }: { status: FlowImplStatus; error?: string }) {
+  if (status === "loading") {
+    return (
+      <span title="Parsing…" className="shrink-0 inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-px rounded-full bg-[#eef1f6] text-[#656d76] border border-[#d1d9e0]">
+        <svg className="w-2.5 h-2.5 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+        Loading
+      </span>
+    );
+  }
+  if (status === "implemented") {
+    return (
+      <span title="Parsed and registered as runnable test(s)" className="shrink-0 inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-px rounded-full bg-[#dafbe1] text-[#1a7f37] border border-[#1a7f37]/30">
+        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+        </svg>
+        Implemented
+      </span>
+    );
+  }
+  // invalid
+  return (
+    <span
+      title={error ? `Invalid flow XML: ${error}` : "Invalid flow XML"}
+      className="shrink-0 inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-px rounded-full bg-[#ffebe9] text-[#d1242f] border border-[#d1242f]/30"
+    >
+      <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A9.05 9.05 0 0 0 11.484 21h.032A9.05 9.05 0 0 0 12 2.714ZM12 17.25h.008v.008H12v-.008Z" />
+      </svg>
+      Invalid
+    </span>
+  );
+}
+
+export function FlowFileTree({ files, activePath, onSelectFile, onRemoveFile, statusByName }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(() => {
     // Start with all folders expanded
     const s = new Set<string>();
@@ -112,6 +152,7 @@ export function FlowFileTree({ files, activePath, onSelectFile, onRemoveFile }: 
           onToggle={toggle}
           onSelectFile={onSelectFile}
           onRemoveFile={onRemoveFile}
+          statusByName={statusByName}
         />
       ))}
     </div>
@@ -126,9 +167,10 @@ interface NodeViewProps {
   onToggle: (path: string) => void;
   onSelectFile: (path: string) => void;
   onRemoveFile: (path: string) => void;
+  statusByName: Record<string, FlowStatusEntry>;
 }
 
-function NodeView({ node, depth, expanded, activePath, onToggle, onSelectFile, onRemoveFile }: NodeViewProps) {
+function NodeView({ node, depth, expanded, activePath, onToggle, onSelectFile, onRemoveFile, statusByName }: NodeViewProps) {
   const padding = 8 + depth * 12;
 
   if (node.type === "folder") {
@@ -160,6 +202,7 @@ function NodeView({ node, depth, expanded, activePath, onToggle, onSelectFile, o
             onToggle={onToggle}
             onSelectFile={onSelectFile}
             onRemoveFile={onRemoveFile}
+            statusByName={statusByName}
           />
         ))}
       </>
@@ -168,6 +211,7 @@ function NodeView({ node, depth, expanded, activePath, onToggle, onSelectFile, o
 
   // file
   const isActive = activePath === node.path;
+  const statusEntry = statusByName[node.path];
   return (
     <div
       onClick={() => onSelectFile(node.path)}
@@ -180,6 +224,7 @@ function NodeView({ node, depth, expanded, activePath, onToggle, onSelectFile, o
       <span className={`text-sm truncate flex-1 ${isActive ? "text-[#1f2328] font-medium" : "text-[#1f2328]"}`}>
         {node.name}
       </span>
+      {statusEntry && <StatusBadge status={statusEntry.status} error={statusEntry.error} />}
       <button
         onClick={(e) => { e.stopPropagation(); onRemoveFile(node.path); }}
         title="Remove from implementation queue"

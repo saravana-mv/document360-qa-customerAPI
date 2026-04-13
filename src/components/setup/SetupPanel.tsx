@@ -164,6 +164,24 @@ export function SetupPanel() {
             />
           </div>
 
+          {/* Test Article ID */}
+          <div>
+            <label className="block text-sm font-medium text-[#1f2328] mb-1">
+              Test Article ID <span className="text-[#656d76] font-normal">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={setup.articleId}
+              onChange={(e) => setup.setArticleId(e.target.value)}
+              placeholder="e.g. 8f3c2a4e-…"
+              className="w-full px-3 py-[7px] border border-[#d1d9e0] rounded-md text-sm bg-[#f6f8fa] focus:bg-white font-mono text-[#1f2328] placeholder:text-[#afb8c1]"
+            />
+            <p className="text-[11px] text-[#656d76] mt-1">
+              Required by flows that operate on a pre-existing article (e.g. settings, title-patch).
+              Lifecycle flows that create their own article do not need this.
+            </p>
+          </div>
+
         </div>
 
         {setup.error && (

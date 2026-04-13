@@ -96,18 +96,31 @@ async function runTag(tag: string, tests: TestDef[], ctx: TestContext): Promise<
   store.updateTagStatus(tag, "running");
   log(`Starting flow: ${tag}`, "info", tag);
 
+  let aborted = false;
   for (let i = 0; i < tests.length; i++) {
     const test = tests[i];
+    if (aborted && !test.isTeardown) {
+      getStore().updateTestStatus(test.id, { status: "skip" });
+      log(`Skipped (flow stopped): ${test.name}`, "warn", tag, test.id);
+      continue;
+    }
+    if (aborted && test.isTeardown) {
+      log(`Running teardown despite earlier failure: ${test.name}`, "warn", tag, test.id);
+    }
     await executeTest(test, ctx, state);
     const result = getStore().testResults[test.id];
     const failed = result?.status === "fail" || result?.status === "error";
-    if (getStore().cancelled || failed) {
-      // Mark all remaining tests in this flow as skipped
+    if (getStore().cancelled) {
+      // User cancellation: skip everything that's left, including teardowns.
       for (let j = i + 1; j < tests.length; j++) {
         getStore().updateTestStatus(tests[j].id, { status: "skip" });
-        log(`Skipped (flow stopped): ${tests[j].name}`, "warn", tag, tests[j].id);
+        log(`Skipped (cancelled): ${tests[j].name}`, "warn", tag, tests[j].id);
       }
       break;
+    }
+    if (failed && !aborted) {
+      aborted = true;
+      // Continue the loop — teardown steps still get a chance to run.
     }
   }
 

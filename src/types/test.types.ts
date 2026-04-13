@@ -9,6 +9,12 @@ export interface TestContext {
   token: string;
   baseUrl: string;
   apiVersion: string; // e.g. "v3"
+  /**
+   * Optional pre-existing article ID used by flows that operate on an
+   * existing article (e.g. settings + title patch flows) instead of
+   * creating their own. Set in Settings → Test Article ID.
+   */
+  articleId?: string;
 }
 
 export interface RunState {
@@ -46,6 +52,13 @@ export interface TestDef {
   setup?: (ctx: TestContext, state: RunState) => Promise<void>;
   execute: (ctx: TestContext, state: RunState) => Promise<TestExecutionResult>;
   teardown?: (ctx: TestContext, state: RunState) => Promise<void>;
+  /**
+   * If true, this step is a cleanup/teardown step. The runner will still
+   * execute it even if a preceding step in the same flow failed (so that
+   * created resources are torn down). Non-teardown remaining steps are
+   * skipped as usual.
+   */
+  isTeardown?: boolean;
   assertions: AssertionDef[];
 }
 

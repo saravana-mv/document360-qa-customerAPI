@@ -13,6 +13,12 @@ interface SetupState {
   langCode: string;
   baseUrl: string;
   apiVersion: string;
+  /**
+   * Optional pre-existing article ID, required by flows that operate on a
+   * test article instead of creating their own (settings flow, title patch
+   * flow, etc.). Persisted across sessions.
+   */
+  articleId: string;
   loadingProjects: boolean;
   loadingVersions: boolean;
   error: string | null;
@@ -23,6 +29,7 @@ interface SetupState {
   setLangCode: (lang: string) => void;
   setBaseUrl: (url: string) => void;
   setApiVersion: (version: string) => void;
+  setArticleId: (articleId: string) => void;
   setLoadingProjects: (v: boolean) => void;
   setLoadingVersions: (v: boolean) => void;
   setError: (error: string | null) => void;
@@ -54,6 +61,7 @@ function persist(state: Partial<SetupState>) {
     langCode: state.langCode ?? "en",
     baseUrl: state.baseUrl ?? DEFAULT_BASE_URL,
     apiVersion: state.apiVersion ?? DEFAULT_API_VERSION,
+    articleId: state.articleId ?? "",
   }));
 }
 
@@ -65,6 +73,7 @@ export const useSetupStore = create<SetupState>((set, get) => ({
   langCode: (saved.langCode as string) || "en",
   baseUrl: initialBaseUrl,
   apiVersion: (saved.apiVersion as string) || DEFAULT_API_VERSION,
+  articleId: (saved.articleId as string) || "",
   loadingProjects: false,
   loadingVersions: false,
   error: null,
@@ -94,6 +103,10 @@ export const useSetupStore = create<SetupState>((set, get) => ({
     setApiVersion(apiVersion);
     set({ apiVersion });
     persist({ ...get(), apiVersion });
+  },
+  setArticleId: (articleId) => {
+    set({ articleId });
+    persist({ ...get(), articleId });
   },
 
   setLoadingProjects: (v) => set({ loadingProjects: v }),

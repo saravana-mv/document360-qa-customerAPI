@@ -11,10 +11,12 @@ import { ErrorBoundary } from "./components/common/ErrorBoundary";
 const FlowManagerPage = lazy(() => import("./pages/FlowManagerPage").then((m) => ({ default: m.FlowManagerPage })));
 const SpecFilesPage = lazy(() => import("./pages/SpecFilesPage").then((m) => ({ default: m.SpecFilesPage })));
 
-// Register all test suites (side-effect imports)
-import "./lib/tests/suites/articles.suite";
+// Register placeholder suites (categories/drive stubs).
+// Articles tests come from .flow.xml files in the implementation queue —
+// loaded at runtime via loadFlowsFromQueue (see AppRoutes).
 import "./lib/tests/suites/categories.suite";
 import "./lib/tests/suites/drive.suite";
+import { loadFlowsFromQueue } from "./lib/tests/flowXml/loader";
 
 function PageLoader() {
   return (
@@ -29,6 +31,9 @@ function AppRoutes() {
 
   useEffect(() => {
     initFromSession();
+    // Pull every queued .flow.xml, register parsed steps as runnable tests,
+    // and populate the flow-status store. Idempotent.
+    void loadFlowsFromQueue();
   }, []);
 
   return (

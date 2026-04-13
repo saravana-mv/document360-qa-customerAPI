@@ -10,9 +10,16 @@ import {
   type FlowFileItem,
 } from "../lib/api/flowFilesApi";
 import { useAuthGuard } from "../hooks/useAuthGuard";
+import { useFlowStatusStore } from "../store/flowStatus.store";
+import { loadFlowsFromQueue } from "../lib/tests/flowXml/loader";
 
 export function FlowManagerPage() {
   useAuthGuard();
+  const statusByName = useFlowStatusStore((s) => s.byName);
+  const statusLoading = useFlowStatusStore((s) => s.loading);
+
+  const implementedCount = Object.values(statusByName).filter((e) => e.status === "implemented").length;
+  const invalidCount = Object.values(statusByName).filter((e) => e.status === "invalid").length;
 
   const [files, setFiles] = useState<FlowFileItem[]>([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -100,7 +107,7 @@ export function FlowManagerPage() {
             )}
             <div className="flex-1" />
             <button
-              onClick={() => void loadFiles()}
+              onClick={() => { void loadFiles(); void loadFlowsFromQueue(); }}
               title="Refresh"
               className="text-[#656d76] hover:text-[#0969da] rounded-md p-0.5 hover:bg-[#ddf4ff] transition-colors"
             >
@@ -115,12 +122,32 @@ export function FlowManagerPage() {
             ) : listError ? (
               <div className="p-4 text-sm text-[#d1242f]">{listError}</div>
             ) : (
-              <FlowFileTree
-                files={files}
-                activePath={selectedPath}
-                onSelectFile={setSelectedPath}
-                onRemoveFile={setRemoveConfirm}
-              />
+              <>
+                {(implementedCount > 0 || invalidCount > 0 || statusLoading) && (
+                  <div className="px-3 py-1.5 border-b border-[#d1d9e0] bg-white text-[11px] text-[#656d76] flex items-center gap-2">
+                    {statusLoading && <span>Parsing flows…</span>}
+                    {implementedCount > 0 && (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#1a7f37]" />
+                        {implementedCount} implemented
+                      </span>
+                    )}
+                    {invalidCount > 0 && (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#d1242f]" />
+                        {invalidCount} invalid
+                      </span>
+                    )}
+                  </div>
+                )}
+                <FlowFileTree
+                  files={files}
+                  activePath={selectedPath}
+                  onSelectFile={setSelectedPath}
+                  onRemoveFile={setRemoveConfirm}
+                  statusByName={statusByName}
+                />
+              </>
             )}
           </div>
         </aside>

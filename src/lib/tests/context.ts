@@ -8,6 +8,7 @@ export function buildTestContext(
   versionId: string,
   langCode: string,
   apiVersion: string,
+  articleId?: string,
 ): TestContext {
   return {
     projectId,
@@ -16,5 +17,6 @@ export function buildTestContext(
     token: token.access_token,
     baseUrl: getApiBaseUrl(),
     apiVersion,
+    articleId: articleId?.trim() || undefined,
   };
 }
