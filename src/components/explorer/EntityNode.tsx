@@ -1,8 +1,7 @@
-import { useState, useEffect } from "react";
 import { useRunnerStore } from "../../store/runner.store";
+import { useExplorerUIStore } from "../../store/explorerUI.store";
 import { getAllTests } from "../../lib/tests/registry";
 import { TagNode } from "./TagNode";
-import { useExplorerContext } from "./ExplorerContext";
 import type { ParsedTag } from "../../types/spec.types";
 
 interface EntityNodeProps {
@@ -11,14 +10,10 @@ interface EntityNodeProps {
 }
 
 export function EntityNode({ name, flows }: EntityNodeProps) {
-  const [open, setOpen] = useState(false);
+  const open = useExplorerUIStore((s) => s.expandedEntities.has(name));
+  const toggleEntity = useExplorerUIStore((s) => s.toggleEntity);
   const allTests = getAllTests();
   const { selectedTags } = useRunnerStore();
-  const { expandSignal, expandAll } = useExplorerContext();
-
-  useEffect(() => {
-    if (expandSignal > 0) setOpen(expandAll);
-  }, [expandSignal]);
 
   const entityTests = allTests.filter((t) => flows.some((f) => f.name === t.tag));
   const selectedCount = flows.filter((f) => selectedTags.has(f.name)).length;
@@ -26,7 +21,7 @@ export function EntityNode({ name, flows }: EntityNodeProps) {
   return (
     <div className="mb-1">
       <button
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => toggleEntity(name)}
         className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md bg-[#f6f8fa] hover:bg-[#eef1f6] border border-[#d1d9e0]/60 transition-colors text-left"
       >
         <svg className={`w-3 h-3 text-[#656d76] shrink-0 transition-transform ${open ? "rotate-90" : ""}`} fill="currentColor" viewBox="0 0 20 20">

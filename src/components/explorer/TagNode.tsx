@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ContextMenu, MenuIcons } from "../common/ContextMenu";
 import { useRunnerStore } from "../../store/runner.store";
 import { useSpecStore } from "../../store/spec.store";
 import { useFlowStatusStore } from "../../store/flowStatus.store";
+import { useExplorerUIStore } from "../../store/explorerUI.store";
 import { StatusIcon } from "./StatusIcon";
 import { OperationNode } from "./OperationNode";
-import { useExplorerContext } from "./ExplorerContext";
 import { deleteFlowFile } from "../../lib/api/flowFilesApi";
 import { unregisterWhere } from "../../lib/tests/registry";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
@@ -19,10 +19,10 @@ interface TagNodeProps {
 }
 
 export function TagNode({ tag, tests }: TagNodeProps) {
-  const [open, setOpen] = useState(false);
+  const open = useExplorerUIStore((s) => s.expandedTags.has(tag.name));
+  const toggleTag = useExplorerUIStore((s) => s.toggleTag);
   const [deleting, setDeleting] = useState(false);
   const { tagResults, selectedTags, toggleFlowSelection } = useRunnerStore();
-  const { expandSignal, expandAll } = useExplorerContext();
   const { setSpec } = useSpecStore();
   const tagResult = tagResults[tag.name];
   const status = tagResult?.status ?? "idle";
@@ -58,15 +58,11 @@ export function TagNode({ tag, tests }: TagNodeProps) {
     }
   }
 
-  useEffect(() => {
-    if (expandSignal > 0) setOpen(expandAll);
-  }, [expandSignal]);
-
   return (
     <div className="mb-px">
       <div className="group flex items-center gap-1">
         <button
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => toggleTag(tag.name)}
           className="text-[#656d76] hover:text-[#1f2328] w-4 flex items-center justify-center shrink-0"
         >
           <svg className={`w-3 h-3 transition-transform ${open ? "rotate-90" : ""}`} fill="currentColor" viewBox="0 0 20 20">

@@ -4,13 +4,13 @@ import { useRunnerStore } from "../../store/runner.store";
 import { useAuthStore } from "../../store/auth.store";
 import { useSetupStore } from "../../store/setup.store";
 import { useFlowStatusStore } from "../../store/flowStatus.store";
+import { useExplorerUIStore } from "../../store/explorerUI.store";
 import { getAllTests, unregisterWhere } from "../../lib/tests/registry";
 import { getProjectIdFromToken, fetchProject } from "../../lib/api/projects";
 import { fetchProjectVersions } from "../../lib/api/project-versions";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import { deactivateAll } from "../../lib/tests/flowXml/activeTests";
 import { EntityNode } from "./EntityNode";
-import { ExplorerContext } from "./ExplorerContext";
 import { ProjectSettingsCard } from "../setup/ProjectSettingsCard";
 import { Spinner } from "../common/Spinner";
 import { startAuthFlow, loadOAuthConfig } from "../../lib/oauth/flow";
@@ -21,6 +21,7 @@ export function TestExplorer() {
   const { selectAll, clearSelection, selectedTags } = useRunnerStore();
   const { status, token } = useAuthStore();
   const setup = useSetupStore();
+  const explorerUI = useExplorerUIStore();
   // Subscribe to the flow-status store so this component re-renders once the
   // background loader finishes registering tests from blob storage. Without
   // this, a page refresh races the loader and parsedTags gets populated with
@@ -29,11 +30,8 @@ export function TestExplorer() {
   const flowsByName = useFlowStatusStore((s) => s.byName);
   const allTests = getAllTests();
 
-  const [expandSignal, setExpandSignal] = useState(1);
-  const [expandAll, setExpandAll] = useState(true);
   const [autoLoadError, setAutoLoadError] = useState<string | null>(null);
   const [autoLoading, setAutoLoading] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [showDeleteAll, setShowDeleteAll] = useState(false);
 
   // Auto-load tests as soon as we have a valid token — the project settings
@@ -83,15 +81,27 @@ export function TestExplorer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, token, parsedTags.length, flowsLoading, flowsByName]);
 
+  // Group parsedTags by test.entity (fall back to "General" if not set)
+  const entityMap = new Map<string, ParsedTag[]>();
+  for (const tag of parsedTags) {
+    const repTest = allTests.find((t) => t.tag === tag.name);
+    const entityName = repTest?.entity ?? "General";
+    if (!entityMap.has(entityName)) entityMap.set(entityName, []);
+    entityMap.get(entityName)!.push(tag);
+  }
+  const entities = Array.from(entityMap.entries());
+
   function handleExpandAll() {
-    setExpandAll(true);
-    setExpandSignal((n) => n + 1);
+    const entityNames = entities.map(([name]) => name);
+    const tagNames = parsedTags.map((t) => t.name);
+    explorerUI.expandAll(entityNames, tagNames);
   }
 
   function handleCollapseAll() {
-    setExpandAll(false);
-    setExpandSignal((n) => n + 1);
+    explorerUI.collapseAll();
   }
+
+  const isAllExpanded = explorerUI.expandedEntities.size > 0 || explorerUI.expandedTags.size > 0;
 
   function handleDeleteAll() {
     // Unregister all xml-sourced tests (keep flow XML files in blob storage)
@@ -148,27 +158,17 @@ export function TestExplorer() {
     );
   }
 
-  // Group parsedTags by test.entity (fall back to "General" if not set)
-  const entityMap = new Map<string, ParsedTag[]>();
-  for (const tag of parsedTags) {
-    const repTest = allTests.find((t) => t.tag === tag.name);
-    const entityName = repTest?.entity ?? "General";
-    if (!entityMap.has(entityName)) entityMap.set(entityName, []);
-    entityMap.get(entityName)!.push(tag);
-  }
-  const entities = Array.from(entityMap.entries());
-
   return (
-    <ExplorerContext.Provider value={{ expandSignal, expandAll }}>
+    <>
       <div className="flex flex-col h-full">
         {/* Title header */}
         <div className="flex items-center gap-2 px-4 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
           <span className="text-sm font-bold text-[#1f2328]">API Test Manager</span>
           <div className="flex-1" />
           <button
-            onClick={() => setShowSettings((v) => !v)}
+            onClick={() => explorerUI.setShowSettings(!explorerUI.showSettings)}
             title="Project settings"
-            className={`rounded-md p-1 transition-colors ${showSettings ? "text-[#0969da] bg-[#ddf4ff]" : "text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff]"}`}
+            className={`rounded-md p-1 transition-colors ${explorerUI.showSettings ? "text-[#0969da] bg-[#ddf4ff]" : "text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff]"}`}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
@@ -189,9 +189,9 @@ export function TestExplorer() {
           </button>
         </div>
         {/* Project settings (toggled via gear icon) */}
-        {showSettings && (
+        {explorerUI.showSettings && (
           <div className="border-b border-[#d1d9e0]">
-            <ProjectSettingsCard onDone={() => setShowSettings(false)} />
+            <ProjectSettingsCard onDone={() => explorerUI.setShowSettings(false)} />
           </div>
         )}
         {/* Toolbar */}
@@ -206,11 +206,11 @@ export function TestExplorer() {
             <span className="text-sm font-semibold text-[#1f2328]">Tests</span>
             <div className="flex-1" />
             <button
-              onClick={expandAll ? handleCollapseAll : handleExpandAll}
-              title={expandAll ? "Collapse all" : "Expand all"}
+              onClick={isAllExpanded ? handleCollapseAll : handleExpandAll}
+              title={isAllExpanded ? "Collapse all" : "Expand all"}
               className="rounded-md p-1 text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff] transition-colors"
             >
-              {expandAll ? (
+              {isAllExpanded ? (
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l7.5-7.5 7.5 7.5m-15 5.25l7.5-7.5 7.5 7.5" />
                 </svg>
@@ -291,6 +291,6 @@ export function TestExplorer() {
           </div>
         )}
       </div>
-    </ExplorerContext.Provider>
+    </>
   );
 }
