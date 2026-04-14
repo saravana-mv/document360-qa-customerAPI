@@ -55,10 +55,11 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
 
   try {
-    const body = (await req.json()) as { url?: string; folderPath?: string; filename?: string };
+    const body = (await req.json()) as { url?: string; folderPath?: string; filename?: string; accessToken?: string };
     const url = body.url?.trim();
     const folderPath = body.folderPath?.trim() ?? "";
     const filenameOverride = body.filename?.trim();
+    const accessToken = body.accessToken?.trim();
 
     if (!url) return err(400, "url is required");
 
@@ -81,7 +82,9 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
     let response: Response;
     try {
-      response = await fetch(url, { signal: controller.signal });
+      const fetchHeaders: Record<string, string> = {};
+      if (accessToken) fetchHeaders["Authorization"] = `Bearer ${accessToken}`;
+      response = await fetch(url, { signal: controller.signal, headers: fetchHeaders });
     } catch (fetchErr) {
       clearTimeout(timer);
       const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);

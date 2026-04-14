@@ -67,6 +67,7 @@ async function syncOneFile(
   filename: string,
   entry: SourceEntry,
   manifest: SourcesManifest,
+  accessToken?: string,
 ): Promise<SyncResult> {
   const blobPath = folderPath ? `${folderPath}/${filename}` : filename;
   try {
@@ -78,7 +79,9 @@ async function syncOneFile(
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
     let response: Response;
     try {
-      response = await fetch(entry.sourceUrl, { signal: controller.signal });
+      const fetchHeaders: Record<string, string> = {};
+      if (accessToken) fetchHeaders["Authorization"] = `Bearer ${accessToken}`;
+      response = await fetch(entry.sourceUrl, { signal: controller.signal, headers: fetchHeaders });
     } catch (fetchErr) {
       clearTimeout(timer);
       throw new Error(`Fetch failed: ${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}`);
@@ -114,9 +117,10 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
 
   try {
-    const body = (await req.json()) as { folderPath?: string; filename?: string };
+    const body = (await req.json()) as { folderPath?: string; filename?: string; accessToken?: string };
     const folderPath = body.folderPath?.trim() ?? "";
     const filename = body.filename?.trim();
+    const accessToken = body.accessToken?.trim();
 
     if (filename) {
       // Single file sync
@@ -124,7 +128,7 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
       const entry = manifest[filename];
       if (!entry) return err(404, `No source URL found for "${filename}" in _sources.json`);
 
-      const result = await syncOneFile(folderPath, filename, entry, manifest);
+      const result = await syncOneFile(folderPath, filename, entry, manifest, accessToken);
       await writeManifest(folderPath, manifest);
       return ok({ synced: [result] });
     }
@@ -150,7 +154,7 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
 
       let changed = false;
       for (const [fname, entry] of Object.entries(manifest)) {
-        const result = await syncOneFile(mFolder, fname, entry, manifest);
+        const result = await syncOneFile(mFolder, fname, entry, manifest, accessToken);
         results.push(result);
         if (result.updated) changed = true;
       }

@@ -68,11 +68,12 @@ export async function importSpecFileFromUrl(
   url: string,
   folderPath: string,
   filename?: string,
+  accessToken?: string,
 ): Promise<ImportFromUrlResult> {
   const res = await apiFetch("/api/spec-files/import-url", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, folderPath, ...(filename ? { filename } : {}) }),
+    body: JSON.stringify({ url, folderPath, ...(filename ? { filename } : {}), ...(accessToken ? { accessToken } : {}) }),
   });
   return res.json() as Promise<ImportFromUrlResult>;
 }
@@ -85,11 +86,12 @@ export interface SyncResult {
 export async function syncSpecFiles(
   folderPath: string,
   filename?: string,
+  accessToken?: string,
 ): Promise<SyncResult> {
   const res = await apiFetch("/api/spec-files/sync", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ folderPath, ...(filename ? { filename } : {}) }),
+    body: JSON.stringify({ folderPath, ...(filename ? { filename } : {}), ...(accessToken ? { accessToken } : {}) }),
   });
   return res.json() as Promise<SyncResult>;
 }

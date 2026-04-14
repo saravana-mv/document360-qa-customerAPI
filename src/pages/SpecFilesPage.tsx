@@ -37,6 +37,7 @@ import { buildFlowPrompt } from "../lib/flow/buildPrompt";
 import { loadFlowsFromQueue } from "../lib/tests/flowXml/loader";
 import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
 import { useAuthGuard } from "../hooks/useAuthGuard";
+import { useAuthStore } from "../store/auth.store";
 import { useSetupStore } from "../store/setup.store";
 
 // ── localStorage persistence helpers (multi-context map) ─────────────────────
@@ -509,7 +510,8 @@ export function SpecFilesPage() {
   // ── Import from URL ────────────────────────────────────────────────────────
 
   async function handleImportFromUrl(url: string, folderPath: string, filename?: string) {
-    await importSpecFileFromUrl(url, folderPath, filename);
+    const token = useAuthStore.getState().token?.access_token;
+    await importSpecFileFromUrl(url, folderPath, filename, token);
     await loadFiles();
     await loadSourcedPaths();
   }
@@ -518,7 +520,8 @@ export function SpecFilesPage() {
 
   async function handleSyncFile(folderPath: string, filename: string) {
     try {
-      const result = await syncSpecFiles(folderPath, filename);
+      const token = useAuthStore.getState().token?.access_token;
+      const result = await syncSpecFiles(folderPath, filename, token);
       const failed = result.synced.filter((r) => !r.updated);
       if (failed.length > 0) {
         alert(`Sync failed for: ${failed.map((f) => `${f.name}: ${f.error}`).join("\n")}`);
@@ -539,7 +542,8 @@ export function SpecFilesPage() {
   async function handleSyncFolder(folderPath: string) {
     if (!confirm(`Sync all URL-sourced files under "${folderPath || "/"}"?\n\nPrevious versions will be preserved.`)) return;
     try {
-      const result = await syncSpecFiles(folderPath);
+      const token = useAuthStore.getState().token?.access_token;
+      const result = await syncSpecFiles(folderPath, undefined, token);
       const updated = result.synced.filter((r) => r.updated).length;
       const failed = result.synced.filter((r) => !r.updated);
       if (failed.length > 0) {
