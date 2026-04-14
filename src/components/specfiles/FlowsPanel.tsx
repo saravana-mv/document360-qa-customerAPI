@@ -100,6 +100,12 @@ Steps:
   const selectedInvalidCount = doneFlows.filter(
     (f) => selectedFlowIds.has(f.ideaId) && !validByIdea[f.ideaId],
   ).length;
+  const selectedDeletableCount = completedFlows.filter(
+    (f) => selectedFlowIds.has(f.ideaId) && !markedIds.has(f.ideaId),
+  ).length;
+  const selectedMarkedCount = completedFlows.filter(
+    (f) => selectedFlowIds.has(f.ideaId) && markedIds.has(f.ideaId),
+  ).length;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -147,8 +153,16 @@ Steps:
         {completedFlows.length > 0 && !generating && (
           <button
             onClick={() => setShowDeleteAllConfirm(true)}
-            disabled={selectedCount === 0}
-            title={selectedCount > 0 ? `Delete ${selectedCount} selected flow${selectedCount !== 1 ? "s" : ""}` : "Select flows to delete"}
+            disabled={selectedDeletableCount === 0}
+            title={
+              selectedCount === 0
+                ? "Select flows to delete"
+                : selectedDeletableCount === 0
+                  ? "Cannot delete — all selected flows have tests. Delete tests first from the Test Manager."
+                  : selectedMarkedCount > 0
+                    ? `Delete ${selectedDeletableCount} flow${selectedDeletableCount !== 1 ? "s" : ""} (${selectedMarkedCount} with tests will be skipped)`
+                    : `Delete ${selectedDeletableCount} selected flow${selectedDeletableCount !== 1 ? "s" : ""}`
+            }
             className={`rounded-md p-1 transition-colors ${
               selectedCount > 0
                 ? "text-[#d1242f] hover:bg-[#ffebe9]"
@@ -276,7 +290,14 @@ Steps:
                       items.push({ label: "Download XML", icon: MenuIcons.download, onClick: () => onDownloadFlow(flow) });
                       items.push("separator");
                     }
-                    items.push({ label: "Delete flow", icon: MenuIcons.trash, onClick: () => setDeleteFlowId(flow.ideaId), danger: true });
+                    items.push({
+                      label: "Delete flow",
+                      icon: MenuIcons.trash,
+                      onClick: () => setDeleteFlowId(flow.ideaId),
+                      danger: true,
+                      disabled: isMarked,
+                      tooltip: isMarked ? "Cannot delete — tests depend on this flow. Delete the tests first from the Test Manager." : undefined,
+                    });
                     return (
                       <div className="shrink-0">
                         <ContextMenu items={items} />
@@ -470,11 +491,16 @@ Steps:
                   <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
                 </svg>
               </div>
-              <span className="text-base font-semibold text-[#1f2328]">Delete all {completedFlows.length} flows?</span>
+              <span className="text-base font-semibold text-[#1f2328]">Delete {selectedDeletableCount} flow{selectedDeletableCount !== 1 ? "s" : ""}?</span>
             </div>
             <div className="px-4 py-3">
               <p className="text-sm text-[#656d76] leading-relaxed">
-                This will delete all generated flows. The ideas will be unlocked so you can regenerate flows for them.
+                This will delete {selectedDeletableCount} selected flow{selectedDeletableCount !== 1 ? "s" : ""}. The ideas will be unlocked so you can regenerate flows for them.
+                {selectedMarkedCount > 0 && (
+                  <span className="block mt-1 text-[#9a6700]">
+                    {selectedMarkedCount} flow{selectedMarkedCount !== 1 ? "s" : ""} with active tests will be skipped.
+                  </span>
+                )}
               </p>
             </div>
             <div className="flex justify-end gap-2 px-4 py-3 border-t border-[#d1d9e0] bg-[#f6f8fa] rounded-b-lg">

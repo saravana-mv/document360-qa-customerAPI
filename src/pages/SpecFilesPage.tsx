@@ -778,6 +778,8 @@ export function SpecFilesPage() {
   }
 
   function handleDeleteFlow(ideaId: string) {
+    // Prevent deletion of flows that have active tests
+    if (markedIds.has(ideaId)) return;
     setGeneratedFlows(prev => prev.filter(f => f.ideaId !== ideaId));
     if (activeFlowId === ideaId) setActiveFlowId(null);
     // Remove from workshopMap
@@ -821,15 +823,40 @@ export function SpecFilesPage() {
   }
 
   function handleDeleteAllFlows() {
-    setGeneratedFlows([]);
-    setActiveFlowId(null);
-    setFlowsUsage(null);
-    // Remove all flows from workshopMap
+    // Keep flows that have active tests (markedIds) — they can't be deleted
+    const keep = generatedFlows.filter(f => markedIds.has(f.ideaId));
+    setGeneratedFlows(keep);
+    if (activeFlowId && !markedIds.has(activeFlowId)) setActiveFlowId(null);
+    // Recompute usage from remaining
+    const keepUsage = keep.reduce<FlowUsage | null>((acc, f) => {
+      if (!f.usage || f.status !== "done") return acc;
+      if (!acc) return { ...f.usage };
+      return {
+        inputTokens: acc.inputTokens + f.usage.inputTokens,
+        outputTokens: acc.outputTokens + f.usage.outputTokens,
+        totalTokens: acc.totalTokens + f.usage.totalTokens,
+        costUsd: parseFloat((acc.costUsd + f.usage.costUsd).toFixed(6)),
+      };
+    }, null);
+    setFlowsUsage(keepUsage);
+    // Remove non-marked flows from workshopMap
     setWorkshopMap(prev => {
       const next = { ...prev };
       for (const key of Object.keys(next)) {
-        if (next[key].generatedFlows.length > 0) {
-          next[key] = { ...next[key], generatedFlows: [], flowsUsage: null };
+        const ctx = next[key];
+        if (ctx.generatedFlows.length > 0) {
+          const remaining = ctx.generatedFlows.filter(f => markedIds.has(f.ideaId));
+          const recomputed = remaining.reduce<FlowUsage | null>((acc, f) => {
+            if (!f.usage || f.status !== "done") return acc;
+            if (!acc) return { ...f.usage };
+            return {
+              inputTokens: acc.inputTokens + f.usage.inputTokens,
+              outputTokens: acc.outputTokens + f.usage.outputTokens,
+              totalTokens: acc.totalTokens + f.usage.totalTokens,
+              costUsd: parseFloat((acc.costUsd + f.usage.costUsd).toFixed(6)),
+            };
+          }, null);
+          next[key] = { ...ctx, generatedFlows: remaining, flowsUsage: recomputed };
         }
       }
       return next;
