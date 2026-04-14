@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Layout } from "../components/common/Layout";
 import { TestExplorer } from "../components/explorer/TestExplorer";
 import { ResultsPanel } from "../components/results/ResultsPanel";
@@ -6,6 +6,8 @@ import { SummaryDrawer } from "../components/results/SummaryDrawer";
 import { DetailPane } from "../components/results/DetailPane";
 import { useAuthGuard } from "../hooks/useAuthGuard";
 import { useRunnerStore } from "../store/runner.store";
+import { useSpecStore } from "../store/spec.store";
+import { getAllTests } from "../lib/tests/registry";
 
 const LHS_MIN = 180;
 const LHS_MAX = 520;
@@ -19,6 +21,17 @@ export function TestPage() {
   const lhsDragging = useRef(false);
   const rhsDragging = useRef(false);
   const { selectedTestId, selectTest } = useRunnerStore();
+  const parsedTags = useSpecStore((s) => s.parsedTags);
+
+  // Auto-select the first test once tests are loaded
+  useEffect(() => {
+    if (selectedTestId) return;
+    if (parsedTags.length === 0) return;
+    const allTests = getAllTests();
+    if (allTests.length > 0) {
+      selectTest(allTests[0].id);
+    }
+  }, [parsedTags, selectedTestId, selectTest]);
 
   function onLhsMouseDown(e: React.MouseEvent) {
     e.preventDefault();
@@ -86,19 +99,15 @@ export function TestPage() {
           </div>
 
           {/* RHS drag handle */}
-          {selectedTestId && (
-            <div
-              onMouseDown={onRhsMouseDown}
-              className="w-[3px] shrink-0 cursor-col-resize bg-[#d1d9e0]/40 hover:bg-[#0969da]/40 transition-colors active:bg-[#0969da]/60"
-            />
-          )}
+          <div
+            onMouseDown={onRhsMouseDown}
+            className="w-[3px] shrink-0 cursor-col-resize bg-[#d1d9e0]/40 hover:bg-[#0969da]/40 transition-colors active:bg-[#0969da]/60"
+          />
 
           {/* RHS detail pane */}
-          {selectedTestId && (
-            <div style={{ width: detailWidth }} className="shrink-0 overflow-hidden">
-              <DetailPane testId={selectedTestId} onClose={() => selectTest(null)} />
-            </div>
-          )}
+          <div style={{ width: detailWidth }} className="shrink-0 overflow-hidden">
+            <DetailPane testId={selectedTestId} onClose={() => selectTest(null)} />
+          </div>
         </div>
 
         <SummaryDrawer />

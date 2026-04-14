@@ -385,7 +385,7 @@ function RunTab({ testId }: { testId: string }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 interface DetailPaneProps {
-  testId: string;
+  testId: string | null;
   onClose: () => void;
 }
 
@@ -432,8 +432,8 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
 
 export function DetailPane({ testId, onClose }: DetailPaneProps) {
   const [activeTab, setActiveTab] = useState<Tab>("design");
-  const result = useRunnerStore((s) => s.testResults[testId]);
-  const def = getTest(testId);
+  const result = useRunnerStore((s) => testId ? s.testResults[testId] : undefined);
+  const def = testId ? getTest(testId) : undefined;
 
   // Reset to Design tab when a different test is selected
   useEffect(() => {
@@ -448,13 +448,25 @@ export function DetailPane({ testId, onClose }: DetailPaneProps) {
     }
   }, [result?.status]);
 
-  if (!def) return null;
+  // Empty state — always show the panel shell with a header
+  if (!testId || !def) {
+    return (
+      <div className="bg-white flex flex-col h-full overflow-hidden w-full">
+        <div className="flex items-center gap-2 px-4 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+          <span className="text-sm font-semibold text-[#1f2328]">Detail</span>
+        </div>
+        <div className="flex-1 flex items-center justify-center text-sm text-[#afb8c1]">
+          Select a test to view details
+        </div>
+      </div>
+    );
+  }
 
   const status: TestStatus = result?.status ?? "idle";
   const badge = statusBadge[status];
 
   return (
-    <div className="border-l border-[#d1d9e0] bg-white flex flex-col h-full overflow-hidden w-full">
+    <div className="bg-white flex flex-col h-full overflow-hidden w-full">
 
       {/* ── Header ── */}
       <div className="px-4 pt-3 pb-0 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
