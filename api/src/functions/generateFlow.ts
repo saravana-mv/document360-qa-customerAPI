@@ -180,7 +180,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 ## Hard rules (read before writing anything)
 
 1. **STRICT SCOPE**: Only use API endpoints, methods, and paths explicitly described in the provided spec files. Do not invent endpoints.
-2. **Article dependency**: Flows MUST NOT assume a pre-existing article. If a flow needs an article, add a Create Category step first (POST /v2/…/categories), then a Create Article step (POST /v3/…/articles with category_id), and teardown steps to delete the article then the category. The API requires category_id even though the spec marks it nullable.
+2. **Article dependency (CRITICAL — overrides scope rules)**: Flows MUST NEVER assume a pre-existing article or category. EVERY flow that operates on an article MUST start with: (a) Create Category (POST /v2/projects/{project_id}/categories), (b) Create Article (POST /v3/projects/{project_id}/articles with category_id from step a). End with teardown: delete article, then delete category. This applies even for single-endpoint flows like "Delete Article" — you must first create the article you intend to delete. The API requires category_id even though the spec marks it nullable.
 3. **Teardown order**: Delete child resources before parent (article before category). Mark teardown steps with \`<flags teardown="true"/>\`.
 4. **State passing**: Use \`<capture variable="state.X" source="response.data.Y"/>\` then reference \`{{state.X}}\` in later steps.
 5. **Version paths**: Use \`/v3/…\` for every endpoint — the test runner rewrites the version segment at runtime to match the user's selected API version.
@@ -262,9 +262,9 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   const specContext = await buildSpecContext(body.specFiles ?? []);
   const specCount = body.specFiles?.length ?? 0;
   const scopeNote = specCount === 1
-    ? `\n\nIMPORTANT: You are working with a SINGLE endpoint specification. The flow MUST only use this endpoint. Do not add steps that call other endpoints not described in the spec above.`
+    ? `\n\nIMPORTANT: You are working with a SINGLE endpoint specification. The primary test steps of the flow MUST focus on this endpoint. However, you MUST still add prerequisite setup steps (Create Category, Create Article) and teardown steps (Delete Article, Delete Category) as required by the hard rules — these are ALWAYS allowed regardless of scope.`
     : specCount > 1
-      ? `\n\nIMPORTANT: You are working with ${specCount} endpoint specifications. The flow MUST only use endpoints described in the specs above. Do not add steps that call endpoints outside this set.`
+      ? `\n\nIMPORTANT: You are working with ${specCount} endpoint specifications. The primary test steps MUST focus on endpoints described in the specs above. However, you MUST still add prerequisite setup steps (Create Category, Create Article) and teardown steps (Delete Article, Delete Category) as required by the hard rules — these are ALWAYS allowed regardless of scope.`
       : "";
   const userMessage = specContext
     ? `${body.prompt}${scopeNote}\n\n# Relevant API Specification\n\n${specContext}`
