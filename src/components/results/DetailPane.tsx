@@ -540,13 +540,13 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
       )}
 
       {/* XML viewer / editor */}
-      <div className="border border-[#d1d9e0] rounded-md overflow-hidden bg-white flex-1 min-h-0">
+      <div className="border border-[#d1d9e0] rounded-md overflow-hidden bg-white flex-1 min-h-0 flex flex-col">
         {editing ? (
           <Suspense fallback={<div className="p-4 text-sm text-[#afb8c1]">Loading editor…</div>}>
             <XmlEditor value={draft} onChange={handleDraftChange} height="100%" />
           </Suspense>
         ) : (
-          <XmlCodeBlock value={xml} height="100%" />
+          <XmlCodeBlock value={xml} className="flex-1 min-h-0 overflow-hidden" height="100%" />
         )}
       </div>
     </div>
