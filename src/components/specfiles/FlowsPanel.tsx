@@ -72,19 +72,15 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
   const [newFlowTitle, setNewFlowTitle] = useState("");
   const [newFlowPrompt, setNewFlowPrompt] = useState("");
 
-  const EXAMPLE_PROMPT = `Create a detailed test flow XML for the following test scenario:
-
-Title: Article settings configuration and SEO optimization
+  const EXAMPLE_PROMPT = `Title: Article settings configuration and SEO optimization
 Description: Creates article, configures comprehensive settings including tags, SEO metadata, and related articles
 Complexity: moderate
-Entities involved: articles
+Entities: articles
 
-Expected steps:
+Steps:
   1. POST /v3/projects/{project_id}/articles
   2. PATCH /v3/projects/{project_id}/articles/{article_id}/settings
-  3. GET /v3/projects/{project_id}/articles/{article_id}/settings
-
-Generate the complete flow XML with proper step IDs, request bodies, path parameters, captures, and assertions. Include setup and teardown steps where needed (e.g., create category before article, delete in reverse order).`;
+  3. GET /v3/projects/{project_id}/articles/{article_id}/settings`;
   const EXAMPLE_TITLE = "Article settings configuration and SEO optimization";
   const doneFlows = flows.filter((f) => f.status === "done");
   const completedFlows = flows.filter((f) => f.status === "done" || f.status === "error");
