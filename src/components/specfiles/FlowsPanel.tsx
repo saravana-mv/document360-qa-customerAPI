@@ -74,7 +74,6 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
 
   const EXAMPLE_PROMPT = `Title: Article settings configuration and SEO optimization
 Description: Creates article, configures comprehensive settings including tags, SEO metadata, and related articles
-Complexity: moderate
 Entities: articles
 
 Steps:

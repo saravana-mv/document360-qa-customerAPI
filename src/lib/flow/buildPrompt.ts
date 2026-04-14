@@ -13,7 +13,6 @@ export function buildFlowPrompt(idea: FlowIdea): string {
   const steps = idea.steps.map((s, i) => `  ${i + 1}. ${s}`).join("\n");
   return `Title: ${idea.title}
 Description: ${idea.description}
-Complexity: ${idea.complexity}
 Entities: ${idea.entities.join(", ")}
 
 Steps:
