@@ -30,6 +30,7 @@ import {
   slugifyFlowTitle,
 } from "../lib/api/flowFilesApi";
 import { buildFlowPrompt } from "../lib/flow/buildPrompt";
+import { loadFlowsFromQueue } from "../lib/tests/flowXml/loader";
 import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
 import { useAuthGuard } from "../hooks/useAuthGuard";
 import { useSetupStore } from "../store/setup.store";
@@ -952,13 +953,15 @@ export function SpecFilesPage() {
     abortRef.current = null;
   }
 
-  // ── Mark a flow for implementation ────────────────────────────────────────
+  // ── Create tests — save flow XML to blob and register as runnable tests ──
 
   async function markFlow(flow: GeneratedFlow, targetName: string, overwrite: boolean) {
     setMarkingIds(prev => { const n = new Set(prev); n.add(flow.ideaId); return n; });
     try {
       await saveFlowFile(targetName, flow.xml, overwrite);
       setMarkedIds(prev => { const n = new Set(prev); n.add(flow.ideaId); return n; });
+      // Immediately register the saved flow as runnable tests
+      void loadFlowsFromQueue();
     } catch (e) {
       if (e instanceof FlowFileConflictError) {
         // Suggest `<slug>-2.flow.xml`, `-3.flow.xml`, etc. when collisions occur

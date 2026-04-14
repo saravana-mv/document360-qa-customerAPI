@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { ContextMenu, MenuIcons } from "../common/ContextMenu";
 import { useRunnerStore } from "../../store/runner.store";
 import { useSpecStore } from "../../store/spec.store";
@@ -21,7 +20,6 @@ interface TagNodeProps {
 export function TagNode({ tag, tests }: TagNodeProps) {
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const navigate = useNavigate();
   const { tagResults, selectedTags, toggleFlowSelection } = useRunnerStore();
   const { expandSignal, expandAll } = useExplorerContext();
   const { setSpec } = useSpecStore();
@@ -87,7 +85,6 @@ export function TagNode({ tag, tests }: TagNodeProps) {
             <span className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
               <ContextMenu
                 items={[
-                  { label: "Edit flow XML", icon: MenuIcons.edit, onClick: () => navigate("/flow", { state: { selectPath: flowFileName } }) },
                   { label: "Delete flow", icon: MenuIcons.trash, onClick: () => void handleDelete(), danger: true, disabled: deleting },
                 ]}
                 align="left"

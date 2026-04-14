@@ -9,12 +9,10 @@ import { TestPage } from "./pages/TestPage";
 import { Spinner } from "./components/common/Spinner";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 
-const FlowManagerPage = lazy(() => import("./pages/FlowManagerPage").then((m) => ({ default: m.FlowManagerPage })));
 const SpecFilesPage = lazy(() => import("./pages/SpecFilesPage").then((m) => ({ default: m.SpecFilesPage })));
 
 // Register placeholder suites (categories/drive stubs).
-// Articles tests come from .flow.xml files in the implementation queue —
-// loaded at runtime via loadFlowsFromQueue (see AppRoutes).
+// Articles tests come from .flow.xml files — loaded at runtime via loadFlowsFromQueue.
 import "./lib/tests/suites/categories.suite";
 import "./lib/tests/suites/drive.suite";
 import { loadFlowsFromQueue } from "./lib/tests/flowXml/loader";
@@ -54,7 +52,6 @@ function AppRoutes() {
       <Route path="/settings" element={<SetupPage />} />
       <Route path="/setup" element={<Navigate to="/settings" replace />} />
       <Route path="/test" element={<TestPage />} />
-      <Route path="/flow" element={<Suspense fallback={<PageLoader />}><FlowManagerPage /></Suspense>} />
       <Route path="/spec-files" element={<Suspense fallback={<PageLoader />}><SpecFilesPage /></Suspense>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

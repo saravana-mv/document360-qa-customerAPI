@@ -235,13 +235,13 @@ Steps:
                       )}
                       {markedIds.has(flow.ideaId) && (
                         <span
-                          title="Flow is in the Flow Manager implementation queue"
+                          title="Tests have been created for this flow"
                           className="text-xs px-1.5 py-px rounded-full font-medium shrink-0 border bg-[#ddf4ff] text-[#0969da] border-[#54aeff]/40 inline-flex items-center gap-0.5"
                         >
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                           </svg>
-                          Queued
+                          Tests
                         </span>
                       )}
                     </div>
@@ -268,7 +268,7 @@ Steps:
                     const items: MenuItem[] = [];
                     if (flow.status === "done") {
                       items.push({
-                        label: isMarked ? "Re-queue for implementation" : "Mark for implementation",
+                        label: isMarked ? "Re-create tests" : "Create tests",
                         icon: MenuIcons.check,
                         onClick: () => onMarkForImplementation(flow),
                         disabled: isMarking || !isValid,
@@ -310,14 +310,14 @@ Steps:
             disabled={selectedUnmarkedCount === 0 || markingIds.size > 0}
             title={
               selectedCount === 0
-                ? "Select one or more flows to mark for implementation"
+                ? "Select one or more flows to create tests"
                 : selectedInvalidCount > 0 && selectedUnmarkedCount === 0
                   ? `${selectedInvalidCount} selected flow${selectedInvalidCount !== 1 ? "s are" : " is"} invalid — fix validation errors first`
                   : selectedUnmarkedCount === 0
-                    ? "All selected flows are already marked"
+                    ? "Tests already created for all selected flows"
                     : selectedInvalidCount > 0
-                      ? `Push ${selectedUnmarkedCount} valid flow${selectedUnmarkedCount !== 1 ? "s" : ""}; ${selectedInvalidCount} invalid flow${selectedInvalidCount !== 1 ? "s" : ""} will be skipped`
-                      : `Push ${selectedUnmarkedCount} selected flow${selectedUnmarkedCount !== 1 ? "s" : ""} to the implementation queue`
+                      ? `Create tests for ${selectedUnmarkedCount} valid flow${selectedUnmarkedCount !== 1 ? "s" : ""}; ${selectedInvalidCount} invalid flow${selectedInvalidCount !== 1 ? "s" : ""} will be skipped`
+                      : `Create tests for ${selectedUnmarkedCount} selected flow${selectedUnmarkedCount !== 1 ? "s" : ""}`
             }
             className="flex items-center justify-center gap-1.5 bg-[#1a7f37] hover:bg-[#1a7f37]/90 disabled:bg-[#eef1f6] disabled:text-[#656d76] disabled:border-[#d1d9e0] text-white text-sm font-medium rounded-md px-3 py-1.5 transition-colors border border-[#1a7f37]/80"
           >
@@ -325,10 +325,10 @@ Steps:
               <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
             </svg>
             {selectedCount === 0
-              ? "Mark for implementation"
+              ? "Create tests"
               : selectedUnmarkedCount === 0
-                ? `${selectedCount} already marked`
-                : `Mark ${selectedUnmarkedCount} for implementation`}
+                ? `${selectedCount} already created`
+                : `Create ${selectedUnmarkedCount} test${selectedUnmarkedCount !== 1 ? "s" : ""}`}
           </button>
         </div>
       )}
