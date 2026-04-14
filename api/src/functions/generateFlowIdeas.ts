@@ -47,6 +47,22 @@ Return a JSON array. Each item:
 - moderate: 4-6 steps, may involve state changes or 2 entities
 - complex: 7+ steps, multi-entity dependencies, bulk operations, error scenarios
 
+## Idea ordering — IMPORTANT
+Generate ideas in this priority order (first ideas should be simplest):
+
+1. **Basic success (happy-path)**: For each endpoint, verify the core operation works.
+   - POST creates a resource and returns 201 with the created object
+   - GET retrieves a resource by ID and returns 200
+   - PUT/PATCH updates a resource and returns 200 with updated data
+   - DELETE removes a resource and returns 204
+2. **Simple parameter validation**: Missing required fields, invalid IDs (non-existent, malformed), empty body on POST/PUT
+3. **Authentication / authorization**: Request without auth token returns 401
+4. **CRUD lifecycle**: Full create → read → update → delete in a single flow
+5. **State transitions & business logic**: publish/unpublish, version management, bulk operations
+6. **Complex multi-entity scenarios**: Cross-entity dependencies, ordering constraints, edge cases
+
+Always start with the simplest scenarios before progressing to complex ones. The first 3-4 ideas should be simple or moderate complexity.
+
 ## Rules
 1. Generate up to ${MAX_IDEAS_PER_RUN} ideas maximum per request
 2. **STRICT SCOPE**: Only use API endpoints that are explicitly described in the provided spec files. Do NOT reference, invent, or assume endpoints that are not in the provided context — even if you know they exist in the broader API. Every step in a flow must map to an endpoint from the specs given.
