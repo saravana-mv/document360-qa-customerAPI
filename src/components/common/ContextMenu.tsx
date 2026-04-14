@@ -91,7 +91,7 @@ export function ContextMenu({ items, triggerClass, trigger, align = "right" }: C
                   if (!item.disabled) run(item.onClick);
                 }}
                 disabled={item.disabled}
-                className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-sm transition-colors ${
+                className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-colors ${
                   item.danger
                     ? "text-[#d1242f] hover:bg-[#ffebe9]"
                     : "text-[#1f2328] hover:bg-[#f6f8fa]"
