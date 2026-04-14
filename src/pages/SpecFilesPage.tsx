@@ -583,7 +583,7 @@ export function SpecFilesPage() {
     }
   }
 
-  async function handleGenerateMoreIdeas() {
+  async function handleGenerateMoreIdeas(count?: number) {
     const currentPath = activePath;
     if (!currentPath) return;
     setIdeasError(null);
@@ -592,7 +592,7 @@ export function SpecFilesPage() {
     // Exclude ALL visible idea titles (including from child contexts)
     const existingTitles = ideas.map((i) => i.title);
     try {
-      const result = await generateFlowIdeas(currentPath, existingTitles, undefined, aiModel);
+      const result = await generateFlowIdeas(currentPath, existingTitles, undefined, aiModel, count);
       if (result.ideas.length > 0) {
         const startIdx = nextGlobalIdeaIndex(workshopMap);
         const newIdeas = result.ideas.map((idea, i) => ({
@@ -636,8 +636,9 @@ export function SpecFilesPage() {
           totalSpecCharacters: result.usage.totalSpecCharacters,
         } : result.usage);
       }
-      // Mark exhausted if AI returned fewer than max
-      if (result.ideas.length < MAX_IDEAS_PER_RUN) {
+      // Mark exhausted if AI returned fewer than requested
+      const requested = count ?? MAX_IDEAS_PER_RUN;
+      if (result.ideas.length < requested) {
         setIdeasExhausted(true);
       }
       if (result.parseError && result.rawText) {

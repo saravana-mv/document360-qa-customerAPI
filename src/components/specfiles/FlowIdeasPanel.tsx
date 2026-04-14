@@ -29,7 +29,7 @@ interface Props {
   onGenerateFlows: () => void;
   /** Generate flow for a single idea (from context menu) */
   onGenerateFlowForIdea: (id: string) => void;
-  onGenerateMore: () => void;
+  onGenerateMore: (count: number) => void;
   onDeleteSelected: (ids: Set<string>) => void;
   /** Per-row delete — removes a single idea (and its flow, if any) */
   onDeleteIdea: (id: string) => void;
@@ -115,6 +115,19 @@ export function FlowIdeasPanel({
             </svg>
           </button>
         )}
+        {totalIdeas > 0 && (() => {
+          const atCap = totalIdeas >= maxIdeasTotal;
+          const moreDisabled = generatingFlows || !!appending || !!ideasExhausted || atCap;
+          return (
+            <ContextMenu
+              items={[
+                { label: "Generate 1 idea", icon: MenuIcons.sparkle, onClick: () => onGenerateMore(1), disabled: moreDisabled },
+                { label: "Generate 2 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateMore(2), disabled: moreDisabled },
+                { label: "Generate 5 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateMore(5), disabled: moreDisabled },
+              ]}
+            />
+          );
+        })()}
       </div>
 
       {/* Content */}
@@ -246,31 +259,8 @@ export function FlowIdeasPanel({
       </div>
 
       {/* Bottom action bar */}
-      {!loading && ideas && ideas.length > 0 && (() => {
-        const atCap = totalIdeas >= maxIdeasTotal;
-        const moreDisabled = generatingFlows || !!appending || !!ideasExhausted || atCap;
-        const moreTooltip = atCap
-          ? `Maximum of ${maxIdeasTotal} ideas reached — review and generate flows for existing ideas`
-          : ideasExhausted
-            ? "AI has covered all identifiable test scenarios for this context"
-            : appending
-              ? "Generating..."
-              : generatingFlows
-                ? "Wait for flow generation to complete"
-                : "";
-        return (
+      {!loading && ideas && ideas.length > 0 && (
         <div className="shrink-0 border-t border-[#d1d9e0] bg-[#f6f8fa] px-3 py-2 flex gap-2">
-          <button
-            onClick={onGenerateMore}
-            disabled={moreDisabled}
-            title={moreTooltip || undefined}
-            className="flex items-center justify-center gap-1 border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-sm font-medium rounded-md px-3 py-1.5 transition-colors disabled:opacity-40"
-          >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            More ideas
-          </button>
           <button
             onClick={onGenerateFlows}
             disabled={unlockedSelectedCount === 0 || generatingFlows}
@@ -284,8 +274,7 @@ export function FlowIdeasPanel({
               : `Generate ${unlockedSelectedCount} flow${unlockedSelectedCount !== 1 ? "s" : ""}`}
           </button>
         </div>
-        );
-      })()}
+      )}
 
       {/* Delete confirmation modal */}
       {showDeleteConfirm && (() => {

@@ -92,12 +92,13 @@ export async function generateFlowIdeas(
   folderPath: string,
   existingIdeas?: string[],
   maxBudgetUsd?: number,
-  model?: string
+  model?: string,
+  maxCount?: number
 ): Promise<GenerateFlowIdeasResponse> {
   const res = await apiFetch("/api/generate-flow-ideas", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ folderPath, existingIdeas, maxBudgetUsd, ...(model ? { model } : {}) }),
+    body: JSON.stringify({ folderPath, existingIdeas, maxBudgetUsd, ...(model ? { model } : {}), ...(maxCount ? { maxCount } : {}) }),
   });
   return res.json() as Promise<GenerateFlowIdeasResponse>;
 }

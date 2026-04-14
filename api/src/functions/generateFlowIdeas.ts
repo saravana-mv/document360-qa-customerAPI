@@ -88,7 +88,7 @@ export async function generateFlowIdeasHandler(
   }
 
   // ── Parse body ──
-  let body: { folderPath?: string; maxBudgetUsd?: number; existingIdeas?: string[]; model?: string };
+  let body: { folderPath?: string; maxBudgetUsd?: number; existingIdeas?: string[]; model?: string; maxCount?: number };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -176,7 +176,10 @@ export async function generateFlowIdeasHandler(
     ? `\n\nIMPORTANT: You are analyzing a SINGLE endpoint specification. Generate ideas using ONLY this endpoint. Do not reference any other endpoints outside this file.`
     : `\n\nYou are analyzing ${filesAnalyzed} endpoint specifications. Only use endpoints from these files in your ideas.`;
 
-  const userMessage = `Analyze these API specifications and generate up to ${MAX_IDEAS_PER_RUN} NEW test flow ideas.${scopeNote}${existingList}\n\n## Spec Files\n\n${specText}`;
+  const requestedCount = typeof body.maxCount === "number" && body.maxCount > 0 && body.maxCount <= MAX_IDEAS_PER_RUN
+    ? body.maxCount
+    : MAX_IDEAS_PER_RUN;
+  const userMessage = `Analyze these API specifications and generate up to ${requestedCount} NEW test flow ideas.${scopeNote}${existingList}\n\n## Spec Files\n\n${specText}`;
 
   // ── Resolve model ──
   const model = resolveModel(body.model, DEFAULT_IDEAS_MODEL);
