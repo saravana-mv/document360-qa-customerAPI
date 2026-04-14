@@ -214,10 +214,11 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
   // is captured exactly for the Detail Pane.
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    // For noAuth steps, send an invalid token instead of omitting the header.
+    // Omitting it causes a CORS failure (server doesn't send CORS headers on
+    // unauthenticated preflight), which the browser surfaces as "Failed to fetch".
+    Authorization: step.noAuth ? "Bearer __invalid__" : `Bearer ${ctx.token}`,
   };
-  if (!step.noAuth) {
-    headers["Authorization"] = `Bearer ${ctx.token}`;
-  }
 
   let httpStatus: number;
   let responseBody: unknown = undefined;
