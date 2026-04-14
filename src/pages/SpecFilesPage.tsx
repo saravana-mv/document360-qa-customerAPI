@@ -190,16 +190,6 @@ export function SpecFilesPage() {
     for (const [key, ctx] of Object.entries(workshopMap)) {
       if (ctx.ideas.length > 0) s.add(key);
     }
-    // DEBUG — dump to console so user can paste output
-    console.table(
-      Object.entries(workshopMap).map(([k, v]) => ({
-        key: k,
-        ideas: v.ideas.length,
-        flows: v.generatedFlows.length,
-        inSet: s.has(k),
-      }))
-    );
-    console.log("[pathsWithIdeas] Set contents:", [...s]);
     return s;
   }, [workshopMap]);
 
