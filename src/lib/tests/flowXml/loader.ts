@@ -7,7 +7,6 @@ import { useFlowStatusStore } from "../../../store/flowStatus.store";
 import { registerSuite, unregisterWhere } from "../registry";
 import { parseFlowXml, FlowXmlParseError } from "./parser";
 import { buildFlow } from "./builder";
-import { seedBuiltinFlows } from "./builtins";
 import { getActiveFlows } from "./activeTests";
 
 let lastLoadPromise: Promise<void> | null = null;
@@ -26,15 +25,6 @@ export function loadFlowsFromQueue(): Promise<void> {
 async function doLoad(): Promise<void> {
   const status = useFlowStatusStore.getState();
   status.setLoading(true);
-
-  // Seed the queue with the bundled reference flows on first run.
-  // seedBuiltinFlows also activates flows it uploads.
-  try {
-    await seedBuiltinFlows();
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.warn("[loadFlowsFromQueue] seed failed:", err);
-  }
 
   let files: { name: string }[] = [];
   try {
