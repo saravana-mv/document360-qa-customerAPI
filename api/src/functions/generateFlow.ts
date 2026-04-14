@@ -168,7 +168,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
         <param name="project_version_id">ctx.versionId</param>
       </queryParams>
       <assertions>
-        <assertion type="status" code="200"/>
+        <assertion type="status" code="204"/>
       </assertions>
       <flags teardown="true"/>
       <notes>teardown: true — runs even if earlier steps failed.</notes>
@@ -186,7 +186,8 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 5. **Version paths**: Use \`/v3/…\` for every endpoint — the test runner rewrites the version segment at runtime to match the user's selected API version.
 6. **Unique names**: For resource names, use \`[TEST] Something - {{timestamp}}\`.
 7. **Assertions**: Every step needs at least one \`<assertion type="status" code="…"/>\`. Write operations should also assert \`field-exists\` on the created resource id.
-8. **Schema exactness**: Elements must appear in the order listed above. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status. Use \`field-exists\` / \`field-equals\` / \`array-not-empty\` — no other assertion types exist.
+8. **HTTP status codes**: GET returns \`200\`. POST that creates a resource returns \`201\`. DELETE returns \`204\` (No Content). PUT/PATCH returns \`200\`. Use these defaults unless the spec file explicitly states otherwise.
+9. **Schema exactness**: Elements must appear in the order listed above. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status. Use \`field-exists\` / \`field-equals\` / \`array-not-empty\` — no other assertion types exist.
 
 ## Output format
 
