@@ -87,9 +87,9 @@ export function ImportFromUrlModal({ folderPath, onImport, onClose }: Props) {
         <div className="px-4 py-4 space-y-4">
           {/* Target folder */}
           <div>
-            <label className="block text-xs font-medium text-[#656d76] mb-1">Target folder</label>
-            <div className="flex items-center gap-1.5 text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5">
-              <svg className="w-3.5 h-3.5 text-yellow-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <label className="block text-sm font-medium text-[#656d76] mb-1">Target folder</label>
+            <div className="flex items-center gap-1.5 text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5">
+              <svg className="w-4 h-4 text-yellow-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
               </svg>
               <span className="font-mono">{folderPath || "/"}</span>
@@ -98,7 +98,7 @@ export function ImportFromUrlModal({ folderPath, onImport, onClose }: Props) {
 
           {/* URL input */}
           <div>
-            <label className="block text-xs font-medium text-[#656d76] mb-1">URL</label>
+            <label className="block text-sm font-medium text-[#656d76] mb-1">URL</label>
             <input
               type="url"
               value={url}
@@ -106,7 +106,7 @@ export function ImportFromUrlModal({ folderPath, onImport, onClose }: Props) {
               onKeyDown={(e) => { if (e.key === "Enter" && validUrl) void handleImport(); }}
               placeholder="https://example.com/spec.md"
               disabled={importing || done}
-              className="w-full text-xs border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] bg-white text-[#1f2328] placeholder-[#afb8c1] disabled:opacity-60"
+              className="w-full text-sm border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] bg-white text-[#1f2328] placeholder-[#afb8c1] disabled:opacity-60"
               autoFocus
             />
             {url && !validUrl && (
@@ -116,7 +116,7 @@ export function ImportFromUrlModal({ folderPath, onImport, onClose }: Props) {
 
           {/* Filename override */}
           <div>
-            <label className="block text-xs font-medium text-[#656d76] mb-1">
+            <label className="block text-sm font-medium text-[#656d76] mb-1">
               Filename <span className="text-[#afb8c1] font-normal">(optional override)</span>
             </label>
             <input
@@ -125,7 +125,7 @@ export function ImportFromUrlModal({ folderPath, onImport, onClose }: Props) {
               onChange={(e) => setFilename(e.target.value)}
               placeholder={autoFilename}
               disabled={importing || done}
-              className="w-full text-xs border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] bg-white text-[#1f2328] placeholder-[#afb8c1] disabled:opacity-60"
+              className="w-full text-sm border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] bg-white text-[#1f2328] placeholder-[#afb8c1] disabled:opacity-60"
             />
             {validUrl && (
               <p className="text-xs text-[#656d76] mt-1">
@@ -136,14 +136,14 @@ export function ImportFromUrlModal({ folderPath, onImport, onClose }: Props) {
 
           {/* Error */}
           {error && (
-            <div className="px-3 py-2 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-xs text-[#d1242f]">
+            <div className="px-3 py-2 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-sm text-[#d1242f]">
               {error}
             </div>
           )}
 
           {/* Success */}
           {done && (
-            <div className="px-3 py-2 bg-[#dafbe1] border border-[#aceebb] rounded-md text-xs text-[#1a7f37] flex items-center gap-2">
+            <div className="px-3 py-2 bg-[#dafbe1] border border-[#aceebb] rounded-md text-sm text-[#1a7f37] flex items-center gap-2">
               <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
               </svg>
@@ -157,7 +157,7 @@ export function ImportFromUrlModal({ folderPath, onImport, onClose }: Props) {
           <button
             onClick={onClose}
             disabled={importing}
-            className="text-xs text-[#656d76] hover:text-[#1f2328] border border-[#d1d9e0] rounded-md px-3 py-1.5 hover:bg-[#f6f8fa] disabled:opacity-40"
+            className="text-sm text-[#656d76] hover:text-[#1f2328] border border-[#d1d9e0] rounded-md px-3 py-1.5 hover:bg-[#f6f8fa] disabled:opacity-40"
           >
             {done ? "Close" : "Cancel"}
           </button>
@@ -165,7 +165,7 @@ export function ImportFromUrlModal({ folderPath, onImport, onClose }: Props) {
             <button
               onClick={() => void handleImport()}
               disabled={!validUrl || importing}
-              className="text-xs font-medium text-white bg-[#0969da] hover:bg-[#0860ca] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-3 py-1.5 transition-colors flex items-center gap-1.5"
+              className="text-sm font-medium text-white bg-[#0969da] hover:bg-[#0860ca] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-3 py-1.5 transition-colors flex items-center gap-1.5"
             >
               {importing && (
                 <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
