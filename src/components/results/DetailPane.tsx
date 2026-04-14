@@ -1,12 +1,18 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { JsonCodeBlock } from "../common/JsonCodeBlock";
 import { XmlCodeBlock } from "../common/XmlCodeBlock";
 import { useRunnerStore } from "../../store/runner.store";
+import { useSpecStore } from "../../store/spec.store";
 import { useSetupStore } from "../../store/setup.store";
 import { getTest } from "../../lib/tests/registry";
 import { rewriteApiVersion } from "../../lib/tests/flowXml/builder";
-import { getFlowFileContent } from "../../lib/api/flowFilesApi";
+import { getFlowFileContent, saveFlowFile } from "../../lib/api/flowFilesApi";
+import { validateFlowXml } from "../../lib/tests/flowXml/validate";
+import { loadFlowsFromQueue } from "../../lib/tests/flowXml/loader";
+import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import type { TestStatus } from "../../types/test.types";
+
+const XmlEditor = lazy(() => import("../common/XmlEditor").then(m => ({ default: m.XmlEditor })));
 
 // ── Styles ──────────────────────────────────────────────────────────────────
 
@@ -395,36 +401,153 @@ type Tab = "design" | "run" | "xml";
 
 function FlowXmlTab({ fileName }: { fileName: string }) {
   const [xml, setXml] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const { setSpec } = useSpecStore();
 
   useEffect(() => {
     let cancelled = false;
     setXml(null);
-    setError(null);
+    setLoadError(null);
+    setEditing(false);
+    setSaveSuccess(false);
     getFlowFileContent(fileName)
       .then((content) => { if (!cancelled) setXml(content); })
-      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : String(err)); });
+      .catch((err) => { if (!cancelled) setLoadError(err instanceof Error ? err.message : String(err)); });
     return () => { cancelled = true; };
   }, [fileName]);
 
-  if (error) {
+  function handleStartEdit() {
+    if (xml === null) return;
+    setDraft(xml);
+    setEditing(true);
+    setValidationError(null);
+    setSaveSuccess(false);
+  }
+
+  function handleCancelEdit() {
+    setEditing(false);
+    setValidationError(null);
+  }
+
+  function handleDraftChange(next: string) {
+    setDraft(next);
+    setValidationError(null);
+    setSaveSuccess(false);
+  }
+
+  async function handleSave() {
+    // Validate first
+    const result = validateFlowXml(draft);
+    if (!result.ok) {
+      setValidationError(result.error ?? "Invalid XML");
+      return;
+    }
+
+    setSaving(true);
+    setValidationError(null);
+    try {
+      await saveFlowFile(fileName, draft, true);
+      setXml(draft);
+      setEditing(false);
+      setSaveSuccess(true);
+      // Re-register tests from the updated flow
+      await loadFlowsFromQueue();
+      const built = buildParsedTagsFromRegistry();
+      setSpec(null as never, built, null as never);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      setValidationError(`Save failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loadError) {
     return (
-      <div className="p-4 text-xs text-[#d1242f] bg-[#ffebe9] border border-[#ffcecb] rounded-md m-4">
-        Failed to load flow XML: {error}
+      <div className="p-4 text-sm text-[#d1242f] bg-[#ffebe9] border border-[#ffcecb] rounded-md m-4">
+        Failed to load flow XML: {loadError}
       </div>
     );
   }
   if (xml === null) {
-    return <div className="p-4 text-xs text-[#afb8c1] italic">Loading flow XML…</div>;
+    return <div className="p-4 text-sm text-[#afb8c1] italic">Loading flow XML…</div>;
   }
   return (
-    <div className="p-4 space-y-2">
-      <div className="flex items-center gap-1.5 group/fn">
+    <div className="p-4 space-y-2 flex flex-col h-full">
+      {/* Header row */}
+      <div className="flex items-center gap-1.5 shrink-0">
         <span className="text-xs font-mono text-[#656d76] flex-1 break-all">{fileName}</span>
-        <CopyButton value={xml} className="opacity-0 group-hover/fn:opacity-100 transition-opacity" />
+        {!editing && (
+          <>
+            <CopyButton value={xml} />
+            <button
+              onClick={handleStartEdit}
+              title="Edit XML"
+              className="shrink-0 text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff] rounded-md p-1 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+              </svg>
+            </button>
+          </>
+        )}
+        {editing && (
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleCancelEdit}
+              disabled={saving}
+              className="text-sm text-[#656d76] hover:text-[#1f2328] border border-[#d1d9e0] rounded-md px-2.5 py-1 hover:bg-[#f6f8fa] disabled:opacity-40 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => void handleSave()}
+              disabled={saving}
+              className="text-sm font-medium text-white bg-[#0969da] hover:bg-[#0860ca] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-2.5 py-1 transition-colors flex items-center gap-1.5"
+            >
+              {saving && (
+                <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
+                </svg>
+              )}
+              {saving ? "Saving…" : "Validate & Save"}
+            </button>
+          </div>
+        )}
       </div>
-      <div className="border border-[#d1d9e0] rounded-md overflow-hidden bg-white">
-        <XmlCodeBlock value={xml} height="70vh" />
+
+      {/* Validation error */}
+      {validationError && (
+        <div className="px-3 py-2 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-sm text-[#d1242f] shrink-0">
+          {validationError}
+        </div>
+      )}
+
+      {/* Save success */}
+      {saveSuccess && !editing && (
+        <div className="px-3 py-2 bg-[#dafbe1] border border-[#aceebb] rounded-md text-sm text-[#1a7f37] flex items-center gap-2 shrink-0">
+          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+          </svg>
+          Saved and tests re-created successfully
+        </div>
+      )}
+
+      {/* XML viewer / editor */}
+      <div className="border border-[#d1d9e0] rounded-md overflow-hidden bg-white flex-1 min-h-0">
+        {editing ? (
+          <Suspense fallback={<div className="p-4 text-sm text-[#afb8c1]">Loading editor…</div>}>
+            <XmlEditor value={draft} onChange={handleDraftChange} height="100%" />
+          </Suspense>
+        ) : (
+          <XmlCodeBlock value={xml} height="100%" />
+        )}
       </div>
     </div>
   );
