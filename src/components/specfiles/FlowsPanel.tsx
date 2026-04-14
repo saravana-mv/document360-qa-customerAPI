@@ -11,6 +11,7 @@ export interface GeneratedFlow {
   xml: string;
   error?: string;
   usage?: FlowUsage | null;
+  createdAt?: string;
 }
 
 interface Props {
@@ -37,6 +38,18 @@ interface Props {
   onToggleSelectFlow: (ideaId: string) => void;
   onSelectAllFlows: () => void;
   onDeselectAllFlows: () => void;
+}
+
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const secs = Math.floor(diff / 1000);
+  if (secs < 60) return "just now";
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
 }
 
 const STATUS_ICON: Record<string, React.ReactNode> = {
@@ -266,12 +279,14 @@ Steps:
                         {flow.status === "error" && <span className="text-[#d1242f]">Failed</span>}
                       </span>
                     )}
-                    {flow.status === "done" && flow.usage && (
+                    {flow.status === "done" && (flow.usage || flow.createdAt) && (
                       <span
                         className="text-xs text-[#656d76] mt-0.5 block"
-                        title={`Input: ${flow.usage.inputTokens.toLocaleString()} tokens · Output: ${flow.usage.outputTokens.toLocaleString()} tokens`}
+                        title={flow.usage ? `Input: ${flow.usage.inputTokens.toLocaleString()} tokens · Output: ${flow.usage.outputTokens.toLocaleString()} tokens` : undefined}
                       >
-                        ${flow.usage.costUsd.toFixed(4)} · {flow.usage.totalTokens.toLocaleString()} tokens
+                        {flow.usage && `$${flow.usage.costUsd.toFixed(4)} · ${flow.usage.totalTokens.toLocaleString()} tokens`}
+                        {flow.usage && flow.createdAt && " · "}
+                        {flow.createdAt && formatRelativeTime(flow.createdAt)}
                       </span>
                     )}
                   </div>

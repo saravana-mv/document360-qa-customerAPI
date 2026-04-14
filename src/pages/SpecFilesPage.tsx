@@ -621,9 +621,15 @@ export function SpecFilesPage() {
       const result = await generateFlowIdeas(contextPath, [], undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN);
       // Assign globally unique IDs to avoid collisions across contexts
       const startIdx = nextGlobalIdeaIndex(workshopMap);
+      const perIdeaCost = result.usage && result.ideas.length > 0
+        ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
+        : undefined;
+      const now = new Date().toISOString();
       const newIdeas = result.ideas.map((idea, i) => ({
         ...idea,
         id: `idea-${startIdx + i}`,
+        costUsd: perIdeaCost,
+        createdAt: now,
       }));
       // Save to workshopMap under this context
       if (newIdeas.length > 0) {
@@ -671,9 +677,15 @@ export function SpecFilesPage() {
       const result = await generateFlowIdeas(currentPath, existingTitles, undefined, aiModel, count);
       if (result.ideas.length > 0) {
         const startIdx = nextGlobalIdeaIndex(workshopMap);
+        const perIdeaCost = result.usage && result.ideas.length > 0
+          ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
+          : undefined;
+        const now = new Date().toISOString();
         const newIdeas = result.ideas.map((idea, i) => ({
           ...idea,
           id: `idea-${startIdx + i}`,
+          costUsd: perIdeaCost,
+          createdAt: now,
         }));
         // Save to workshopMap under this exact context
         setWorkshopMap(prev => {
@@ -977,7 +989,7 @@ export function SpecFilesPage() {
       try {
         const result = await generateFlowXml(prompt, specFileNames, aiModel, ctrl.signal);
         setGeneratedFlows((prev) =>
-          prev.map((f) => f.ideaId === idea.id ? { ...f, status: "done" as const, xml: result.xml, usage: result.usage } : f)
+          prev.map((f) => f.ideaId === idea.id ? { ...f, status: "done" as const, xml: result.xml, usage: result.usage, createdAt: new Date().toISOString() } : f)
         );
         // Accumulate flow usage
         if (result.usage) {
@@ -1040,7 +1052,7 @@ export function SpecFilesPage() {
     try {
       const result = await generateFlowXml(prompt, specFileNames, aiModel, ctrl.signal);
       setGeneratedFlows((prev) =>
-        prev.map((f) => f.ideaId === manualId ? { ...f, status: "done", xml: result.xml, usage: result.usage } : f)
+        prev.map((f) => f.ideaId === manualId ? { ...f, status: "done", xml: result.xml, usage: result.usage, createdAt: new Date().toISOString() } : f)
       );
       if (result.usage) {
         setFlowsUsage(prev => prev ? {

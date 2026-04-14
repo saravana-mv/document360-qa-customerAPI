@@ -122,6 +122,8 @@ export interface FlowIdea {
   steps: string[];
   entities: string[];
   complexity: "simple" | "moderate" | "complex";
+  costUsd?: number;
+  createdAt?: string;
 }
 
 export interface FlowIdeasUsage {

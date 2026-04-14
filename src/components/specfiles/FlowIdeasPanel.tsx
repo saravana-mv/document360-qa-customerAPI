@@ -2,6 +2,18 @@ import { useState } from "react";
 import { ContextMenu, MenuIcons } from "../common/ContextMenu";
 import type { FlowIdea } from "../../lib/api/specFilesApi";
 
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const secs = Math.floor(diff / 1000);
+  if (secs < 60) return "just now";
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
 const COMPLEXITY_COLORS: Record<string, string> = {
   simple: "bg-[#dafbe1] text-[#1a7f37] border-[#aceebb]",
   moderate: "bg-[#fff8c5] text-[#9a6700] border-[#f5e0a0]",
@@ -232,6 +244,13 @@ export function FlowIdeasPanel({
                         </span>
                       )}
                     </div>
+                    {(idea.costUsd != null || idea.createdAt) && (
+                      <span className="text-xs text-[#656d76] mt-0.5 block">
+                        {idea.costUsd != null && `$${idea.costUsd.toFixed(4)}`}
+                        {idea.costUsd != null && idea.createdAt && " · "}
+                        {idea.createdAt && formatRelativeTime(idea.createdAt)}
+                      </span>
+                    )}
                   </button>
                   <span className="opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
                     <ContextMenu
