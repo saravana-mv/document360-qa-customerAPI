@@ -245,7 +245,13 @@ function TreeNodeRow({
             <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
           </svg>
         ) : (
-          <FileIcon name={node.name} hasIdeas={pathsWithIdeas?.has(node.path)} />
+          <>
+            <FileIcon name={node.name} hasIdeas={pathsWithIdeas?.has(node.path)} />
+            {/* DEBUG: visible indicator — remove after fixing */}
+            <span className="text-[9px] font-mono shrink-0" style={{ color: pathsWithIdeas?.has(node.path) ? "green" : "red" }}>
+              {pathsWithIdeas ? (pathsWithIdeas.has(node.path) ? "T" : "F") : "?"}
+            </span>
+          </>
         )}
 
         {/* Name or rename input */}
