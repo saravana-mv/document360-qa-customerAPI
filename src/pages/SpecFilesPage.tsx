@@ -802,12 +802,19 @@ export function SpecFilesPage() {
 
   // ── Generate flows from selected ideas ────────────────────────────────────
 
-  async function handleGenerateFlows() {
-    if (selectedIdeaIds.size === 0 || !activePath) return;
+  function handleGenerateFlowForIdea(ideaId: string) {
+    setSelectedIdeaIds(new Set([ideaId]));
+    // Defer to next tick so state update is picked up by handleGenerateFlows
+    setTimeout(() => void handleGenerateFlows(new Set([ideaId])), 0);
+  }
+
+  async function handleGenerateFlows(overrideIds?: Set<string>) {
+    const idsToUse = overrideIds ?? selectedIdeaIds;
+    if (idsToUse.size === 0 || !activePath) return;
 
     // Filter out ideas that already have completed flows — don't waste resources
     const selectedIdeas = ideas.filter(
-      (i) => selectedIdeaIds.has(i.id) && !completedFlowIdeaIds.has(i.id)
+      (i) => idsToUse.has(i.id) && !completedFlowIdeaIds.has(i.id)
     );
     if (selectedIdeas.length === 0) return;
 
@@ -1186,6 +1193,7 @@ export function SpecFilesPage() {
                       onSelectAll={selectAllIdeas}
                       onDeselectAll={deselectAllIdeas}
                       onGenerateFlows={handleGenerateFlows}
+                      onGenerateFlowForIdea={handleGenerateFlowForIdea}
                       onGenerateMore={handleGenerateMoreIdeas}
                       onDeleteSelected={handleDeleteSelectedIdeas}
                       onDeleteIdea={(id) => handleDeleteSelectedIdeas(new Set([id]))}

@@ -27,6 +27,8 @@ interface Props {
   onSelectAll: () => void;
   onDeselectAll: () => void;
   onGenerateFlows: () => void;
+  /** Generate flow for a single idea (from context menu) */
+  onGenerateFlowForIdea: (id: string) => void;
   onGenerateMore: () => void;
   onDeleteSelected: (ids: Set<string>) => void;
   /** Per-row delete — removes a single idea (and its flow, if any) */
@@ -49,7 +51,7 @@ export function FlowIdeasPanel({
   ideas, loading, appending, error, rawText, message,
   selectedIds, lockedIds, activeIdeaId, activeFlowId,
   onToggleSelect, onSelectAll, onDeselectAll,
-  onGenerateFlows, onGenerateMore, onDeleteSelected, onDeleteIdea, onClickIdea, generatingFlows,
+  onGenerateFlows, onGenerateFlowForIdea, onGenerateMore, onDeleteSelected, onDeleteIdea, onClickIdea, generatingFlows,
   ideasExhausted, maxIdeasTotal = 30, markedIds,
   thisLevelOnly, onToggleThisLevel,
 }: Props) {
@@ -200,6 +202,7 @@ export function FlowIdeasPanel({
                   <span className="opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
                     <ContextMenu
                       items={[
+                        ...(!isLocked ? [{ label: "Generate flow", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowForIdea(idea.id), disabled: generatingFlows }] : []),
                         { label: "Delete idea", icon: MenuIcons.trash, onClick: () => setRowDeleteId(idea.id), danger: true },
                       ]}
                     />
