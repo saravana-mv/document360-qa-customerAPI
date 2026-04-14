@@ -81,7 +81,7 @@ function canDrop(drag: TreeNode, targetFolderPath: string): boolean {
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
-function FileIcon({ name }: { name: string }) {
+function FileIcon({ name, hasIdeas }: { name: string; hasIdeas?: boolean }) {
   const ext = name.split(".").pop()?.toLowerCase();
   if (ext === "xml" || ext === "xsd")
     return (
@@ -89,8 +89,10 @@ function FileIcon({ name }: { name: string }) {
         <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.379 2H4.5Zm2.25 8.5a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Zm0 3a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Z" clipRule="evenodd" />
       </svg>
     );
+  // MD files: green if ideas generated, blue otherwise
+  const color = hasIdeas ? "text-[#1a7f37]" : "text-blue-400";
   return (
-    <svg className="w-3.5 h-3.5 text-blue-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+    <svg className={`w-3.5 h-3.5 ${color} shrink-0`} fill="currentColor" viewBox="0 0 20 20">
       <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.379 2H4.5Zm2.25 8.5a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Zm0 3a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Z" clipRule="evenodd" />
     </svg>
   );
@@ -243,7 +245,7 @@ function TreeNodeRow({
             <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
           </svg>
         ) : (
-          <FileIcon name={node.name} />
+          <FileIcon name={node.name} hasIdeas={pathsWithIdeas?.has(node.path)} />
         )}
 
         {/* Name or rename input */}
@@ -255,22 +257,6 @@ function TreeNodeRow({
           />
         ) : (
           <span className="flex-1 truncate">{node.name}</span>
-        )}
-
-        {/* Idea indicator — small filled bulb for files/folders with generated ideas */}
-        {!isRenaming && pathsWithIdeas?.has(node.path) && (
-          <span
-            title="Ideas generated"
-            className={`shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full ${
-              isSelected && !isDropTarget ? "bg-yellow-300/40" : "bg-[#fff8c5]"
-            }`}
-          >
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 16 16"
-              style={{ color: isSelected && !isDropTarget ? "#fde047" : "#9a6700" }}
-            >
-              <path d="M8 1.5c-2.363 0-4.5 1.86-4.5 4.5 0 1.347.612 2.374 1.316 3.157.376.418.79.8 1.184 1.161V12.5a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-2.182c.394-.361.808-.743 1.184-1.161C11.888 8.374 12.5 7.347 12.5 6c0-2.64-2.137-4.5-4.5-4.5ZM6.5 14a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1h-3Z" />
-            </svg>
-          </span>
         )}
 
         {/* Actions */}
