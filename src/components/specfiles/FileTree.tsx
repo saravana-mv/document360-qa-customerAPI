@@ -240,19 +240,20 @@ function TreeNodeRow({
         )}
 
         {/* Icon */}
-        {node.type === "folder" ? (
-          <svg className={`w-3.5 h-3.5 shrink-0 ${isSelected && !isDropTarget ? "text-yellow-300" : "text-yellow-500"}`} fill="currentColor" viewBox="0 0 20 20">
-            <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
-          </svg>
-        ) : (
-          <>
-            <FileIcon name={node.name} hasIdeas={pathsWithIdeas?.has(node.path)} />
-            {/* DEBUG: visible indicator — remove after fixing */}
-            <span className="text-[9px] font-mono shrink-0" style={{ color: pathsWithIdeas?.has(node.path) ? "green" : "red" }}>
-              {pathsWithIdeas ? (pathsWithIdeas.has(node.path) ? "T" : "F") : "?"}
-            </span>
-          </>
-        )}
+        {(() => {
+          if (node.type === "folder") {
+            return (
+              <svg className={`w-3.5 h-3.5 shrink-0 ${isSelected && !isDropTarget ? "text-yellow-300" : "text-yellow-500"}`} fill="currentColor" viewBox="0 0 20 20">
+                <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
+              </svg>
+            );
+          }
+          // File has ideas if it's directly in the set OR its parent folder is
+          const lastSlash = node.path.lastIndexOf("/");
+          const parentFolder = lastSlash >= 0 ? node.path.slice(0, lastSlash) : "";
+          const hasIdeas = pathsWithIdeas != null && (pathsWithIdeas.has(node.path) || pathsWithIdeas.has(parentFolder));
+          return <FileIcon name={node.name} hasIdeas={hasIdeas} />;
+        })()}
 
         {/* Name or rename input */}
         {isRenaming ? (

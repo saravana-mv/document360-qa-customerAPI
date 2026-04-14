@@ -186,33 +186,12 @@ export function SpecFilesPage() {
   // For folder-level entries, mark all child .md files so individual file
   // icons turn green even when ideas were generated at the folder level.
   const pathsWithIdeas = useMemo(() => {
-    // Collect folder paths that have ideas (for marking child .md files)
-    const folderKeysWithIdeas = new Set<string>();
     const s = new Set<string>();
     for (const [key, ctx] of Object.entries(workshopMap)) {
-      if (ctx.ideas.length === 0) continue;
-      s.add(key);
-      if (!key.endsWith(".md")) {
-        folderKeysWithIdeas.add(key.endsWith("/") ? key.slice(0, -1) : key);
-      }
+      if (ctx.ideas.length > 0) s.add(key);
     }
-    // Mark individual .md files green if their direct parent folder has ideas
-    for (const f of files) {
-      if (!f.name.endsWith(".md")) continue;
-      const lastSlash = f.name.lastIndexOf("/");
-      const parentFolder = lastSlash >= 0 ? f.name.slice(0, lastSlash) : "";
-      if (folderKeysWithIdeas.has(parentFolder)) {
-        s.add(f.name);
-      }
-    }
-    // DEBUG: remove after fixing
-    console.log("[pathsWithIdeas] workshopMap keys:", Object.keys(workshopMap));
-    console.log("[pathsWithIdeas] keys with ideas:", Object.entries(workshopMap).filter(([,v]) => v.ideas.length > 0).map(([k,v]) => `${k} (${v.ideas.length} ideas)`));
-    console.log("[pathsWithIdeas] folderKeysWithIdeas:", [...folderKeysWithIdeas]);
-    console.log("[pathsWithIdeas] result set:", [...s]);
-    console.log("[pathsWithIdeas] all file paths:", files.map(f => f.name));
     return s;
-  }, [workshopMap, files]);
+  }, [workshopMap]);
 
   // Working set — flat state loaded from workshopMap when navigating
   const [ideas, setIdeas] = useState<FlowIdea[]>([]);
