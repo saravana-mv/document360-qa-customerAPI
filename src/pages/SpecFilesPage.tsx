@@ -33,7 +33,7 @@ import {
   buildFlowFilePath,
   slugifyFlowTitle,
 } from "../lib/api/flowFilesApi";
-import { buildFlowPrompt } from "../lib/flow/buildPrompt";
+import { buildFlowPrompt, filterRelevantSpecs } from "../lib/flow/buildPrompt";
 import { loadFlowsFromQueue } from "../lib/tests/flowXml/loader";
 import { activateFlow } from "../lib/tests/flowXml/activeTests";
 import { buildParsedTagsFromRegistry } from "../lib/tests/buildParsedTags";
@@ -979,6 +979,8 @@ export function SpecFilesPage() {
 
       const idea = selectedIdeas[i];
       const prompt = buildFlowPrompt(idea);
+      // Only send spec files relevant to this idea to reduce token usage
+      const relevantSpecs = filterRelevantSpecs(idea, specFileNames);
 
       setGeneratedFlows((prev) =>
         prev.map((f) => f.ideaId === idea.id ? { ...f, status: "generating" as const } : f)
@@ -988,7 +990,7 @@ export function SpecFilesPage() {
       setActiveIdeaId(null);
 
       try {
-        const result = await generateFlowXml(prompt, specFileNames, aiModel, ctrl.signal);
+        const result = await generateFlowXml(prompt, relevantSpecs, aiModel, ctrl.signal);
         setGeneratedFlows((prev) =>
           prev.map((f) => f.ideaId === idea.id ? { ...f, status: "done" as const, xml: result.xml, usage: result.usage, createdAt: new Date().toISOString() } : f)
         );
@@ -1034,6 +1036,10 @@ export function SpecFilesPage() {
         .map((f) => f.name);
     }
 
+    // Cap spec files to control token usage
+    const MAX_MANUAL_SPECS = 5;
+    const cappedSpecs = specFileNames.slice(0, MAX_MANUAL_SPECS);
+
     const manualId = `manual-${Date.now()}`;
     const pending: GeneratedFlow = {
       ideaId: manualId,
@@ -1051,7 +1057,7 @@ export function SpecFilesPage() {
     setFlowProgress({ current: 0, total: 1 });
 
     try {
-      const result = await generateFlowXml(prompt, specFileNames, aiModel, ctrl.signal);
+      const result = await generateFlowXml(prompt, cappedSpecs, aiModel, ctrl.signal);
       setGeneratedFlows((prev) =>
         prev.map((f) => f.ideaId === manualId ? { ...f, status: "done", xml: result.xml, usage: result.usage, createdAt: new Date().toISOString() } : f)
       );

@@ -192,24 +192,32 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 
 Output ONLY the raw XML starting with \`<?xml\`. No markdown code fences. No commentary. No explanation.`;
 
+// Cap spec context to ~50k characters (~12k tokens) to keep flow generation
+// cost-effective. Each flow only needs the endpoints it references, not every
+// spec in the project.
+const MAX_SPEC_CONTEXT_CHARS = 50_000;
+const MAX_SPEC_FILES = 5;
+
 async function buildSpecContext(specFiles: string[]): Promise<string> {
   if (!specFiles || specFiles.length === 0) {
     // Load a default set of available spec files
     try {
       const blobs = await listBlobs();
-      const mdFiles = blobs.filter((b) => b.name.endsWith(".md")).slice(0, 5);
+      const mdFiles = blobs.filter((b) => b.name.endsWith(".md")).slice(0, MAX_SPEC_FILES);
       if (mdFiles.length === 0) return "";
       const contents = await Promise.all(mdFiles.map((b) => downloadBlob(b.name)));
-      return contents
-        .map((c, i) => `## ${mdFiles[i].name}\n\n${c}`)
-        .join("\n\n---\n\n");
+      return truncateContext(
+        contents.map((c, i) => `## ${mdFiles[i].name}\n\n${c}`),
+      );
     } catch {
       return "";
     }
   }
 
+  // Only process up to MAX_SPEC_FILES
+  const capped = specFiles.slice(0, MAX_SPEC_FILES);
   const contents = await Promise.all(
-    specFiles.map(async (name) => {
+    capped.map(async (name) => {
       try {
         const content = await downloadBlob(name);
         return `## ${name}\n\n${content}`;
@@ -218,7 +226,22 @@ async function buildSpecContext(specFiles: string[]): Promise<string> {
       }
     })
   );
-  return contents.join("\n\n---\n\n");
+  return truncateContext(contents);
+}
+
+function truncateContext(sections: string[]): string {
+  const result: string[] = [];
+  let totalChars = 0;
+  for (const section of sections) {
+    if (totalChars + section.length > MAX_SPEC_CONTEXT_CHARS) {
+      // Add a truncation notice
+      result.push("(Remaining spec files omitted to stay within token budget)");
+      break;
+    }
+    result.push(section);
+    totalChars += section.length;
+  }
+  return result.join("\n\n---\n\n");
 }
 
 /** POST /api/generate-flow
