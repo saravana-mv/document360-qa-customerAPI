@@ -43,9 +43,9 @@ Return a JSON array. Each item:
 }
 
 ## Complexity guide
-- simple: 2-3 steps, single entity CRUD
-- moderate: 4-6 steps, may involve state changes or 2 entities
-- complex: 7+ steps, multi-entity dependencies, bulk operations, error scenarios
+- simple: 3-4 steps, single entity CRUD (including setup + teardown)
+- moderate: 5-7 steps, may involve state changes or 2 entities
+- complex: 8+ steps, multi-entity dependencies, bulk operations, error scenarios
 
 ## Idea ordering — IMPORTANT
 Generate ideas in this priority order (first ideas should be simplest):
@@ -71,6 +71,7 @@ Always start with the simplest scenarios before progressing to complex ones. The
 5. Group related flows logically
 6. Return ONLY valid JSON — no markdown fences, no explanation text
 7. If existing ideas are provided, generate DIFFERENT ideas that cover new scenarios
+8. **TEARDOWN IS MANDATORY**: Every flow — no matter how simple — MUST include cleanup/teardown steps that delete all resources created during the flow. The testing environment must be left exactly as it was before the flow ran. Even a simple "POST creates a resource" test must include a DELETE step at the end. Include these teardown steps in the "steps" array.
 
 Return the JSON array directly.`;
 

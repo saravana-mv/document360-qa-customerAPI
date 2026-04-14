@@ -183,7 +183,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 
 1. **STRICT SCOPE**: Only use API endpoints, methods, and paths explicitly described in the provided spec files. Do not invent endpoints.
 2. **Article dependency (CRITICAL — overrides scope rules)**: Flows MUST NEVER assume a pre-existing article or category. EVERY flow that operates on an article MUST start with: (a) Create Category (POST /v2/projects/{project_id}/categories), (b) Create Article (POST /v3/projects/{project_id}/articles with category_id from step a). End with teardown: delete article, then delete category. This applies even for single-endpoint flows like "Delete Article" — you must first create the article you intend to delete. The API requires category_id even though the spec marks it nullable.
-3. **Teardown order**: Delete child resources before parent (article before category). Mark teardown steps with \`<flags teardown="true"/>\`.
+3. **Teardown is MANDATORY for every flow**: Every flow — regardless of complexity — MUST end with teardown steps that delete ALL resources created during the flow. The testing environment must be left exactly as it was before the flow ran. Delete child resources before parent (article before category). Mark every teardown step with \`<flags teardown="true"/>\`.
 4. **State passing**: Use \`<capture variable="state.X" source="response.data.Y"/>\` then reference \`{{state.X}}\` in later steps.
 5. **Version paths**: Use \`/v3/…\` for every endpoint — the test runner rewrites the version segment at runtime to match the user's selected API version.
 6. **Unique names**: For resource names, use \`[TEST] Something - {{timestamp}}\`.
