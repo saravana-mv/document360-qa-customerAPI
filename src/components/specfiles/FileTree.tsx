@@ -257,14 +257,18 @@ function TreeNodeRow({
           <span className="flex-1 truncate">{node.name}</span>
         )}
 
-        {/* Idea indicator — small bulb for files/folders with generated ideas */}
+        {/* Idea indicator — small filled bulb for files/folders with generated ideas */}
         {!isRenaming && pathsWithIdeas?.has(node.path) && (
           <span
             title="Ideas generated"
-            className={`shrink-0 ${isSelected && !isDropTarget ? "text-yellow-300" : "text-[#9a6700]"}`}
+            className={`shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full ${
+              isSelected && !isDropTarget ? "bg-yellow-300/40" : "bg-[#fff8c5]"
+            }`}
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 16 16"
+              style={{ color: isSelected && !isDropTarget ? "#fde047" : "#9a6700" }}
+            >
+              <path d="M8 1.5c-2.363 0-4.5 1.86-4.5 4.5 0 1.347.612 2.374 1.316 3.157.376.418.79.8 1.184 1.161V12.5a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-2.182c.394-.361.808-.743 1.184-1.161C11.888 8.374 12.5 7.347 12.5 6c0-2.64-2.137-4.5-4.5-4.5ZM6.5 14a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1h-3Z" />
             </svg>
           </span>
         )}
