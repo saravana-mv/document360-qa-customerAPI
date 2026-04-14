@@ -208,6 +208,7 @@ export function SpecFilesPage() {
   const [markedIds, setMarkedIds] = useState<Set<string>>(new Set());
   const [markingIds, setMarkingIds] = useState<Set<string>>(new Set());
   const [selectedFlowIds, setSelectedFlowIds] = useState<Set<string>>(new Set());
+  const [thisLevelOnly, setThisLevelOnly] = useState(false);
   const [conflict, setConflict] = useState<{
     flow: GeneratedFlow;
     existingName: string;
@@ -1053,6 +1054,15 @@ export function SpecFilesPage() {
     ? files.filter((f) => f.name.startsWith(`${selectedFolderPath}/`) && f.name.endsWith(".md")).length
     : 0;
 
+  // Filter ideas when "this level only" is active — show only ideas stored
+  // directly under the current path, not aggregated from sub-paths.
+  const thisLevelIdeas = (!isFileContext && activePath && thisLevelOnly)
+    ? workshopMap[activePath]?.ideas ?? []
+    : ideas;
+  // Show the toggle only when there are sub-level ideas (i.e. aggregated > this level)
+  const hasSubLevelIdeas = !isFileContext && activePath
+    && (workshopMap[activePath]?.ideas.length ?? 0) < ideas.length;
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -1152,7 +1162,7 @@ export function SpecFilesPage() {
                   {/* Column 1 — Ideas */}
                   <div className="shrink-0 flex flex-col overflow-hidden" style={{ width: ideasWidth }}>
                     <FlowIdeasPanel
-                      ideas={ideas.length > 0 ? ideas : null}
+                      ideas={thisLevelIdeas.length > 0 ? thisLevelIdeas : null}
                       loading={ideasLoading}
                       appending={ideasAppending}
                       error={ideasError}
@@ -1174,6 +1184,8 @@ export function SpecFilesPage() {
                       generatingFlows={generatingFlows}
                       ideasExhausted={ideasExhausted}
                       maxIdeasTotal={MAX_IDEAS_TOTAL}
+                      thisLevelOnly={thisLevelOnly}
+                      onToggleThisLevel={hasSubLevelIdeas ? () => setThisLevelOnly((v) => !v) : undefined}
                     />
                   </div>
                   <ResizeHandle width={ideasWidth} onResize={setIdeasWidth} minWidth={200} maxWidth={500} />

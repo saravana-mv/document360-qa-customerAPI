@@ -111,7 +111,7 @@ Steps:
         <span className="text-sm font-semibold text-[#1f2328]">Flows</span>
         {flows.length > 0 && (
           <span className="text-xs px-1.5 py-px rounded-full font-medium bg-[#0969da]/10 text-[#0969da] border border-[#0969da]/20">
-            {doneFlows.length}/{flows.length}
+            {flows.length}
           </span>
         )}
         <div className="flex-1" />

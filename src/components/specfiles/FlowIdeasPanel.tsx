@@ -39,6 +39,10 @@ interface Props {
   ideasExhausted?: boolean;
   /** Hard cap on total ideas per context */
   maxIdeasTotal?: number;
+  /** Whether "this level only" filter is active */
+  thisLevelOnly?: boolean;
+  /** Toggle handler — only provided when sub-level ideas exist */
+  onToggleThisLevel?: () => void;
 }
 
 export function FlowIdeasPanel({
@@ -47,6 +51,7 @@ export function FlowIdeasPanel({
   onToggleSelect, onSelectAll, onDeselectAll,
   onGenerateFlows, onGenerateMore, onDeleteSelected, onDeleteIdea, onClickIdea, generatingFlows,
   ideasExhausted, maxIdeasTotal = 30, markedIds,
+  thisLevelOnly, onToggleThisLevel,
 }: Props) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [rowDeleteId, setRowDeleteId] = useState<string | null>(null);
@@ -69,6 +74,19 @@ export function FlowIdeasPanel({
         )}
         {lockedCount > 0 && (
           <span className="text-xs px-1.5 py-px rounded-full font-medium bg-[#dafbe1] text-[#1a7f37] border border-[#aceebb]">{lockedCount} done</span>
+        )}
+        {onToggleThisLevel && (
+          <button
+            onClick={onToggleThisLevel}
+            title={thisLevelOnly ? "Showing this level only — click for all" : "Showing all levels — click for this level only"}
+            className={`text-xs px-1.5 py-0.5 rounded-md font-medium border transition-colors ${
+              thisLevelOnly
+                ? "bg-[#ddf4ff] text-[#0969da] border-[#b6e3ff]"
+                : "bg-white text-[#656d76] border-[#d1d9e0] hover:bg-[#f6f8fa]"
+            }`}
+          >
+            {thisLevelOnly ? "This level" : "All levels"}
+          </button>
         )}
         <div className="flex-1" />
         {selectedCount > 0 && (
