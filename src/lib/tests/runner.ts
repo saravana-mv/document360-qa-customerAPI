@@ -12,8 +12,8 @@ function getStore() {
   return useRunnerStore.getState();
 }
 
-function log(message: string, level: "info" | "success" | "error" | "warn" = "info", tag?: string, testId?: string) {
-  getStore().appendLog({ message, level, tag, testId });
+function log(message: string, level: "info" | "success" | "error" | "warn" = "info", tag?: string, testId?: string, testName?: string) {
+  getStore().appendLog({ message, level, tag, testId, testName });
 }
 
 async function executeTest(
@@ -24,12 +24,12 @@ async function executeTest(
   const store = getStore();
   if (store.cancelled) {
     store.updateTestStatus(test.id, { status: "skip" });
-    log(`Skipped: ${test.name}`, "warn", test.tag, test.id);
+    log("Skipped", "warn", test.tag, test.id, test.name);
     return;
   }
 
   store.updateTestStatus(test.id, { status: "running", startedAt: Date.now() });
-  log(`Running: ${test.name}`, "info", test.tag, test.id);
+  log("Running…", "info", test.tag, test.id, test.name);
 
   let result: TestExecutionResult;
   const startMs = Date.now();
@@ -62,7 +62,7 @@ async function executeTest(
       try {
         await test.teardown(ctx, state);
       } catch (err) {
-        log(`Teardown failed for ${test.name}: ${err}`, "warn", test.tag, test.id);
+        log(`Teardown failed: ${err}`, "warn", test.tag, test.id, test.name);
       }
     }
   }
@@ -82,9 +82,9 @@ async function executeTest(
   });
 
   if (result.status === "pass") {
-    log(`✓ ${test.name} (${result.durationMs}ms)`, "success", test.tag, test.id);
+    log(`✓ Passed (${result.durationMs}ms)`, "success", test.tag, test.id, test.name);
   } else {
-    log(`✗ ${test.name}: ${result.failureReason || result.status}`, "error", test.tag, test.id);
+    log(`✗ ${result.failureReason || result.status}`, "error", test.tag, test.id, test.name);
   }
 }
 
@@ -101,11 +101,11 @@ async function runTag(tag: string, tests: TestDef[], ctx: TestContext): Promise<
     const test = tests[i];
     if (aborted && !test.isTeardown) {
       getStore().updateTestStatus(test.id, { status: "skip" });
-      log(`Skipped (flow stopped): ${test.name}`, "warn", tag, test.id);
+      log("Skipped (flow stopped)", "warn", tag, test.id, test.name);
       continue;
     }
     if (aborted && test.isTeardown) {
-      log(`Running teardown despite earlier failure: ${test.name}`, "warn", tag, test.id);
+      log("Running teardown despite earlier failure", "warn", tag, test.id, test.name);
     }
     await executeTest(test, ctx, state);
     const result = getStore().testResults[test.id];
@@ -114,7 +114,7 @@ async function runTag(tag: string, tests: TestDef[], ctx: TestContext): Promise<
       // User cancellation: skip everything that's left, including teardowns.
       for (let j = i + 1; j < tests.length; j++) {
         getStore().updateTestStatus(tests[j].id, { status: "skip" });
-        log(`Skipped (cancelled): ${tests[j].name}`, "warn", tag, tests[j].id);
+        log("Skipped (cancelled)", "warn", tag, tests[j].id, tests[j].name);
       }
       break;
     }

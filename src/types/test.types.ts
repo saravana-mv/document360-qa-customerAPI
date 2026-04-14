@@ -120,5 +120,6 @@ export interface LogEntry {
   level: "info" | "success" | "error" | "warn";
   message: string;
   testId?: string;
+  testName?: string;
   tag?: string;
 }
