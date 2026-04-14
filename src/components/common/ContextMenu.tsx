@@ -8,6 +8,8 @@ export interface MenuAction {
   onClick: () => void;
   danger?: boolean;
   disabled?: boolean;
+  /** Tooltip shown on hover (useful for explaining why an item is disabled) */
+  tooltip?: string;
 }
 
 export type MenuItem = MenuAction | "separator";
@@ -91,6 +93,7 @@ export function ContextMenu({ items, triggerClass, trigger, align = "right" }: C
                   if (!item.disabled) run(item.onClick);
                 }}
                 disabled={item.disabled}
+                title={item.tooltip}
                 className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-colors ${
                   item.danger
                     ? "text-[#d1242f] hover:bg-[#ffebe9]"

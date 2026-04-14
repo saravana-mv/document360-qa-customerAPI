@@ -118,12 +118,21 @@ export function FlowIdeasPanel({
         {totalIdeas > 0 && (() => {
           const atCap = totalIdeas >= maxIdeasTotal;
           const moreDisabled = generatingFlows || !!appending || !!ideasExhausted || atCap;
+          const moreTooltip = atCap
+            ? `Maximum of ${maxIdeasTotal} ideas reached`
+            : ideasExhausted
+              ? "AI has covered all identifiable scenarios"
+              : appending
+                ? "Generation in progress..."
+                : generatingFlows
+                  ? "Wait for flow generation to complete"
+                  : undefined;
           return (
             <ContextMenu
               items={[
-                { label: "Generate 1 idea", icon: MenuIcons.sparkle, onClick: () => onGenerateMore(1), disabled: moreDisabled },
-                { label: "Generate 2 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateMore(2), disabled: moreDisabled },
-                { label: "Generate 5 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateMore(5), disabled: moreDisabled },
+                { label: "Generate 1 idea", icon: MenuIcons.sparkle, onClick: () => onGenerateMore(1), disabled: moreDisabled, tooltip: moreTooltip },
+                { label: "Generate 2 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateMore(2), disabled: moreDisabled, tooltip: moreTooltip },
+                { label: "Generate 5 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateMore(5), disabled: moreDisabled, tooltip: moreTooltip },
               ]}
             />
           );
