@@ -75,14 +75,14 @@ export function ContextMenu({ items, triggerClass, trigger, align = "right" }: C
       {open && (
         <div
           ref={menuRef}
-          className={`absolute top-full mt-1 z-50 bg-white border border-[#d1d9e0] rounded-lg shadow-lg py-1 min-w-[180px] ${
+          className={`absolute top-full mt-1 z-50 bg-white border border-[#d1d9e0] rounded-lg shadow-lg py-0.5 min-w-[180px] ${
             align === "right" ? "right-0" : "left-0"
           }`}
           onClick={(e) => e.stopPropagation()}
         >
           {visibleItems.map((item, i) => {
             if (item === "separator") {
-              return <div key={`sep-${i}`} className="border-t border-[#d8dee4] my-1" />;
+              return <div key={`sep-${i}`} className="border-t border-[#d8dee4] my-0.5" />;
             }
             return (
               <button
