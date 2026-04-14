@@ -69,6 +69,7 @@ export interface TestExecutionResult {
   responseBody?: unknown;
   responseHeaders?: Record<string, string>;
   requestUrl?: string;
+  requestHeaders?: Record<string, string>;
   requestBody?: unknown;
   failureReason?: string;
   assertionResults: AssertionResult[];
@@ -90,6 +91,7 @@ export interface TestResult {
   responseBody?: unknown;
   responseHeaders?: Record<string, string>;
   requestUrl?: string;
+  requestHeaders?: Record<string, string>;
   requestBody?: unknown;
   stateSnapshot?: Record<string, unknown>;
   startedAt?: number;

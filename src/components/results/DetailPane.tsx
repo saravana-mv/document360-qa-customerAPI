@@ -331,7 +331,8 @@ function RunTab({ testId }: { testId: string }) {
   }
 
   const badge = statusBadge[status];
-  const headerCount = result?.responseHeaders ? Object.keys(result.responseHeaders).length : 0;
+  const reqHeaderCount = result?.requestHeaders ? Object.keys(result.requestHeaders).length : 0;
+  const resHeaderCount = result?.responseHeaders ? Object.keys(result.responseHeaders).length : 0;
 
   return (
     <div className="p-4 space-y-4 text-sm">
@@ -372,19 +373,38 @@ function RunTab({ testId }: { testId: string }) {
         </div>
       )}
 
-      {/* Request Body */}
-      {result?.requestBody !== undefined && (
-        <div>
-          <Label>Request Body</Label>
-          <JsonBlock value={result.requestBody} />
-        </div>
+      {/* Request Headers (accordion) */}
+      {reqHeaderCount > 0 && (
+        <Accordion
+          title="Request Headers"
+          badge={<span className="text-[11px] text-[#656d76] tabular-nums">{reqHeaderCount}</span>}
+        >
+          <div className="divide-y divide-[#d1d9e0]">
+            {Object.entries(result.requestHeaders!).map(([key, value]) => (
+              <div key={key} className="flex items-start gap-2 px-3 py-1.5 text-xs group/hdr">
+                <span className="font-mono font-medium text-[#0969da] shrink-0">{key}</span>
+                <span className="font-mono text-[#1f2328] break-all flex-1">{key === "Authorization" ? value.slice(0, 12) + "••••••" : value}</span>
+                <CopyButton value={`${key}: ${value}`} className="opacity-0 group-hover/hdr:opacity-100 transition-opacity shrink-0" />
+              </div>
+            ))}
+          </div>
+        </Accordion>
       )}
 
-      {/* HTTP Headers (accordion) */}
-      {headerCount > 0 && (
+      {/* Request Body (accordion) */}
+      {result?.requestBody !== undefined && (
+        <Accordion title="Request Body" defaultOpen={true}>
+          <div className="p-0">
+            <JsonBlock value={result.requestBody} />
+          </div>
+        </Accordion>
+      )}
+
+      {/* Response Headers (accordion) */}
+      {resHeaderCount > 0 && (
         <Accordion
           title="Response Headers"
-          badge={<span className="text-[11px] text-[#656d76] tabular-nums">{headerCount}</span>}
+          badge={<span className="text-[11px] text-[#656d76] tabular-nums">{resHeaderCount}</span>}
         >
           <div className="divide-y divide-[#d1d9e0]">
             {Object.entries(result.responseHeaders!).map(([key, value]) => (
