@@ -5,6 +5,7 @@
 // delete-from-queue button on each file row.
 
 import { useEffect, useState } from "react";
+import { ContextMenu, MenuIcons } from "../common/ContextMenu";
 import type { FlowFileItem } from "../../lib/api/flowFilesApi";
 import type { FlowImplStatus, FlowStatusEntry } from "../../store/flowStatus.store";
 
@@ -235,17 +236,16 @@ function NodeRow({ node, depth, expanded, activePath, onToggle, onSelectFile, on
         {/* Status badge + delete (files only) */}
         {!isFolder && statusEntry && <StatusBadge status={statusEntry.status} error={statusEntry.error} />}
         {!isFolder && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onRemoveFile(node.path); }}
-            title="Remove from implementation queue"
-            className={`shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 ${
-              isSelected ? "hover:bg-red-500 text-white" : "hover:bg-[#ffebe9] text-[#afb8c1] hover:text-[#d1242f]"
-            }`}
-          >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <span className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            <ContextMenu
+              items={[
+                { label: "Remove from queue", icon: MenuIcons.remove, onClick: () => onRemoveFile(node.path), danger: true },
+              ]}
+              triggerClass={`rounded p-0.5 transition-colors ${
+                isSelected ? "hover:bg-[#0969da] text-white" : "text-[#656d76] hover:bg-[#eef1f6] hover:text-[#1f2328]"
+              }`}
+            />
+          </span>
         )}
       </div>
 

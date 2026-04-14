@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { ContextMenu, MenuIcons } from "../common/ContextMenu";
+import type { MenuItem } from "../common/ContextMenu";
 import type { FlowIdea, FlowUsage } from "../../lib/api/specFilesApi";
 import { validateFlowXml } from "../../lib/tests/flowXml/validate";
 
@@ -245,71 +247,28 @@ Steps:
                       </span>
                     )}
                   </div>
-                  {(flow.status === "done" || flow.status === "error") && !generating && (
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      {flow.status === "done" && (() => {
-                        const isMarked = markedIds.has(flow.ideaId);
-                        const isMarking = markingIds.has(flow.ideaId);
-                        const isValid = validByIdea[flow.ideaId];
-                        const disabled = isMarking || !isValid;
-                        return (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); if (!disabled) onMarkForImplementation(flow); }}
-                            title={
-                              !isValid
-                                ? "Flow XML is invalid — fix validation errors before marking for implementation"
-                                : isMarked
-                                  ? "In Flow Manager implementation queue — click to push again"
-                                  : "Mark this flow for implementation (adds it to the Flow Manager queue)"
-                            }
-                            disabled={disabled}
-                            className={`rounded-md p-0.5 transition-colors ${
-                              !isValid
-                                ? "text-[#afb8c1] cursor-not-allowed opacity-40"
-                                : isMarked
-                                  ? "text-[#1a7f37] hover:text-[#1a7f37] hover:bg-[#dafbe1]"
-                                  : "text-[#afb8c1] hover:text-[#1a7f37] hover:bg-[#dafbe1]"
-                            } ${isMarking ? "opacity-50 cursor-wait" : ""}`}
-                          >
-                            {isMarking ? (
-                              <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                              </svg>
-                            ) : isMarked ? (
-                              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                                <path fillRule="evenodd" clipRule="evenodd" d="M20.03 6.53a.75.75 0 0 1 0 1.06l-11 11a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 1 1 1.06-1.06L8.5 16.94 18.97 6.47a.75.75 0 0 1 1.06.06Z" />
-                              </svg>
-                            ) : (
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                              </svg>
-                            )}
-                          </button>
-                        );
-                      })()}
-                      {flow.status === "done" && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onDownloadFlow(flow); }}
-                          title="Download XML"
-                          className="text-[#afb8c1] hover:text-[#0969da] rounded-md p-0.5 hover:bg-[#ddf4ff] transition-colors"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                          </svg>
-                        </button>
-                      )}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setDeleteFlowId(flow.ideaId); }}
-                        title="Delete flow"
-                        className="text-[#afb8c1] hover:text-[#d1242f] rounded-md p-0.5 hover:bg-[#ffebe9] transition-colors"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                        </svg>
-                      </button>
-                    </div>
-                  )}
+                  {(flow.status === "done" || flow.status === "error") && !generating && (() => {
+                    const isMarked = markedIds.has(flow.ideaId);
+                    const isMarking = markingIds.has(flow.ideaId);
+                    const isValid = flow.status === "done" ? validByIdea[flow.ideaId] : false;
+                    const items: MenuItem[] = [];
+                    if (flow.status === "done") {
+                      items.push({
+                        label: isMarked ? "Re-queue for implementation" : "Mark for implementation",
+                        icon: MenuIcons.check,
+                        onClick: () => onMarkForImplementation(flow),
+                        disabled: isMarking || !isValid,
+                      });
+                      items.push({ label: "Download XML", icon: MenuIcons.download, onClick: () => onDownloadFlow(flow) });
+                      items.push("separator");
+                    }
+                    items.push({ label: "Delete flow", icon: MenuIcons.trash, onClick: () => setDeleteFlowId(flow.ideaId), danger: true });
+                    return (
+                      <div className="shrink-0">
+                        <ContextMenu items={items} />
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}

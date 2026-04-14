@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { ContextMenu, MenuIcons } from "../common/ContextMenu";
+import type { MenuItem } from "../common/ContextMenu";
 import type { SpecFileItem } from "../../lib/api/specFilesApi";
 
 // ── Tree data model ───────────────────────────────────────────────────────────
@@ -130,97 +132,22 @@ interface FolderMenuProps {
   onDelete: () => void;
 }
 
-function FolderContextMenu({ folderPath: _, isSelected, onNewSubfolder, onUploadFiles, onGenerateFlowIdeas, onRename, onDelete }: FolderMenuProps) {
-  const [open, setOpen] = useState(false);
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      if (!menuRef.current?.contains(e.target as Node) && !btnRef.current?.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
-
-  function action(fn: () => void) {
-    setOpen(false);
-    fn();
-  }
-
+function FolderMenu({ isSelected, onNewSubfolder, onUploadFiles, onGenerateFlowIdeas, onRename, onDelete }: FolderMenuProps) {
+  const items: MenuItem[] = [
+    { label: "New subfolder", icon: MenuIcons.folder, onClick: onNewSubfolder },
+    { label: "Upload files", icon: MenuIcons.upload, onClick: onUploadFiles },
+    { label: "Generate flow ideas", icon: MenuIcons.sparkle, onClick: onGenerateFlowIdeas },
+    "separator",
+    { label: "Rename", icon: MenuIcons.rename, onClick: onRename },
+    { label: "Delete folder", icon: MenuIcons.trash, onClick: onDelete, danger: true },
+  ];
   return (
-    <div className="relative shrink-0">
-      <button
-        ref={btnRef}
-        title="More actions"
-        onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
-        className={`rounded p-0.5 transition-colors ${
-          isSelected ? "hover:bg-[#0969da] text-white" : "text-[#656d76] hover:bg-[#eef1f6] hover:text-[#1f2328]"
-        }`}
-      >
-        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M10 3a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM10 8.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM11.5 15.5a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0Z" />
-        </svg>
-      </button>
-
-      {open && (
-        <div
-          ref={menuRef}
-          className="absolute right-0 top-full mt-0.5 z-50 bg-white border border-[#d1d9e0] rounded shadow-lg py-0.5 min-w-36"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={() => action(onNewSubfolder)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[#1f2328] hover:bg-[#f6f8fa]"
-          >
-            <svg className="w-3.5 h-3.5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
-            </svg>
-            New subfolder
-          </button>
-          <button
-            onClick={() => action(onUploadFiles)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[#1f2328] hover:bg-[#f6f8fa]"
-          >
-            <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-            </svg>
-            Upload files
-          </button>
-          <button
-            onClick={() => action(onGenerateFlowIdeas)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[#1f2328] hover:bg-[#f6f8fa]"
-          >
-            <svg className="w-3.5 h-3.5 text-[#0969da]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-            </svg>
-            Generate Flow Ideas (AI)
-          </button>
-          <div className="border-t border-[#d8dee4] my-0.5" />
-          <button
-            onClick={() => action(onRename)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[#1f2328] hover:bg-[#f6f8fa]"
-          >
-            <svg className="w-3.5 h-3.5 text-[#656d76]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
-            </svg>
-            Rename
-          </button>
-          <button
-            onClick={() => action(onDelete)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[#d1242f] hover:bg-[#ffebe9]"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-            </svg>
-            Delete folder
-          </button>
-        </div>
-      )}
-    </div>
+    <ContextMenu
+      items={items}
+      triggerClass={`rounded p-0.5 transition-colors ${
+        isSelected ? "hover:bg-[#0969da] text-white" : "text-[#656d76] hover:bg-[#eef1f6] hover:text-[#1f2328]"
+      }`}
+    />
   );
 }
 
@@ -332,7 +259,7 @@ function TreeNodeRow({
         {!isRenaming && (
           <span className={`flex items-center gap-0.5 shrink-0 ${isSelected && !isDropTarget ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
             {node.type === "folder" ? (
-              <FolderContextMenu
+              <FolderMenu
                 folderPath={node.path}
                 isSelected={isSelected && !isDropTarget}
                 onNewSubfolder={() => onStartSubfolder(node.path)}
@@ -342,26 +269,15 @@ function TreeNodeRow({
                 onDelete={() => onDeleteNode(node)}
               />
             ) : (
-              <>
-                <button
-                  title="Rename"
-                  onClick={(e) => { e.stopPropagation(); onRenameStart(node.path); }}
-                  className={`rounded p-0.5 ${isSelected ? "hover:bg-[#0969da]" : "hover:bg-[#eef1f6]"}`}
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
-                  </svg>
-                </button>
-                <button
-                  title="Delete"
-                  onClick={(e) => { e.stopPropagation(); onDeleteNode(node); }}
-                  className={`rounded p-0.5 ${isSelected ? "hover:bg-red-500" : "hover:bg-red-100 text-red-500"}`}
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </>
+              <ContextMenu
+                items={[
+                  { label: "Rename", icon: MenuIcons.rename, onClick: () => onRenameStart(node.path) },
+                  { label: "Delete file", icon: MenuIcons.trash, onClick: () => onDeleteNode(node), danger: true },
+                ]}
+                triggerClass={`rounded p-0.5 transition-colors ${
+                  isSelected ? "hover:bg-[#0969da] text-white" : "text-[#656d76] hover:bg-[#eef1f6] hover:text-[#1f2328]"
+                }`}
+              />
             )}
           </span>
         )}
