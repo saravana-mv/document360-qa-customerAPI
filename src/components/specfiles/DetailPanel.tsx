@@ -177,9 +177,6 @@ export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFl
       <div className="flex flex-col h-full overflow-hidden">
         {/* Title row */}
         <div className="flex items-center gap-2 px-4 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
-          <svg className="w-4 h-4 text-[#0969da] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
-          </svg>
           <span className="text-[13px] font-semibold text-[#1f2328] truncate flex-1">{selectedFlow.title}</span>
           {validation && (
             validation.ok ? (
@@ -230,7 +227,21 @@ export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFl
                     : "border-transparent text-[#656d76] hover:text-[#1f2328]"
                 }`}
               >
-                {tab === "idea" ? "Idea" : "Flow XML"}
+                {tab === "idea" ? (
+                  <span className="inline-flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+                    </svg>
+                    Idea
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
+                    </svg>
+                    Flow XML
+                  </span>
+                )}
               </button>
             ))}
           </div>
