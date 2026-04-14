@@ -27,8 +27,8 @@ export function TestExplorer() {
   const flowsByName = useFlowStatusStore((s) => s.byName);
   const allTests = getAllTests();
 
-  const [expandSignal, setExpandSignal] = useState(0);
-  const [expandAll, setExpandAll] = useState(false);
+  const [expandSignal, setExpandSignal] = useState(1);
+  const [expandAll, setExpandAll] = useState(true);
   const [autoLoadError, setAutoLoadError] = useState<string | null>(null);
   const [autoLoading, setAutoLoading] = useState(false);
 
