@@ -42,7 +42,7 @@ export function LoginScreen() {
         </div>
 
         <h1 className="text-xl font-semibold text-[#1f2328] mb-1">Sign in</h1>
-        <p className="text-sm text-[#656d76] mb-8">FlowForge · Kovai.co API Chaining and Composite Testing Engine</p>
+        <p className="text-sm text-[#656d76] mb-8">FlowForge · Document360 API Chaining and Composite Testing Engine</p>
 
         {error && (
           <div className="mb-4 px-3 py-2.5 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-sm text-[#d1242f] text-left">

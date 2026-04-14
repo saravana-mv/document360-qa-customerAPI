@@ -20,7 +20,7 @@ export function TopBar({ showTestControls }: TopBarProps) {
       {/* App title */}
       <span className="flex items-baseline gap-1.5 shrink-0">
         <span className="text-[13px] font-bold tracking-[-0.01em]">FLOW FORGE</span>
-        <span className="text-[10px] font-medium text-[#8b949e] tracking-wide">(Kovai.co API Chaining and Composite Testing Engine)</span>
+        <span className="text-xs font-medium text-[#8b949e] tracking-wide">(Document360 API Chaining and Composite Testing Engine)</span>
       </span>
 
       {status === "authenticated" && project && (
