@@ -1253,6 +1253,8 @@ export function SpecFilesPage() {
                       selectedFlow={selectedFlow}
                       flowIdea={selectedFlow ? ideas.find((i) => i.id === selectedFlow.ideaId) ?? null : null}
                       onDownloadFlow={downloadFlow}
+                      onGenerateFlow={handleGenerateFlowForIdea}
+                      generatingFlows={generatingFlows}
                     />
                   </div>
                 </div>
