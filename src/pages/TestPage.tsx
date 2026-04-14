@@ -24,27 +24,36 @@ export function TestPage() {
     }
   }, [parsedTags, selectedTestId, selectTest]);
 
+  const hasTests = parsedTags.length > 0;
+
   return (
     <Layout showTestControls>
       <div className="flex flex-col h-full">
-        <div className="flex flex-1 overflow-hidden min-h-0">
-          {/* LHS — 30% */}
-          <aside className="border-r border-[#d1d9e0] bg-white flex flex-col overflow-hidden" style={{ flex: "0 0 30%" }}>
+        {hasTests ? (
+          <>
+            <div className="flex flex-1 overflow-hidden min-h-0">
+              {/* LHS — 30% */}
+              <aside className="border-r border-[#d1d9e0] bg-white flex flex-col overflow-hidden" style={{ flex: "0 0 30%" }}>
+                <TestExplorer />
+              </aside>
+
+              {/* Center — 40% */}
+              <div className="border-r border-[#d1d9e0] flex flex-col overflow-hidden min-w-0" style={{ flex: "0 0 40%" }}>
+                <ResultsPanel />
+              </div>
+
+              {/* RHS — 30% */}
+              <div className="flex-1 overflow-hidden min-w-0">
+                <DetailPane testId={selectedTestId} onClose={() => selectTest(null)} />
+              </div>
+            </div>
+            <SummaryDrawer />
+          </>
+        ) : (
+          <div className="flex-1 overflow-hidden">
             <TestExplorer />
-          </aside>
-
-          {/* Center — 40% */}
-          <div className="border-r border-[#d1d9e0] flex flex-col overflow-hidden min-w-0" style={{ flex: "0 0 40%" }}>
-            <ResultsPanel />
           </div>
-
-          {/* RHS — 30% */}
-          <div className="flex-1 overflow-hidden min-w-0">
-            <DetailPane testId={selectedTestId} onClose={() => selectTest(null)} />
-          </div>
-        </div>
-
-        <SummaryDrawer />
+        )}
       </div>
     </Layout>
   );
