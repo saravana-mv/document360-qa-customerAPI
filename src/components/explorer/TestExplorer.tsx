@@ -8,6 +8,7 @@ import { getAllTests, unregisterWhere } from "../../lib/tests/registry";
 import { getProjectIdFromToken, fetchProject } from "../../lib/api/projects";
 import { fetchProjectVersions } from "../../lib/api/project-versions";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
+import { deactivateAll } from "../../lib/tests/flowXml/activeTests";
 import { EntityNode } from "./EntityNode";
 import { ExplorerContext } from "./ExplorerContext";
 import { ProjectSettingsCard } from "../setup/ProjectSettingsCard";
@@ -95,6 +96,8 @@ export function TestExplorer() {
   function handleDeleteAll() {
     // Unregister all xml-sourced tests (keep flow XML files in blob storage)
     unregisterWhere((def) => def.id.startsWith("xml:"));
+    // Clear the active-tests set so they don't come back on refresh
+    deactivateAll();
     // Clear flow status store
     const flowStatus = useFlowStatusStore.getState();
     flowStatus.pruneTo(new Set());

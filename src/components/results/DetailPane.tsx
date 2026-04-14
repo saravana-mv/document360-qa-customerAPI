@@ -9,6 +9,7 @@ import { rewriteApiVersion } from "../../lib/tests/flowXml/builder";
 import { getFlowFileContent, saveFlowFile } from "../../lib/api/flowFilesApi";
 import { validateFlowXml } from "../../lib/tests/flowXml/validate";
 import { loadFlowsFromQueue } from "../../lib/tests/flowXml/loader";
+import { activateFlow } from "../../lib/tests/flowXml/activeTests";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import type { TestStatus } from "../../types/test.types";
 
@@ -452,6 +453,7 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
     setValidationError(null);
     try {
       await saveFlowFile(fileName, draft, true);
+      activateFlow(fileName);
       setXml(draft);
       setEditing(false);
       setSaveSuccess(true);

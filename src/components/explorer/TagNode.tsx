@@ -9,6 +9,7 @@ import { useExplorerContext } from "./ExplorerContext";
 import { deleteFlowFile } from "../../lib/api/flowFilesApi";
 import { unregisterWhere } from "../../lib/tests/registry";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
+import { deactivateFlow } from "../../lib/tests/flowXml/activeTests";
 import type { ParsedTag } from "../../types/spec.types";
 import type { TestDef } from "../../types/test.types";
 
@@ -35,6 +36,8 @@ export function TagNode({ tag, tests }: TagNodeProps) {
     setDeleting(true);
     try {
       await deleteFlowFile(flowFileName);
+      // Remove from active-tests set
+      deactivateFlow(flowFileName);
       // Remove tests from registry
       unregisterWhere((def) => def.flowFileName === flowFileName);
       // Remove status entry

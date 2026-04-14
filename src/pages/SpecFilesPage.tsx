@@ -35,6 +35,7 @@ import {
 } from "../lib/api/flowFilesApi";
 import { buildFlowPrompt } from "../lib/flow/buildPrompt";
 import { loadFlowsFromQueue } from "../lib/tests/flowXml/loader";
+import { activateFlow } from "../lib/tests/flowXml/activeTests";
 import { buildParsedTagsFromRegistry } from "../lib/tests/buildParsedTags";
 import { useSpecStore } from "../store/spec.store";
 import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
@@ -1084,6 +1085,8 @@ export function SpecFilesPage() {
     setMarkingIds(prev => { const n = new Set(prev); n.add(flow.ideaId); return n; });
     try {
       await saveFlowFile(targetName, flow.xml, overwrite);
+      // Mark this flow as an active test so the loader picks it up
+      activateFlow(targetName);
       setMarkedIds(prev => { const n = new Set(prev); n.add(flow.ideaId); return n; });
       // Immediately register the saved flow as runnable tests and rebuild
       // the Test Manager's tag list so new tests appear without a refresh.

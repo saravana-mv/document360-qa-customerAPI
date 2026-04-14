@@ -1,6 +1,6 @@
-// Loads every .flow.xml file from blob storage, parses each into a TestDef[]
-// and registers them in the test runner's registry. Updates the flow-status
-// store so the Flow Manager UI can reflect implementation status.
+// Loads .flow.xml files from blob storage that are marked as "active tests",
+// parses each into a TestDef[] and registers them in the test runner's registry.
+// Updates the flow-status store so the Flow Manager UI can reflect status.
 
 import { listFlowFiles, getFlowFileContent } from "../../api/flowFilesApi";
 import { useFlowStatusStore } from "../../../store/flowStatus.store";
@@ -8,13 +8,14 @@ import { registerSuite, unregisterWhere } from "../registry";
 import { parseFlowXml, FlowXmlParseError } from "./parser";
 import { buildFlow } from "./builder";
 import { seedBuiltinFlows } from "./builtins";
+import { getActiveFlows } from "./activeTests";
 
 let lastLoadPromise: Promise<void> | null = null;
 
 /**
- * Public entry point. Lists every .flow.xml in the queue, parses each, and
- * registers the resulting TestDefs. Concurrent calls share a single in-flight
- * load so callers don't trigger duplicate work.
+ * Public entry point. Lists every .flow.xml in the queue, parses each
+ * ACTIVE flow, and registers the resulting TestDefs. Concurrent calls
+ * share a single in-flight load so callers don't trigger duplicate work.
  */
 export function loadFlowsFromQueue(): Promise<void> {
   if (lastLoadPromise) return lastLoadPromise;
@@ -27,7 +28,7 @@ async function doLoad(): Promise<void> {
   status.setLoading(true);
 
   // Seed the queue with the bundled reference flows on first run.
-  // Idempotent — never overwrites user edits.
+  // seedBuiltinFlows also activates flows it uploads.
   try {
     await seedBuiltinFlows();
   } catch (err) {
@@ -46,19 +47,22 @@ async function doLoad(): Promise<void> {
     return;
   }
 
-  // Clean slate — drop every previously registered xml-sourced test and
-  // prune status entries for files that no longer exist in the queue.
-  // Any current file will be re-added below.
-  unregisterWhere((def) => def.id.startsWith("xml:"));
-  status.pruneTo(new Set(files.map((f) => f.name)));
+  // Only register flows that are in the active-tests set
+  const activeSet = getActiveFlows();
+  const activeFiles = files.filter((f) => activeSet.has(f.name));
 
-  // Mark every known file as "loading" up-front so the UI can show progress.
-  for (const f of files) {
+  // Clean slate — drop every previously registered xml-sourced test and
+  // prune status entries for files that no longer exist.
+  unregisterWhere((def) => def.id.startsWith("xml:"));
+  status.pruneTo(new Set(activeFiles.map((f) => f.name)));
+
+  // Mark every active file as "loading" up-front so the UI can show progress.
+  for (const f of activeFiles) {
     status.setEntry({ name: f.name, status: "loading" });
   }
 
   // Fetch + parse + register in parallel.
-  await Promise.all(files.map((f) => loadOne(f.name)));
+  await Promise.all(activeFiles.map((f) => loadOne(f.name)));
 
   status.setLoading(false);
 }

@@ -9,6 +9,7 @@ import bulkOpsXml from "../../../../customer_api_endpoint_md_files/flows/article
 import publishUnpublishXml from "../../../../customer_api_endpoint_md_files/flows/articles/publish-unpublish-flow.flow.xml?raw";
 import versionMgmtXml from "../../../../customer_api_endpoint_md_files/flows/articles/version-management.flow.xml?raw";
 import { listFlowFiles, getFlowFileContent, saveFlowFile } from "../../api/flowFilesApi";
+import { activateFlow, getActiveFlows } from "./activeTests";
 
 export interface BuiltinFlow {
   name: string;       // blob name
@@ -46,6 +47,11 @@ export async function seedBuiltinFlows(): Promise<{ uploaded: string[]; skipped:
     existingNames = new Set();
   }
 
+  const activeSet = getActiveFlows();
+  // First-time detection: if there are NO active flows at all (fresh install
+  // or localStorage was cleared), auto-activate every builtin.
+  const isFirstRun = activeSet.size === 0;
+
   for (const flow of BUILTIN_FLOWS) {
     try {
       if (existingNames.has(flow.name)) {
@@ -53,14 +59,19 @@ export async function seedBuiltinFlows(): Promise<{ uploaded: string[]; skipped:
         const remote = await getFlowFileContent(flow.name);
         if (normalise(remote) === normalise(flow.xml)) {
           skipped.push(flow.name);
+          // On first run, activate existing builtins too
+          if (isFirstRun) activateFlow(flow.name);
           continue;
         }
-        // Content differs — overwrite
+        // Content differs — overwrite and re-activate
         await saveFlowFile(flow.name, flow.xml, true);
         uploaded.push(flow.name);
+        activateFlow(flow.name);
       } else {
+        // New flow — upload and activate
         await saveFlowFile(flow.name, flow.xml, false);
         uploaded.push(flow.name);
+        activateFlow(flow.name);
       }
     } catch (err) {
       // eslint-disable-next-line no-console
