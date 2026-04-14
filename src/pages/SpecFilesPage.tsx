@@ -813,7 +813,8 @@ export function SpecFilesPage() {
   }
 
   async function handleGenerateFlows(overrideIds?: Set<string>) {
-    const idsToUse = overrideIds ?? selectedIdeaIds;
+    // Guard against React event objects being passed as overrideIds (e.g. from onClick)
+    const idsToUse = overrideIds instanceof Set ? overrideIds : selectedIdeaIds;
     if (idsToUse.size === 0 || !activePath) return;
 
     // Filter out ideas that already have completed flows — don't waste resources
