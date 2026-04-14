@@ -35,6 +35,8 @@ import {
 } from "../lib/api/flowFilesApi";
 import { buildFlowPrompt } from "../lib/flow/buildPrompt";
 import { loadFlowsFromQueue } from "../lib/tests/flowXml/loader";
+import { buildParsedTagsFromRegistry } from "../lib/tests/buildParsedTags";
+import { useSpecStore } from "../store/spec.store";
 import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
 import { useAuthGuard } from "../hooks/useAuthGuard";
 import { useAuthStore } from "../store/auth.store";
@@ -164,6 +166,7 @@ export function SpecFilesPage() {
   useAuthGuard();
 
   const aiModel = useSetupStore((s) => s.aiModel);
+  const setSpec = useSpecStore((s) => s.setSpec);
 
   // ── File tree state ────────────────────────────────────────────────────────
   const [files, setFiles] = useState<SpecFileItem[]>([]);
@@ -1070,8 +1073,11 @@ export function SpecFilesPage() {
     try {
       await saveFlowFile(targetName, flow.xml, overwrite);
       setMarkedIds(prev => { const n = new Set(prev); n.add(flow.ideaId); return n; });
-      // Immediately register the saved flow as runnable tests
-      void loadFlowsFromQueue();
+      // Immediately register the saved flow as runnable tests and rebuild
+      // the Test Manager's tag list so new tests appear without a refresh.
+      await loadFlowsFromQueue();
+      const built = buildParsedTagsFromRegistry();
+      setSpec(null as never, built, null as never);
     } catch (e) {
       if (e instanceof FlowFileConflictError) {
         // Suggest `<slug>-2.flow.xml`, `-3.flow.xml`, etc. when collisions occur
