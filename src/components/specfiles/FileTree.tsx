@@ -140,7 +140,7 @@ interface FolderMenuProps {
   onUploadFiles: () => void;
   onImportFromUrl: () => void;
   onSyncFolder: () => void;
-  onGenerateFlowIdeas: () => void;
+  onGenerateFlowIdeas: (count: number) => void;
   onRename: () => void;
   onDelete: () => void;
 }
@@ -152,7 +152,9 @@ function FolderMenu({ isSelected, hasSourcedFiles, onNewSubfolder, onUploadFiles
     { label: "Import from URL", icon: MenuIcons.link, onClick: onImportFromUrl },
     { label: "Sync URL sources", icon: MenuIcons.sync, onClick: onSyncFolder, disabled: !hasSourcedFiles, tooltip: hasSourcedFiles ? undefined : "No URL-sourced files in this folder" },
     "separator",
-    { label: "Generate flow ideas", icon: MenuIcons.sparkle, onClick: onGenerateFlowIdeas },
+    { label: "Generate 1 idea", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(1) },
+    { label: "Generate 3 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(3) },
+    { label: "Generate 5 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(5) },
     "separator",
     { label: "Rename", icon: MenuIcons.rename, onClick: onRename },
     { label: "Delete folder", icon: MenuIcons.trash, onClick: onDelete, danger: true },
@@ -201,7 +203,7 @@ interface NodeProps {
   onImportFromUrl: (folderPath: string) => void;
   onSyncFile: (folderPath: string, filename: string) => void;
   onSyncFolder: (folderPath: string) => void;
-  onGenerateFlowIdeas: (folderPath: string) => void;
+  onGenerateFlowIdeas: (path: string, count: number) => void;
   onCreateCommit: (parentPath: string, name: string) => void;
   onCreateCancel: () => void;
 }
@@ -290,7 +292,7 @@ function TreeNodeRow({
                 onUploadFiles={() => onUploadFiles(node.path)}
                 onImportFromUrl={() => onImportFromUrl(node.path)}
                 onSyncFolder={() => onSyncFolder(node.path)}
-                onGenerateFlowIdeas={() => onGenerateFlowIdeas(node.path)}
+                onGenerateFlowIdeas={(count) => onGenerateFlowIdeas(node.path, count)}
                 onRename={() => onRenameStart(node.path)}
                 onDelete={() => onDeleteNode(node)}
               />
@@ -306,6 +308,13 @@ function TreeNodeRow({
                       onSyncFile(folder, node.name);
                     },
                   }] : []),
+                  ...(node.name.endsWith(".md") ? [
+                    "separator" as const,
+                    { label: "Generate 1 idea", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(node.path, 1) },
+                    { label: "Generate 3 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(node.path, 3) },
+                    { label: "Generate 5 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(node.path, 5) },
+                    "separator" as const,
+                  ] : ["separator" as const]),
                   { label: "Rename", icon: MenuIcons.rename, onClick: () => onRenameStart(node.path) },
                   { label: "Delete file", icon: MenuIcons.trash, onClick: () => onDeleteNode(node), danger: true },
                 ]}
@@ -396,7 +405,7 @@ interface FileTreeProps {
   onImportFromUrl: (folderPath: string) => void;
   onSyncFile: (folderPath: string, filename: string) => void;
   onSyncFolder: (folderPath: string) => void;
-  onGenerateFlowIdeas: (folderPath: string) => void;
+  onGenerateFlowIdeas: (path: string, count: number) => void;
   onRefresh: () => void;
 }
 

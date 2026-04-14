@@ -140,7 +140,7 @@ export function FlowIdeasPanel({
             <ContextMenu
               items={[
                 { label: "Generate 1 idea", icon: MenuIcons.sparkle, onClick: () => onGenerateMore(1), disabled: moreDisabled, tooltip: moreTooltip },
-                { label: "Generate 2 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateMore(2), disabled: moreDisabled, tooltip: moreTooltip },
+                { label: "Generate 3 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateMore(3), disabled: moreDisabled, tooltip: moreTooltip },
                 { label: "Generate 5 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateMore(5), disabled: moreDisabled, tooltip: moreTooltip },
               ]}
             />

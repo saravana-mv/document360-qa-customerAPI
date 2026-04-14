@@ -157,7 +157,7 @@ function nextGlobalIdeaIndex(map: WorkshopMap): number {
   return max + 1;
 }
 
-const MAX_IDEAS_PER_RUN = 10;  // Must match backend MAX_IDEAS_PER_RUN
+const MAX_IDEAS_PER_RUN = 5;   // Default max per generation run
 const MAX_IDEAS_TOTAL = 30;    // Hard cap to prevent over-engineering
 
 export function SpecFilesPage() {
@@ -574,7 +574,7 @@ export function SpecFilesPage() {
 
   // ── Generate flow ideas (AI) ──────────────────────────────────────────────
 
-  async function handleGenerateFlowIdeas(contextPath: string) {
+  async function handleGenerateFlowIdeas(contextPath: string, maxCount?: number) {
     // contextPath can be a folder path or a file path (.md)
     if (contextPath.endsWith(".md")) {
       setSelectedPath(contextPath);
@@ -615,7 +615,7 @@ export function SpecFilesPage() {
     setActiveFlowId(null);
     setIdeasLoading(true);
     try {
-      const result = await generateFlowIdeas(contextPath, [], undefined, aiModel);
+      const result = await generateFlowIdeas(contextPath, [], undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN);
       // Assign globally unique IDs to avoid collisions across contexts
       const startIdx = nextGlobalIdeaIndex(workshopMap);
       const newIdeas = result.ideas.map((idea, i) => ({
@@ -637,8 +637,9 @@ export function SpecFilesPage() {
       // Update flat working set
       setIdeas(newIdeas);
       setIdeasUsage(result.usage);
-      // Mark exhausted if AI returned fewer than max
-      if (newIdeas.length < MAX_IDEAS_PER_RUN) {
+      // Mark exhausted if AI returned fewer than requested
+      const requested = maxCount ?? MAX_IDEAS_PER_RUN;
+      if (newIdeas.length < requested) {
         setIdeasExhausted(true);
       }
       if (result.parseError && result.rawText) {
@@ -1224,7 +1225,7 @@ export function SpecFilesPage() {
             onImportFromUrl={(folderPath) => setImportUrlFolderPath(folderPath)}
             onSyncFile={(folderPath, filename) => void handleSyncFile(folderPath, filename)}
             onSyncFolder={(folderPath) => void handleSyncFolder(folderPath)}
-            onGenerateFlowIdeas={(folderPath) => void handleGenerateFlowIdeas(folderPath)}
+            onGenerateFlowIdeas={(path, count) => void handleGenerateFlowIdeas(path, count)}
             onRefresh={loadFiles}
           />
         </aside>
@@ -1386,16 +1387,21 @@ export function SpecFilesPage() {
                             : `AI will analyze ${folderMdCount} spec file${folderMdCount === 1 ? "" : "s"} in this folder and suggest test scenarios.`}
                       </p>
                     </div>
-                    <button
-                      onClick={() => void handleGenerateFlowIdeas(activePath!)}
-                      disabled={!isFileContext && folderMdCount === 0}
-                      className="inline-flex items-center gap-2 bg-[#0969da] hover:bg-[#0860ca] text-white text-sm font-medium rounded-md px-4 py-2 transition-colors border border-[#0969da]/80 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-                      </svg>
-                      Generate ideas
-                    </button>
+                    <div className="flex items-center gap-2 justify-center">
+                      {[1, 3, 5].map((n) => (
+                        <button
+                          key={n}
+                          onClick={() => void handleGenerateFlowIdeas(activePath!, n)}
+                          disabled={!isFileContext && folderMdCount === 0}
+                          className="inline-flex items-center gap-1.5 bg-[#0969da] hover:bg-[#0860ca] text-white text-sm font-medium rounded-md px-3 py-2 transition-colors border border-[#0969da]/80 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                          </svg>
+                          {n} idea{n > 1 ? "s" : ""}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
