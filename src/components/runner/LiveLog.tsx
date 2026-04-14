@@ -48,8 +48,7 @@ export function LiveLog() {
             <div className={`${levelColor[entry.level]} ${entry.testId ? "pl-3" : ""}`}>
               <span className="text-[#484f58]">{new Date(entry.timestamp).toLocaleTimeString()}</span>
               {" "}
-              {!entry.testId && entry.tag && <span className="text-[#656d76]">[{entry.tag}]</span>}
-              {!entry.testId && entry.tag && " "}
+              {!entry.testId && entry.tag && <><span className="text-[#656d76]">[{entry.tag}]</span>{" - "}</>}
               {entry.message}
             </div>
           </div>

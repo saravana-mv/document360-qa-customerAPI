@@ -29,7 +29,6 @@ async function executeTest(
   }
 
   store.updateTestStatus(test.id, { status: "running", startedAt: Date.now() });
-  log("Running…", "info", test.tag, test.id, test.name);
 
   let result: TestExecutionResult;
   const startMs = Date.now();
@@ -94,7 +93,7 @@ async function runTag(tag: string, tests: TestDef[], ctx: TestContext): Promise<
   const startedAt = Date.now();
 
   store.updateTagStatus(tag, "running");
-  log(`Starting flow: ${tag}`, "info", tag);
+  log("STARTED", "info", tag);
 
   let aborted = false;
   for (let i = 0; i < tests.length; i++) {
@@ -135,7 +134,8 @@ async function runTag(tag: string, tests: TestDef[], ctx: TestContext): Promise<
 
   const durationMs = Date.now() - startedAt;
   store.updateTagStatus(tag, rollup, durationMs);
-  log(`Tag ${tag} complete: ${rollup} (${durationMs}ms)`, rollup === "pass" ? "success" : "warn", tag);
+  const passed = tagTests.filter((t) => t.status === "pass").length;
+  log(`COMPLETED (${passed}/${tagTests.length} passed in ${durationMs}ms)`, rollup === "pass" ? "success" : "warn", tag);
 }
 
 export async function runTests(options: RunOptions): Promise<void> {
@@ -144,7 +144,6 @@ export async function runTests(options: RunOptions): Promise<void> {
 
   store.startRun();
   const startedAt = Date.now();
-  log("Test run started", "info");
 
   // Group tests by tag preserving order
   const tagOrder: string[] = [];
@@ -177,8 +176,5 @@ export async function runTests(options: RunOptions): Promise<void> {
   };
 
   store.setSummary(summary);
-  log(`Run complete — ${summary.pass}/${summary.total} passed in ${summary.durationMs}ms`,
-    summary.fail === 0 ? "success" : "error");
-
   options.onComplete?.();
 }
