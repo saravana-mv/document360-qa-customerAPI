@@ -5,6 +5,9 @@
 import versionLifecycleXml from "../../../../customer_api_endpoint_md_files/flows/articles/article-version-lifecycle.flow.xml?raw";
 import fullCrudXml from "../../../../customer_api_endpoint_md_files/flows/articles/full-article-crud-lifecycle.flow.xml?raw";
 import settingsXml from "../../../../customer_api_endpoint_md_files/flows/articles/article-settings-flow.flow.xml?raw";
+import bulkOpsXml from "../../../../customer_api_endpoint_md_files/flows/articles/bulk-operations.flow.xml?raw";
+import publishUnpublishXml from "../../../../customer_api_endpoint_md_files/flows/articles/publish-unpublish-flow.flow.xml?raw";
+import versionMgmtXml from "../../../../customer_api_endpoint_md_files/flows/articles/version-management.flow.xml?raw";
 import { listFlowFiles, getFlowFileContent, saveFlowFile } from "../../api/flowFilesApi";
 
 export interface BuiltinFlow {
@@ -16,6 +19,9 @@ export const BUILTIN_FLOWS: BuiltinFlow[] = [
   { name: "v3/articles/article-version-lifecycle.flow.xml", xml: versionLifecycleXml },
   { name: "v3/articles/full-article-crud-lifecycle.flow.xml", xml: fullCrudXml },
   { name: "v3/articles/article-settings-flow.flow.xml", xml: settingsXml },
+  { name: "v3/articles/bulk-operations.flow.xml", xml: bulkOpsXml },
+  { name: "v3/articles/publish-unpublish-flow.flow.xml", xml: publishUnpublishXml },
+  { name: "v3/articles/version-management.flow.xml", xml: versionMgmtXml },
 ];
 
 /** Normalise whitespace for comparison (trim + collapse runs of whitespace). */
