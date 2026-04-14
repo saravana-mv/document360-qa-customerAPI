@@ -205,6 +205,12 @@ export function SpecFilesPage() {
         s.add(f.name);
       }
     }
+    // DEBUG: remove after fixing
+    console.log("[pathsWithIdeas] workshopMap keys:", Object.keys(workshopMap));
+    console.log("[pathsWithIdeas] keys with ideas:", Object.entries(workshopMap).filter(([,v]) => v.ideas.length > 0).map(([k,v]) => `${k} (${v.ideas.length} ideas)`));
+    console.log("[pathsWithIdeas] folderKeysWithIdeas:", [...folderKeysWithIdeas]);
+    console.log("[pathsWithIdeas] result set:", [...s]);
+    console.log("[pathsWithIdeas] all file paths:", files.map(f => f.name));
     return s;
   }, [workshopMap, files]);
 
