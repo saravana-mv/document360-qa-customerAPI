@@ -81,6 +81,24 @@ export function TestExplorer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, token, parsedTags.length, flowsLoading, flowsByName]);
 
+  // Keep parsedTags in sync with the registry whenever the flow-status store
+  // changes (e.g. new tests created in Spec Manager). Without this, navigating
+  // from Spec Manager → Test Manager can show stale data because markFlow's
+  // fire-and-forget setSpec may not have run yet when the user navigated.
+  useEffect(() => {
+    if (flowsLoading) return;
+    const tests = getAllTests();
+    if (tests.length === 0) return;
+    const built = buildParsedTagsFromRegistry();
+    // Only update if the set of tags actually changed to avoid pointless re-renders
+    const currentNames = parsedTags.map((t) => t.name).join("\0");
+    const newNames = built.map((t) => t.name).join("\0");
+    if (currentNames !== newNames) {
+      setSpec(null as never, built, null as never);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flowsByName, flowsLoading]);
+
   // Group parsedTags by test.entity (fall back to "General" if not set)
   const entityMap = new Map<string, ParsedTag[]>();
   for (const tag of parsedTags) {
