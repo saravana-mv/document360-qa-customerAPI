@@ -13,7 +13,12 @@ import { fetchProjectVersions } from "../../lib/api/project-versions";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import { Spinner } from "../common/Spinner";
 
-export function ProjectSettingsCard() {
+interface ProjectSettingsCardProps {
+  /** When provided, called after "Start testing" succeeds instead of navigating. */
+  onDone?: () => void;
+}
+
+export function ProjectSettingsCard({ onDone }: ProjectSettingsCardProps = {}) {
   const navigate = useNavigate();
   const { token } = useAuthStore();
   const setup = useSetupStore();
@@ -72,7 +77,11 @@ export function ProjectSettingsCard() {
     try {
       const parsedTags = buildParsedTagsFromRegistry();
       spec.setSpec(null as never, parsedTags, null as never);
-      navigate("/test");
+      if (onDone) {
+        onDone();
+      } else {
+        navigate("/test");
+      }
     } catch (err) {
       spec.setError(err instanceof Error ? err.message : "Failed to initialise tests");
     } finally {
