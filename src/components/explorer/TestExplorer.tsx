@@ -4,10 +4,11 @@ import { useRunnerStore } from "../../store/runner.store";
 import { useAuthStore } from "../../store/auth.store";
 import { useSetupStore } from "../../store/setup.store";
 import { useFlowStatusStore } from "../../store/flowStatus.store";
-import { getAllTests } from "../../lib/tests/registry";
+import { getAllTests, unregisterWhere } from "../../lib/tests/registry";
 import { getProjectIdFromToken, fetchProject } from "../../lib/api/projects";
 import { fetchProjectVersions } from "../../lib/api/project-versions";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
+import { listFlowFiles, deleteFlowFile } from "../../lib/api/flowFilesApi";
 import { EntityNode } from "./EntityNode";
 import { ExplorerContext } from "./ExplorerContext";
 import { ProjectSettingsCard } from "../setup/ProjectSettingsCard";
@@ -33,6 +34,8 @@ export function TestExplorer() {
   const [autoLoadError, setAutoLoadError] = useState<string | null>(null);
   const [autoLoading, setAutoLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showDeleteAll, setShowDeleteAll] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   // Auto-load tests as soon as we have a valid token — the project settings
   // card should only appear when the session is missing/expired.
@@ -89,6 +92,32 @@ export function TestExplorer() {
   function handleCollapseAll() {
     setExpandAll(false);
     setExpandSignal((n) => n + 1);
+  }
+
+  async function handleDeleteAll() {
+    setDeletingAll(true);
+    try {
+      const files = await listFlowFiles();
+      const xmlFiles = files.filter((f) => f.name.endsWith(".flow.xml"));
+      await Promise.all(xmlFiles.map((f) => deleteFlowFile(f.name)));
+      // Unregister all xml-sourced tests
+      unregisterWhere((def) => def.id.startsWith("xml:"));
+      // Clear flow status store
+      const flowStatus = useFlowStatusStore.getState();
+      flowStatus.pruneTo(new Set());
+      // Clear selection
+      clearSelection();
+      // Rebuild explorer tree (will be empty)
+      const built = buildParsedTagsFromRegistry();
+      setSpec(null as never, built, null as never);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[TestExplorer] delete all failed:", err);
+      alert(`Failed to delete all tests: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setDeletingAll(false);
+      setShowDeleteAll(false);
+    }
   }
 
   if (parsedTags.length === 0) {
@@ -202,6 +231,15 @@ export function TestExplorer() {
                 </svg>
               )}
             </button>
+            <button
+              onClick={() => setShowDeleteAll(true)}
+              title="Delete all tests"
+              className="rounded-md p-1 text-[#656d76] hover:text-[#d1242f] hover:bg-[#ffebe9] transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+              </svg>
+            </button>
           </div>
           );
         })()}
@@ -210,6 +248,49 @@ export function TestExplorer() {
             <EntityNode key={entityName} name={entityName} flows={flows} />
           ))}
         </div>
+
+        {/* Delete all confirmation modal */}
+        {showDeleteAll && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => !deletingAll && setShowDeleteAll(false)}>
+            <div className="bg-white rounded-lg shadow-xl border border-[#d1d9e0] w-[420px] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-[#d1d9e0]">
+                <div className="w-8 h-8 rounded-full bg-[#ffebe9] flex items-center justify-center shrink-0">
+                  <svg className="w-4 h-4 text-[#d1242f]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                  </svg>
+                </div>
+                <span className="text-base font-semibold text-[#1f2328]">Delete all tests?</span>
+              </div>
+              <div className="px-4 py-3 space-y-2">
+                <p className="text-sm text-[#656d76] leading-relaxed">
+                  This will permanently remove <strong className="text-[#1f2328]">{parsedTags.length} flow{parsedTags.length !== 1 ? "s" : ""}</strong> and
+                  all <strong className="text-[#1f2328]">{allTests.length} test{allTests.length !== 1 ? "s" : ""}</strong> from
+                  the queue. Flow files will be deleted from blob storage.
+                </p>
+                <p className="text-sm text-[#656d76] leading-relaxed">
+                  Builtin flows will be re-seeded automatically on next page load.
+                </p>
+              </div>
+              <div className="flex justify-end gap-2 px-4 py-3 border-t border-[#d1d9e0] bg-[#f6f8fa] rounded-b-lg">
+                <button
+                  onClick={() => setShowDeleteAll(false)}
+                  disabled={deletingAll}
+                  className="text-sm font-medium text-[#1f2328] border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] rounded-md px-3 py-1.5 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void handleDeleteAll()}
+                  disabled={deletingAll}
+                  className="text-sm font-medium text-white bg-[#d1242f] hover:bg-[#d1242f]/90 border border-[#d1242f]/80 rounded-md px-3 py-1.5 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {deletingAll && <Spinner size="sm" className="text-white" />}
+                  {deletingAll ? "Deleting..." : "Delete all tests"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </ExplorerContext.Provider>
   );
