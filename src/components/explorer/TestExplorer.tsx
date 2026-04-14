@@ -8,7 +8,7 @@ import { getAllTests } from "../../lib/tests/registry";
 import { getProjectIdFromToken, fetchProject } from "../../lib/api/projects";
 import { fetchProjectVersions } from "../../lib/api/project-versions";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
-import { GroupNode } from "./GroupNode";
+import { EntityNode } from "./EntityNode";
 import { ExplorerContext } from "./ExplorerContext";
 import { ProjectSettingsCard } from "../setup/ProjectSettingsCard";
 import { Spinner } from "../common/Spinner";
@@ -113,15 +113,15 @@ export function TestExplorer() {
     );
   }
 
-  // Group parsedTags by test.group (fall back to "General" if not set)
-  const groupMap = new Map<string, ParsedTag[]>();
+  // Group parsedTags by test.entity (fall back to "General" if not set)
+  const entityMap = new Map<string, ParsedTag[]>();
   for (const tag of parsedTags) {
     const repTest = allTests.find((t) => t.tag === tag.name);
-    const groupName = repTest?.group ?? "General";
-    if (!groupMap.has(groupName)) groupMap.set(groupName, []);
-    groupMap.get(groupName)!.push(tag);
+    const entityName = repTest?.entity ?? "General";
+    if (!entityMap.has(entityName)) entityMap.set(entityName, []);
+    entityMap.get(entityName)!.push(tag);
   }
-  const groups = Array.from(groupMap.entries());
+  const entities = Array.from(entityMap.entries());
 
   return (
     <ExplorerContext.Provider value={{ expandSignal, expandAll }}>
@@ -146,8 +146,8 @@ export function TestExplorer() {
           <button onClick={clearSelection} className="text-xs text-[#656d76] hover:text-[#0969da] hover:underline">None</button>
         </div>
         <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1">
-          {groups.map(([groupName, flows]) => (
-            <GroupNode key={groupName} name={groupName} flows={flows} />
+          {entities.map(([entityName, flows]) => (
+            <EntityNode key={entityName} name={entityName} flows={flows} />
           ))}
         </div>
       </div>

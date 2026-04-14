@@ -4,7 +4,7 @@ import type { HttpMethod } from "../../../types/test.types";
 
 export interface ParsedFlow {
   name: string;             // <name> — used as the `tag` for TestDefs
-  group: string;            // <group> — Test Explorer category
+  entity: string;            // <entity> — Test Explorer category (e.g. "Articles")
   description?: string;
   stopOnFailure: boolean;
   steps: ParsedStep[];

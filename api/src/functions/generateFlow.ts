@@ -22,7 +22,7 @@ You generate structured XML flow files that describe a sequence of API test step
 <flow version="1.0"
       xmlns="https://document360.io/qa/flow/v1">
   <name>Human readable flow name</name>        <!-- required, element -->
-  <group>Articles</group>                       <!-- required, element -->
+  <entity>Articles</entity>                      <!-- required, element -->
   <description>What this flow covers</description>  <!-- required -->
   <stopOnFailure>true</stopOnFailure>           <!-- optional; default true -->
   <steps>                                        <!-- required wrapper -->
@@ -33,7 +33,7 @@ You generate structured XML flow files that describe a sequence of API test step
 \`\`\`
 
 **Notes**
-- \`name\`, \`group\`, \`description\`, \`stopOnFailure\` are child **elements**, NOT attributes on \`<flow>\`.
+- \`name\`, \`entity\`, \`description\`, \`stopOnFailure\` are child **elements**, NOT attributes on \`<flow>\`.
 - Steps live inside a single \`<steps>\` wrapper.
 - \`<step>\` uses a \`number\` attribute (1-based, sequential integers).
 
@@ -129,7 +129,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 <?xml version="1.0" encoding="UTF-8"?>
 <flow version="1.0" xmlns="https://document360.io/qa/flow/v1">
   <name>Article Version Lifecycle</name>
-  <group>Articles</group>
+  <entity>Articles</entity>
   <description>Creates category + article, publishes, forks, verifies, cleans up.</description>
   <stopOnFailure>true</stopOnFailure>
   <steps>

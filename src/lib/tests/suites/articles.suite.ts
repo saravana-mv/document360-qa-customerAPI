@@ -12,7 +12,7 @@ import {
 } from "../../api/articles";
 import { createCategory, deleteCategory } from "../../api/categories";
 
-const GROUP = "Articles";
+const ENTITY = "Articles";
 const FLOW_LIFECYCLE = "Article Version Lifecycle";
 
 /** Base URL for article endpoints using the configured API version (e.g. v3). */
@@ -36,7 +36,7 @@ const tests: TestDef[] = [
     id: "articles.create-category",
     name: "Create category",
     tag: FLOW_LIFECYCLE,
-    group: GROUP,
+    entity: ENTITY,
     path: "/{apiVersion}/projects/{project_id}/categories",
     method: "POST",
     sampleRequestBody: {
@@ -68,7 +68,7 @@ const tests: TestDef[] = [
     id: "articles.create",
     name: "Create article",
     tag: FLOW_LIFECYCLE,
-    group: GROUP,
+    entity: ENTITY,
     path: "/v3/projects/{project_id}/articles",
     method: "POST",
     pathParamsMeta: {
@@ -109,7 +109,7 @@ const tests: TestDef[] = [
     id: "articles.publish",
     name: "Publish article",
     tag: FLOW_LIFECYCLE,
-    group: GROUP,
+    entity: ENTITY,
     path: "/v3/projects/{project_id}/articles/{article_id}/publish",
     method: "POST",
     pathParamsMeta: {
@@ -145,7 +145,7 @@ const tests: TestDef[] = [
     id: "articles.fork",
     name: "Fork published version (create draft)",
     tag: FLOW_LIFECYCLE,
-    group: GROUP,
+    entity: ENTITY,
     path: "/v3/projects/{project_id}/articles/{article_id}/fork",
     method: "POST",
     pathParamsMeta: {
@@ -173,7 +173,7 @@ const tests: TestDef[] = [
     id: "articles.get-forked",
     name: "Retrieve article — verify draft exists",
     tag: FLOW_LIFECYCLE,
-    group: GROUP,
+    entity: ENTITY,
     path: "/v3/projects/{project_id}/articles/{article_id}",
     method: "GET",
     pathParamsMeta: {
@@ -211,7 +211,7 @@ const tests: TestDef[] = [
     id: "articles.delete-draft-version",
     name: "Delete draft version",
     tag: FLOW_LIFECYCLE,
-    group: GROUP,
+    entity: ENTITY,
     path: "/v3/projects/{project_id}/articles/{article_id}/versions/{version_number}",
     method: "DELETE",
     pathParamsMeta: {
@@ -240,7 +240,7 @@ const tests: TestDef[] = [
     id: "articles.verify-draft-deleted",
     name: "Verify deleted version returns 404",
     tag: FLOW_LIFECYCLE,
-    group: GROUP,
+    entity: ENTITY,
     path: "/v3/projects/{project_id}/articles/{article_id}/versions/{version_number}",
     method: "GET",
     pathParamsMeta: {
@@ -271,7 +271,7 @@ const tests: TestDef[] = [
     id: "articles.delete-created",
     name: "Delete test article (cleanup)",
     tag: FLOW_LIFECYCLE,
-    group: GROUP,
+    entity: ENTITY,
     path: "/v3/projects/{project_id}/articles/{article_id}",
     method: "DELETE",
     pathParamsMeta: {
@@ -301,7 +301,7 @@ const tests: TestDef[] = [
     id: "articles.delete-category",
     name: "Delete test category (cleanup)",
     tag: FLOW_LIFECYCLE,
-    group: GROUP,
+    entity: ENTITY,
     path: "/{apiVersion}/projects/{project_id}/categories/{category_id}",
     method: "DELETE",
     pathParamsMeta: {

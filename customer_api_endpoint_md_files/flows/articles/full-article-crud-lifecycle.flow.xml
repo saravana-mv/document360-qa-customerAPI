@@ -5,7 +5,7 @@
       xsi:schemaLocation="https://document360.io/qa/flow/v1 ../flow.xsd">
 
   <name>Full Article CRUD Lifecycle</name>
-  <group>Articles</group>
+  <entity>Articles</entity>
   <description>
     Reads the test article to capture its current title and content,
     applies a timestamped title change to verify the PATCH endpoint works,

@@ -26,7 +26,7 @@ flows/categories/category-crud.flow.md
 ```
 ---                            ← YAML front-matter (flow metadata)
 flow: <name>
-group: <domain group>
+entity: <domain entity>
 description: <what this flow tests>
 stop_on_failure: true|false    ← if a step fails, skip remaining steps
 ---

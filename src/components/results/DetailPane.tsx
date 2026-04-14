@@ -259,7 +259,7 @@ function DesignTab({ testId }: { testId: string }) {
       {/* Footer metadata */}
       <div className="border-t border-[#d1d9e0] pt-4 space-y-1.5 text-xs text-[#afb8c1]">
         <div><span className="font-medium text-[#656d76]">Flow:</span> {def.tag}</div>
-        {def.group && <div><span className="font-medium text-[#656d76]">Group:</span> {def.group}</div>}
+        {def.entity && <div><span className="font-medium text-[#656d76]">Entity:</span> {def.entity}</div>}
         <div className="flex items-center gap-1.5 group/id">
           <span className="font-medium text-[#656d76]">Test ID:</span>
           <span className="font-mono">{def.id}</span>

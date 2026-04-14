@@ -31,7 +31,7 @@ export function parseFlowXml(xml: string): ParsedFlow {
   const name = textOf(root, "name");
   if (!name) throw new FlowXmlParseError("<flow> requires a <name>");
 
-  const group = textOf(root, "group") || "Untagged";
+  const entity = textOf(root, "entity") || textOf(root, "group") || "Untagged";
   const description = textOf(root, "description");
   const stopOnFailure = (textOf(root, "stopOnFailure") || "true").trim().toLowerCase() !== "false";
 
@@ -46,7 +46,7 @@ export function parseFlowXml(xml: string): ParsedFlow {
     steps.push(parseStep(stepEl));
   }
 
-  return { name, group, description, stopOnFailure, steps };
+  return { name, entity, description, stopOnFailure, steps };
 }
 
 function parseStep(el: Element): ParsedStep {

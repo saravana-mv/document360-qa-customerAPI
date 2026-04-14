@@ -5,7 +5,7 @@
       xsi:schemaLocation="https://document360.io/qa/flow/v1 ../flow.xsd">
 
   <name>Article Settings Flow</name>
-  <group>Articles</group>
+  <entity>Articles</entity>
   <description>
     Reads the current article settings, toggles the allow_comments flag
     to its opposite value, then restores the original value — verifying

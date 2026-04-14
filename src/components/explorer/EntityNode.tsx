@@ -5,12 +5,12 @@ import { TagNode } from "./TagNode";
 import { useExplorerContext } from "./ExplorerContext";
 import type { ParsedTag } from "../../types/spec.types";
 
-interface GroupNodeProps {
+interface EntityNodeProps {
   name: string;
   flows: ParsedTag[];
 }
 
-export function GroupNode({ name, flows }: GroupNodeProps) {
+export function EntityNode({ name, flows }: EntityNodeProps) {
   const [open, setOpen] = useState(false);
   const allTests = getAllTests();
   const { selectedTags } = useRunnerStore();
@@ -20,7 +20,7 @@ export function GroupNode({ name, flows }: GroupNodeProps) {
     if (expandSignal > 0) setOpen(expandAll);
   }, [expandSignal]);
 
-  const groupTests = allTests.filter((t) => flows.some((f) => f.name === t.tag));
+  const entityTests = allTests.filter((t) => flows.some((f) => f.name === t.tag));
   const selectedCount = flows.filter((f) => selectedTags.has(f.name)).length;
 
   return (
@@ -34,7 +34,7 @@ export function GroupNode({ name, flows }: GroupNodeProps) {
         </svg>
         <span className="text-[13px] font-semibold text-[#1f2328] flex-1">{name}</span>
         <span className="text-xs text-[#656d76] shrink-0">
-          {groupTests.length}
+          {entityTests.length}
         </span>
         {selectedCount > 0 && (
           <span className="text-[11px] text-[#0969da] font-medium shrink-0 px-1.5 py-px rounded-full bg-[#ddf4ff] border border-[#b6e3ff]">

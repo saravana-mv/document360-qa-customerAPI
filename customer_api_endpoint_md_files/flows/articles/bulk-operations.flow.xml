@@ -5,7 +5,7 @@
       xsi:schemaLocation="https://document360.io/qa/flow/v1 ../flow.xsd">
 
   <name>Bulk Operations</name>
-  <group>Articles</group>
+  <entity>Articles</entity>
   <description>
     Hides the test article using the bulk update endpoint, reads it back
     to confirm the hidden flag changed, then restores it to visible —

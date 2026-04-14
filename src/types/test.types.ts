@@ -37,7 +37,7 @@ export interface TestDef {
   id: string;
   name: string;
   tag: string;         // Flow name (e.g. "Full Article CRUD Lifecycle")
-  group?: string;      // Domain container (e.g. "Articles", "Categories")
+  entity?: string;      // Domain entity (e.g. "Articles", "Categories")
   path: string;
   method: HttpMethod;
   description?: string;           // Human-readable explanation shown in Design tab

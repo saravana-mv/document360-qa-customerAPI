@@ -12,7 +12,7 @@ import { enumMatches } from "./enumAliases";
 
 interface BuiltFlow {
   tag: string;             // ParsedFlow.name
-  group: string;
+  entity: string;
   tests: TestDef[];
 }
 
@@ -32,7 +32,7 @@ export function rewriteApiVersion(path: string, apiVersion: string): string {
 export function buildFlow(parsed: ParsedFlow, flowFileName?: string): BuiltFlow {
   const flowSlug = slug(parsed.name);
   const tests: TestDef[] = parsed.steps.map((step) => buildStep(parsed, flowSlug, step, flowFileName));
-  return { tag: parsed.name, group: parsed.group, tests };
+  return { tag: parsed.name, entity: parsed.entity, tests };
 }
 
 function buildStep(flow: ParsedFlow, flowSlug: string, step: ParsedStep, flowFileName?: string): TestDef {
@@ -62,7 +62,7 @@ function buildStep(flow: ParsedFlow, flowSlug: string, step: ParsedStep, flowFil
     id,
     name: `Step ${step.number}: ${step.name}`,
     tag: flow.name,
-    group: flow.group,
+    entity: flow.entity,
     path: step.path,
     method: step.method,
     description,
