@@ -579,6 +579,8 @@ export function SpecFilesPage() {
   // ── Generate flow ideas (AI) ──────────────────────────────────────────────
 
   async function handleGenerateFlowIdeas(contextPath: string, maxCount?: number) {
+    // eslint-disable-next-line no-console
+    console.debug("[SpecFiles] handleGenerateFlowIdeas", { contextPath, maxCount });
     // contextPath can be a folder path or a file path (.md)
     if (contextPath.endsWith(".md")) {
       setSelectedPath(contextPath);
@@ -592,6 +594,8 @@ export function SpecFilesPage() {
     // ── Guard: skip API call if ideas already exist for this context ──
     const existing = aggregateForPath(workshopMap, contextPath);
     if (existing.ideas.length > 0) {
+      // eslint-disable-next-line no-console
+      console.debug("[SpecFiles] Using cached ideas", { count: existing.ideas.length, contextPath });
       // Just load existing ideas — no API call, no cost
       setIdeas(existing.ideas);
       setIdeasUsage(existing.usage);
@@ -660,6 +664,8 @@ export function SpecFilesPage() {
         setIdeasMessage(result.message || "AI could not generate any test flow ideas for this specification. The file may be too short or not contain enough API detail.");
       }
     } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[SpecFiles] generateFlowIdeas failed", e);
       setIdeasError(e instanceof Error ? e.message : String(e));
     } finally {
       setIdeasLoading(false);

@@ -48,7 +48,12 @@ export function ContextMenu({ items, triggerClass, trigger, align = "right" }: C
 
   function run(fn: () => void) {
     setOpen(false);
-    fn();
+    try {
+      fn();
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[ContextMenu] action failed:", e);
+    }
   }
 
   const visibleItems = items.filter((item) => item !== "separator" || true);
