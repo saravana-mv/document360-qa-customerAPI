@@ -1363,6 +1363,9 @@ export function SpecFilesPage() {
                       onDownloadFlow={downloadFlow}
                       onGenerateFlow={handleGenerateFlowForIdea}
                       generatingFlows={generatingFlows}
+                      isFlowMarked={selectedFlow ? markedIds.has(selectedFlow.ideaId) : false}
+                      onCreateTest={handleMarkForImplementation}
+                      creatingTest={selectedFlow ? markingIds.has(selectedFlow.ideaId) : false}
                     />
                   </div>
                 </div>

@@ -21,6 +21,12 @@ interface Props {
   onGenerateFlow?: (ideaId: string) => void;
   /** Whether flow generation is currently in progress */
   generatingFlows?: boolean;
+  /** Whether the selected flow already has tests created */
+  isFlowMarked?: boolean;
+  /** Create tests from the selected flow */
+  onCreateTest?: (flow: GeneratedFlow) => void;
+  /** Whether a "create test" operation is in progress */
+  creatingTest?: boolean;
 }
 
 type FlowTab = "idea" | "flow-xml";
@@ -151,7 +157,7 @@ function FlowXmlContent({ flow, validation }: {
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFlow, onGenerateFlow, generatingFlows }: Props) {
+export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFlow, onGenerateFlow, generatingFlows, isFlowMarked, onCreateTest, creatingTest }: Props) {
   const [activeTab, setActiveTab] = useState<FlowTab>("idea");
   const validation = useMemo(
     () => (selectedFlow && selectedFlow.status === "done" ? validateFlowXml(selectedFlow.xml) : null),
@@ -256,6 +262,31 @@ export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFl
           <IdeaContent idea={idea} />
         ) : (
           <FlowXmlContent flow={selectedFlow} validation={validation} />
+        )}
+
+        {/* Create test / Tests created bar */}
+        {selectedFlow.status === "done" && validation?.ok && onCreateTest && (
+          <div className="shrink-0 border-t border-[#d1d9e0] bg-[#f6f8fa] px-3 py-2 flex justify-center">
+            {isFlowMarked ? (
+              <span className="inline-flex items-center gap-1.5 text-sm text-[#1a7f37] font-medium">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                </svg>
+                Tests created
+              </span>
+            ) : (
+              <button
+                onClick={() => onCreateTest(selectedFlow)}
+                disabled={creatingTest}
+                className="flex items-center justify-center gap-1.5 bg-[#1a7f37] hover:bg-[#1a7f37]/90 disabled:bg-[#eef1f6] disabled:text-[#656d76] disabled:border-[#d1d9e0] text-white text-sm font-medium rounded-md px-3 py-1.5 transition-colors border border-[#1a7f37]/80"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+                {creatingTest ? "Creating..." : "Create test"}
+              </button>
+            )}
+          </div>
         )}
       </div>
     );
