@@ -8,7 +8,6 @@ import { getAllTests, unregisterWhere } from "../../lib/tests/registry";
 import { getProjectIdFromToken, fetchProject } from "../../lib/api/projects";
 import { fetchProjectVersions } from "../../lib/api/project-versions";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
-import { listFlowFiles, deleteFlowFile } from "../../lib/api/flowFilesApi";
 import { EntityNode } from "./EntityNode";
 import { ExplorerContext } from "./ExplorerContext";
 import { ProjectSettingsCard } from "../setup/ProjectSettingsCard";
@@ -35,7 +34,6 @@ export function TestExplorer() {
   const [autoLoading, setAutoLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showDeleteAll, setShowDeleteAll] = useState(false);
-  const [deletingAll, setDeletingAll] = useState(false);
 
   // Auto-load tests as soon as we have a valid token — the project settings
   // card should only appear when the session is missing/expired.
@@ -94,30 +92,18 @@ export function TestExplorer() {
     setExpandSignal((n) => n + 1);
   }
 
-  async function handleDeleteAll() {
-    setDeletingAll(true);
-    try {
-      const files = await listFlowFiles();
-      const xmlFiles = files.filter((f) => f.name.endsWith(".flow.xml"));
-      await Promise.all(xmlFiles.map((f) => deleteFlowFile(f.name)));
-      // Unregister all xml-sourced tests
-      unregisterWhere((def) => def.id.startsWith("xml:"));
-      // Clear flow status store
-      const flowStatus = useFlowStatusStore.getState();
-      flowStatus.pruneTo(new Set());
-      // Clear selection
-      clearSelection();
-      // Rebuild explorer tree (will be empty)
-      const built = buildParsedTagsFromRegistry();
-      setSpec(null as never, built, null as never);
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("[TestExplorer] delete all failed:", err);
-      alert(`Failed to delete all tests: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setDeletingAll(false);
-      setShowDeleteAll(false);
-    }
+  function handleDeleteAll() {
+    // Unregister all xml-sourced tests (keep flow XML files in blob storage)
+    unregisterWhere((def) => def.id.startsWith("xml:"));
+    // Clear flow status store
+    const flowStatus = useFlowStatusStore.getState();
+    flowStatus.pruneTo(new Set());
+    // Clear selection
+    clearSelection();
+    // Rebuild explorer tree (will be empty)
+    const built = buildParsedTagsFromRegistry();
+    setSpec(null as never, built, null as never);
+    setShowDeleteAll(false);
   }
 
   if (parsedTags.length === 0) {
@@ -251,7 +237,7 @@ export function TestExplorer() {
 
         {/* Delete all confirmation modal */}
         {showDeleteAll && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => !deletingAll && setShowDeleteAll(false)}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowDeleteAll(false)}>
             <div className="bg-white rounded-lg shadow-xl border border-[#d1d9e0] w-[420px] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center gap-2 px-4 py-3 border-b border-[#d1d9e0]">
                 <div className="w-8 h-8 rounded-full bg-[#ffebe9] flex items-center justify-center shrink-0">
@@ -263,29 +249,24 @@ export function TestExplorer() {
               </div>
               <div className="px-4 py-3 space-y-2">
                 <p className="text-sm text-[#656d76] leading-relaxed">
-                  This will permanently remove <strong className="text-[#1f2328]">{parsedTags.length} flow{parsedTags.length !== 1 ? "s" : ""}</strong> and
-                  all <strong className="text-[#1f2328]">{allTests.length} test{allTests.length !== 1 ? "s" : ""}</strong> from
-                  the queue. Flow files will be deleted from blob storage.
+                  This will unregister all <strong className="text-[#1f2328]">{allTests.length} test{allTests.length !== 1 ? "s" : ""}</strong> across <strong className="text-[#1f2328]">{parsedTags.length} flow{parsedTags.length !== 1 ? "s" : ""}</strong> from the test runner.
                 </p>
                 <p className="text-sm text-[#656d76] leading-relaxed">
-                  Builtin flows will be re-seeded automatically on next page load.
+                  Flow XML files are preserved — you can recreate tests from them at any time.
                 </p>
               </div>
               <div className="flex justify-end gap-2 px-4 py-3 border-t border-[#d1d9e0] bg-[#f6f8fa] rounded-b-lg">
                 <button
                   onClick={() => setShowDeleteAll(false)}
-                  disabled={deletingAll}
-                  className="text-sm font-medium text-[#1f2328] border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] rounded-md px-3 py-1.5 transition-colors disabled:opacity-50"
+                  className="text-sm font-medium text-[#1f2328] border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] rounded-md px-3 py-1.5 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={() => void handleDeleteAll()}
-                  disabled={deletingAll}
-                  className="text-sm font-medium text-white bg-[#d1242f] hover:bg-[#d1242f]/90 border border-[#d1242f]/80 rounded-md px-3 py-1.5 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                  onClick={handleDeleteAll}
+                  className="text-sm font-medium text-white bg-[#d1242f] hover:bg-[#d1242f]/90 border border-[#d1242f]/80 rounded-md px-3 py-1.5 transition-colors"
                 >
-                  {deletingAll && <Spinner size="sm" className="text-white" />}
-                  {deletingAll ? "Deleting..." : "Delete all tests"}
+                  Delete all tests
                 </button>
               </div>
             </div>
