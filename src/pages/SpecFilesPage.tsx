@@ -1209,6 +1209,7 @@ export function SpecFilesPage() {
                     <DetailPanel
                       selectedIdea={selectedIdea}
                       selectedFlow={selectedFlow}
+                      flowIdea={selectedFlow ? ideas.find((i) => i.id === selectedFlow.ideaId) ?? null : null}
                       onDownloadFlow={downloadFlow}
                     />
                   </div>

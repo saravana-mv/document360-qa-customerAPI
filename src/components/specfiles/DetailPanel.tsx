@@ -14,15 +14,146 @@ const COMPLEXITY_COLORS: Record<string, string> = {
 interface Props {
   selectedIdea: FlowIdea | null;
   selectedFlow: GeneratedFlow | null;
+  /** The idea that corresponds to selectedFlow (looked up via ideaId). */
+  flowIdea?: FlowIdea | null;
   onDownloadFlow?: (flow: GeneratedFlow) => void;
 }
 
-export function DetailPanel({ selectedIdea, selectedFlow, onDownloadFlow }: Props) {
+type FlowTab = "idea" | "flow-xml";
+
+// ── Idea content (reused in both standalone and tabbed views) ──────────────
+
+function IdeaContent({ idea }: { idea: FlowIdea }) {
   const [promptCopied, setPromptCopied] = useState(false);
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 space-y-5">
+      {/* Title & description */}
+      <div>
+        <h3 className="text-sm font-semibold text-[#1f2328]">{idea.title}</h3>
+        <p className="text-sm text-[#656d76] mt-1.5 leading-relaxed">{idea.description}</p>
+      </div>
+
+      {/* Entities */}
+      {idea.entities.length > 0 && (
+        <div>
+          <h4 className="text-[11px] font-semibold text-[#656d76] uppercase tracking-wider mb-2">Entities</h4>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {idea.entities.map((e) => (
+              <span key={e} className="text-[11px] px-2 py-0.5 rounded-full bg-[#ddf4ff] text-[#0969da] font-medium border border-[#b6e3ff]">{e}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Steps */}
+      <div>
+        <h4 className="text-[11px] font-semibold text-[#656d76] uppercase tracking-wider mb-2">Steps</h4>
+        <ol className="space-y-2">
+          {idea.steps.map((step, i) => (
+            <li key={i} className="flex items-start gap-2.5 text-sm text-[#1f2328]">
+              <span className="w-5 h-5 rounded-full bg-[#eef1f6] text-[#656d76] flex items-center justify-center text-[11px] font-medium shrink-0 mt-0.5 border border-[#d1d9e0]">
+                {i + 1}
+              </span>
+              <code className="font-mono text-[12px] leading-relaxed text-[#1f2328]">{step}</code>
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      {/* Flow-generation prompt */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-[11px] font-semibold text-[#656d76] uppercase tracking-wider">Prompt (Flow generation)</h4>
+          <button
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(buildFlowPrompt(idea));
+                setPromptCopied(true);
+                setTimeout(() => setPromptCopied(false), 1500);
+              } catch { /* ignore */ }
+            }}
+            title="Copy prompt"
+            className="flex items-center gap-1 text-xs text-[#656d76] hover:text-[#0969da] rounded-md px-1.5 py-0.5 hover:bg-[#ddf4ff] transition-colors"
+          >
+            {promptCopied ? (
+              <>
+                <svg className="w-3.5 h-3.5 text-[#1a7f37]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+                <span className="text-[#1a7f37]">Copied</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+                </svg>
+                <span>Copy</span>
+              </>
+            )}
+          </button>
+        </div>
+        <pre className="text-sm font-mono text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md p-3 whitespace-pre-wrap leading-relaxed">{buildFlowPrompt(idea)}</pre>
+      </div>
+    </div>
+  );
+}
+
+// ── Flow XML content ───────────────────────────────────────────────────────
+
+function FlowXmlContent({ flow, validation }: {
+  flow: GeneratedFlow;
+  validation: ReturnType<typeof validateFlowXml> | null;
+}) {
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden p-4">
+      {flow.status === "done" && validation && !validation.ok && (
+        <div className="mb-3 px-3 py-2 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-sm text-[#d1242f] flex items-start gap-2 shrink-0">
+          <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A9.05 9.05 0 0 0 11.484 21h.032A9.05 9.05 0 0 0 12 2.714ZM12 17.25h.008v.008H12v-.008Z" />
+          </svg>
+          <div className="min-w-0">
+            <div className="font-medium">Schema validation failed — cannot be marked for implementation</div>
+            <div className="font-mono text-xs mt-0.5 break-all">{validation.error}</div>
+          </div>
+        </div>
+      )}
+      {flow.status === "done" && (
+        <XmlCodeBlock
+          value={flow.xml}
+          className="flex-1 min-h-0 overflow-hidden border border-[#d1d9e0] rounded-md bg-white"
+        />
+      )}
+      {flow.status === "generating" && (
+        <div className="flex items-center gap-2 py-8 justify-center">
+          <svg className="w-5 h-5 text-[#0969da] animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <span className="text-sm text-[#656d76]">Generating XML...</span>
+        </div>
+      )}
+      {flow.status === "pending" && (
+        <p className="text-sm text-[#656d76] text-center py-8">Waiting to generate...</p>
+      )}
+      {flow.status === "error" && (
+        <div className="bg-[#ffebe9] border border-[#ffcecb] rounded-md p-3">
+          <p className="text-sm text-[#d1242f]">{flow.error}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────
+
+export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFlow }: Props) {
+  const [activeTab, setActiveTab] = useState<FlowTab>("idea");
   const validation = useMemo(
     () => (selectedFlow && selectedFlow.status === "done" ? validateFlowXml(selectedFlow.xml) : null),
     [selectedFlow?.status, selectedFlow?.xml],
   );
+
   // Nothing selected
   if (!selectedIdea && !selectedFlow) {
     return (
@@ -37,10 +168,14 @@ export function DetailPanel({ selectedIdea, selectedFlow, onDownloadFlow }: Prop
     );
   }
 
-  // Show flow XML
+  // ── Flow selected — tabbed view (Idea + Flow XML) ──────────────────────
   if (selectedFlow) {
+    const idea = flowIdea ?? null;
+    const hasTabs = !!idea;
+
     return (
       <div className="flex flex-col h-full overflow-hidden">
+        {/* Title row */}
         <div className="flex items-center gap-2 px-4 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
           <svg className="w-4 h-4 text-[#0969da] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
@@ -81,47 +216,37 @@ export function DetailPanel({ selectedIdea, selectedFlow, onDownloadFlow }: Prop
             </button>
           )}
         </div>
-        <div className="flex-1 flex flex-col overflow-hidden p-4">
-          {selectedFlow.status === "done" && validation && !validation.ok && (
-            <div className="mb-3 px-3 py-2 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-sm text-[#d1242f] flex items-start gap-2 shrink-0">
-              <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A9.05 9.05 0 0 0 11.484 21h.032A9.05 9.05 0 0 0 12 2.714ZM12 17.25h.008v.008H12v-.008Z" />
-              </svg>
-              <div className="min-w-0">
-                <div className="font-medium">Schema validation failed — cannot be marked for implementation</div>
-                <div className="font-mono text-xs mt-0.5 break-all">{validation.error}</div>
-              </div>
-            </div>
-          )}
-          {selectedFlow.status === "done" && (
-            <XmlCodeBlock
-              value={selectedFlow.xml}
-              className="flex-1 min-h-0 overflow-hidden border border-[#d1d9e0] rounded-md bg-white"
-            />
-          )}
-          {selectedFlow.status === "generating" && (
-            <div className="flex items-center gap-2 py-8 justify-center">
-              <svg className="w-5 h-5 text-[#0969da] animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              <span className="text-sm text-[#656d76]">Generating XML...</span>
-            </div>
-          )}
-          {selectedFlow.status === "pending" && (
-            <p className="text-sm text-[#656d76] text-center py-8">Waiting to generate...</p>
-          )}
-          {selectedFlow.status === "error" && (
-            <div className="bg-[#ffebe9] border border-[#ffcecb] rounded-md p-3">
-              <p className="text-sm text-[#d1242f]">{selectedFlow.error}</p>
-            </div>
-          )}
-        </div>
+
+        {/* Tabs row */}
+        {hasTabs && (
+          <div className="flex items-center gap-1 px-4 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+            {(["idea", "flow-xml"] as FlowTab[]).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-3 py-1 text-[13px] font-semibold border-b-2 transition-colors ${
+                  activeTab === tab
+                    ? "border-[#fd8c73] text-[#1f2328]"
+                    : "border-transparent text-[#656d76] hover:text-[#1f2328]"
+                }`}
+              >
+                {tab === "idea" ? "Idea" : "Flow XML"}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Tab content */}
+        {hasTabs && activeTab === "idea" && idea ? (
+          <IdeaContent idea={idea} />
+        ) : (
+          <FlowXmlContent flow={selectedFlow} validation={validation} />
+        )}
       </div>
     );
   }
 
-  // Show idea details
+  // ── Idea selected (no flow yet) — standalone view ──────────────────────
   if (selectedIdea) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
@@ -134,75 +259,7 @@ export function DetailPanel({ selectedIdea, selectedFlow, onDownloadFlow }: Prop
             {selectedIdea.complexity}
           </span>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-5">
-          {/* Title & description */}
-          <div>
-            <h3 className="text-sm font-semibold text-[#1f2328]">{selectedIdea.title}</h3>
-            <p className="text-sm text-[#656d76] mt-1.5 leading-relaxed">{selectedIdea.description}</p>
-          </div>
-
-          {/* Entities */}
-          {selectedIdea.entities.length > 0 && (
-            <div>
-              <h4 className="text-[11px] font-semibold text-[#656d76] uppercase tracking-wider mb-2">Entities</h4>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {selectedIdea.entities.map((e) => (
-                  <span key={e} className="text-[11px] px-2 py-0.5 rounded-full bg-[#ddf4ff] text-[#0969da] font-medium border border-[#b6e3ff]">{e}</span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Steps */}
-          <div>
-            <h4 className="text-[11px] font-semibold text-[#656d76] uppercase tracking-wider mb-2">Steps</h4>
-            <ol className="space-y-2">
-              {selectedIdea.steps.map((step, i) => (
-                <li key={i} className="flex items-start gap-2.5 text-sm text-[#1f2328]">
-                  <span className="w-5 h-5 rounded-full bg-[#eef1f6] text-[#656d76] flex items-center justify-center text-[11px] font-medium shrink-0 mt-0.5 border border-[#d1d9e0]">
-                    {i + 1}
-                  </span>
-                  <code className="font-mono text-[12px] leading-relaxed text-[#1f2328]">{step}</code>
-                </li>
-              ))}
-            </ol>
-          </div>
-
-          {/* Flow-generation prompt */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-[11px] font-semibold text-[#656d76] uppercase tracking-wider">Prompt (Flow generation)</h4>
-              <button
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(buildFlowPrompt(selectedIdea));
-                    setPromptCopied(true);
-                    setTimeout(() => setPromptCopied(false), 1500);
-                  } catch { /* ignore */ }
-                }}
-                title="Copy prompt"
-                className="flex items-center gap-1 text-xs text-[#656d76] hover:text-[#0969da] rounded-md px-1.5 py-0.5 hover:bg-[#ddf4ff] transition-colors"
-              >
-                {promptCopied ? (
-                  <>
-                    <svg className="w-3.5 h-3.5 text-[#1a7f37]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                    </svg>
-                    <span className="text-[#1a7f37]">Copied</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
-                    </svg>
-                    <span>Copy</span>
-                  </>
-                )}
-              </button>
-            </div>
-            <pre className="text-sm font-mono text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md p-3 whitespace-pre-wrap leading-relaxed">{buildFlowPrompt(selectedIdea)}</pre>
-          </div>
-        </div>
+        <IdeaContent idea={selectedIdea} />
       </div>
     );
   }
