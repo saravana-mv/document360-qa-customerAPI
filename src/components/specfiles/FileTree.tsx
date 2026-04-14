@@ -653,8 +653,12 @@ export function FileTree({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      {/* Title header */}
+      <div className="flex items-center gap-2 px-4 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+        <span className="text-sm font-bold text-[#1f2328]">Spec Manager</span>
+      </div>
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-3 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+      <div className="flex items-center gap-2 px-3 h-9 border-b border-[#d1d9e0] bg-white shrink-0">
         <svg className="w-4 h-4 text-[#656d76] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v8.25m19.5 0v2.25a2.25 2.25 0 0 1-2.25 2.25H4.5A2.25 2.25 0 0 1 2.25 16.5v-2.25" />
         </svg>
