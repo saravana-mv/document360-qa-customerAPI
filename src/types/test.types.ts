@@ -9,12 +9,6 @@ export interface TestContext {
   token: string;
   baseUrl: string;
   apiVersion: string; // e.g. "v3"
-  /**
-   * Optional pre-existing article ID used by flows that operate on an
-   * existing article (e.g. settings + title patch flows) instead of
-   * creating their own. Set in Settings → Test Article ID.
-   */
-  articleId?: string;
 }
 
 export interface RunState {

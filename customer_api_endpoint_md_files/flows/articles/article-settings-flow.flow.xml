@@ -7,22 +7,71 @@
   <name>Article Settings Flow</name>
   <entity>Articles</entity>
   <description>
-    Reads the current article settings, toggles the allow_comments flag
-    to its opposite value, then restores the original value — verifying
-    the settings PATCH endpoint works without permanently changing anything.
+    Creates a category and article, reads the article settings, toggles
+    the allow_comments flag to its opposite value, then restores the
+    original value — verifying the settings PATCH endpoint works. Cleans
+    up by deleting the article and category.
   </description>
   <stopOnFailure>true</stopOnFailure>
 
   <steps>
 
     <step number="1">
+      <name>Create Category</name>
+      <endpointRef>categories/create-a-category.md</endpointRef>
+      <method>POST</method>
+      <path>/v2/projects/{project_id}/categories</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+      </pathParams>
+      <body><![CDATA[
+{
+  "name": "[TEST] Settings Flow - {{timestamp}}",
+  "project_version_id": "{{ctx.versionId}}"
+}
+      ]]></body>
+      <captures>
+        <capture variable="state.createdCategoryId" source="response.data.id"/>
+      </captures>
+      <assertions>
+        <assertion type="status"       code="201"/>
+        <assertion type="field-exists" field="data.id"/>
+      </assertions>
+    </step>
+
+    <step number="2">
+      <name>Create Article</name>
+      <endpointRef>articles/create-a-new-article.md</endpointRef>
+      <method>POST</method>
+      <path>/v3/projects/{project_id}/articles</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+      </pathParams>
+      <body><![CDATA[
+{
+  "title": "[TEST] Settings Flow - {{timestamp}}",
+  "content": "Test article for Article Settings Flow.",
+  "category_id": "{{state.createdCategoryId}}",
+  "project_version_id": "{{ctx.versionId}}"
+}
+      ]]></body>
+      <captures>
+        <capture variable="state.createdArticleId" source="response.data.id"/>
+      </captures>
+      <assertions>
+        <assertion type="status"       code="201"/>
+        <assertion type="field-exists" field="data.id"/>
+      </assertions>
+    </step>
+
+    <step number="3">
       <name>Get Article Settings</name>
       <endpointRef>articles/get-article-settings.md</endpointRef>
       <method>GET</method>
       <path>/v3/projects/{project_id}/articles/{article_id}/settings</path>
       <pathParams>
         <param name="project_id">ctx.projectId</param>
-        <param name="article_id">ctx.articleId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
       </pathParams>
       <queryParams>
         <param name="lang_code">ctx.langCode</param>
@@ -36,14 +85,14 @@
       </assertions>
     </step>
 
-    <step number="2">
+    <step number="4">
       <name>Toggle allow_comments</name>
       <endpointRef>articles/update-article-settings.md</endpointRef>
       <method>PATCH</method>
       <path>/v3/projects/{project_id}/articles/{article_id}/settings</path>
       <pathParams>
         <param name="project_id">ctx.projectId</param>
-        <param name="article_id">ctx.articleId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
       </pathParams>
       <queryParams>
         <param name="lang_code">ctx.langCode</param>
@@ -60,21 +109,16 @@
         <assertion type="status"       code="200"/>
         <assertion type="field-equals" field="data.allow_comments" value="{{state.patchedAllowComments}}"/>
       </assertions>
-      <notes>
-        Only fields included in the body are modified — all other settings
-        remain unchanged (partial update behaviour).
-        {{!state.originalAllowComments}} is the logical NOT of the captured boolean.
-      </notes>
     </step>
 
-    <step number="3">
+    <step number="5">
       <name>Restore Original allow_comments</name>
       <endpointRef>articles/update-article-settings.md</endpointRef>
       <method>PATCH</method>
       <path>/v3/projects/{project_id}/articles/{article_id}/settings</path>
       <pathParams>
         <param name="project_id">ctx.projectId</param>
-        <param name="article_id">ctx.articleId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
       </pathParams>
       <queryParams>
         <param name="lang_code">ctx.langCode</param>
@@ -88,9 +132,39 @@
         <assertion type="status" code="200"/>
       </assertions>
       <flags teardown="true"/>
-      <notes>
-        teardown: true — always restore the original value even if Step 2 failed.
-      </notes>
+    </step>
+
+    <step number="6">
+      <name>Delete Article (cleanup)</name>
+      <endpointRef>articles/delete-an-article.md</endpointRef>
+      <method>DELETE</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
+      </pathParams>
+      <assertions>
+        <assertion type="status" code="204"/>
+      </assertions>
+      <flags teardown="true"/>
+    </step>
+
+    <step number="7">
+      <name>Delete Category (cleanup)</name>
+      <endpointRef>categories/delete-a-category.md</endpointRef>
+      <method>DELETE</method>
+      <path>/v2/projects/{project_id}/categories/{category_id}</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="category_id">{{state.createdCategoryId}}</param>
+      </pathParams>
+      <queryParams>
+        <param name="project_version_id">ctx.versionId</param>
+      </queryParams>
+      <assertions>
+        <assertion type="status" code="200"/>
+      </assertions>
+      <flags teardown="true"/>
     </step>
 
   </steps>

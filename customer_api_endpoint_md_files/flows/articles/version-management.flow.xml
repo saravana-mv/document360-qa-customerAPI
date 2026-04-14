@@ -7,22 +7,113 @@
   <name>Version Management</name>
   <entity>Articles</entity>
   <description>
-    Lists all versions of the test article, fetches the first version in
-    detail, then optionally deletes a draft version (skipped safely if no
-    draft exists) and verifies it returns 404 afterwards.
+    Creates a category and article, publishes the article, forks it to
+    create a draft version, lists all versions, fetches a specific version,
+    deletes the draft version, verifies it returns 404, then cleans up by
+    deleting the article and category.
   </description>
   <stopOnFailure>true</stopOnFailure>
 
   <steps>
 
     <step number="1">
+      <name>Create Category</name>
+      <endpointRef>categories/create-a-category.md</endpointRef>
+      <method>POST</method>
+      <path>/v2/projects/{project_id}/categories</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+      </pathParams>
+      <body><![CDATA[
+{
+  "name": "[TEST] Version Management - {{timestamp}}",
+  "project_version_id": "{{ctx.versionId}}"
+}
+      ]]></body>
+      <captures>
+        <capture variable="state.createdCategoryId" source="response.data.id"/>
+      </captures>
+      <assertions>
+        <assertion type="status"       code="201"/>
+        <assertion type="field-exists" field="data.id"/>
+      </assertions>
+    </step>
+
+    <step number="2">
+      <name>Create Article</name>
+      <endpointRef>articles/create-a-new-article.md</endpointRef>
+      <method>POST</method>
+      <path>/v3/projects/{project_id}/articles</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+      </pathParams>
+      <body><![CDATA[
+{
+  "title": "[TEST] Version Management - {{timestamp}}",
+  "content": "Test article for Version Management flow.",
+  "category_id": "{{state.createdCategoryId}}",
+  "project_version_id": "{{ctx.versionId}}"
+}
+      ]]></body>
+      <captures>
+        <capture variable="state.createdArticleId"    source="response.data.id"/>
+        <capture variable="state.createdVersionNumber" source="response.data.version_number"/>
+        <capture variable="state.projectVersionId"    source="response.data.project_version_id"/>
+      </captures>
+      <assertions>
+        <assertion type="status"       code="201"/>
+        <assertion type="field-exists" field="data.id"/>
+      </assertions>
+    </step>
+
+    <step number="3">
+      <name>Publish Article</name>
+      <endpointRef>articles/publish-an-article.md</endpointRef>
+      <method>POST</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}/publish</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
+      </pathParams>
+      <body><![CDATA[
+{
+  "project_version_id": "{{state.projectVersionId}}",
+  "version_number": {{state.createdVersionNumber}},
+  "message": "Publishing for version management test"
+}
+      ]]></body>
+      <assertions>
+        <assertion type="status"       code="200"/>
+        <assertion type="field-equals" field="success" value="true"/>
+      </assertions>
+    </step>
+
+    <step number="4">
+      <name>Fork Published Version (create draft)</name>
+      <endpointRef>articles/fork-an-article-version-creates-new-draft-from-published-version.md</endpointRef>
+      <method>POST</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}/fork</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
+      </pathParams>
+      <captures>
+        <capture variable="state.draftVersionNumber" source="response.data.version_number"/>
+      </captures>
+      <assertions>
+        <assertion type="status"       code="201"/>
+        <assertion type="field-exists" field="data.version_number"/>
+      </assertions>
+    </step>
+
+    <step number="5">
       <name>List Article Versions</name>
       <endpointRef>articles/list-versions-of-an-article.md</endpointRef>
       <method>GET</method>
       <path>/v3/projects/{project_id}/articles/{article_id}/versions</path>
       <pathParams>
         <param name="project_id">ctx.projectId</param>
-        <param name="article_id">ctx.articleId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
       </pathParams>
       <captures>
         <capture variable="state.versions"           source="response.data"/>
@@ -34,14 +125,14 @@
       </assertions>
     </step>
 
-    <step number="2">
+    <step number="6">
       <name>Get Specific Article Version</name>
       <endpointRef>articles/get-a-specific-version-of-an-article.md</endpointRef>
       <method>GET</method>
       <path>/v3/projects/{project_id}/articles/{article_id}/versions/{version_number}</path>
       <pathParams>
         <param name="project_id">ctx.projectId</param>
-        <param name="article_id">ctx.articleId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
         <param name="version_number">{{state.firstVersionNumber}}</param>
       </pathParams>
       <assertions>
@@ -49,14 +140,14 @@
       </assertions>
     </step>
 
-    <step number="3">
+    <step number="7">
       <name>Delete Draft Version</name>
       <endpointRef>articles/delete-a-specific-article-version.md</endpointRef>
       <method>DELETE</method>
       <path>/v3/projects/{project_id}/articles/{article_id}/versions/{version_number}</path>
       <pathParams>
         <param name="project_id">ctx.projectId</param>
-        <param name="article_id">ctx.articleId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
         <param name="version_number">{{state.draftVersionNumber}}</param>
       </pathParams>
       <captures>
@@ -65,32 +156,54 @@
       <assertions>
         <assertion type="status" code="204"/>
       </assertions>
-      <flags optional="true"/>
-      <notes>
-        state.draftVersionNumber is derived at runtime by scanning state.versions
-        for the first entry where is_draft === true. If no draft version exists
-        this step is skipped gracefully (optional: true).
-      </notes>
     </step>
 
-    <step number="4">
+    <step number="8">
       <name>Verify Deleted Version Returns 404</name>
       <endpointRef>articles/get-a-specific-version-of-an-article.md</endpointRef>
       <method>GET</method>
       <path>/v3/projects/{project_id}/articles/{article_id}/versions/{version_number}</path>
       <pathParams>
         <param name="project_id">ctx.projectId</param>
-        <param name="article_id">ctx.articleId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
         <param name="version_number">{{state.deletedVersionNumber}}</param>
       </pathParams>
       <assertions>
         <assertion type="status" code="404"/>
       </assertions>
-      <flags optional="true"/>
-      <notes>
-        optional: true — skip if Step 3 was skipped (no draft was deleted,
-        so state.deletedVersionNumber will not be set).
-      </notes>
+    </step>
+
+    <step number="9">
+      <name>Delete Article (cleanup)</name>
+      <endpointRef>articles/delete-an-article.md</endpointRef>
+      <method>DELETE</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
+      </pathParams>
+      <assertions>
+        <assertion type="status" code="204"/>
+      </assertions>
+      <flags teardown="true"/>
+    </step>
+
+    <step number="10">
+      <name>Delete Category (cleanup)</name>
+      <endpointRef>categories/delete-a-category.md</endpointRef>
+      <method>DELETE</method>
+      <path>/v2/projects/{project_id}/categories/{category_id}</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="category_id">{{state.createdCategoryId}}</param>
+      </pathParams>
+      <queryParams>
+        <param name="project_version_id">ctx.versionId</param>
+      </queryParams>
+      <assertions>
+        <assertion type="status" code="200"/>
+      </assertions>
+      <flags teardown="true"/>
     </step>
 
   </steps>

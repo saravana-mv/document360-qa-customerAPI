@@ -118,7 +118,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 
 ### Interpolation tokens (allowed in any text/attr value)
 
-- \`{{ctx.projectId}}\`, \`{{ctx.versionId}}\`, \`{{ctx.langCode}}\`, \`{{ctx.articleId}}\`, \`{{ctx.token}}\`, \`{{ctx.baseUrl}}\`
+- \`{{ctx.projectId}}\`, \`{{ctx.versionId}}\`, \`{{ctx.langCode}}\`, \`{{ctx.token}}\`, \`{{ctx.baseUrl}}\`
 - \`{{state.variableName}}\` — value captured from a previous step
 - \`{{timestamp}}\` — Unix ms timestamp at execution time
 - \`{{!state.boolVar}}\` — logical NOT of a boolean state variable
@@ -180,7 +180,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 ## Hard rules (read before writing anything)
 
 1. **STRICT SCOPE**: Only use API endpoints, methods, and paths explicitly described in the provided spec files. Do not invent endpoints.
-2. **Category dependency**: If a flow creates articles, ALWAYS add a Create Category step first (POST /v2/…/categories) and a Delete Category teardown step last. The API requires category_id even though the spec marks it nullable.
+2. **Article dependency**: Flows MUST NOT assume a pre-existing article. If a flow needs an article, add a Create Category step first (POST /v2/…/categories), then a Create Article step (POST /v3/…/articles with category_id), and teardown steps to delete the article then the category. The API requires category_id even though the spec marks it nullable.
 3. **Teardown order**: Delete child resources before parent (article before category). Mark teardown steps with \`<flags teardown="true"/>\`.
 4. **State passing**: Use \`<capture variable="state.X" source="response.data.Y"/>\` then reference \`{{state.X}}\` in later steps.
 5. **Version paths**: Use \`/v3/…\` for every endpoint — the test runner rewrites the version segment at runtime to match the user's selected API version.

@@ -7,15 +7,64 @@
   <name>Bulk Operations</name>
   <entity>Articles</entity>
   <description>
-    Hides the test article using the bulk update endpoint, reads it back
-    to confirm the hidden flag changed, then restores it to visible —
-    verifying the bulk PATCH endpoint works for a single article.
+    Creates a category and article, hides the article using the bulk update
+    endpoint, reads it back to confirm the hidden flag changed, then restores
+    it to visible — verifying the bulk PATCH endpoint works. Cleans up by
+    deleting the article and category.
   </description>
   <stopOnFailure>true</stopOnFailure>
 
   <steps>
 
     <step number="1">
+      <name>Create Category</name>
+      <endpointRef>categories/create-a-category.md</endpointRef>
+      <method>POST</method>
+      <path>/v2/projects/{project_id}/categories</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+      </pathParams>
+      <body><![CDATA[
+{
+  "name": "[TEST] Bulk Operations - {{timestamp}}",
+  "project_version_id": "{{ctx.versionId}}"
+}
+      ]]></body>
+      <captures>
+        <capture variable="state.createdCategoryId" source="response.data.id"/>
+      </captures>
+      <assertions>
+        <assertion type="status"       code="201"/>
+        <assertion type="field-exists" field="data.id"/>
+      </assertions>
+    </step>
+
+    <step number="2">
+      <name>Create Article</name>
+      <endpointRef>articles/create-a-new-article.md</endpointRef>
+      <method>POST</method>
+      <path>/v3/projects/{project_id}/articles</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+      </pathParams>
+      <body><![CDATA[
+{
+  "title": "[TEST] Bulk Operations - {{timestamp}}",
+  "content": "Test article for Bulk Operations flow.",
+  "category_id": "{{state.createdCategoryId}}",
+  "project_version_id": "{{ctx.versionId}}"
+}
+      ]]></body>
+      <captures>
+        <capture variable="state.createdArticleId" source="response.data.id"/>
+      </captures>
+      <assertions>
+        <assertion type="status"       code="201"/>
+        <assertion type="field-exists" field="data.id"/>
+      </assertions>
+    </step>
+
+    <step number="3">
       <name>Bulk Update — Set Hidden</name>
       <endpointRef>articles/bulk-update-articles.md</endpointRef>
       <method>PATCH</method>
@@ -27,7 +76,7 @@
 {
   "articles": [
     {
-      "article_id": "{{ctx.articleId}}",
+      "article_id": "{{state.createdArticleId}}",
       "lang_code": "{{ctx.langCode}}",
       "hidden": true,
       "auto_fork": false
@@ -39,21 +88,16 @@
         <assertion type="status"       code="200"/>
         <assertion type="field-equals" field="success" value="true"/>
       </assertions>
-      <notes>
-        Each item in the articles array is processed independently. If one
-        fails, others still apply. Check response.data[].success per item,
-        not just the top-level success field.
-      </notes>
     </step>
 
-    <step number="2">
+    <step number="4">
       <name>Verify Article is Hidden</name>
       <endpointRef>articles/get-an-article-by-id.md</endpointRef>
       <method>GET</method>
       <path>/v3/projects/{project_id}/articles/{article_id}</path>
       <pathParams>
         <param name="project_id">ctx.projectId</param>
-        <param name="article_id">ctx.articleId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
       </pathParams>
       <queryParams>
         <param name="lang_code">ctx.langCode</param>
@@ -64,7 +108,7 @@
       </assertions>
     </step>
 
-    <step number="3">
+    <step number="5">
       <name>Bulk Update — Restore Visible</name>
       <endpointRef>articles/bulk-update-articles.md</endpointRef>
       <method>PATCH</method>
@@ -76,7 +120,7 @@
 {
   "articles": [
     {
-      "article_id": "{{ctx.articleId}}",
+      "article_id": "{{state.createdArticleId}}",
       "lang_code": "{{ctx.langCode}}",
       "hidden": false,
       "auto_fork": false
@@ -89,10 +133,39 @@
         <assertion type="field-equals" field="success" value="true"/>
       </assertions>
       <flags teardown="true"/>
-      <notes>
-        teardown: true — must run even if Step 2 failed to ensure the
-        article is not left hidden after the test run.
-      </notes>
+    </step>
+
+    <step number="6">
+      <name>Delete Article (cleanup)</name>
+      <endpointRef>articles/delete-an-article.md</endpointRef>
+      <method>DELETE</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
+      </pathParams>
+      <assertions>
+        <assertion type="status" code="204"/>
+      </assertions>
+      <flags teardown="true"/>
+    </step>
+
+    <step number="7">
+      <name>Delete Category (cleanup)</name>
+      <endpointRef>categories/delete-a-category.md</endpointRef>
+      <method>DELETE</method>
+      <path>/v2/projects/{project_id}/categories/{category_id}</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="category_id">{{state.createdCategoryId}}</param>
+      </pathParams>
+      <queryParams>
+        <param name="project_version_id">ctx.versionId</param>
+      </queryParams>
+      <assertions>
+        <assertion type="status" code="200"/>
+      </assertions>
+      <flags teardown="true"/>
     </step>
 
   </steps>

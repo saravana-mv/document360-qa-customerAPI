@@ -21,12 +21,6 @@ interface SetupState {
   langCode: string;
   baseUrl: string;
   apiVersion: string;
-  /**
-   * Optional pre-existing article ID, required by flows that operate on a
-   * test article instead of creating their own (settings flow, title patch
-   * flow, etc.). Persisted across sessions.
-   */
-  articleId: string;
   /** Model used for AI generation (flow ideas + flow XML). Persisted. */
   aiModel: AiModelId;
   loadingProjects: boolean;
@@ -39,7 +33,6 @@ interface SetupState {
   setLangCode: (lang: string) => void;
   setBaseUrl: (url: string) => void;
   setApiVersion: (version: string) => void;
-  setArticleId: (articleId: string) => void;
   setAiModel: (model: AiModelId) => void;
   setLoadingProjects: (v: boolean) => void;
   setLoadingVersions: (v: boolean) => void;
@@ -72,7 +65,6 @@ function persist(state: Partial<SetupState>) {
     langCode: state.langCode ?? "en",
     baseUrl: state.baseUrl ?? DEFAULT_BASE_URL,
     apiVersion: state.apiVersion ?? DEFAULT_API_VERSION,
-    articleId: state.articleId ?? "",
     aiModel: state.aiModel ?? DEFAULT_AI_MODEL,
   }));
 }
@@ -85,7 +77,6 @@ export const useSetupStore = create<SetupState>((set, get) => ({
   langCode: (saved.langCode as string) || "en",
   baseUrl: initialBaseUrl,
   apiVersion: (saved.apiVersion as string) || DEFAULT_API_VERSION,
-  articleId: (saved.articleId as string) || "",
   aiModel: (AI_MODELS.some((m) => m.id === saved.aiModel) ? (saved.aiModel as AiModelId) : DEFAULT_AI_MODEL),
   loadingProjects: false,
   loadingVersions: false,
@@ -116,10 +107,6 @@ export const useSetupStore = create<SetupState>((set, get) => ({
     setApiVersion(apiVersion);
     set({ apiVersion });
     persist({ ...get(), apiVersion });
-  },
-  setArticleId: (articleId) => {
-    set({ articleId });
-    persist({ ...get(), articleId });
   },
   setAiModel: (aiModel) => {
     set({ aiModel });

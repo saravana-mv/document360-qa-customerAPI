@@ -178,7 +178,6 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
       // Auto-resolve unspecified ctx-style params from the test context.
       if (name === "project_id") return ctx.projectId;
       if (name === "version_id") return ctx.versionId;
-      if (name === "article_id" && ctx.articleId) return ctx.articleId;
       throw new Error(`Path placeholder {${name}} has no value`);
     });
     // Force the path to use the currently selected API version. Flow XML files
@@ -326,7 +325,6 @@ function resolveCtx(name: string, ctx: TestContext): unknown {
   if (name === "projectId") return ctx.projectId;
   if (name === "versionId") return ctx.versionId;
   if (name === "langCode") return ctx.langCode;
-  if (name === "articleId") return ctx.articleId;
   if (name === "apiVersion") return ctx.apiVersion;
   return undefined;
 }

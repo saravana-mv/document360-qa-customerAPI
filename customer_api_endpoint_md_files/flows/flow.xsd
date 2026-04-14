@@ -13,7 +13,6 @@
       {{ctx.projectId}}        — selected project UUID
       {{ctx.versionId}}        — selected project version UUID
       {{ctx.langCode}}         — language code (e.g. "en")
-      {{ctx.articleId}}        — pre-configured test article UUID
       {{ctx.token}}            — Bearer token (injected automatically)
       {{ctx.baseUrl}}          — API base URL
       {{state.variableName}}   — value captured from a previous step

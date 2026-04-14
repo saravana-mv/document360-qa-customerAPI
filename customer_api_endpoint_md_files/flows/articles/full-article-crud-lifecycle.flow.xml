@@ -7,23 +7,71 @@
   <name>Full Article CRUD Lifecycle</name>
   <entity>Articles</entity>
   <description>
-    Reads the test article to capture its current title and content,
+    Creates a category and article, captures the original title and content,
     applies a timestamped title change to verify the PATCH endpoint works,
     reads back to confirm the change took effect, then restores the
-    original title — leaving the article exactly as it was found.
+    original title — finally deleting the article and category as teardown.
   </description>
   <stopOnFailure>true</stopOnFailure>
 
   <steps>
 
     <step number="1">
+      <name>Create Category</name>
+      <endpointRef>categories/create-a-category.md</endpointRef>
+      <method>POST</method>
+      <path>/v2/projects/{project_id}/categories</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+      </pathParams>
+      <body><![CDATA[
+{
+  "name": "[TEST] CRUD Lifecycle - {{timestamp}}",
+  "project_version_id": "{{ctx.versionId}}"
+}
+      ]]></body>
+      <captures>
+        <capture variable="state.createdCategoryId" source="response.data.id"/>
+      </captures>
+      <assertions>
+        <assertion type="status"       code="201"/>
+        <assertion type="field-exists" field="data.id"/>
+      </assertions>
+    </step>
+
+    <step number="2">
+      <name>Create Article</name>
+      <endpointRef>articles/create-a-new-article.md</endpointRef>
+      <method>POST</method>
+      <path>/v3/projects/{project_id}/articles</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+      </pathParams>
+      <body><![CDATA[
+{
+  "title": "[TEST] CRUD Lifecycle - {{timestamp}}",
+  "content": "Test article for Full Article CRUD Lifecycle flow.",
+  "category_id": "{{state.createdCategoryId}}",
+  "project_version_id": "{{ctx.versionId}}"
+}
+      ]]></body>
+      <captures>
+        <capture variable="state.createdArticleId" source="response.data.id"/>
+      </captures>
+      <assertions>
+        <assertion type="status"       code="201"/>
+        <assertion type="field-exists" field="data.id"/>
+      </assertions>
+    </step>
+
+    <step number="3">
       <name>Get Single Article</name>
       <endpointRef>articles/get-an-article-by-id.md</endpointRef>
       <method>GET</method>
       <path>/v3/projects/{project_id}/articles/{article_id}</path>
       <pathParams>
         <param name="project_id">ctx.projectId</param>
-        <param name="article_id">ctx.articleId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
       </pathParams>
       <queryParams>
         <param name="lang_code">ctx.langCode</param>
@@ -34,19 +82,19 @@
         <capture variable="state.originalArticle" source="response.data"/>
       </captures>
       <assertions>
-        <assertion type="status"      code="200"/>
+        <assertion type="status"       code="200"/>
         <assertion type="field-exists" field="data.title"/>
       </assertions>
     </step>
 
-    <step number="2">
+    <step number="4">
       <name>Update Article Title</name>
       <endpointRef>articles/update-an-article.md</endpointRef>
       <method>PATCH</method>
       <path>/v3/projects/{project_id}/articles/{article_id}</path>
       <pathParams>
         <param name="project_id">ctx.projectId</param>
-        <param name="article_id">ctx.articleId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
       </pathParams>
       <queryParams>
         <param name="lang_code">ctx.langCode</param>
@@ -64,21 +112,16 @@
       <assertions>
         <assertion type="status" code="200"/>
       </assertions>
-      <notes>
-        auto_fork: true — if the article version is published, the API automatically
-        creates a new draft and applies the update to it. Without this flag,
-        updating a published version returns 422.
-      </notes>
     </step>
 
-    <step number="3">
+    <step number="5">
       <name>Verify Title Was Updated</name>
       <endpointRef>articles/get-an-article-by-id.md</endpointRef>
       <method>GET</method>
       <path>/v3/projects/{project_id}/articles/{article_id}</path>
       <pathParams>
         <param name="project_id">ctx.projectId</param>
-        <param name="article_id">ctx.articleId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
       </pathParams>
       <queryParams>
         <param name="lang_code">ctx.langCode</param>
@@ -89,32 +132,43 @@
       </assertions>
     </step>
 
-    <step number="4">
-      <name>Restore Original Title</name>
-      <endpointRef>articles/update-an-article.md</endpointRef>
-      <method>PATCH</method>
+    <step number="6">
+      <name>Delete Article (cleanup)</name>
+      <endpointRef>articles/delete-an-article.md</endpointRef>
+      <method>DELETE</method>
       <path>/v3/projects/{project_id}/articles/{article_id}</path>
       <pathParams>
         <param name="project_id">ctx.projectId</param>
-        <param name="article_id">ctx.articleId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
+      </pathParams>
+      <assertions>
+        <assertion type="status" code="204"/>
+      </assertions>
+      <flags teardown="true"/>
+      <notes>
+        teardown: true — always runs to delete the test article even if
+        earlier steps failed. Must run before category deletion.
+      </notes>
+    </step>
+
+    <step number="7">
+      <name>Delete Category (cleanup)</name>
+      <endpointRef>categories/delete-a-category.md</endpointRef>
+      <method>DELETE</method>
+      <path>/v2/projects/{project_id}/categories/{category_id}</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="category_id">{{state.createdCategoryId}}</param>
       </pathParams>
       <queryParams>
-        <param name="lang_code">ctx.langCode</param>
+        <param name="project_version_id">ctx.versionId</param>
       </queryParams>
-      <body><![CDATA[
-{
-  "title": "{{state.originalTitle}}",
-  "content": "{{state.originalContent}}",
-  "auto_fork": true
-}
-      ]]></body>
       <assertions>
         <assertion type="status" code="200"/>
       </assertions>
       <flags teardown="true"/>
       <notes>
-        teardown: true — this step must run even if Steps 2 or 3 failed,
-        to ensure the article is not left with a test title.
+        teardown: true — runs after article deletion to clean up the category.
       </notes>
     </step>
 

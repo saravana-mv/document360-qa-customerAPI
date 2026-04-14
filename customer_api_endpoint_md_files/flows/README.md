@@ -58,7 +58,6 @@ These are always available — they come from the test setup screen.
 | `ctx.projectId` | Selected project UUID |
 | `ctx.versionId` | Selected project version UUID |
 | `ctx.langCode` | Language code (e.g. `en`) |
-| `ctx.articleId` | Test article UUID (entered in setup) |
 | `ctx.token` | Bearer token (injected automatically) |
 | `ctx.baseUrl` | API base URL |
 
@@ -87,7 +86,6 @@ and referenced with `{{state.*}}` in any subsequent step.
 | Token | Resolves to |
 |-------|-------------|
 | `{{ctx.projectId}}` | Project UUID from setup |
-| `{{ctx.articleId}}` | Article UUID from setup |
 | `{{ctx.langCode}}` | Language code from setup |
 | `{{state.*}}` | Value captured in a previous step |
 | `{{timestamp}}` | Unix timestamp at execution time (for unique values) |

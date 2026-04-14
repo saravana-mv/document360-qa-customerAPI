@@ -7,23 +7,71 @@
   <name>Publish / Unpublish Flow</name>
   <entity>Articles</entity>
   <description>
-    Fetches the article and available workflow statuses, transitions the
-    article to a different workflow status, then restores the original —
-    verifying the workflow status PATCH endpoint works. Skipped gracefully
-    if no workflow statuses are configured for the project.
+    Creates a category and article, fetches the article and available
+    workflow statuses, transitions the article to a different workflow
+    status, then restores the original — verifying the workflow status
+    PATCH endpoint works. Cleans up by deleting the article and category.
   </description>
   <stopOnFailure>true</stopOnFailure>
 
   <steps>
 
     <step number="1">
+      <name>Create Category</name>
+      <endpointRef>categories/create-a-category.md</endpointRef>
+      <method>POST</method>
+      <path>/v2/projects/{project_id}/categories</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+      </pathParams>
+      <body><![CDATA[
+{
+  "name": "[TEST] Publish Flow - {{timestamp}}",
+  "project_version_id": "{{ctx.versionId}}"
+}
+      ]]></body>
+      <captures>
+        <capture variable="state.createdCategoryId" source="response.data.id"/>
+      </captures>
+      <assertions>
+        <assertion type="status"       code="201"/>
+        <assertion type="field-exists" field="data.id"/>
+      </assertions>
+    </step>
+
+    <step number="2">
+      <name>Create Article</name>
+      <endpointRef>articles/create-a-new-article.md</endpointRef>
+      <method>POST</method>
+      <path>/v3/projects/{project_id}/articles</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+      </pathParams>
+      <body><![CDATA[
+{
+  "title": "[TEST] Publish Flow - {{timestamp}}",
+  "content": "Test article for Publish / Unpublish Flow.",
+  "category_id": "{{state.createdCategoryId}}",
+  "project_version_id": "{{ctx.versionId}}"
+}
+      ]]></body>
+      <captures>
+        <capture variable="state.createdArticleId" source="response.data.id"/>
+      </captures>
+      <assertions>
+        <assertion type="status"       code="201"/>
+        <assertion type="field-exists" field="data.id"/>
+      </assertions>
+    </step>
+
+    <step number="3">
       <name>Get Article (capture current state)</name>
       <endpointRef>articles/get-an-article-by-id.md</endpointRef>
       <method>GET</method>
       <path>/v3/projects/{project_id}/articles/{article_id}</path>
       <pathParams>
         <param name="project_id">ctx.projectId</param>
-        <param name="article_id">ctx.articleId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
       </pathParams>
       <queryParams>
         <param name="lang_code">ctx.langCode</param>
@@ -37,7 +85,7 @@
       </assertions>
     </step>
 
-    <step number="2">
+    <step number="4">
       <name>Get Available Workflow Statuses</name>
       <method>GET</method>
       <path>/v3/projects/{project_id}/workflow-statuses</path>
@@ -56,19 +104,18 @@
       <flags optional="true"/>
       <notes>
         optional: true — if response.data is empty (project has no workflow
-        statuses configured), skip Steps 3 and 4.
-        No dedicated endpoint MD file exists yet for GET /workflow-statuses.
+        statuses configured), skip Steps 5 and 6.
       </notes>
     </step>
 
-    <step number="3">
+    <step number="5">
       <name>Transition to New Workflow Status</name>
       <endpointRef>articles/update-workflow-status-for-an-article.md</endpointRef>
       <method>PATCH</method>
       <path>/v3/projects/{project_id}/articles/{article_id}/workflow-status</path>
       <pathParams>
         <param name="project_id">ctx.projectId</param>
-        <param name="article_id">ctx.articleId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
       </pathParams>
       <body><![CDATA[
 {
@@ -83,20 +130,16 @@
         <assertion type="status" code="200"/>
       </assertions>
       <flags optional="true"/>
-      <notes>
-        optional: true — skip if Step 2 found no available target status
-        (state.targetStatusId will be undefined).
-      </notes>
     </step>
 
-    <step number="4">
+    <step number="6">
       <name>Restore Original Workflow Status</name>
       <endpointRef>articles/update-workflow-status-for-an-article.md</endpointRef>
       <method>PATCH</method>
       <path>/v3/projects/{project_id}/articles/{article_id}/workflow-status</path>
       <pathParams>
         <param name="project_id">ctx.projectId</param>
-        <param name="article_id">ctx.articleId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
       </pathParams>
       <body><![CDATA[
 {
@@ -111,11 +154,39 @@
         <assertion type="status" code="200"/>
       </assertions>
       <flags teardown="true" optional="true"/>
-      <notes>
-        teardown: true — always attempt to restore even if Step 3 failed.
-        optional: true — skip if state.currentWorkflowStatusId is null
-        (article had no workflow status to restore to).
-      </notes>
+    </step>
+
+    <step number="7">
+      <name>Delete Article (cleanup)</name>
+      <endpointRef>articles/delete-an-article.md</endpointRef>
+      <method>DELETE</method>
+      <path>/v3/projects/{project_id}/articles/{article_id}</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="article_id">{{state.createdArticleId}}</param>
+      </pathParams>
+      <assertions>
+        <assertion type="status" code="204"/>
+      </assertions>
+      <flags teardown="true"/>
+    </step>
+
+    <step number="8">
+      <name>Delete Category (cleanup)</name>
+      <endpointRef>categories/delete-a-category.md</endpointRef>
+      <method>DELETE</method>
+      <path>/v2/projects/{project_id}/categories/{category_id}</path>
+      <pathParams>
+        <param name="project_id">ctx.projectId</param>
+        <param name="category_id">{{state.createdCategoryId}}</param>
+      </pathParams>
+      <queryParams>
+        <param name="project_version_id">ctx.versionId</param>
+      </queryParams>
+      <assertions>
+        <assertion type="status" code="200"/>
+      </assertions>
+      <flags teardown="true"/>
     </step>
 
   </steps>

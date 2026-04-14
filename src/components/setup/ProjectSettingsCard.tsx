@@ -144,19 +144,6 @@ export function ProjectSettingsCard({ onDone }: ProjectSettingsCardProps = {}) {
             />
           </div>
 
-          {/* Test Article ID */}
-          <div>
-            <label className="block text-xs font-medium text-[#1f2328] mb-1">
-              Test Article ID <span className="text-[#656d76] font-normal">(optional)</span>
-            </label>
-            <input
-              type="text"
-              value={setup.articleId}
-              onChange={(e) => setup.setArticleId(e.target.value)}
-              placeholder="8f3c2a4e-…"
-              className="w-full px-2.5 py-1.5 border border-[#d1d9e0] rounded-md text-xs bg-[#f6f8fa] focus:bg-white font-mono text-[#1f2328] placeholder:text-[#afb8c1]"
-            />
-          </div>
         </div>
 
         {setup.error && (
