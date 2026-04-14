@@ -608,7 +608,7 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
             <XmlEditor value={draft} onChange={handleDraftChange} height="100%" />
           </Suspense>
         ) : (
-          <XmlCodeBlock value={xml} className="flex-1 min-h-0 overflow-hidden" height="100%" />
+          <XmlCodeBlock value={xml} className="flex-1 min-h-0 overflow-auto" height="100%" />
         )}
       </div>
     </div>
