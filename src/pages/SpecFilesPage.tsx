@@ -511,7 +511,23 @@ export function SpecFilesPage() {
 
   async function handleImportFromUrl(url: string, folderPath: string, filename?: string) {
     const token = useAuthStore.getState().token?.access_token;
-    await importSpecFileFromUrl(url, folderPath, filename, token);
+
+    // Try client-side fetch first — the browser may have session cookies for this URL
+    let clientContent: string | undefined;
+    try {
+      const resp = await fetch(url, { credentials: "include" });
+      if (resp.ok) {
+        const text = await resp.text();
+        // Sanity check: HTML login pages are not valid markdown imports
+        if (!text.trimStart().startsWith("<!DOCTYPE") && !text.trimStart().startsWith("<html")) {
+          clientContent = text;
+        }
+      }
+    } catch {
+      // CORS or network error — will fall back to server-side fetch
+    }
+
+    await importSpecFileFromUrl(url, folderPath, filename, token, clientContent);
     await loadFiles();
     await loadSourcedPaths();
   }

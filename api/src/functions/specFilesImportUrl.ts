@@ -55,11 +55,18 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
 
   try {
-    const body = (await req.json()) as { url?: string; folderPath?: string; filename?: string; accessToken?: string };
+    const body = (await req.json()) as {
+      url?: string;
+      folderPath?: string;
+      filename?: string;
+      accessToken?: string;
+      content?: string;        // Pre-fetched content from client-side fetch
+    };
     const url = body.url?.trim();
     const folderPath = body.folderPath?.trim() ?? "";
     const filenameOverride = body.filename?.trim();
     const accessToken = body.accessToken?.trim();
+    const clientContent = body.content;
 
     if (!url) return err(400, "url is required");
 
@@ -77,34 +84,44 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
     const filename = filenameOverride || filenameFromUrl(url);
     const blobPath = folderPath ? `${folderPath}/${filename}` : filename;
 
-    // Fetch content from URL (server-side to avoid CORS)
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-    let response: Response;
-    try {
-      const fetchHeaders: Record<string, string> = {};
-      if (accessToken) fetchHeaders["Authorization"] = `Bearer ${accessToken}`;
-      response = await fetch(url, { signal: controller.signal, headers: fetchHeaders });
-    } catch (fetchErr) {
+    let content: string;
+
+    if (clientContent != null) {
+      // Content was pre-fetched client-side (browser had session cookies)
+      content = clientContent;
+      if (content.length > MAX_SIZE) {
+        return err(413, `File too large (max ${MAX_SIZE / 1024 / 1024}MB)`);
+      }
+    } else {
+      // Fetch content from URL server-side
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+      let response: Response;
+      try {
+        const fetchHeaders: Record<string, string> = {};
+        if (accessToken) fetchHeaders["Authorization"] = `Bearer ${accessToken}`;
+        response = await fetch(url, { signal: controller.signal, headers: fetchHeaders });
+      } catch (fetchErr) {
+        clearTimeout(timer);
+        const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+        return err(502, `Failed to fetch URL: ${msg}`);
+      }
       clearTimeout(timer);
-      const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-      return err(502, `Failed to fetch URL: ${msg}`);
-    }
-    clearTimeout(timer);
 
-    if (!response.ok) {
-      return err(502, `URL returned HTTP ${response.status}`);
-    }
+      if (!response.ok) {
+        return err(502, `URL returned HTTP ${response.status}`);
+      }
 
-    // Check size via Content-Length header first
-    const contentLength = response.headers.get("content-length");
-    if (contentLength && parseInt(contentLength, 10) > MAX_SIZE) {
-      return err(413, `File too large (max ${MAX_SIZE / 1024 / 1024}MB)`);
-    }
+      // Check size via Content-Length header first
+      const contentLength = response.headers.get("content-length");
+      if (contentLength && parseInt(contentLength, 10) > MAX_SIZE) {
+        return err(413, `File too large (max ${MAX_SIZE / 1024 / 1024}MB)`);
+      }
 
-    const content = await response.text();
-    if (content.length > MAX_SIZE) {
-      return err(413, `File too large (max ${MAX_SIZE / 1024 / 1024}MB)`);
+      content = await response.text();
+      if (content.length > MAX_SIZE) {
+        return err(413, `File too large (max ${MAX_SIZE / 1024 / 1024}MB)`);
+      }
     }
 
     // Upload to blob storage

@@ -69,11 +69,18 @@ export async function importSpecFileFromUrl(
   folderPath: string,
   filename?: string,
   accessToken?: string,
+  content?: string,
 ): Promise<ImportFromUrlResult> {
   const res = await apiFetch("/api/spec-files/import-url", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, folderPath, ...(filename ? { filename } : {}), ...(accessToken ? { accessToken } : {}) }),
+    body: JSON.stringify({
+      url,
+      folderPath,
+      ...(filename ? { filename } : {}),
+      ...(accessToken ? { accessToken } : {}),
+      ...(content != null ? { content } : {}),
+    }),
   });
   return res.json() as Promise<ImportFromUrlResult>;
 }
