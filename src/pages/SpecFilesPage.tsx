@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Layout } from "../components/common/Layout";
 import { ResizeHandle } from "../components/common/ResizeHandle";
 import { FileTree } from "../components/specfiles/FileTree";
@@ -181,6 +181,15 @@ export function SpecFilesPage() {
   // edits persisted in an earlier mount are picked up when the page remounts
   // (e.g. after navigating to Flow Manager and back).
   const [workshopMap, setWorkshopMap] = useState<WorkshopMap>(() => loadWorkshopMap());
+
+  // Paths (file or folder) that have generated ideas — for tree indicators
+  const pathsWithIdeas = useMemo(() => {
+    const s = new Set<string>();
+    for (const [key, ctx] of Object.entries(workshopMap)) {
+      if (ctx.ideas.length > 0) s.add(key);
+    }
+    return s;
+  }, [workshopMap]);
 
   // Working set — flat state loaded from workshopMap when navigating
   const [ideas, setIdeas] = useState<FlowIdea[]>([]);
@@ -1081,6 +1090,7 @@ export function SpecFilesPage() {
             loading={loadingFiles}
             selectedPath={selectedPath}
             selectedFolderPath={selectedFolderPath}
+            pathsWithIdeas={pathsWithIdeas}
             onSelectFile={(path) => void selectFile(path)}
             onSelectFolder={selectFolder}
             onCreateFolder={(path) => handleCreateFolder(path)}
