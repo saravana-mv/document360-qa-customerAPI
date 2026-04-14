@@ -478,7 +478,7 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
     return <div className="p-4 text-sm text-[#afb8c1] italic">Loading flow XML…</div>;
   }
   return (
-    <div className="p-4 space-y-2 flex flex-col h-full">
+    <div className="p-4 space-y-2 flex flex-col flex-1 overflow-hidden">
       {/* Header row */}
       <div className="flex items-center gap-1.5 shrink-0">
         <span className="text-xs font-mono text-[#656d76] flex-1 break-all">{fileName}</span>
@@ -637,11 +637,16 @@ export function DetailPane({ testId, onClose }: DetailPaneProps) {
       </div>
 
       {/* ── Tab content ── */}
-      <div className="flex-1 overflow-y-auto">
-        {activeTab === "design" && <DesignTab testId={testId} />}
-        {activeTab === "run" && <RunTab testId={testId} />}
-        {activeTab === "xml" && def.flowFileName && <FlowXmlTab fileName={def.flowFileName} />}
-      </div>
+      {activeTab === "xml" && def.flowFileName ? (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <FlowXmlTab fileName={def.flowFileName} />
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto">
+          {activeTab === "design" && <DesignTab testId={testId} />}
+          {activeTab === "run" && <RunTab testId={testId} />}
+        </div>
+      )}
     </div>
   );
 }
