@@ -182,14 +182,26 @@ export function SpecFilesPage() {
   // (e.g. after navigating to Flow Manager and back).
   const [workshopMap, setWorkshopMap] = useState<WorkshopMap>(() => loadWorkshopMap());
 
-  // Paths (file or folder) that have generated ideas — for tree indicators
+  // Paths (file or folder) that have generated ideas — for tree indicators.
+  // For folder-level entries, mark all child .md files so individual file
+  // icons turn green even when ideas were generated at the folder level.
   const pathsWithIdeas = useMemo(() => {
     const s = new Set<string>();
     for (const [key, ctx] of Object.entries(workshopMap)) {
-      if (ctx.ideas.length > 0) s.add(key);
+      if (ctx.ideas.length === 0) continue;
+      s.add(key);
+      // If key is a folder (not .md), also mark child .md files
+      if (!key.endsWith(".md")) {
+        const prefix = key.endsWith("/") ? key : `${key}/`;
+        for (const f of files) {
+          if (f.name.startsWith(prefix) && f.name.endsWith(".md")) {
+            s.add(f.name);
+          }
+        }
+      }
     }
     return s;
-  }, [workshopMap]);
+  }, [workshopMap, files]);
 
   // Working set — flat state loaded from workshopMap when navigating
   const [ideas, setIdeas] = useState<FlowIdea[]>([]);
