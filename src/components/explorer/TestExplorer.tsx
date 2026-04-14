@@ -12,6 +12,7 @@ import { EntityNode } from "./EntityNode";
 import { ExplorerContext } from "./ExplorerContext";
 import { ProjectSettingsCard } from "../setup/ProjectSettingsCard";
 import { Spinner } from "../common/Spinner";
+import { startAuthFlow, loadOAuthConfig } from "../../lib/oauth/flow";
 import type { ParsedTag } from "../../types/spec.types";
 
 export function TestExplorer() {
@@ -129,6 +130,19 @@ export function TestExplorer() {
         {/* Title header */}
         <div className="flex items-center gap-2 px-4 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
           <span className="text-sm font-bold text-[#1f2328]">API Test Manager</span>
+          <div className="flex-1" />
+          <button
+            onClick={() => {
+              const config = loadOAuthConfig();
+              if (config) void startAuthFlow(config);
+            }}
+            title="Sign in again (refresh token)"
+            className="rounded-md p-1 text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff] transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+            </svg>
+          </button>
         </div>
         {/* Toolbar */}
         {(() => {
