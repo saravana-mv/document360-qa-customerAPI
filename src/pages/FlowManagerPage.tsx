@@ -194,7 +194,7 @@ export function FlowManagerPage() {
       <div className="h-full flex overflow-hidden bg-white">
         {/* ── LHS: file tree ── */}
         <aside
-          className="shrink-0 border-r border-[#d1d9e0] bg-white flex flex-col overflow-hidden"
+          className="shrink-0 bg-white flex flex-col overflow-hidden"
           style={{ width: treeWidth }}
         >
           {/* Title header */}

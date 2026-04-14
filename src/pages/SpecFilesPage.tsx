@@ -1051,7 +1051,7 @@ export function SpecFilesPage() {
     <Layout>
       <div className="h-full flex overflow-hidden">
         {/* LHS tree */}
-        <aside className="shrink-0 border-r border-[#d1d9e0] bg-white flex flex-col overflow-hidden" style={{ width: treeWidth }}>
+        <aside className="shrink-0 bg-white flex flex-col overflow-hidden" style={{ width: treeWidth }}>
           {error && (
             <div className="mx-2 mt-2 text-xs text-[#d1242f] bg-[#ffebe9] border border-[#ffcecb] rounded-md px-2 py-1.5 shrink-0">
               {error}
@@ -1142,7 +1142,7 @@ export function SpecFilesPage() {
                 /* Three-column workshop: Ideas | Flows | Detail */
                 <div className="flex-1 flex overflow-hidden">
                   {/* Column 1 — Ideas */}
-                  <div className="shrink-0 border-r border-[#d1d9e0] flex flex-col overflow-hidden" style={{ width: ideasWidth }}>
+                  <div className="shrink-0 flex flex-col overflow-hidden" style={{ width: ideasWidth }}>
                     <FlowIdeasPanel
                       ideas={ideas.length > 0 ? ideas : null}
                       loading={ideasLoading}
@@ -1171,7 +1171,7 @@ export function SpecFilesPage() {
                   <ResizeHandle width={ideasWidth} onResize={setIdeasWidth} minWidth={200} maxWidth={500} />
 
                   {/* Column 2 — Flows */}
-                  <div className="shrink-0 border-r border-[#d1d9e0] flex flex-col overflow-hidden" style={{ width: flowsWidth }}>
+                  <div className="shrink-0 flex flex-col overflow-hidden" style={{ width: flowsWidth }}>
                     <FlowsPanel
                       flows={generatedFlows}
                       ideas={ideas}
