@@ -27,6 +27,7 @@ export interface ParsedStep {
   captures: ParsedCapture[];
   assertions: ParsedAssertion[];
   teardown: boolean;
+  noAuth: boolean;
   notes?: string;
 }
 

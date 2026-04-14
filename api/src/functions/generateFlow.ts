@@ -50,7 +50,7 @@ The child elements of \`<step>\` must appear in this order:
 7. \`<body>\` — JSON request body wrapped in CDATA (optional; omit for GET/DELETE with no body)
 8. \`<captures>\` — values to extract for later steps (optional)
 9. \`<assertions>\` — at least one assertion required
-10. \`<flags>\` — optional behavioural flags (\`teardown\`, \`optional\`)
+10. \`<flags>\` — optional behavioural flags (\`teardown\`, \`optional\`, \`noAuth\`)
 11. \`<notes>\` — free-text QA context (optional)
 
 ### Params (path & query)
@@ -107,14 +107,16 @@ Attributes: \`variable\` (required), \`source\` (required), \`from\` (optional: 
 **The element is \`<assertion>\` (singular), NOT \`<assert>\`.**
 Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`, \`array-not-empty\`.
 
-### Flags (teardown / optional)
+### Flags (teardown / optional / noAuth)
 
 \`\`\`xml
 <flags teardown="true"/>  <!-- this step always runs, even after earlier failures -->
 <flags optional="true"/>  <!-- graceful skip if precondition can't be met -->
+<flags noAuth="true"/>    <!-- omit the Authorization header for this step (use for 401 tests) -->
 \`\`\`
 
 **Teardown is set via \`<flags teardown="true"/>\` — NOT as an attribute on \`<step>\`.**
+**For steps that test unauthenticated access (expecting 401), set \`<flags noAuth="true"/>\` to omit the Authorization header.**
 
 ### Interpolation tokens (allowed in any text/attr value)
 

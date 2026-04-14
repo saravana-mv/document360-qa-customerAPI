@@ -125,12 +125,15 @@ function parseStep(el: Element): ParsedStep {
     }
   }
 
-  // teardown flag
+  // flags
   let teardown = false;
+  let noAuth = false;
   const flagsEl = childElement(el, "flags");
   if (flagsEl) {
     const t = flagsEl.getAttribute("teardown");
     teardown = t === "true" || t === "1";
+    const a = flagsEl.getAttribute("noAuth");
+    noAuth = a === "true" || a === "1";
   }
 
   return {
@@ -145,6 +148,7 @@ function parseStep(el: Element): ParsedStep {
     captures,
     assertions,
     teardown,
+    noAuth,
     notes,
   };
 }

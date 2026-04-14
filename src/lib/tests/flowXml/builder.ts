@@ -213,9 +213,11 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
   // Make the HTTP call. We bypass apiClient so each step's request URL/body
   // is captured exactly for the Detail Pane.
   const headers: Record<string, string> = {
-    Authorization: `Bearer ${ctx.token}`,
     "Content-Type": "application/json",
   };
+  if (!step.noAuth) {
+    headers["Authorization"] = `Bearer ${ctx.token}`;
+  }
 
   let httpStatus: number;
   let responseBody: unknown = undefined;

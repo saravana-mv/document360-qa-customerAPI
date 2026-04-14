@@ -203,9 +203,12 @@
                  without marking the flow as failed (graceful skip).
       teardown:  true → this step always runs, even if earlier steps failed,
                  to ensure the test environment is restored to a clean state.
+      noAuth:    true → omit the Authorization header for this step. Use
+                 for testing unauthenticated access (expecting 401).
     -->
     <xs:attribute name="optional"  type="xs:boolean" default="false"/>
     <xs:attribute name="teardown"  type="xs:boolean" default="false"/>
+    <xs:attribute name="noAuth"    type="xs:boolean" default="false"/>
   </xs:complexType>
 
   <!-- ═══════════════════════════════════════
