@@ -53,6 +53,57 @@ export async function renameSpecFile(name: string, newName: string): Promise<voi
   });
 }
 
+// ── URL Import & Sync ─────────────────────────────────────────────────────────
+
+import type { SourceEntry } from "../../types/spec.types";
+
+export interface ImportFromUrlResult {
+  name: string;
+  filename: string;
+  uploaded: boolean;
+  sourceUrl: string;
+}
+
+export async function importSpecFileFromUrl(
+  url: string,
+  folderPath: string,
+  filename?: string,
+): Promise<ImportFromUrlResult> {
+  const res = await apiFetch("/api/spec-files/import-url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, folderPath, ...(filename ? { filename } : {}) }),
+  });
+  return res.json() as Promise<ImportFromUrlResult>;
+}
+
+export interface SyncResult {
+  synced: Array<{ name: string; updated: boolean; error?: string }>;
+  message?: string;
+}
+
+export async function syncSpecFiles(
+  folderPath: string,
+  filename?: string,
+): Promise<SyncResult> {
+  const res = await apiFetch("/api/spec-files/sync", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ folderPath, ...(filename ? { filename } : {}) }),
+  });
+  return res.json() as Promise<SyncResult>;
+}
+
+export async function getSourcesManifest(
+  prefix?: string,
+): Promise<Record<string, SourceEntry>> {
+  const url = prefix
+    ? `/api/spec-files/sources?prefix=${encodeURIComponent(prefix)}`
+    : `/api/spec-files/sources`;
+  const res = await apiFetch(url);
+  return res.json() as Promise<Record<string, SourceEntry>>;
+}
+
 // ── Flow Ideas (AI) ───────────────────────────────────────────────────────────
 
 export interface FlowIdea {

@@ -4,6 +4,7 @@ import { ResizeHandle } from "../components/common/ResizeHandle";
 import { FileTree } from "../components/specfiles/FileTree";
 import { MarkdownViewer } from "../components/specfiles/MarkdownViewer";
 import { FileUploadModal } from "../components/specfiles/FileUploadModal";
+import { ImportFromUrlModal } from "../components/specfiles/ImportFromUrlModal";
 import { FlowIdeasPanel } from "../components/specfiles/FlowIdeasPanel";
 import { FlowsPanel, type GeneratedFlow } from "../components/specfiles/FlowsPanel";
 import { DetailPanel } from "../components/specfiles/DetailPanel";
@@ -14,6 +15,9 @@ import {
   deleteSpecFile,
   renameSpecFile,
   generateFlowIdeas,
+  importSpecFileFromUrl,
+  syncSpecFiles,
+  getSourcesManifest,
   type SpecFileItem,
   type FlowIdea,
   type FlowIdeasUsage,
@@ -176,6 +180,8 @@ export function SpecFilesPage() {
   const [viewingContent, setViewingContent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadFolderPath, setUploadFolderPath] = useState<string | null>(null);
+  const [importUrlFolderPath, setImportUrlFolderPath] = useState<string | null>(null);
+  const [sourcedPaths, setSourcedPaths] = useState<Set<string>>(new Set());
 
   // ── Multi-context workshop state ──────────────────────────────────────────
   // Read localStorage on every mount (not a module-level snapshot) so that
@@ -338,7 +344,16 @@ export function SpecFilesPage() {
     }
   }, []);
 
-  useEffect(() => { void loadFiles(); }, [loadFiles]);
+  const loadSourcedPaths = useCallback(async () => {
+    try {
+      const manifest = await getSourcesManifest();
+      setSourcedPaths(new Set(Object.keys(manifest)));
+    } catch {
+      // Non-critical — sourced indicators just won't show
+    }
+  }, []);
+
+  useEffect(() => { void loadFiles(); void loadSourcedPaths(); }, [loadFiles, loadSourcedPaths]);
 
   // After the file list loads for the first time, rehydrate the restored
   // selection: drop it if the file/folder no longer exists, otherwise
@@ -488,6 +503,52 @@ export function SpecFilesPage() {
       await loadFiles();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  // ── Import from URL ────────────────────────────────────────────────────────
+
+  async function handleImportFromUrl(url: string, folderPath: string, filename?: string) {
+    await importSpecFileFromUrl(url, folderPath, filename);
+    await loadFiles();
+    await loadSourcedPaths();
+  }
+
+  // ── Sync from URL source ──────────────────────────────────────────────────
+
+  async function handleSyncFile(folderPath: string, filename: string) {
+    try {
+      const result = await syncSpecFiles(folderPath, filename);
+      const failed = result.synced.filter((r) => !r.updated);
+      if (failed.length > 0) {
+        alert(`Sync failed for: ${failed.map((f) => `${f.name}: ${f.error}`).join("\n")}`);
+      }
+      await loadFiles();
+      await loadSourcedPaths();
+      // Refresh content if the synced file is currently viewed
+      const syncedPath = folderPath ? `${folderPath}/${filename}` : filename;
+      if (selectedPath === syncedPath) {
+        const fresh = await getSpecFileContent(syncedPath);
+        setContent(fresh);
+      }
+    } catch (e) {
+      alert(`Sync failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  async function handleSyncFolder(folderPath: string) {
+    if (!confirm(`Sync all URL-sourced files under "${folderPath || "/"}"?\n\nPrevious versions will be preserved.`)) return;
+    try {
+      const result = await syncSpecFiles(folderPath);
+      const updated = result.synced.filter((r) => r.updated).length;
+      const failed = result.synced.filter((r) => !r.updated);
+      if (failed.length > 0) {
+        alert(`Synced ${updated} file(s). Failed:\n${failed.map((f) => `${f.name}: ${f.error}`).join("\n")}`);
+      }
+      await loadFiles();
+      await loadSourcedPaths();
+    } catch (e) {
+      alert(`Sync failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
@@ -1105,6 +1166,7 @@ export function SpecFilesPage() {
             selectedPath={selectedPath}
             selectedFolderPath={selectedFolderPath}
             pathsWithIdeas={pathsWithIdeas}
+            sourcedPaths={sourcedPaths}
             onSelectFile={(path) => void selectFile(path)}
             onSelectFolder={selectFolder}
             onCreateFolder={(path) => handleCreateFolder(path)}
@@ -1112,6 +1174,9 @@ export function SpecFilesPage() {
             onDeleteFolder={(path) => handleDeleteFolder(path)}
             onRenameFile={(oldPath, newPath) => handleRename(oldPath, newPath)}
             onUploadFiles={(folderPath) => setUploadFolderPath(folderPath)}
+            onImportFromUrl={(folderPath) => setImportUrlFolderPath(folderPath)}
+            onSyncFile={(folderPath, filename) => void handleSyncFile(folderPath, filename)}
+            onSyncFolder={(folderPath) => void handleSyncFolder(folderPath)}
             onGenerateFlowIdeas={(folderPath) => void handleGenerateFlowIdeas(folderPath)}
             onRefresh={loadFiles}
           />
@@ -1308,6 +1373,15 @@ export function SpecFilesPage() {
           folderPath={uploadFolderPath}
           onUpload={handleUpload}
           onClose={() => setUploadFolderPath(null)}
+        />
+      )}
+
+      {/* Import from URL modal */}
+      {importUrlFolderPath !== null && (
+        <ImportFromUrlModal
+          folderPath={importUrlFolderPath}
+          onImport={handleImportFromUrl}
+          onClose={() => setImportUrlFolderPath(null)}
         />
       )}
 

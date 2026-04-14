@@ -40,7 +40,8 @@ export function buildTree(files: SpecFileItem[]): TreeNode[] {
     }
 
     const filename = parts[parts.length - 1];
-    if (filename && filename !== ".keep") {
+    // Filter out internal metadata files
+    if (filename && filename !== ".keep" && filename !== "_sources.json" && !parts.includes("_versions")) {
       level.push({ type: "file", name: filename, path: file.name, size: file.size });
     }
   }
@@ -81,7 +82,7 @@ function canDrop(drag: TreeNode, targetFolderPath: string): boolean {
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
-function FileIcon({ name, hasIdeas }: { name: string; hasIdeas?: boolean }) {
+function FileIcon({ name, hasIdeas, isSourced }: { name: string; hasIdeas?: boolean; isSourced?: boolean }) {
   const ext = name.split(".").pop()?.toLowerCase();
   if (ext === "xml" || ext === "xsd")
     return (
@@ -92,9 +93,16 @@ function FileIcon({ name, hasIdeas }: { name: string; hasIdeas?: boolean }) {
   // MD files: green if ideas generated, blue otherwise
   const color = hasIdeas ? "text-[#1a7f37]" : "text-blue-400";
   return (
-    <svg className={`w-3.5 h-3.5 ${color} shrink-0`} fill="currentColor" viewBox="0 0 20 20">
-      <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.379 2H4.5Zm2.25 8.5a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Zm0 3a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Z" clipRule="evenodd" />
-    </svg>
+    <span className="relative shrink-0 flex items-center">
+      <svg className={`w-3.5 h-3.5 ${color}`} fill="currentColor" viewBox="0 0 20 20">
+        <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.379 2H4.5Zm2.25 8.5a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Zm0 3a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Z" clipRule="evenodd" />
+      </svg>
+      {isSourced && (
+        <svg className="w-2 h-2 text-[#0969da] absolute -bottom-0.5 -right-0.5" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+        </svg>
+      )}
+    </span>
   );
 }
 
@@ -127,17 +135,23 @@ function InlineInput({ defaultValue = "", onCommit, onCancel }: {
 interface FolderMenuProps {
   folderPath: string;
   isSelected: boolean;
+  hasSourcedFiles: boolean;
   onNewSubfolder: () => void;
   onUploadFiles: () => void;
+  onImportFromUrl: () => void;
+  onSyncFolder: () => void;
   onGenerateFlowIdeas: () => void;
   onRename: () => void;
   onDelete: () => void;
 }
 
-function FolderMenu({ isSelected, onNewSubfolder, onUploadFiles, onGenerateFlowIdeas, onRename, onDelete }: FolderMenuProps) {
+function FolderMenu({ isSelected, hasSourcedFiles, onNewSubfolder, onUploadFiles, onImportFromUrl, onSyncFolder, onGenerateFlowIdeas, onRename, onDelete }: FolderMenuProps) {
   const items: MenuItem[] = [
     { label: "New subfolder", icon: MenuIcons.folder, onClick: onNewSubfolder },
     { label: "Upload files", icon: MenuIcons.upload, onClick: onUploadFiles },
+    { label: "Import from URL", icon: MenuIcons.link, onClick: onImportFromUrl },
+    { label: "Sync URL sources", icon: MenuIcons.sync, onClick: onSyncFolder, disabled: !hasSourcedFiles, tooltip: hasSourcedFiles ? undefined : "No URL-sourced files in this folder" },
+    "separator",
     { label: "Generate flow ideas", icon: MenuIcons.sparkle, onClick: onGenerateFlowIdeas },
     "separator",
     { label: "Rename", icon: MenuIcons.rename, onClick: onRename },
@@ -165,6 +179,8 @@ interface NodeProps {
   creatingUnder: string | null;
   /** Paths that have generated ideas */
   pathsWithIdeas?: Set<string>;
+  /** Paths that are sourced from URLs */
+  sourcedPaths?: Set<string>;
   // Drag state
   draggingPath: string | null;
   dropTargetPath: string | null; // "" = root, folder path = that folder
@@ -182,6 +198,9 @@ interface NodeProps {
   onDeleteNode: (node: TreeNode) => void;
   onStartSubfolder: (parentPath: string) => void;
   onUploadFiles: (folderPath: string) => void;
+  onImportFromUrl: (folderPath: string) => void;
+  onSyncFile: (folderPath: string, filename: string) => void;
+  onSyncFolder: (folderPath: string) => void;
   onGenerateFlowIdeas: (folderPath: string) => void;
   onCreateCommit: (parentPath: string, name: string) => void;
   onCreateCancel: () => void;
@@ -189,12 +208,12 @@ interface NodeProps {
 
 function TreeNodeRow({
   node, depth, selectedPath, selectedFolderPath, expandedFolders, renamingPath,
-  creatingUnder, pathsWithIdeas,
+  creatingUnder, pathsWithIdeas, sourcedPaths,
   draggingPath, dropTargetPath,
   onDragStart, onDragOver, onDrop, onDragEnd,
   onSelect, onSelectFolder, onToggle, onRenameStart, onRenameCommit, onRenameCancel,
-  onDeleteNode, onStartSubfolder, onUploadFiles, onGenerateFlowIdeas,
-  onCreateCommit, onCreateCancel,
+  onDeleteNode, onStartSubfolder, onUploadFiles, onImportFromUrl, onSyncFile, onSyncFolder,
+  onGenerateFlowIdeas, onCreateCommit, onCreateCancel,
 }: NodeProps) {
   const indent = depth * 12;
   const isSelected = node.type === "file" ? node.path === selectedPath : node.path === selectedFolderPath;
@@ -245,7 +264,7 @@ function TreeNodeRow({
             <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
           </svg>
         ) : (
-          <FileIcon name={node.name} hasIdeas={pathsWithIdeas?.has(node.path) === true} />
+          <FileIcon name={node.name} hasIdeas={pathsWithIdeas?.has(node.path) === true} isSourced={sourcedPaths?.has(node.path) === true} />
         )}
 
         {/* Name or rename input */}
@@ -266,8 +285,11 @@ function TreeNodeRow({
               <FolderMenu
                 folderPath={node.path}
                 isSelected={isSelected && !isDropTarget}
+                hasSourcedFiles={sourcedPaths ? Array.from(sourcedPaths).some((p) => p.startsWith(node.path + "/")) : false}
                 onNewSubfolder={() => onStartSubfolder(node.path)}
                 onUploadFiles={() => onUploadFiles(node.path)}
+                onImportFromUrl={() => onImportFromUrl(node.path)}
+                onSyncFolder={() => onSyncFolder(node.path)}
                 onGenerateFlowIdeas={() => onGenerateFlowIdeas(node.path)}
                 onRename={() => onRenameStart(node.path)}
                 onDelete={() => onDeleteNode(node)}
@@ -275,6 +297,15 @@ function TreeNodeRow({
             ) : (
               <ContextMenu
                 items={[
+                  ...(sourcedPaths?.has(node.path) ? [{
+                    label: "Sync from source",
+                    icon: MenuIcons.sync,
+                    onClick: () => {
+                      const lastSlash = node.path.lastIndexOf("/");
+                      const folder = lastSlash === -1 ? "" : node.path.slice(0, lastSlash);
+                      onSyncFile(folder, node.name);
+                    },
+                  }] : []),
                   { label: "Rename", icon: MenuIcons.rename, onClick: () => onRenameStart(node.path) },
                   { label: "Delete file", icon: MenuIcons.trash, onClick: () => onDeleteNode(node), danger: true },
                 ]}
@@ -301,6 +332,7 @@ function TreeNodeRow({
               renamingPath={renamingPath}
               creatingUnder={creatingUnder}
               pathsWithIdeas={pathsWithIdeas}
+              sourcedPaths={sourcedPaths}
               draggingPath={draggingPath}
               dropTargetPath={dropTargetPath}
               onDragStart={onDragStart}
@@ -316,6 +348,9 @@ function TreeNodeRow({
               onDeleteNode={onDeleteNode}
               onStartSubfolder={onStartSubfolder}
               onUploadFiles={onUploadFiles}
+              onImportFromUrl={onImportFromUrl}
+              onSyncFile={onSyncFile}
+              onSyncFolder={onSyncFolder}
               onGenerateFlowIdeas={onGenerateFlowIdeas}
               onCreateCommit={onCreateCommit}
               onCreateCancel={onCreateCancel}
@@ -349,6 +384,8 @@ interface FileTreeProps {
   selectedFolderPath: string | null;
   /** Paths (file or folder) that have generated ideas in the workshop */
   pathsWithIdeas?: Set<string>;
+  /** Paths that are sourced from URLs */
+  sourcedPaths?: Set<string>;
   onSelectFile: (path: string) => void;
   onSelectFolder: (path: string) => void;
   onCreateFolder: (path: string) => Promise<void>;
@@ -356,14 +393,17 @@ interface FileTreeProps {
   onDeleteFolder: (folderPath: string) => Promise<void>;
   onRenameFile: (oldPath: string, newPath: string) => Promise<void>;
   onUploadFiles: (folderPath: string) => void;
+  onImportFromUrl: (folderPath: string) => void;
+  onSyncFile: (folderPath: string, filename: string) => void;
+  onSyncFolder: (folderPath: string) => void;
   onGenerateFlowIdeas: (folderPath: string) => void;
   onRefresh: () => void;
 }
 
 export function FileTree({
-  files, loading, selectedPath, selectedFolderPath, pathsWithIdeas,
+  files, loading, selectedPath, selectedFolderPath, pathsWithIdeas, sourcedPaths,
   onSelectFile, onSelectFolder, onCreateFolder, onDeleteFile, onDeleteFolder, onRenameFile,
-  onUploadFiles, onGenerateFlowIdeas, onRefresh,
+  onUploadFiles, onImportFromUrl, onSyncFile, onSyncFolder, onGenerateFlowIdeas, onRefresh,
 }: FileTreeProps) {
   const tree = buildTree(files);
 
@@ -555,6 +595,7 @@ export function FileTree({
     renamingPath,
     creatingUnder,
     pathsWithIdeas,
+    sourcedPaths,
     draggingPath: draggingNode?.path ?? null,
     dropTargetPath,
     onDragStart: handleDragStart,
@@ -570,6 +611,9 @@ export function FileTree({
     onDeleteNode: (n: TreeNode) => void handleDeleteNode(n),
     onStartSubfolder: startSubfolder,
     onUploadFiles,
+    onImportFromUrl,
+    onSyncFile,
+    onSyncFolder,
     onGenerateFlowIdeas,
     onCreateCommit: (parent: string, name: string) => void handleCreateCommit(parent, name),
     onCreateCancel: () => setCreatingUnder(null),

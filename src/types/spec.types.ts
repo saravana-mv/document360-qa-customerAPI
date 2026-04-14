@@ -83,3 +83,13 @@ export interface ChangedEndpoint {
   method: string;
   changes: string[];
 }
+
+// ── URL-sourced spec file metadata ──────────────────────────────────────────
+
+export interface SourceEntry {
+  sourceUrl: string;
+  importedAt: string;
+  lastSyncedAt: string | null;
+}
+
+export type SourcesManifest = Record<string, SourceEntry>;
