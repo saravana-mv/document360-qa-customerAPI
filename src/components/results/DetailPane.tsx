@@ -452,9 +452,12 @@ export function DetailPane({ testId, onClose }: DetailPaneProps) {
   if (!testId || !def) {
     return (
       <div className="bg-white flex flex-col h-full overflow-hidden w-full">
+        {/* Title row — aligns with LHS h-10 */}
         <div className="flex items-center gap-2 px-4 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
           <span className="text-sm font-semibold text-[#1f2328]">Detail</span>
         </div>
+        {/* Placeholder row — aligns with LHS h-9 toolbar */}
+        <div className="flex items-center px-4 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0" />
         <div className="flex-1 flex items-center justify-center text-sm text-[#afb8c1]">
           Select a test to view details
         </div>
@@ -468,48 +471,46 @@ export function DetailPane({ testId, onClose }: DetailPaneProps) {
   return (
     <div className="bg-white flex flex-col h-full overflow-hidden w-full">
 
-      {/* ── Header ── */}
-      <div className="px-4 pt-3 pb-0 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
-        <div className="flex items-center gap-2 mb-3">
-          <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded shrink-0 ${methodColor[def.method] ?? "text-[#656d76] bg-[#eef1f6]"}`}>
-            {def.method}
-          </span>
-          <span className="flex-1 text-sm font-semibold text-[#1f2328] truncate" title={def.name}>
-            {def.name}
-          </span>
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${badge.cls}`}>
-            {badge.icon} {badge.label}
-          </span>
-          <button
-            onClick={onClose}
-            className="text-[#afb8c1] hover:text-[#656d76] text-base leading-none shrink-0 ml-1"
-            aria-label="Close"
-          >
-            ✕
-          </button>
-        </div>
+      {/* ── Title row — aligns with LHS h-10 ── */}
+      <div className="flex items-center gap-2 px-4 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+        <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded shrink-0 ${methodColor[def.method] ?? "text-[#656d76] bg-[#eef1f6]"}`}>
+          {def.method}
+        </span>
+        <span className="flex-1 text-sm font-semibold text-[#1f2328] truncate" title={def.name}>
+          {def.name}
+        </span>
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${badge.cls}`}>
+          {badge.icon} {badge.label}
+        </span>
+        <button
+          onClick={onClose}
+          className="text-[#afb8c1] hover:text-[#656d76] text-base leading-none shrink-0 ml-1"
+          aria-label="Close"
+        >
+          ✕
+        </button>
+      </div>
 
-        {/* ── Tabs ── */}
-        <div className="flex gap-1">
-          {((["design", "run", ...(def.flowFileName ? ["xml"] : [])]) as Tab[]).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-1.5 text-[13px] font-semibold border-b-2 transition-colors ${
-                activeTab === tab
-                  ? "border-[#fd8c73] text-[#1f2328]"
-                  : "border-transparent text-[#656d76] hover:text-[#1f2328]"
-              }`}
-            >
-              {tab === "xml" ? "Flow XML" : <span className="capitalize">{tab}</span>}
-              {tab === "run" && status !== "idle" && (
-                <span className={`ml-1.5 inline-block w-1.5 h-1.5 rounded-full ${
-                  status === "pass" ? "bg-[#1a7f37]" : status === "running" ? "bg-[#0969da]" : "bg-[#d1242f]"
-                }`} />
-              )}
-            </button>
-          ))}
-        </div>
+      {/* ── Tabs row — aligns with LHS h-9 toolbar ── */}
+      <div className="flex items-center gap-1 px-4 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+        {((["design", "run", ...(def.flowFileName ? ["xml"] : [])]) as Tab[]).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-3 py-1 text-[13px] font-semibold border-b-2 transition-colors ${
+              activeTab === tab
+                ? "border-[#fd8c73] text-[#1f2328]"
+                : "border-transparent text-[#656d76] hover:text-[#1f2328]"
+            }`}
+          >
+            {tab === "xml" ? "Flow XML" : <span className="capitalize">{tab}</span>}
+            {tab === "run" && status !== "idle" && (
+              <span className={`ml-1.5 inline-block w-1.5 h-1.5 rounded-full ${
+                status === "pass" ? "bg-[#1a7f37]" : status === "running" ? "bg-[#0969da]" : "bg-[#d1242f]"
+              }`} />
+            )}
+          </button>
+        ))}
       </div>
 
       {/* ── Tab content ── */}

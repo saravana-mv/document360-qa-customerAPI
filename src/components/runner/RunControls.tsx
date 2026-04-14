@@ -94,7 +94,13 @@ export function RunControls() {
 
   return (
     <div className="shrink-0">
+      {/* Title row — aligns with LHS h-10 title header */}
       <div className="flex items-center gap-2 px-4 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa]">
+        <span className="text-sm font-semibold text-[#1f2328]">Run Console</span>
+        <span className="ml-auto text-xs text-[#656d76]">{allTests.length} tests</span>
+      </div>
+      {/* Controls row — aligns with LHS h-9 toolbar */}
+      <div className="flex items-center gap-2 px-4 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa]">
         <button
           onClick={runAll}
           disabled={runner.running}
@@ -127,7 +133,6 @@ export function RunControls() {
             Reset
           </button>
         )}
-        <span className="ml-auto text-xs text-[#656d76]">{allTests.length} tests</span>
       </div>
       {runner.running && (
         <div className="px-4 py-2 border-b border-[#d1d9e0] bg-white">
