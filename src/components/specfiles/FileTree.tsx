@@ -300,6 +300,7 @@ function TreeNodeRow({
               expandedFolders={expandedFolders}
               renamingPath={renamingPath}
               creatingUnder={creatingUnder}
+              pathsWithIdeas={pathsWithIdeas}
               draggingPath={draggingPath}
               dropTargetPath={dropTargetPath}
               onDragStart={onDragStart}
