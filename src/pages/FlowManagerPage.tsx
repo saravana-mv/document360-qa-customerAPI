@@ -197,7 +197,12 @@ export function FlowManagerPage() {
           className="shrink-0 border-r border-[#d1d9e0] bg-white flex flex-col overflow-hidden"
           style={{ width: treeWidth }}
         >
-          <div className="flex items-center gap-2 px-3 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+          {/* Title header */}
+          <div className="flex items-center gap-2 px-4 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+            <span className="text-sm font-bold text-[#1f2328]">Flow Manager</span>
+          </div>
+          {/* Toolbar */}
+          <div className="flex items-center gap-2 px-3 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
             <svg className="w-4 h-4 text-[#0969da]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
             </svg>
