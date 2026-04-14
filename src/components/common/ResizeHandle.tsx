@@ -63,7 +63,7 @@ export function ResizeHandle({
   return (
     <div
       onMouseDown={onMouseDown}
-      className={`shrink-0 w-1 cursor-col-resize transition-colors hover:bg-[#0969da]/40 ${
+      className={`shrink-0 w-[3px] -ml-px cursor-col-resize transition-colors hover:bg-[#0969da]/40 ${
         dragging ? "bg-[#0969da]/40" : "bg-transparent"
       }`}
       style={{ touchAction: "none" }}

@@ -655,7 +655,7 @@ export function FileTree({
     <div className="flex flex-col h-full overflow-hidden">
       {/* Title header */}
       <div className="flex items-center gap-2 px-4 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
-        <span className="text-sm font-bold text-[#1f2328]">Spec Manager</span>
+        <span className="text-sm font-bold text-[#1f2328]">Spec Manager (Ideas & Flows)</span>
       </div>
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
