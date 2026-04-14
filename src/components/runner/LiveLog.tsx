@@ -44,13 +44,18 @@ export function LiveLog() {
                 {entry.testName}
               </div>
             )}
-            {/* Step line */}
-            <div className={`${levelColor[entry.level]} ${entry.testId ? "pl-3" : ""}`}>
-              <span className="text-[#484f58]">{new Date(entry.timestamp).toLocaleTimeString()}</span>
-              {" "}
-              {!entry.testId && entry.tag && <><span className="text-[#656d76]">[{entry.tag}]</span>{" - "}</>}
-              {entry.message}
-            </div>
+            {/* Flow-level line (STARTED / COMPLETED) — no timestamp, blue, with star delimiters */}
+            {!entry.testId && entry.tag ? (
+              <div className="text-[#58a6ff] font-semibold mt-2 mb-0.5">
+                {"****** "}[{entry.tag}] - {entry.message}{" ******"}
+              </div>
+            ) : (
+              <div className={`${levelColor[entry.level]} ${entry.testId ? "pl-3" : ""}`}>
+                <span className="text-[#484f58]">{new Date(entry.timestamp).toLocaleTimeString()}</span>
+                {" "}
+                {entry.message}
+              </div>
+            )}
           </div>
         );
       })}
