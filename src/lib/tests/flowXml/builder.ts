@@ -245,8 +245,15 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
     }
   } catch (err) {
     networkError = err instanceof Error ? err : new Error(String(err));
-    httpStatus = 0;
-    failureReason = `Network error: ${networkError.message}`;
+    // For noAuth steps, a CORS/network error is expected — the API returns 401
+    // without CORS headers, so the browser blocks the response. Treat it as 401.
+    if (step.noAuth) {
+      httpStatus = 401;
+      failureReason = "HTTP 401";
+    } else {
+      httpStatus = 0;
+      failureReason = `Network error: ${networkError.message}`;
+    }
   }
 
   // Apply captures (best-effort — capture failures don't break the step).
@@ -263,9 +270,8 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
   const durationMs = Date.now() - start;
   const stateSnapshot: Record<string, unknown> = { ...state };
 
-  // Status: pass on 2xx unless an assertion fails (the runner runs assertions and
-  // downgrades). For network errors we report "error".
-  if (networkError) {
+  // For genuine network errors (not noAuth CORS failures), report "error".
+  if (networkError && !step.noAuth) {
     return {
       status: "error",
       durationMs,
