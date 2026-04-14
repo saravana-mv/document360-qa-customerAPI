@@ -219,6 +219,7 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
 
   let httpStatus: number;
   let responseBody: unknown = undefined;
+  let responseHeaders: Record<string, string> = {};
   let failureReason: string | undefined;
   let networkError: Error | null = null;
 
@@ -229,6 +230,7 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
       body: requestBody !== undefined ? JSON.stringify(requestBody) : undefined,
     });
     httpStatus = res.status;
+    res.headers.forEach((value, key) => { responseHeaders[key] = value; });
     if (res.status !== 204) {
       const text = await res.text();
       if (text) {
@@ -279,6 +281,7 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
     requestUrl,
     requestBody,
     responseBody,
+    responseHeaders,
     failureReason,
     assertionResults: [],
     stateSnapshot,

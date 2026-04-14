@@ -277,6 +277,43 @@ function DesignTab({ testId }: { testId: string }) {
   );
 }
 
+// ── Accordion section ─────────────────────────────────────────────────────────
+
+function Accordion({
+  title,
+  badge: badgeNode,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  badge?: React.ReactNode;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border border-[#d1d9e0] rounded-md overflow-hidden">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-2 px-3 py-2 bg-[#f6f8fa] hover:bg-[#eef1f6] transition-colors text-left"
+      >
+        <svg
+          className={`w-3.5 h-3.5 text-[#656d76] shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
+          fill="currentColor"
+          viewBox="0 0 16 16"
+        >
+          <path d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06Z" />
+        </svg>
+        <span className="text-xs font-semibold text-[#656d76] uppercase tracking-wider flex-1">
+          {title}
+        </span>
+        {badgeNode}
+      </button>
+      {open && <div className="border-t border-[#d1d9e0]">{children}</div>}
+    </div>
+  );
+}
+
 // ── Run Tab ──────────────────────────────────────────────────────────────────
 
 function RunTab({ testId }: { testId: string }) {
@@ -294,9 +331,10 @@ function RunTab({ testId }: { testId: string }) {
   }
 
   const badge = statusBadge[status];
+  const headerCount = result?.responseHeaders ? Object.keys(result.responseHeaders).length : 0;
 
   return (
-    <div className="p-4 space-y-5 text-sm">
+    <div className="p-4 space-y-4 text-sm">
 
       {/* Status row */}
       <div className="flex items-center gap-3 px-3 py-2.5 rounded-md bg-[#f6f8fa] border border-[#d1d9e0]">
@@ -342,26 +380,48 @@ function RunTab({ testId }: { testId: string }) {
         </div>
       )}
 
-      {/* Response Body */}
-      <div>
-        <Label>Response Body</Label>
-        {result?.responseBody !== undefined
-          ? <JsonBlock value={result.responseBody} />
-          : <p className="text-xs text-[#afb8c1] italic px-1">No content to display</p>
-        }
-      </div>
+      {/* HTTP Headers (accordion) */}
+      {headerCount > 0 && (
+        <Accordion
+          title="Response Headers"
+          badge={<span className="text-[11px] text-[#656d76] tabular-nums">{headerCount}</span>}
+        >
+          <div className="divide-y divide-[#d1d9e0]">
+            {Object.entries(result.responseHeaders!).map(([key, value]) => (
+              <div key={key} className="flex items-start gap-2 px-3 py-1.5 text-xs group/hdr">
+                <span className="font-mono font-medium text-[#0969da] shrink-0">{key}</span>
+                <span className="font-mono text-[#1f2328] break-all flex-1">{value}</span>
+                <CopyButton value={`${key}: ${value}`} className="opacity-0 group-hover/hdr:opacity-100 transition-opacity shrink-0" />
+              </div>
+            ))}
+          </div>
+        </Accordion>
+      )}
 
-      {/* State Snapshot — shown for skip/fail when extra context was captured */}
+      {/* Response Body (accordion) */}
+      <Accordion title="Response Body" defaultOpen={true}>
+        <div className="p-0">
+          {result?.responseBody !== undefined
+            ? <JsonBlock value={result.responseBody} />
+            : <p className="text-xs text-[#afb8c1] italic px-3 py-2">No content to display</p>
+          }
+        </div>
+      </Accordion>
+
+      {/* State Snapshot (accordion) — shown when extra context was captured */}
       {result?.stateSnapshot !== undefined && (
-        <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <p className="text-[13px] font-semibold text-[#656d76] uppercase tracking-wide">State Snapshot</p>
+        <Accordion
+          title="State Snapshot"
+          badge={
             <span className="text-[11px] text-[#9a6700] bg-[#fff8c5] border border-[#f5e0a0] px-1.5 py-0.5 rounded">
               debug context
             </span>
+          }
+        >
+          <div className="p-0">
+            <JsonBlock value={result.stateSnapshot} />
           </div>
-          <JsonBlock value={result.stateSnapshot} />
-        </div>
+        </Accordion>
       )}
 
       {/* Assertion results */}

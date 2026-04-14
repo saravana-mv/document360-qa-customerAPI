@@ -74,6 +74,7 @@ async function executeTest(
     failureReason: result.failureReason,
     assertionResults: result.assertionResults,
     responseBody: result.responseBody,
+    responseHeaders: result.responseHeaders,
     requestUrl: result.requestUrl,
     requestBody: result.requestBody,
     stateSnapshot: result.stateSnapshot,
