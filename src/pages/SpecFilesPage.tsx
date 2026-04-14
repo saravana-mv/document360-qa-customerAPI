@@ -186,18 +186,23 @@ export function SpecFilesPage() {
   // For folder-level entries, mark all child .md files so individual file
   // icons turn green even when ideas were generated at the folder level.
   const pathsWithIdeas = useMemo(() => {
+    // Collect folder paths that have ideas (for marking child .md files)
+    const folderKeysWithIdeas = new Set<string>();
     const s = new Set<string>();
     for (const [key, ctx] of Object.entries(workshopMap)) {
       if (ctx.ideas.length === 0) continue;
       s.add(key);
-      // If key is a folder (not .md), also mark child .md files
       if (!key.endsWith(".md")) {
-        const prefix = key.endsWith("/") ? key : `${key}/`;
-        for (const f of files) {
-          if (f.name.startsWith(prefix) && f.name.endsWith(".md")) {
-            s.add(f.name);
-          }
-        }
+        folderKeysWithIdeas.add(key.endsWith("/") ? key.slice(0, -1) : key);
+      }
+    }
+    // Mark individual .md files green if their direct parent folder has ideas
+    for (const f of files) {
+      if (!f.name.endsWith(".md")) continue;
+      const lastSlash = f.name.lastIndexOf("/");
+      const parentFolder = lastSlash >= 0 ? f.name.slice(0, lastSlash) : "";
+      if (folderKeysWithIdeas.has(parentFolder)) {
+        s.add(f.name);
       }
     }
     return s;
