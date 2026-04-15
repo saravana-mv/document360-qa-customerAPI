@@ -18,6 +18,71 @@ function err(status: number, message: string): HttpResponseInit {
 
 const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
 const FETCH_TIMEOUT = 15_000;
+const MAX_REDIRECTS = 20;
+
+/**
+ * Parse a Set-Cookie header value and extract the `name=value` pair only.
+ * We intentionally ignore attributes (Domain, Path, Expires, Secure, …) —
+ * this is a single-request transient jar, not a full cookie store.
+ */
+function extractCookiePair(setCookie: string): string | null {
+  const first = setCookie.split(";")[0]?.trim();
+  if (!first || !first.includes("=")) return null;
+  return first;
+}
+
+/**
+ * Manually follow redirects so we can preserve cookies across hops. Cloudflare
+ * and similar edge protections often set a session cookie on the first 3xx
+ * response and redirect to the same URL — undici's built-in redirect follower
+ * drops Set-Cookie, so it loops until MAX_REDIRECTS and throws.
+ */
+async function fetchWithCookieJar(
+  startUrl: string,
+  initHeaders: Record<string, string>,
+  signal: AbortSignal,
+): Promise<Response> {
+  let currentUrl = startUrl;
+  const cookieJar: string[] = [];
+
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+    const headers: Record<string, string> = { ...initHeaders };
+    if (cookieJar.length > 0) headers["Cookie"] = cookieJar.join("; ");
+
+    const res = await fetch(currentUrl, {
+      signal,
+      headers,
+      redirect: "manual",
+    });
+
+    // Collect cookies set on this response. Node's Headers exposes combined
+    // set-cookie via getSetCookie() (Node 20+). Fall back to split-on-comma
+    // as a last resort — imperfect but good enough for a one-shot import.
+    const anyHeaders = res.headers as unknown as { getSetCookie?: () => string[] };
+    const setCookies: string[] = typeof anyHeaders.getSetCookie === "function"
+      ? anyHeaders.getSetCookie()
+      : (res.headers.get("set-cookie") ? [res.headers.get("set-cookie") as string] : []);
+    for (const sc of setCookies) {
+      const pair = extractCookiePair(sc);
+      if (!pair) continue;
+      const [name] = pair.split("=");
+      const idx = cookieJar.findIndex((c) => c.split("=")[0] === name);
+      if (idx >= 0) cookieJar[idx] = pair; else cookieJar.push(pair);
+    }
+
+    // 3xx → follow. Otherwise return.
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get("location");
+      if (!location) return res;
+      currentUrl = new URL(location, currentUrl).toString();
+      // Drain the body so the socket can be reused.
+      await res.arrayBuffer().catch(() => undefined);
+      continue;
+    }
+    return res;
+  }
+  throw new Error(`too many redirects (>${MAX_REDIRECTS})`);
+}
 
 interface SourceEntry {
   sourceUrl: string;
@@ -110,11 +175,9 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
           "Accept-Language": "en-US,en;q=0.9",
         };
         if (accessToken) fetchHeaders["Authorization"] = `Bearer ${accessToken}`;
-        response = await fetch(url, {
-          signal: controller.signal,
-          headers: fetchHeaders,
-          redirect: "follow",
-        });
+        // Follow redirects manually so Set-Cookie from edge protections
+        // (Cloudflare __cf_bm, session IDs, etc.) survive the hop chain.
+        response = await fetchWithCookieJar(url, fetchHeaders, controller.signal);
       } catch (fetchErr) {
         clearTimeout(timer);
         const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
