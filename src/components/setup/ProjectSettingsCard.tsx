@@ -113,21 +113,25 @@ export function ProjectSettingsCard({ onDone }: ProjectSettingsCardProps = {}) {
   // Running tests (but not browsing specs/settings) requires a D360 token.
   if (!token) {
     return (
-      <div className="flex flex-col h-full overflow-y-auto p-3">
-        <div className="bg-white rounded-md border border-[#d1d9e0] p-4 text-center">
-          <h3 className="text-sm font-semibold text-[#1f2328] mb-1">Connect to Document360</h3>
-          <p className="text-xs text-[#656d76] mb-4 leading-relaxed">
+      <div className="flex items-center justify-center h-full w-full p-6">
+        <div className="bg-white rounded-xl border border-[#d1d9e0] shadow-sm p-8 w-full max-w-sm text-center">
+          {/* Logo */}
+          <div className="w-12 h-12 bg-[#1f2328] rounded-xl flex items-center justify-center mx-auto mb-5">
+            <span className="text-white font-bold text-sm tracking-tight">FF</span>
+          </div>
+          <h3 className="text-xl font-semibold text-[#1f2328] mb-1">Connect to Document360</h3>
+          <p className="text-sm text-[#656d76] mb-8 leading-relaxed">
             Sign in to Document360 to load your project and run tests. Spec Manager and Settings don&apos;t require this.
           </p>
           <button
             onClick={handleD360SignIn}
             disabled={signingIn}
-            className="w-full py-2 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-2 disabled:opacity-60 border border-[#1a7f37]/80"
+            className="w-full py-2.5 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2 disabled:opacity-60 border border-[#1a7f37]/80"
           >
             {signingIn && <Spinner size="sm" className="text-white" />}
-            {signingIn ? "Redirecting…" : "Sign in to Document360"}
+            {signingIn ? "Redirecting…" : "Sign in"}
           </button>
-          <p className="mt-3 text-[11px] text-[#656d76]">OAuth 2.0 Authorization Code + PKCE</p>
+          <p className="mt-5 text-[11px] text-[#656d76]">OAuth 2.0 Authorization Code + PKCE</p>
         </div>
       </div>
     );
