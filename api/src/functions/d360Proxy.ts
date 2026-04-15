@@ -37,7 +37,7 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
   // Allow the SPA to read our debug headers from cross-origin responses.
-  "Access-Control-Expose-Headers": "X-D360-Upstream-Status, X-D360-Upstream-Url, X-D360-Trace-Id, Content-Type",
+  "Access-Control-Expose-Headers": "X-D360-Proxy-Build, X-D360-Upstream-Status, X-D360-Upstream-Url, X-D360-Trace-Id, Content-Type",
 };
 
 function errJson(status: number, message: string, extra?: Record<string, unknown>): HttpResponseInit {
@@ -118,6 +118,10 @@ async function proxyHandler(req: HttpRequest, ctx: InvocationContext): Promise<H
     const v = upstream.headers.get(h);
     if (v) responseHeaders[h] = v;
   }
+  // Sentinel header — present on EVERY proxied response so we can confirm the
+  // current proxy build is the one handling the request (cache-buster check).
+  responseHeaders["X-D360-Proxy-Build"] = "envelope-v2";
+  responseHeaders["X-D360-Upstream-Status"] = String(upstream.status);
 
   // Pass through the body as a buffer — Functions v4 handles content-length.
   let responseBuf = Buffer.from(await upstream.arrayBuffer());
