@@ -1,6 +1,7 @@
 import type { TestDef, TestContext, RunState, TestExecutionResult } from "../../types/test.types";
 import { runAssertions } from "./assertions";
 import { useRunnerStore } from "../../store/runner.store";
+import { isBreakpointSet } from "../../store/breakpoints.store";
 
 export interface RunOptions {
   tests: TestDef[];
@@ -107,6 +108,18 @@ async function runTag(tag: string, tests: TestDef[], ctx: TestContext): Promise<
     }
     if (aborted && test.isTeardown) {
       log("Running teardown despite earlier failure", "warn", tag, test.id, test.name);
+    }
+    // Honour user-set breakpoints: pause BEFORE the step runs so the user can
+    // poke at external state (e.g. the Document360 admin UI), then click Resume.
+    // Skipped for teardown steps so cleanup never blocks indefinitely.
+    if (!test.isTeardown && isBreakpointSet(test.id) && !getStore().cancelled) {
+      log("⏸ Paused at breakpoint — click Resume to continue", "warn", tag, test.id, test.name);
+      await getStore().enterPause({ testId: test.id, testName: test.name, tag });
+      if (getStore().cancelled) {
+        getStore().updateTestStatus(test.id, { status: "skip" });
+        log("Skipped (cancelled)", "warn", tag, test.id, test.name);
+        continue;
+      }
     }
     await executeTest(test, ctx, state);
     const result = getStore().testResults[test.id];

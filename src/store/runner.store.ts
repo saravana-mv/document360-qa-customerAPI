@@ -2,9 +2,17 @@ import { create } from "zustand";
 import type { TestResult, TagResult, RunSummary, LogEntry, TestStatus, RollupStatus } from "../types/test.types";
 import { getAllTests } from "../lib/tests/registry";
 
+export interface PausedAt {
+  testId: string;
+  testName: string;
+  tag: string;
+}
+
 interface RunnerState {
   running: boolean;
   cancelled: boolean;
+  paused: boolean;
+  pausedAt: PausedAt | null;
   tagResults: Record<string, TagResult>;
   testResults: Record<string, TestResult>;
   log: LogEntry[];
@@ -15,6 +23,8 @@ interface RunnerState {
 
   startRun: () => void;
   cancelRun: () => void;
+  enterPause: (info: PausedAt) => Promise<void>;
+  resume: () => void;
   resetRun: () => void;
   fullReset: () => void;
   selectTest: (id: string | null) => void;
@@ -33,9 +43,16 @@ interface RunnerState {
 
 let logIdCounter = 0;
 
+// Resolver for the in-flight pause. Held outside the store so the store stays
+// JSON-serialisable for devtools. enterPause() creates a new promise + resolver
+// pair; resume() invokes the resolver to release the awaiting runner step.
+let pauseResolver: (() => void) | null = null;
+
 export const useRunnerStore = create<RunnerState>((set) => ({
   running: false,
   cancelled: false,
+  paused: false,
+  pausedAt: null,
   tagResults: {},
   testResults: {},
   log: [],
@@ -44,20 +61,49 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   selectedTests: new Set(),
   selectedTestId: null,
 
-  startRun: () => set({ running: true, cancelled: false, summary: null }),
-  cancelRun: () => set({ cancelled: true }),
-  resetRun: () => set({ running: false, cancelled: false, tagResults: {}, testResults: {}, log: [], summary: null }),
-  fullReset: () => set({
-    running: false,
-    cancelled: false,
-    tagResults: {},
-    testResults: {},
-    log: [],
-    summary: null,
-    selectedTags: new Set(),
-    selectedTests: new Set(),
-    selectedTestId: null,
-  }),
+  startRun: () => set({ running: true, cancelled: false, paused: false, pausedAt: null, summary: null }),
+  cancelRun: () => {
+    // If we're paused waiting on a breakpoint, releasing the resolver lets the
+    // runner loop wake up and observe `cancelled` so it can skip cleanly.
+    if (pauseResolver) {
+      const r = pauseResolver;
+      pauseResolver = null;
+      r();
+    }
+    set({ cancelled: true, paused: false, pausedAt: null });
+  },
+  enterPause: (info) => {
+    set({ paused: true, pausedAt: info });
+    return new Promise<void>((resolve) => {
+      pauseResolver = resolve;
+    });
+  },
+  resume: () => {
+    const r = pauseResolver;
+    pauseResolver = null;
+    set({ paused: false, pausedAt: null });
+    if (r) r();
+  },
+  resetRun: () => {
+    pauseResolver = null;
+    set({ running: false, cancelled: false, paused: false, pausedAt: null, tagResults: {}, testResults: {}, log: [], summary: null });
+  },
+  fullReset: () => {
+    pauseResolver = null;
+    set({
+      running: false,
+      cancelled: false,
+      paused: false,
+      pausedAt: null,
+      tagResults: {},
+      testResults: {},
+      log: [],
+      summary: null,
+      selectedTags: new Set(),
+      selectedTests: new Set(),
+      selectedTestId: null,
+    });
+  },
   selectTest: (id) => set({ selectedTestId: id }),
 
   // Exclusive: deselects everything, selects only this test, opens detail pane

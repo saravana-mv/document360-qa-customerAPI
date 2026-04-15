@@ -132,6 +132,28 @@ export function RunControls() {
           </button>
         )}
       </div>
+      {runner.paused && runner.pausedAt && (
+        <div className="px-4 py-2 border-b border-[#d1d9e0] bg-[#fff8c5] flex items-center gap-3">
+          <span className="text-[#9a6700] shrink-0" title="Paused at breakpoint">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+              <rect x="4" y="3" width="3" height="10" rx="0.5" />
+              <rect x="9" y="3" width="3" height="10" rx="0.5" />
+            </svg>
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold text-[#1f2328]">Paused at breakpoint</div>
+            <div className="text-xs text-[#656d76] truncate">
+              {runner.pausedAt.tag} → {runner.pausedAt.testName}
+            </div>
+          </div>
+          <button
+            onClick={runner.resume}
+            className="px-2.5 py-1 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-xs font-medium rounded-md transition-colors border border-[#1a7f37]/80 shrink-0"
+          >
+            Resume
+          </button>
+        </div>
+      )}
       {runner.running && (
         <div className="px-4 py-2 border-b border-[#d1d9e0] bg-white">
           <ProgressBar total={Object.keys(runner.testResults).length} done={doneCount} />
