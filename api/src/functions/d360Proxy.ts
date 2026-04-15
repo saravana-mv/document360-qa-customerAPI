@@ -36,6 +36,8 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  // Allow the SPA to read our debug headers from cross-origin responses.
+  "Access-Control-Expose-Headers": "X-D360-Upstream-Status, X-D360-Upstream-Url, X-D360-Trace-Id, Content-Type",
 };
 
 function errJson(status: number, message: string, extra?: Record<string, unknown>): HttpResponseInit {
@@ -120,21 +122,23 @@ async function proxyHandler(req: HttpRequest, ctx: InvocationContext): Promise<H
   // Pass through the body as a buffer — Functions v4 handles content-length.
   let responseBuf = Buffer.from(await upstream.arrayBuffer());
 
-  // Diagnostic envelope: when upstream returns 5xx with an empty body, we
-  // have no idea what went wrong. Replace the empty body with a JSON object
-  // describing exactly what we sent, what came back, and any trace headers.
-  // This surfaces in the SPA Detail pane response body so we can debug
-  // without Azure log access.
-  if (upstream.status >= 500 && responseBuf.byteLength === 0) {
+  // Diagnostic envelope: ANY 5xx from upstream is worth surfacing in detail.
+  // Wrap the original body (which is often empty) in a JSON envelope that
+  // includes the upstream headers (trace_id etc) and exactly what we sent.
+  // Also expose the same info in custom response headers so the data is
+  // visible even if the body is dropped by some intermediary.
+  if (upstream.status >= 500) {
     const upstreamHeaders: Record<string, string> = {};
     upstream.headers.forEach((v, k) => { upstreamHeaders[k] = v; });
     const envelope = {
-      _proxyDebug: "Upstream returned an empty body — substituted by d360 proxy",
+      _proxyDebug: "Upstream 5xx — wrapped by d360 proxy",
       upstream: {
         method: req.method,
         url: upstreamUrl,
         status: upstream.status,
         headers: upstreamHeaders,
+        bodyPreview: responseBuf.toString("utf8").slice(0, 4000),
+        bodyBytes: responseBuf.byteLength,
       },
       request: {
         headers: { ...forwardHeaders, Authorization: noAuth ? "Bearer __invalid__" : "Bearer ***" },
@@ -143,17 +147,16 @@ async function proxyHandler(req: HttpRequest, ctx: InvocationContext): Promise<H
     };
     responseBuf = Buffer.from(JSON.stringify(envelope, null, 2));
     responseHeaders["Content-Type"] = "application/json";
-  }
+    responseHeaders["X-D360-Upstream-Status"] = String(upstream.status);
+    responseHeaders["X-D360-Upstream-Url"] = upstreamUrl;
+    const traceId = upstream.headers.get("trace_id") || upstream.headers.get("x-request-id") || upstream.headers.get("x-trace-id") || "";
+    if (traceId) responseHeaders["X-D360-Trace-Id"] = traceId;
 
-  // Log upstream 5xx so the same data lands in Application Insights.
-  if (upstream.status >= 500) {
-    const upstreamHeaders: Record<string, string> = {};
-    upstream.headers.forEach((v, k) => { upstreamHeaders[k] = v; });
     ctx.warn(`[d360Proxy] upstream ${upstream.status} ${req.method} ${upstreamUrl}`, {
-      requestHeaders: { ...forwardHeaders, Authorization: noAuth ? "Bearer __invalid__" : "Bearer ***" },
-      requestBodyBytes: bodyBuf?.byteLength ?? 0,
+      requestHeaders: envelope.request.headers,
+      requestBodyBytes: envelope.request.bodyBytes,
       responseHeaders: upstreamHeaders,
-      responseBodyPreview: responseBuf.toString("utf8").slice(0, 1000),
+      responseBodyPreview: envelope.upstream.bodyPreview,
     });
   }
 
