@@ -37,7 +37,7 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
   // Allow the SPA to read our debug headers from cross-origin responses.
-  "Access-Control-Expose-Headers": "X-D360-Proxy-Build, X-D360-Upstream-Status, X-D360-Upstream-Url, X-D360-Trace-Id, Content-Type",
+  "Access-Control-Expose-Headers": "X-D360-Proxy-Build, X-D360-Proxy-Crash, X-D360-Upstream-Status, X-D360-Upstream-Url, X-D360-Trace-Id, Content-Type",
 };
 
 function errJson(status: number, message: string, extra?: Record<string, unknown>): HttpResponseInit {
@@ -49,6 +49,33 @@ function errJson(status: number, message: string, extra?: Record<string, unknown
 }
 
 async function proxyHandler(req: HttpRequest, ctx: InvocationContext): Promise<HttpResponseInit> {
+  try {
+    return await proxyHandlerInner(req, ctx);
+  } catch (e) {
+    // Anything unexpected — body parse error, upstream stream interruption,
+    // out-of-memory etc. Without this top-level catch, Azure Functions returns
+    // an opaque 500 with no body and no custom headers, hiding the cause.
+    const msg = e instanceof Error ? e.message : String(e);
+    const stack = e instanceof Error ? e.stack ?? "" : "";
+    ctx.error(`[d360Proxy] handler crashed: ${msg}\n${stack}`);
+    return {
+      status: 500,
+      headers: {
+        ...CORS_HEADERS,
+        "Content-Type": "application/json",
+        "X-D360-Proxy-Build": "envelope-v2",
+        "X-D360-Proxy-Crash": "1",
+      },
+      body: JSON.stringify({
+        _proxyDebug: "Proxy handler threw before producing a response",
+        error: msg,
+        stack: stack.split("\n").slice(0, 10),
+      }, null, 2),
+    };
+  }
+}
+
+async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Promise<HttpResponseInit> {
   if (req.method === "OPTIONS") {
     return { status: 204, headers: CORS_HEADERS };
   }
