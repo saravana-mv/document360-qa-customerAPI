@@ -19,20 +19,20 @@ export function OAuthCallback() {
       if (errorParam) {
         const msg = params.get("error_description") || errorParam;
         setError(msg);
-        navigate("/?error=" + encodeURIComponent(msg));
+        navigate("/spec-files?error=" + encodeURIComponent(msg));
         return;
       }
 
       if (!code || !state) {
         setError("Missing code or state in callback");
-        navigate("/");
+        navigate("/spec-files");
         return;
       }
 
       const config = loadOAuthConfig();
       if (!config) {
         setError("OAuth config not found — please sign in again");
-        navigate("/");
+        navigate("/spec-files");
         return;
       }
 
@@ -40,12 +40,13 @@ export function OAuthCallback() {
         setMessage("Exchanging authorization code...");
         const token = await handleCallback(code, state, config);
         setToken(token);
-        navigate("/settings");
+        // User signed in from the Test Manager — land them there.
+        navigate("/test");
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         setError(msg);
         setMessage(`Error: ${msg}`);
-        setTimeout(() => navigate("/"), 3000);
+        setTimeout(() => navigate("/spec-files"), 3000);
       }
     }
 

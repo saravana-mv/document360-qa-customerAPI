@@ -39,7 +39,6 @@ import { activateFlow } from "../lib/tests/flowXml/activeTests";
 import { buildParsedTagsFromRegistry } from "../lib/tests/buildParsedTags";
 import { useSpecStore } from "../store/spec.store";
 import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
-import { useAuthGuard } from "../hooks/useAuthGuard";
 import { useAuthStore } from "../store/auth.store";
 import { useSetupStore } from "../store/setup.store";
 
@@ -164,8 +163,6 @@ const MAX_IDEAS_PER_RUN = 5;   // Default max per generation run
 const MAX_IDEAS_TOTAL = 30;    // Hard cap to prevent over-engineering
 
 export function SpecFilesPage() {
-  useAuthGuard();
-
   const aiModel = useSetupStore((s) => s.aiModel);
   const setSpec = useSpecStore((s) => s.setSpec);
 

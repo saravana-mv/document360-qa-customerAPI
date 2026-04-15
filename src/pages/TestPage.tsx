@@ -4,13 +4,11 @@ import { TestExplorer } from "../components/explorer/TestExplorer";
 import { ResultsPanel } from "../components/results/ResultsPanel";
 import { SummaryDrawer } from "../components/results/SummaryDrawer";
 import { DetailPane } from "../components/results/DetailPane";
-import { useAuthGuard } from "../hooks/useAuthGuard";
 import { useRunnerStore } from "../store/runner.store";
 import { useSpecStore } from "../store/spec.store";
 import { getAllTests } from "../lib/tests/registry";
 
 export function TestPage() {
-  useAuthGuard();
   const { selectedTestId, selectTest } = useRunnerStore();
   const parsedTags = useSpecStore((s) => s.parsedTags);
 

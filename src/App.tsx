@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { lazy, Suspense, useEffect } from "react";
 import { useAuthStore } from "./store/auth.store";
 import { useSpecStore } from "./store/spec.store";
-import { LoginScreen } from "./components/auth/LoginScreen";
 import { OAuthCallback } from "./components/auth/OAuthCallback";
 import { SetupPage } from "./pages/SetupPage";
 import { TestPage } from "./pages/TestPage";
@@ -47,14 +46,16 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/" element={<LoginScreen />} />
+      {/* Entra gate (outer) admits the user to the app. Spec Manager is the
+          default landing page — D360 OAuth is only needed to run tests. */}
+      <Route path="/" element={<Navigate to="/spec-files" replace />} />
       <Route path="/callback" element={<OAuthCallback />} />
       {/* Settings — canonical path; /setup kept for backwards compat */}
       <Route path="/settings" element={<SetupPage />} />
       <Route path="/setup" element={<Navigate to="/settings" replace />} />
       <Route path="/test" element={<TestPage />} />
       <Route path="/spec-files" element={<Suspense fallback={<PageLoader />}><SpecFilesPage /></Suspense>} />
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<Navigate to="/spec-files" replace />} />
     </Routes>
   );
 }

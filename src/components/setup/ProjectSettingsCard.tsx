@@ -11,6 +11,8 @@ import { useSpecStore } from "../../store/spec.store";
 import { getProjectIdFromToken, fetchProject } from "../../lib/api/projects";
 import { fetchProjectVersions } from "../../lib/api/project-versions";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
+import { startAuthFlow, saveOAuthConfig } from "../../lib/oauth/flow";
+import { buildOAuthConfig } from "../../config/oauth";
 import { Spinner } from "../common/Spinner";
 
 interface ProjectSettingsCardProps {
@@ -20,10 +22,26 @@ interface ProjectSettingsCardProps {
 
 export function ProjectSettingsCard({ onDone }: ProjectSettingsCardProps = {}) {
   const navigate = useNavigate();
-  const { token } = useAuthStore();
+  const { token, setConfig, setStatus } = useAuthStore();
   const setup = useSetupStore();
   const spec = useSpecStore();
   const [starting, setStarting] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
+
+  async function handleD360SignIn() {
+    setSigningIn(true);
+    try {
+      const config = buildOAuthConfig();
+      saveOAuthConfig(config);
+      setConfig(config);
+      setStatus("authenticating");
+      await startAuthFlow(config);
+    } catch (err) {
+      spec.setError(err instanceof Error ? err.message : String(err));
+      setStatus("error");
+      setSigningIn(false);
+    }
+  }
 
   useEffect(() => {
     if (!token) return;
@@ -90,6 +108,30 @@ export function ProjectSettingsCard({ onDone }: ProjectSettingsCardProps = {}) {
   }
 
   const project = setup.projects[0];
+
+  // Not signed in to Document360 yet — show an inline sign-in prompt.
+  // Running tests (but not browsing specs/settings) requires a D360 token.
+  if (!token) {
+    return (
+      <div className="flex flex-col h-full overflow-y-auto p-3">
+        <div className="bg-white rounded-md border border-[#d1d9e0] p-4 text-center">
+          <h3 className="text-sm font-semibold text-[#1f2328] mb-1">Connect to Document360</h3>
+          <p className="text-xs text-[#656d76] mb-4 leading-relaxed">
+            Sign in to Document360 to load your project and run tests. Spec Manager and Settings don&apos;t require this.
+          </p>
+          <button
+            onClick={handleD360SignIn}
+            disabled={signingIn}
+            className="w-full py-2 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-2 disabled:opacity-60 border border-[#1a7f37]/80"
+          >
+            {signingIn && <Spinner size="sm" className="text-white" />}
+            {signingIn ? "Redirecting…" : "Sign in to Document360"}
+          </button>
+          <p className="mt-3 text-[11px] text-[#656d76]">OAuth 2.0 Authorization Code + PKCE</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full overflow-y-auto p-3">
