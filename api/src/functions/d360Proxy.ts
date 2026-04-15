@@ -65,7 +65,7 @@ async function proxyHandler(req: HttpRequest, ctx: InvocationContext): Promise<H
       headers: {
         ...CORS_HEADERS,
         "Content-Type": "application/json",
-        "X-D360-Proxy-Build": "envelope-v3-502",
+        "X-D360-Proxy-Build": "envelope-v4-timeout",
         "X-D360-Proxy-Crash": "1",
       },
       body: JSON.stringify({
@@ -131,16 +131,46 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
   const methodsWithBody = new Set(["POST", "PUT", "PATCH"]);
   const bodyBuf = methodsWithBody.has(req.method) ? await req.arrayBuffer() : undefined;
 
+  // SWA Free plan kills Functions at 30s. Cap the upstream request at 25s and
+  // return a clean 502 envelope before SWA returns its generic bare 500.
+  // D360's DELETE of live entities can take tens of seconds (cascading
+  // cleanup of versions/references) — this is the main trigger for the
+  // "bare 500 with only x-ms-middleware-request-id" pattern.
+  const controller = new AbortController();
+  const timeoutMs = 25000;
+  const timeoutTimer = setTimeout(() => controller.abort(), timeoutMs);
   let upstream: Response;
   try {
     upstream = await fetch(upstreamUrl, {
       method: req.method,
       headers: forwardHeaders,
       body: bodyBuf && bodyBuf.byteLength > 0 ? Buffer.from(bodyBuf) : undefined,
+      signal: controller.signal,
     });
   } catch (e) {
-    return errJson(502, `Upstream fetch failed: ${e instanceof Error ? e.message : String(e)}`);
+    clearTimeout(timeoutTimer);
+    const isAbort = (e as { name?: string })?.name === "AbortError";
+    const msg = isAbort
+      ? `Upstream did not respond within ${timeoutMs}ms (SWA would kill us at 30s)`
+      : `Upstream fetch failed: ${e instanceof Error ? e.message : String(e)}`;
+    // Use 502 so SWA edge doesn't strip the body/headers (it masks 5xx).
+    return {
+      status: 502,
+      headers: {
+        ...CORS_HEADERS,
+        "Content-Type": "application/json",
+        "X-D360-Proxy-Build": "envelope-v4-timeout",
+        "X-D360-Upstream-Url": upstreamUrl,
+        "X-D360-Upstream-Timeout": isAbort ? "1" : "0",
+      },
+      body: JSON.stringify({
+        _proxyDebug: isAbort ? "Upstream timeout" : "Upstream fetch error",
+        error: msg,
+        upstream: { method: req.method, url: upstreamUrl },
+      }, null, 2),
+    };
   }
+  clearTimeout(timeoutTimer);
 
   const responseHeaders: Record<string, string> = { ...CORS_HEADERS };
   for (const h of FORWARDED_RESPONSE_HEADERS) {
@@ -149,7 +179,7 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
   }
   // Sentinel header — present on EVERY proxied response so we can confirm the
   // current proxy build is the one handling the request (cache-buster check).
-  responseHeaders["X-D360-Proxy-Build"] = "envelope-v3-502";
+  responseHeaders["X-D360-Proxy-Build"] = "envelope-v4-timeout";
   responseHeaders["X-D360-Upstream-Status"] = String(upstream.status);
 
   // Pass through the body as a buffer — Functions v4 handles content-length.
