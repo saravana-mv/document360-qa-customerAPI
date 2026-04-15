@@ -1,5 +1,6 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { uploadBlob, downloadBlob, listBlobs } from "../lib/blobClient";
+import { withAuth } from "../lib/auth";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -179,5 +180,5 @@ app.http("specFilesSync", {
   methods: ["POST", "OPTIONS"],
   authLevel: "anonymous",
   route: "spec-files/sync",
-  handler,
+  handler: withAuth(handler),
 });

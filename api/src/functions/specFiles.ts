@@ -1,5 +1,6 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { listBlobs, downloadBlob, uploadBlob, deleteBlob, renameBlob } from "../lib/blobClient";
+import { withAuth } from "../lib/auth";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -111,12 +112,12 @@ app.http("specFiles", {
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   authLevel: "anonymous",
   route: "spec-files",
-  handler: specFilesRouter,
+  handler: withAuth(specFilesRouter),
 });
 
 app.http("specFilesContent", {
   methods: ["GET", "OPTIONS"],
   authLevel: "anonymous",
   route: "spec-files/content",
-  handler: getFileContent,
+  handler: withAuth(getFileContent),
 });

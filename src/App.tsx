@@ -8,6 +8,7 @@ import { SetupPage } from "./pages/SetupPage";
 import { TestPage } from "./pages/TestPage";
 import { Spinner } from "./components/common/Spinner";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
+import { EntraGate } from "./components/auth/EntraGate";
 
 const SpecFilesPage = lazy(() => import("./pages/SpecFilesPage").then((m) => ({ default: m.SpecFilesPage })));
 
@@ -61,9 +62,11 @@ function AppRoutes() {
 export default function App() {
   return (
     <ErrorBoundary>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
+      <EntraGate>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </EntraGate>
     </ErrorBoundary>
   );
 }

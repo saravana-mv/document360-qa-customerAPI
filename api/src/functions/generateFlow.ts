@@ -2,6 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import Anthropic from "@anthropic-ai/sdk";
 import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
+import { withAuth } from "../lib/auth";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -392,5 +393,5 @@ app.http("generateFlow", {
   methods: ["POST", "OPTIONS"],
   authLevel: "anonymous",
   route: "generate-flow",
-  handler: generateFlow,
+  handler: withAuth(generateFlow),
 });

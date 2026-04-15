@@ -1,4 +1,19 @@
 {
+  "auth": {
+    "identityProviders": {
+      "azureActiveDirectory": {
+        "registration": {
+          "openIdIssuer": "https://login.microsoftonline.com/fa3c421e-2fde-4cf9-945d-62735cedcad2/v2.0",
+          "clientIdSettingName": "AAD_CLIENT_ID",
+          "clientSecretSettingName": "AAD_CLIENT_SECRET"
+        }
+      }
+    }
+  },
+  "routes": [
+    { "route": "/.auth/*", "allowedRoles": ["anonymous", "authenticated"] },
+    { "route": "/api/*", "allowedRoles": ["authenticated"] }
+  ],
   "navigationFallback": { "rewrite": "/index.html", "exclude": ["/assets/*", "/api/*"] },
   "mimeTypes": {
     ".js": "text/javascript",

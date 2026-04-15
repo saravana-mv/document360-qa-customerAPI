@@ -7,6 +7,7 @@ import {
   blobExists,
   FLOW_CONTAINER,
 } from "../lib/blobClient";
+import { withAuth } from "../lib/auth";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -100,12 +101,12 @@ app.http("flowFiles", {
   methods: ["GET", "POST", "DELETE", "OPTIONS"],
   authLevel: "anonymous",
   route: "flow-files",
-  handler: flowFilesRouter,
+  handler: withAuth(flowFilesRouter),
 });
 
 app.http("flowFilesContent", {
   methods: ["GET", "OPTIONS"],
   authLevel: "anonymous",
   route: "flow-files/content",
-  handler: getFileContent,
+  handler: withAuth(getFileContent),
 });
