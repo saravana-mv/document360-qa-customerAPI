@@ -58,8 +58,10 @@ async function proxyHandler(req: HttpRequest, ctx: InvocationContext): Promise<H
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack ?? "" : "";
     ctx.error(`[d360Proxy] handler crashed: ${msg}\n${stack}`);
+    // Return 502 instead of 500 — SWA edge strips body/headers from 5xx,
+    // but passes 502 through since it means "gateway error".
     return {
-      status: 500,
+      status: 502,
       headers: {
         ...CORS_HEADERS,
         "Content-Type": "application/json",
@@ -191,8 +193,15 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
     });
   }
 
+  // Azure SWA's edge strips the body AND custom headers from 5xx responses
+  // returned by managed functions — you get a bare `content-length: 0` with
+  // only `x-ms-middleware-request-id`, hiding the real upstream failure.
+  // Remap any upstream 5xx to 502 (Bad Gateway) so SWA passes our envelope
+  // through unmolested. The original upstream status is preserved in the
+  // X-D360-Upstream-Status header and in the envelope body.
+  const returnStatus = upstream.status >= 500 ? 502 : upstream.status;
   return {
-    status: upstream.status,
+    status: returnStatus,
     headers: responseHeaders,
     body: responseBuf,
   };
