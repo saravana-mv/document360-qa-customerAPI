@@ -1000,6 +1000,8 @@ export function SpecFilesPage() {
         setGeneratedFlows((prev) =>
           prev.map((f) => f.ideaId === idea.id ? { ...f, status: "done" as const, xml: result.xml, usage: result.usage, createdAt: new Date().toISOString() } : f)
         );
+        // Auto-select the newly generated flow
+        setSelectedFlowIds((prev) => { const n = new Set(prev); n.add(idea.id); return n; });
         // Accumulate flow usage
         if (result.usage) {
           setFlowsUsage(prev => prev ? {
