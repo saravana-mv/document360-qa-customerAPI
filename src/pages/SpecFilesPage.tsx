@@ -423,7 +423,25 @@ export function SpecFilesPage() {
     setActiveFlowId(null);
   }
 
+  /**
+   * Guard: navigation while flow generation is running is unsafe — the async
+   * loop keeps writing to generatedFlows state, which loadWorkingSet has just
+   * overwritten with the destination path's data. Results end up mixed
+   * between paths or lost entirely. Confirm, abort, then proceed.
+   */
+  function confirmLeaveGeneration(): boolean {
+    if (!generatingFlows) return true;
+    const ok = window.confirm(
+      "Flow generation is still running. Switching now will cancel it and any " +
+      "flows not yet completed will be lost.\n\nContinue anyway?",
+    );
+    if (!ok) return false;
+    abortRef.current?.abort();
+    return true;
+  }
+
   async function selectFile(path: string) {
+    if (!confirmLeaveGeneration()) return;
     setSelectedPath(path);
     setSelectedFolderPath(null);
     setViewingContent(false);
@@ -442,6 +460,7 @@ export function SpecFilesPage() {
   }
 
   function selectFolder(path: string) {
+    if (!confirmLeaveGeneration()) return;
     setSelectedFolderPath(path);
     setSelectedPath(null);
     setViewingContent(false);
@@ -949,10 +968,40 @@ export function SpecFilesPage() {
     setTimeout(() => void handleGenerateFlows(new Set([ideaId])), 0);
   }
 
+  /**
+   * Write completed flows straight to workshopMap for a specific path, so we
+   * never lose progress mid-batch. Called after each flow completes.
+   */
+  function persistFlowsForPath(path: string, flows: GeneratedFlow[]) {
+    const flowsToSave = flows.filter((f) => f.status === "done" || f.status === "error");
+    if (flowsToSave.length === 0) return;
+    const cumulativeFlowsUsage = flowsToSave.reduce<FlowUsage | null>((acc, f) => {
+      if (!f.usage) return acc;
+      if (!acc) return { ...f.usage };
+      return {
+        inputTokens: acc.inputTokens + f.usage.inputTokens,
+        outputTokens: acc.outputTokens + f.usage.outputTokens,
+        totalTokens: acc.totalTokens + f.usage.totalTokens,
+        costUsd: parseFloat((acc.costUsd + f.usage.costUsd).toFixed(6)),
+      };
+    }, null);
+    setWorkshopMap((prev) => ({
+      ...prev,
+      [path]: {
+        ...(prev[path] ?? { ideas: [], usage: null, flowsUsage: null, generatedFlows: [] }),
+        generatedFlows: flowsToSave,
+        flowsUsage: cumulativeFlowsUsage,
+      },
+    }));
+  }
+
   async function handleGenerateFlows(overrideIds?: Set<string>) {
     // Guard against React event objects being passed as overrideIds (e.g. from onClick)
     const idsToUse = overrideIds instanceof Set ? overrideIds : selectedIdeaIds;
     if (idsToUse.size === 0 || !activePath) return;
+    // Capture the path at generation start — if the user navigates away mid-batch
+    // we still persist completed flows into this originating path's workshop.
+    const generationPath = activePath;
 
     // Filter out ideas that already have completed flows — don't waste resources
     const selectedIdeas = ideas.filter(
@@ -1003,9 +1052,14 @@ export function SpecFilesPage() {
 
       try {
         const result = await generateFlowXml(prompt, relevantSpecs, aiModel, ctrl.signal);
-        setGeneratedFlows((prev) =>
-          prev.map((f) => f.ideaId === idea.id ? { ...f, status: "done" as const, xml: result.xml, usage: result.usage, createdAt: new Date().toISOString() } : f)
-        );
+        setGeneratedFlows((prev) => {
+          const next = prev.map((f) => f.ideaId === idea.id ? { ...f, status: "done" as const, xml: result.xml, usage: result.usage, createdAt: new Date().toISOString() } : f);
+          // Persist progress to workshopMap for the ORIGINAL generation path on
+          // every completion — guarantees that even a hard reload / tab close
+          // mid-batch won't wipe already-generated flows.
+          persistFlowsForPath(generationPath, next);
+          return next;
+        });
         // Auto-select the newly generated flow
         setSelectedFlowIds((prev) => { const n = new Set(prev); n.add(idea.id); return n; });
         // Accumulate flow usage
@@ -1019,12 +1073,14 @@ export function SpecFilesPage() {
         }
       } catch (e) {
         if (ctrl.signal.aborted) break;
-        setGeneratedFlows((prev) =>
-          prev.map((f) => f.ideaId === idea.id
+        setGeneratedFlows((prev) => {
+          const next = prev.map((f) => f.ideaId === idea.id
             ? { ...f, status: "error" as const, error: e instanceof Error ? e.message : String(e) }
             : f
-          )
-        );
+          );
+          persistFlowsForPath(generationPath, next);
+          return next;
+        });
       }
 
       setFlowProgress({ current: i + 1, total: selectedIdeas.length });
