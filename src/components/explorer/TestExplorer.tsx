@@ -37,7 +37,10 @@ export function TestExplorer() {
   // Auto-load tests as soon as we have a valid token — the project settings
   // card should only appear when the session is missing/expired.
   useEffect(() => {
-    if (parsedTags.length > 0) return;
+    // Re-run when project or version is missing, even if parsedTags is populated.
+    // Otherwise a mid-session loss of localStorage (e.g. post-logout re-sign-in)
+    // leaves ctx.projectId empty and every test fails with "Path param is empty".
+    if (parsedTags.length > 0 && setup.selectedProjectId && setup.selectedVersionId) return;
     if (status !== "authenticated" || !token) return;
     // Wait for the flow loader to finish and for at least one test to be
     // registered before building the tag list. This handles the refresh race
@@ -85,8 +88,14 @@ export function TestExplorer() {
   // changes (e.g. new tests created in Spec Manager). Without this, navigating
   // from Spec Manager → Test Manager can show stale data because markFlow's
   // fire-and-forget setSpec may not have run yet when the user navigated.
+  //
+  // MUST wait for setup.selectedProjectId to be populated before publishing
+  // parsedTags — otherwise this races the auto-load effect above, cancels
+  // its async project/version resolution (via the `cancelled` flag), and
+  // leaves ctx.projectId empty at run time.
   useEffect(() => {
     if (flowsLoading) return;
+    if (!setup.selectedProjectId) return;
     const tests = getAllTests();
     if (tests.length === 0) return;
     const built = buildParsedTagsFromRegistry();
@@ -97,7 +106,7 @@ export function TestExplorer() {
       setSpec(null as never, built, null as never);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flowsByName, flowsLoading]);
+  }, [flowsByName, flowsLoading, setup.selectedProjectId]);
 
   // Group parsedTags by test.entity (fall back to "General" if not set)
   const entityMap = new Map<string, ParsedTag[]>();
