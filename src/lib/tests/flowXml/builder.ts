@@ -201,16 +201,8 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
   // so the Detail pane matches the public API docs. fetchUrl is what we
   // actually call, which goes through our server-side proxy so the D360
   // bearer token never reaches the browser.
-  //
-  // DELETE is routed through the RPC endpoint (POST /api/d360/rpc with JSON
-  // body) because SWA's edge/Functions runtime rejects DELETE — and even
-  // tunneled POST to the catch-all /api/d360/proxy/{*path} — with a bare
-  // 500 that never invokes our function. A short fixed URL with POST works.
   const requestUrl = `${ctx.baseUrl}${resolvedPath}${queryString}`;
-  const useRpc = step.method === "DELETE";
-  const fetchUrl = useRpc
-    ? `/api/d360/rpc`
-    : `/api/d360/proxy${resolvedPath}${queryString}`;
+  const fetchUrl = `/api/d360/proxy${resolvedPath}${queryString}`;
 
   // Resolve body
   let requestBody: unknown = undefined;
@@ -234,25 +226,9 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
   // application/json but no payload — the model binder tries to parse the
   // empty body as JSON and throws. Matches what the API docs try-it does.
   //
-  // Build wire-level request: normal methods go through /api/d360/proxy/*
-  // with the real HTTP method. DELETE goes through /api/d360/rpc as POST
-  // with a JSON envelope (see useRpc above).
   const headers: Record<string, string> = {};
-  let wireBody: string | undefined;
-  if (useRpc) {
-    headers["Content-Type"] = "application/json";
-    wireBody = JSON.stringify({
-      method: step.method,
-      path: resolvedPath,
-      query: queryString,
-      body: requestBody,
-      noAuth: step.noAuth ?? false,
-    });
-  } else {
-    if (requestBody !== undefined) headers["Content-Type"] = "application/json";
-    if (step.noAuth) headers["X-D360-No-Auth"] = "1";
-    wireBody = requestBody !== undefined ? JSON.stringify(requestBody) : undefined;
-  }
+  if (requestBody !== undefined) headers["Content-Type"] = "application/json";
+  if (step.noAuth) headers["X-D360-No-Auth"] = "1";
 
   let httpStatus: number;
   let responseBody: unknown = undefined;
@@ -262,9 +238,9 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
 
   try {
     const res = await fetch(fetchUrl, {
-      method: useRpc ? "POST" : step.method,
+      method: step.method,
       headers,
-      body: wireBody,
+      body: requestBody !== undefined ? JSON.stringify(requestBody) : undefined,
     });
     httpStatus = res.status;
     res.headers.forEach((value, key) => { responseHeaders[key] = value; });

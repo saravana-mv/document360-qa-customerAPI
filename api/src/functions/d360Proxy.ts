@@ -245,10 +245,18 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
   // through unmolested. The original upstream status is preserved in the
   // X-D360-Upstream-Status header and in the envelope body.
   const returnStatus = upstream.status >= 500 ? 502 : upstream.status;
+
+  // Undici's Response constructor (used by Azure Functions v4 to serialize
+  // our HttpResponseInit) REJECTS any body on 204/205/304 — even an empty
+  // Buffer throws `Invalid response status code 204` and the runtime emits
+  // a generic 500 to the caller. D360 returns 204 for successful DELETE.
+  const nullBodyStatuses = new Set([204, 205, 304]);
+  const finalBody = nullBodyStatuses.has(returnStatus) ? undefined : responseBuf;
+
   return {
     status: returnStatus,
     headers: responseHeaders,
-    body: responseBuf,
+    body: finalBody,
   };
 }
 
