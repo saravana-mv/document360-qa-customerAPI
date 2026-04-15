@@ -6,7 +6,6 @@ import { useFlowStatusStore } from "../../store/flowStatus.store";
 import { useExplorerUIStore } from "../../store/explorerUI.store";
 import { StatusIcon } from "./StatusIcon";
 import { OperationNode } from "./OperationNode";
-import { deleteFlowFile } from "../../lib/api/flowFilesApi";
 import { unregisterWhere } from "../../lib/tests/registry";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import { deactivateFlow } from "../../lib/tests/flowXml/activeTests";
@@ -32,27 +31,23 @@ export function TagNode({ tag, tests }: TagNodeProps) {
 
   async function handleDelete() {
     if (!flowFileName) return;
-    if (!window.confirm(`Delete flow "${tag.name}" and its tests?\n\nThis will remove the flow file from the queue and unregister all associated tests.`)) return;
+    if (!window.confirm(`Delete test "${tag.name}"?\n\nThis unregisters the test from the runner. The flow XML file is preserved and can be reused.`)) return;
     setDeleting(true);
     try {
-      await deleteFlowFile(flowFileName);
-      // Remove from active-tests set
+      // Unregister only — flow XML is a reusable asset and must be preserved.
       deactivateFlow(flowFileName);
-      // Remove tests from registry
       unregisterWhere((def) => def.flowFileName === flowFileName);
-      // Remove status entry
       const status = useFlowStatusStore.getState();
       const remaining = new Set(
         Object.keys(status.byName).filter((n) => n !== flowFileName),
       );
       status.pruneTo(remaining);
-      // Rebuild explorer tree
       const built = buildParsedTagsFromRegistry();
       setSpec(null as never, built, null as never);
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error("[TagNode] delete failed:", err);
-      alert(`Failed to delete flow: ${err instanceof Error ? err.message : String(err)}`);
+      alert(`Failed to delete test: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setDeleting(false);
     }
@@ -84,7 +79,7 @@ export function TagNode({ tag, tests }: TagNodeProps) {
             <span className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
               <ContextMenu
                 items={[
-                  { label: "Delete flow", icon: MenuIcons.trash, onClick: () => void handleDelete(), danger: true, disabled: deleting },
+                  { label: "Delete test", icon: MenuIcons.trash, onClick: () => void handleDelete(), danger: true, disabled: deleting },
                 ]}
                 align="left"
               />

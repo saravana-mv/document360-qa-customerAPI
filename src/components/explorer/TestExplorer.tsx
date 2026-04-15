@@ -294,7 +294,7 @@ export function TestExplorer() {
               </div>
               <div className="px-4 py-3 space-y-2">
                 <p className="text-sm text-[#656d76] leading-relaxed">
-                  This will unregister all <strong className="text-[#1f2328]">{allTests.length} test{allTests.length !== 1 ? "s" : ""}</strong> across <strong className="text-[#1f2328]">{parsedTags.length} flow{parsedTags.length !== 1 ? "s" : ""}</strong> from the test runner.
+                  This will unregister all <strong className="text-[#1f2328]">{parsedTags.length} test{parsedTags.length !== 1 ? "s" : ""}</strong> from the test runner.
                 </p>
                 <p className="text-sm text-[#656d76] leading-relaxed">
                   Flow XML files are preserved — you can recreate tests from them at any time.
