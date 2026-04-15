@@ -94,10 +94,11 @@ async function proxyHandler(req: HttpRequest, ctx: InvocationContext): Promise<H
     }
   });
 
-  // Body: only attach for methods that carry one. @azure/functions exposes
-  // arrayBuffer() for any payload, which preserves JSON, XML, binary, etc.
-  const hasBody = !["GET", "HEAD", "OPTIONS"].includes(req.method);
-  const bodyBuf = hasBody ? await req.arrayBuffer() : undefined;
+  // Body: only attach for methods that explicitly carry one. DELETE/GET/HEAD/
+  // OPTIONS get NO body even if the SPA accidentally passed one — some
+  // intermediaries reject DELETE with Content-Length > 0.
+  const methodsWithBody = new Set(["POST", "PUT", "PATCH"]);
+  const bodyBuf = methodsWithBody.has(req.method) ? await req.arrayBuffer() : undefined;
 
   let upstream: Response;
   try {
@@ -117,10 +118,34 @@ async function proxyHandler(req: HttpRequest, ctx: InvocationContext): Promise<H
   }
 
   // Pass through the body as a buffer — Functions v4 handles content-length.
-  const responseBuf = Buffer.from(await upstream.arrayBuffer());
+  let responseBuf = Buffer.from(await upstream.arrayBuffer());
 
-  // Log upstream 5xx with the full request/response so we can diagnose
-  // failures that surface as empty 500s in the SPA.
+  // Diagnostic envelope: when upstream returns 5xx with an empty body, we
+  // have no idea what went wrong. Replace the empty body with a JSON object
+  // describing exactly what we sent, what came back, and any trace headers.
+  // This surfaces in the SPA Detail pane response body so we can debug
+  // without Azure log access.
+  if (upstream.status >= 500 && responseBuf.byteLength === 0) {
+    const upstreamHeaders: Record<string, string> = {};
+    upstream.headers.forEach((v, k) => { upstreamHeaders[k] = v; });
+    const envelope = {
+      _proxyDebug: "Upstream returned an empty body — substituted by d360 proxy",
+      upstream: {
+        method: req.method,
+        url: upstreamUrl,
+        status: upstream.status,
+        headers: upstreamHeaders,
+      },
+      request: {
+        headers: { ...forwardHeaders, Authorization: noAuth ? "Bearer __invalid__" : "Bearer ***" },
+        bodyBytes: bodyBuf?.byteLength ?? 0,
+      },
+    };
+    responseBuf = Buffer.from(JSON.stringify(envelope, null, 2));
+    responseHeaders["Content-Type"] = "application/json";
+  }
+
+  // Log upstream 5xx so the same data lands in Application Insights.
   if (upstream.status >= 500) {
     const upstreamHeaders: Record<string, string> = {};
     upstream.headers.forEach((v, k) => { upstreamHeaders[k] = v; });
