@@ -101,6 +101,49 @@ function JsonBlock({ value }: { value: unknown }) {
   );
 }
 
+/**
+ * Renders an object as a label / read-only-text / copy table.
+ * Scalars render as plain text; objects/arrays fall back to a compact JSON
+ * one-liner so each row stays single-line and copy-able.
+ */
+function StateSnapshotTable({ value }: { value: unknown }) {
+  if (value === null || value === undefined || typeof value !== "object" || Array.isArray(value)) {
+    return <JsonBlock value={value} />;
+  }
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length === 0) {
+    return <p className="text-xs text-[#afb8c1] italic px-3 py-2">No state captured</p>;
+  }
+  function format(v: unknown): string {
+    if (v === null) return "null";
+    if (v === undefined) return "";
+    if (typeof v === "string") return v;
+    if (typeof v === "number" || typeof v === "boolean") return String(v);
+    return JSON.stringify(v);
+  }
+  return (
+    <div className="divide-y divide-[#d8dee4] border-y border-[#d8dee4]">
+      {entries.map(([key, v]) => {
+        const text = format(v);
+        return (
+          <div key={key} className="group/row flex items-start gap-3 px-3 py-1.5 hover:bg-[#f6f8fa]">
+            <span className="text-xs font-semibold text-[#656d76] w-40 shrink-0 truncate" title={key}>
+              {key}
+            </span>
+            <span className="flex-1 font-mono text-xs text-[#1f2328] break-all select-text">
+              {text || <span className="text-[#afb8c1] italic">(empty)</span>}
+            </span>
+            <CopyButton
+              value={text}
+              className="opacity-0 group-hover/row:opacity-100 transition-opacity mt-0.5"
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Single-line text block with an inline copy button. */
 function CopyableText({ value, mono = true, className = "" }: { value: string; mono?: boolean; className?: string }) {
   return (
@@ -439,7 +482,7 @@ function RunTab({ testId }: { testId: string }) {
           }
         >
           <div className="p-0">
-            <JsonBlock value={result.stateSnapshot} />
+            <StateSnapshotTable value={result.stateSnapshot} />
           </div>
         </Accordion>
       )}
