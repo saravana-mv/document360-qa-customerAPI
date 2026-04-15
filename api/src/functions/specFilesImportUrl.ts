@@ -99,13 +99,30 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
       const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
       let response: Response;
       try {
-        const fetchHeaders: Record<string, string> = {};
+        // Many origins (Cloudflare, Document360 apidocs, etc.) reject requests
+        // without a real User-Agent or Accept header — Node's default fetch
+        // sends neither and gets a bare "fetch failed" back. Mimic a browser.
+        const fetchHeaders: Record<string, string> = {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          "Accept": "text/markdown, text/plain, text/html, */*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
+        };
         if (accessToken) fetchHeaders["Authorization"] = `Bearer ${accessToken}`;
-        response = await fetch(url, { signal: controller.signal, headers: fetchHeaders });
+        response = await fetch(url, {
+          signal: controller.signal,
+          headers: fetchHeaders,
+          redirect: "follow",
+        });
       } catch (fetchErr) {
         clearTimeout(timer);
         const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-        return err(502, `Failed to fetch URL: ${msg}`);
+        // Node's undici swallows the real cause in `err.cause` — surface it
+        // so the user can tell DNS/TLS/connect-refused apart from each other.
+        const cause = fetchErr instanceof Error && (fetchErr as Error & { cause?: unknown }).cause;
+        const causeMsg = cause instanceof Error ? cause.message : cause ? String(cause) : "";
+        return err(502, `Failed to fetch URL: ${msg}${causeMsg ? ` (${causeMsg})` : ""}`);
       }
       clearTimeout(timer);
 
