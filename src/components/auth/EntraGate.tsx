@@ -12,22 +12,35 @@
 import { useEffect, type ReactNode } from "react";
 import { useEntraAuthStore } from "../../store/entraAuth.store";
 import { Spinner } from "../common/Spinner";
+import { LoggedOutPage } from "./LoggedOutPage";
+
+// Paths that must render WITHOUT triggering an auto-login redirect. Needed so
+// the user can land on a "Signed out" page after logout without the live
+// Microsoft SSO cookie silently signing them back in.
+const ANONYMOUS_PATHS = new Set(["/logged-out"]);
 
 export function EntraGate({ children }: { children: ReactNode }) {
   const { status, check, login } = useEntraAuthStore();
+  const isAnonymousPath = ANONYMOUS_PATHS.has(window.location.pathname);
 
   // Kick off the session check once on mount.
   useEffect(() => {
     void check();
   }, [check]);
 
-  // SWA reachable but no session — send the user to Entra.
-  // We do this inside an effect so the redirect doesn't fire during render.
+  // SWA reachable but no session — send the user to Entra, UNLESS they're on
+  // the logged-out page (which is the intended landing for anonymous users).
   useEffect(() => {
-    if (status === "unauthenticated") {
+    if (status === "unauthenticated" && !isAnonymousPath) {
       login();
     }
-  }, [status, login]);
+  }, [status, login, isAnonymousPath]);
+
+  // On the logged-out path, render the standalone page regardless of auth
+  // status — this breaks the logout→auto-login loop.
+  if (isAnonymousPath && status !== "checking") {
+    return <LoggedOutPage />;
+  }
 
   if (status === "checking" || status === "unauthenticated") {
     return (

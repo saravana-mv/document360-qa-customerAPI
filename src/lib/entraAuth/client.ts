@@ -42,11 +42,13 @@ export async function fetchEntraPrincipal(): Promise<{
 }
 
 /**
- * Triggers SWA logout. Clears the session cookie and redirects to the given
- * post-logout URL (defaults to the current origin).
+ * Triggers SWA logout. Clears the session cookie and lands the user on the
+ * in-app /logged-out page. We deliberately DON'T redirect to the app root
+ * because the live Microsoft SSO cookie would silently re-authenticate the
+ * user; /logged-out is exempt from EntraGate's auto-login.
  */
 export function entraLogout(postLogoutUrl?: string): void {
-  const target = postLogoutUrl ?? window.location.origin;
+  const target = postLogoutUrl ?? `${window.location.origin}/logged-out`;
   window.location.href = `/.auth/logout?post_logout_redirect_uri=${encodeURIComponent(target)}`;
 }
 
