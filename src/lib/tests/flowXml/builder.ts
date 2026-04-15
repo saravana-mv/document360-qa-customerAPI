@@ -221,9 +221,12 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
   // Phase 2: the request goes through /api/d360/proxy, which injects the real
   // D360 bearer server-side. We still need to signal noAuth steps so the
   // proxy forwards without auth — an X-D360-No-Auth: 1 header does that.
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
+  // Only declare a Content-Type when we actually send a body. D360 (and many
+  // ASP.NET APIs) return 500 when DELETE/GET arrives with Content-Type:
+  // application/json but no payload — the model binder tries to parse the
+  // empty body as JSON and throws. Matches what the API docs try-it does.
+  const headers: Record<string, string> = {};
+  if (requestBody !== undefined) headers["Content-Type"] = "application/json";
   if (step.noAuth) headers["X-D360-No-Auth"] = "1";
 
   let httpStatus: number;
