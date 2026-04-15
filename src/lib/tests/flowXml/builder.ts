@@ -197,7 +197,12 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
     return failError(start, err);
   }
 
+  // requestUrl is what we CAPTURE and DISPLAY — always the upstream D360 URL
+  // so the Detail pane matches the public API docs. fetchUrl is what we
+  // actually call, which goes through our server-side proxy so the D360
+  // bearer token never reaches the browser.
   const requestUrl = `${ctx.baseUrl}${resolvedPath}${queryString}`;
+  const fetchUrl = `/api/d360/proxy${resolvedPath}${queryString}`;
 
   // Resolve body
   let requestBody: unknown = undefined;
@@ -228,7 +233,7 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
   let networkError: Error | null = null;
 
   try {
-    const res = await fetch(requestUrl, {
+    const res = await fetch(fetchUrl, {
       method: step.method,
       headers,
       body: requestBody !== undefined ? JSON.stringify(requestBody) : undefined,
