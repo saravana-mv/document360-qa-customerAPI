@@ -6,6 +6,15 @@
  *
  * Exits 0 if all checks pass, 1 if any fail.
  * Run this in CI immediately after the Azure SWA deploy step.
+ *
+ * After the Entra ID gate was added (Phase 1), the smoke test verifies that:
+ *   1. The SPA HTML is still served.
+ *   2. Every /api/* route rejects anonymous requests with HTTP 401 — proving
+ *      the SWA auth policy (allowedRoles: authenticated) is active AND the
+ *      withAuth() wrapper is blocking calls at the function level.
+ * Functional checks that require an authenticated session must run against a
+ * separate pre-prod environment (or be driven by an integration test that
+ * obtains an Entra session token) — they're no longer appropriate here.
  */
 
 const BASE_URL = process.argv[2]?.replace(/\/$/, "");
@@ -23,79 +32,19 @@ const checks = [
     expectStatus: 200,
   },
 
-  // ── spec-files GET (this was the broken route) ────────────────────────────
-  {
-    label: "GET /api/spec-files returns 200 with array",
-    path: "/api/spec-files",
-    expectStatus: 200,
-    expectArray: true,
-  },
-
-  // ── spec-files OPTIONS (CORS preflight) ───────────────────────────────────
-  {
-    label: "OPTIONS /api/spec-files returns 204",
-    path: "/api/spec-files",
-    method: "OPTIONS",
-    expectStatus: 204,
-  },
-
-  // ── spec-files POST with invalid body → 400 (confirms function is reachable)
-  {
-    label: "POST /api/spec-files with empty body returns 400",
-    path: "/api/spec-files",
-    method: "POST",
-    body: {},
-    expectStatus: 400,
-  },
-
-  // ── spec-files/content missing name → 400 ────────────────────────────────
-  {
-    label: "GET /api/spec-files/content without name returns 400",
-    path: "/api/spec-files/content",
-    expectStatus: 400,
-  },
-
-  // ── generate-flow POST with invalid body → 400 ───────────────────────────
-  {
-    label: "POST /api/generate-flow with empty body returns 400",
-    path: "/api/generate-flow",
-    method: "POST",
-    body: {},
-    expectStatus: 400,
-  },
-
-  // ── flow-files GET returns array (container auto-creates on first upload)
-  {
-    label: "GET /api/flow-files returns 200 with array",
-    path: "/api/flow-files",
-    expectStatus: 200,
-    expectArray: true,
-  },
-
-  // ── flow-files OPTIONS (CORS) ────────────────────────────────────────────
-  {
-    label: "OPTIONS /api/flow-files returns 204",
-    path: "/api/flow-files",
-    method: "OPTIONS",
-    expectStatus: 204,
-  },
-
-  // ── flow-files POST with empty body → 400 (function reachable) ───────────
-  {
-    label: "POST /api/flow-files with empty body returns 400",
-    path: "/api/flow-files",
-    method: "POST",
-    body: {},
-    expectStatus: 400,
-  },
-
-  // ── flow-files DELETE without name → 400 ─────────────────────────────────
-  {
-    label: "DELETE /api/flow-files without name returns 400",
-    path: "/api/flow-files",
-    method: "DELETE",
-    expectStatus: 400,
-  },
+  // ── API routes must reject anonymous callers with 401 ────────────────────
+  // One check per registered route to confirm the Entra gate is in front of
+  // every function. Expect 401 regardless of method — the auth policy short-
+  // circuits before the function handler runs.
+  { label: "GET /api/spec-files is gated (401)",             path: "/api/spec-files",              expectStatus: 401 },
+  { label: "GET /api/spec-files/content is gated (401)",     path: "/api/spec-files/content",      expectStatus: 401 },
+  { label: "GET /api/spec-files/sources is gated (401)",     path: "/api/spec-files/sources",      expectStatus: 401 },
+  { label: "POST /api/spec-files/import-url is gated (401)", path: "/api/spec-files/import-url",   method: "POST", body: {}, expectStatus: 401 },
+  { label: "POST /api/spec-files/sync is gated (401)",       path: "/api/spec-files/sync",         method: "POST", body: {}, expectStatus: 401 },
+  { label: "GET /api/flow-files is gated (401)",             path: "/api/flow-files",              expectStatus: 401 },
+  { label: "GET /api/flow-files/content is gated (401)",     path: "/api/flow-files/content",      expectStatus: 401 },
+  { label: "POST /api/generate-flow is gated (401)",         path: "/api/generate-flow",           method: "POST", body: {}, expectStatus: 401 },
+  { label: "POST /api/generate-flow-ideas is gated (401)",   path: "/api/generate-flow-ideas",     method: "POST", body: {}, expectStatus: 401 },
 ];
 
 async function runCheck(check) {
@@ -108,6 +57,7 @@ async function runCheck(check) {
       method,
       headers: hasBody ? { "Content-Type": "application/json" } : undefined,
       body: hasBody ? JSON.stringify(check.body) : undefined,
+      redirect: "manual", // don't follow auth redirects
     });
 
     if (res.status !== check.expectStatus) {
@@ -115,19 +65,6 @@ async function runCheck(check) {
       console.error(`        expected HTTP ${check.expectStatus}, got HTTP ${res.status}`);
       console.error(`        ${method} ${url}`);
       return false;
-    }
-
-    if (check.expectArray) {
-      const text = await res.text();
-      let parsed;
-      try { parsed = JSON.parse(text); } catch {
-        console.error(`  FAIL  ${check.label} — response is not JSON`);
-        return false;
-      }
-      if (!Array.isArray(parsed)) {
-        console.error(`  FAIL  ${check.label} — expected JSON array, got: ${text.slice(0, 200)}`);
-        return false;
-      }
     }
 
     console.log(`  pass  ${check.label}  (HTTP ${res.status})`);
