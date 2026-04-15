@@ -9,26 +9,23 @@
 // The SPA never sees the D360 access or refresh token — only this proxy and
 // the token store do.
 
-import { app, HttpRequest, HttpResponseInit } from "@azure/functions";
+import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { withAuth, parseClientPrincipal } from "../lib/auth";
 import { getValidAccessToken } from "../lib/d360Token";
 
 const D360_BASE_URL =
   (process.env.D360_API_BASE_URL ?? "https://apihub.berlin.document360.net").replace(/\/$/, "");
 
-// Headers we refuse to forward from the client → D360. The proxy supplies
-// Authorization; the rest are hop-by-hop or would break content negotiation.
-const HOP_BY_HOP_REQUEST = new Set([
-  "authorization",
-  "host",
-  "content-length",
-  "connection",
-  "x-ms-client-principal",
-  "x-ms-client-principal-id",
-  "x-ms-client-principal-name",
-  "x-ms-client-principal-idp",
-  "cookie",
-  "x-d360-no-auth",
+// Allowlist of request headers we forward upstream. Everything else is
+// dropped — browser-added noise (Origin, Referer, sec-ch-*, sec-fetch-*,
+// User-Agent, Accept-Encoding, Accept-Language) caused D360 to 500 with an
+// empty body on DELETE. The API docs try-it works because it sends a minimal
+// header set; mirror that.
+const ALLOWED_REQUEST_HEADERS = new Set([
+  "content-type",
+  "accept",
+  "if-match",
+  "if-none-match",
 ]);
 
 // Response headers we forward back to the browser. Everything else is
@@ -49,7 +46,7 @@ function errJson(status: number, message: string, extra?: Record<string, unknown
   };
 }
 
-async function proxyHandler(req: HttpRequest): Promise<HttpResponseInit> {
+async function proxyHandler(req: HttpRequest, ctx: InvocationContext): Promise<HttpResponseInit> {
   if (req.method === "OPTIONS") {
     return { status: 204, headers: CORS_HEADERS };
   }
@@ -84,12 +81,15 @@ async function proxyHandler(req: HttpRequest): Promise<HttpResponseInit> {
     }
   }
 
-  // Build forwarded headers.
+  // Build forwarded headers from the strict allowlist + our injected ones.
+  // Default Accept to application/json so D360's content negotiation always
+  // picks the JSON serializer (browser default `*/*` has tripped 500s before).
   const forwardHeaders: Record<string, string> = noAuth
     ? { Authorization: "Bearer __invalid__" }
     : { Authorization: `Bearer ${accessToken}` };
+  forwardHeaders["Accept"] = "application/json";
   req.headers.forEach((value, key) => {
-    if (!HOP_BY_HOP_REQUEST.has(key.toLowerCase())) {
+    if (ALLOWED_REQUEST_HEADERS.has(key.toLowerCase())) {
       forwardHeaders[key] = value;
     }
   });
@@ -118,6 +118,19 @@ async function proxyHandler(req: HttpRequest): Promise<HttpResponseInit> {
 
   // Pass through the body as a buffer — Functions v4 handles content-length.
   const responseBuf = Buffer.from(await upstream.arrayBuffer());
+
+  // Log upstream 5xx with the full request/response so we can diagnose
+  // failures that surface as empty 500s in the SPA.
+  if (upstream.status >= 500) {
+    const upstreamHeaders: Record<string, string> = {};
+    upstream.headers.forEach((v, k) => { upstreamHeaders[k] = v; });
+    ctx.warn(`[d360Proxy] upstream ${upstream.status} ${req.method} ${upstreamUrl}`, {
+      requestHeaders: { ...forwardHeaders, Authorization: noAuth ? "Bearer __invalid__" : "Bearer ***" },
+      requestBodyBytes: bodyBuf?.byteLength ?? 0,
+      responseHeaders: upstreamHeaders,
+      responseBodyPreview: responseBuf.toString("utf8").slice(0, 1000),
+    });
+  }
 
   return {
     status: upstream.status,
