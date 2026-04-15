@@ -38,8 +38,8 @@ export function OAuthCallback() {
 
       try {
         setMessage("Exchanging authorization code...");
-        const token = await handleCallback(code, state, config);
-        setToken(token);
+        const result = await handleCallback(code, state, config);
+        setToken(result.token, result.projectId);
         // User signed in from the Test Manager — land them there.
         navigate("/test");
       } catch (err) {

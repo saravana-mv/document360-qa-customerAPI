@@ -212,13 +212,14 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
 
   // Make the HTTP call. We bypass apiClient so each step's request URL/body
   // is captured exactly for the Detail Pane.
+  //
+  // Phase 2: the request goes through /api/d360/proxy, which injects the real
+  // D360 bearer server-side. We still need to signal noAuth steps so the
+  // proxy forwards without auth — an X-D360-No-Auth: 1 header does that.
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    // For noAuth steps, send an invalid token instead of omitting the header.
-    // Omitting it causes a CORS failure (server doesn't send CORS headers on
-    // unauthenticated preflight), which the browser surfaces as "Failed to fetch".
-    Authorization: step.noAuth ? "Bearer __invalid__" : `Bearer ${ctx.token}`,
   };
+  if (step.noAuth) headers["X-D360-No-Auth"] = "1";
 
   let httpStatus: number;
   let responseBody: unknown = undefined;

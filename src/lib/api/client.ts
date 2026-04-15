@@ -1,21 +1,25 @@
 import type { ApiError } from "../../types/api.types";
 
-const DEFAULT_BASE_URL = "https://apihub.berlin.document360.net";
+// Phase 2: all D360 Customer API calls go through the server-side proxy at
+// /api/d360/proxy/*. The browser no longer holds a bearer token — the proxy
+// looks up the caller's Entra oid, fetches (or refreshes) the stored D360
+// access token, and injects the Authorization header on forwarded requests.
+
+const PROXY_BASE = "/api/d360/proxy";
 const DEFAULT_API_VERSION = "v3";
 
-let _baseUrl = DEFAULT_BASE_URL;
+// Retained as a no-op for compatibility with setup.store — the upstream D360
+// host is pinned in the server-side proxy, not the browser.
 let _apiVersion = DEFAULT_API_VERSION;
 
-/** Called by setup store on init and when the user changes the base URL. */
-export function setApiBaseUrl(url: string) {
-  _baseUrl = url.replace(/\/$/, ""); // strip trailing slash
+export function setApiBaseUrl(_url: string): void {
+  // no-op: upstream URL is controlled by the Azure Function D360_API_BASE_URL.
 }
 
-export function getApiBaseUrl() {
-  return _baseUrl;
+export function getApiBaseUrl(): string {
+  return PROXY_BASE;
 }
 
-/** Called by setup store on init and when the user changes the API version. */
 export function setApiVersion(version: string) {
   _apiVersion = version;
 }
@@ -27,22 +31,29 @@ export function getApiVersion() {
 interface RequestOptions {
   method?: string;
   body?: unknown;
-  token: string;
+  /**
+   * Left in the signature for compatibility — the proxy injects the real
+   * bearer token server-side, so whatever the caller passes is discarded.
+   */
+  token?: string;
   signal?: AbortSignal;
 }
 
 async function request<T>(path: string, options: RequestOptions): Promise<T> {
-  const { method = "GET", body, token, signal } = options;
+  const { method = "GET", body, signal } = options;
 
   const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
   };
+
+  // Ensure exactly one "/" between proxy base and upstream path.
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const url = `${PROXY_BASE}${normalizedPath}`;
 
   let attempts = 0;
   while (true) {
     attempts++;
-    const response = await fetch(`${_baseUrl}${path}`, {
+    const response = await fetch(url, {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -56,8 +67,8 @@ async function request<T>(path: string, options: RequestOptions): Promise<T> {
     }
 
     if (response.status === 401) {
-      // Notify the app that auth is stale so the UI can fall back to the
-      // sign-in prompt. Handled in main.tsx.
+      // Proxy returns 401 when the D360 token is missing/unrefreshable.
+      // Notify the app so the UI falls back to the sign-in prompt.
       window.dispatchEvent(new CustomEvent("session-expired"));
     }
 
@@ -82,14 +93,14 @@ async function request<T>(path: string, options: RequestOptions): Promise<T> {
 }
 
 export const apiClient = {
-  get: <T>(path: string, token: string, signal?: AbortSignal) =>
+  get: <T>(path: string, token?: string, signal?: AbortSignal) =>
     request<T>(path, { token, signal }),
-  post: <T>(path: string, body: unknown, token: string) =>
+  post: <T>(path: string, body: unknown, token?: string) =>
     request<T>(path, { method: "POST", body, token }),
-  patch: <T>(path: string, body: unknown, token: string) =>
+  patch: <T>(path: string, body: unknown, token?: string) =>
     request<T>(path, { method: "PATCH", body, token }),
-  put: <T>(path: string, body: unknown, token: string) =>
+  put: <T>(path: string, body: unknown, token?: string) =>
     request<T>(path, { method: "PUT", body, token }),
-  delete: <T>(path: string, token: string) =>
+  delete: <T>(path: string, token?: string) =>
     request<T>(path, { method: "DELETE", token }),
 };

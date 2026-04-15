@@ -45,6 +45,13 @@ const checks = [
   { label: "GET /api/flow-files/content is gated (401)",     path: "/api/flow-files/content",      expectStatus: 401 },
   { label: "POST /api/generate-flow is gated (401)",         path: "/api/generate-flow",           method: "POST", body: {}, expectStatus: 401 },
   { label: "POST /api/generate-flow-ideas is gated (401)",   path: "/api/generate-flow-ideas",     method: "POST", body: {}, expectStatus: 401 },
+
+  // D360 server-side auth + proxy (Phase 2). All of these sit behind the
+  // Entra gate — the catch-all proxy route must also be protected.
+  { label: "POST /api/d360/auth/exchange is gated (401)",    path: "/api/d360/auth/exchange",      method: "POST", body: {}, expectStatus: 401 },
+  { label: "GET /api/d360/auth/status is gated (401)",       path: "/api/d360/auth/status",        expectStatus: 401 },
+  { label: "POST /api/d360/auth/logout is gated (401)",      path: "/api/d360/auth/logout",        method: "POST", body: {}, expectStatus: 401 },
+  { label: "GET /api/d360/proxy/v3/ping is gated (401)",     path: "/api/d360/proxy/v3/ping",      expectStatus: 401 },
 ];
 
 async function runCheck(check) {

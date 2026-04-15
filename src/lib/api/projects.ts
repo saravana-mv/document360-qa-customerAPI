@@ -1,19 +1,16 @@
 import { apiClient, getApiVersion } from "./client";
+import { getProjectId as getStoredProjectId } from "../oauth/session";
 import type { Project } from "../../types/api.types";
 
-function decodeJwtPayload(token: string): Record<string, unknown> {
-  try {
-    const part = token.split(".")[1];
-    const padded = part.replace(/-/g, "+").replace(/_/g, "/");
-    return JSON.parse(atob(padded));
-  } catch {
-    return {};
-  }
-}
-
-export function getProjectIdFromToken(accessToken: string): string {
-  const claims = decodeJwtPayload(accessToken);
-  return (claims.doc360_project_id as string) || "";
+/**
+ * Phase 2: the browser no longer has the D360 JWT, so we can't decode it
+ * client-side. The exchange endpoint extracts `doc360_project_id` server-side
+ * and returns it, and the SPA caches it in sessionStorage. This helper now
+ * just reads that cached value — the `accessToken` parameter is ignored and
+ * kept only for call-site compatibility.
+ */
+export function getProjectIdFromToken(_accessToken: string): string {
+  return getStoredProjectId();
 }
 
 export async function fetchProject(projectId: string, token: string): Promise<Project> {
