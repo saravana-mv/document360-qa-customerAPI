@@ -65,7 +65,7 @@ async function proxyHandler(req: HttpRequest, ctx: InvocationContext): Promise<H
       headers: {
         ...CORS_HEADERS,
         "Content-Type": "application/json",
-        "X-D360-Proxy-Build": "envelope-v2",
+        "X-D360-Proxy-Build": "envelope-v3-502",
         "X-D360-Proxy-Crash": "1",
       },
       body: JSON.stringify({
@@ -149,7 +149,7 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
   }
   // Sentinel header — present on EVERY proxied response so we can confirm the
   // current proxy build is the one handling the request (cache-buster check).
-  responseHeaders["X-D360-Proxy-Build"] = "envelope-v2";
+  responseHeaders["X-D360-Proxy-Build"] = "envelope-v3-502";
   responseHeaders["X-D360-Upstream-Status"] = String(upstream.status);
 
   // Pass through the body as a buffer — Functions v4 handles content-length.
