@@ -1139,7 +1139,7 @@ export function SpecFilesPage() {
     void markFlow(flow, target, false);
   }
 
-  function handleMarkSelectedForImplementation() {
+  async function handleMarkSelectedForImplementation() {
     const folder = parentFolderOf(activePath);
     const toMark = generatedFlows.filter(
       (f) =>
@@ -1148,10 +1148,79 @@ export function SpecFilesPage() {
         !markedIds.has(f.ideaId) &&
         validateFlowXml(f.xml).ok,
     );
-    for (const flow of toMark) {
-      const target = buildFlowFilePath(folder, flow.title);
-      void markFlow(flow, target, false);
+    if (toMark.length === 0) return;
+
+    // Mark all as "in progress" up-front so the UI reflects the batch.
+    setMarkingIds(prev => {
+      const n = new Set(prev);
+      for (const f of toMark) n.add(f.ideaId);
+      return n;
+    });
+
+    const jobs = toMark.map((flow) => ({
+      flow,
+      target: buildFlowFilePath(folder, flow.title),
+    }));
+
+    // Save all flows in parallel but DON'T trigger per-flow loads — that
+    // creates a race where the first load's listFlowFiles snapshot misses
+    // flows that are still saving, and their registrations get discarded
+    // when the shared in-flight promise resolves.
+    const results = await Promise.allSettled(
+      jobs.map((j) => saveFlowFile(j.target, j.flow.xml, false)),
+    );
+
+    let firstConflict: { flow: GeneratedFlow; existingName: string; suggestedNewName: string } | null = null;
+    const succeededIds: string[] = [];
+
+    for (let i = 0; i < jobs.length; i += 1) {
+      const { flow, target } = jobs[i];
+      const result = results[i];
+      if (result.status === "fulfilled") {
+        activateFlow(target);
+        succeededIds.push(flow.ideaId);
+      } else if (result.reason instanceof FlowFileConflictError) {
+        // Only surface the first conflict — the user will resolve it through
+        // the modal and can retry the remaining items.
+        if (!firstConflict) {
+          const slug = slugifyFlowTitle(flow.title);
+          const maxBase = 80 - ".flow.xml".length;
+          let n = 2;
+          let suggestedBase = `${slug}-${n}`.slice(0, maxBase);
+          let suggested = folder ? `${folder}/${suggestedBase}.flow.xml` : `${suggestedBase}.flow.xml`;
+          while (suggested === target && n < 99) {
+            n += 1;
+            suggestedBase = `${slug}-${n}`.slice(0, maxBase);
+            suggested = folder ? `${folder}/${suggestedBase}.flow.xml` : `${suggestedBase}.flow.xml`;
+          }
+          firstConflict = { flow, existingName: target, suggestedNewName: suggested };
+        }
+      } else {
+        console.error("Failed to mark flow for implementation:", result.reason);
+      }
     }
+
+    // Mark succeeded flows and clear "in progress" state in one go.
+    setMarkedIds(prev => {
+      const n = new Set(prev);
+      for (const id of succeededIds) n.add(id);
+      return n;
+    });
+    setMarkingIds(prev => {
+      const n = new Set(prev);
+      for (const f of toMark) n.delete(f.ideaId);
+      return n;
+    });
+
+    // Now that every blob is on disk and every name is in the active set,
+    // do exactly ONE load + rebuild so all new tests appear together.
+    if (succeededIds.length > 0) {
+      await loadFlowsFromQueue();
+      const built = buildParsedTagsFromRegistry();
+      setSpec(null as never, built, null as never);
+    }
+
+    if (firstConflict) setConflict(firstConflict);
   }
 
   function toggleSelectFlow(ideaId: string) {
