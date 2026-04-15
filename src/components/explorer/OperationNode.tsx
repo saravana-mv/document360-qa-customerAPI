@@ -34,7 +34,6 @@ export function OperationNode({ test }: OperationNodeProps) {
   const isSelected = selectedTests.has(test.id);
   const isPaneOpen = selectedTestId === test.id;
   const hasBreakpoint = breakpointIds.has(test.id);
-  const isTeardown = !!test.isTeardown;
 
   function handleClick() {
     if (isPaneOpen) {
@@ -81,8 +80,6 @@ export function OperationNode({ test }: OperationNodeProps) {
               label: hasBreakpoint ? "Remove breakpoint" : "Pause before this step",
               icon: pauseIcon,
               onClick: () => toggleBreakpoint(test.id),
-              disabled: isTeardown,
-              tooltip: isTeardown ? "Teardown steps cannot be paused" : undefined,
             },
           ]}
         />

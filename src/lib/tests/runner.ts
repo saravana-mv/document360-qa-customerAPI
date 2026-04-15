@@ -111,8 +111,9 @@ async function runTag(tag: string, tests: TestDef[], ctx: TestContext): Promise<
     }
     // Honour user-set breakpoints: pause BEFORE the step runs so the user can
     // poke at external state (e.g. the Document360 admin UI), then click Resume.
-    // Skipped for teardown steps so cleanup never blocks indefinitely.
-    if (!test.isTeardown && isBreakpointSet(test.id) && !getStore().cancelled) {
+    // Allowed on teardown steps too — useful for inspecting created entities
+    // before they are cleaned up.
+    if (isBreakpointSet(test.id) && !getStore().cancelled) {
       log("⏸ Paused at breakpoint — click Resume to continue", "warn", tag, test.id, test.name);
       await getStore().enterPause({ testId: test.id, testName: test.name, tag });
       if (getStore().cancelled) {
