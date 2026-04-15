@@ -35,7 +35,7 @@ import {
 } from "../lib/api/flowFilesApi";
 import { buildFlowPrompt, filterRelevantSpecs } from "../lib/flow/buildPrompt";
 import { loadFlowsFromQueue } from "../lib/tests/flowXml/loader";
-import { activateFlow } from "../lib/tests/flowXml/activeTests";
+import { activateFlow, getActiveFlows } from "../lib/tests/flowXml/activeTests";
 import { buildParsedTagsFromRegistry } from "../lib/tests/buildParsedTags";
 import { useSpecStore } from "../store/spec.store";
 import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
@@ -268,9 +268,15 @@ export function SpecFilesPage() {
     else localStorage.removeItem("specfiles_selected_folder_path");
   }, [selectedFolderPath]);
 
-  // ── Sync marked-for-implementation state from the server ────────────────────
-  // Source of truth is the flow-files blob container. If a flow file has been
-  // deleted in Flow Manager, its idea gets automatically unblocked here.
+  // ── Sync marked-for-implementation state ────────────────────────────────────
+  // "Marked" means "registered as an active test" — NOT merely "XML file exists
+  // on the server". Flow XML files are preserved when tests are deleted (they
+  // are reusable assets), so we can't use blob existence as the signal or the
+  // user would be stuck unable to re-create a test after deletion.
+  //
+  // The active-tests set (localStorage-backed) is the authoritative source:
+  // activateFlow adds to it, deactivateFlow removes, and the Test Manager
+  // updates it directly.
   const syncMarkedFromServer = useCallback(async () => {
     if (generatedFlows.length === 0) {
       setMarkedIds(new Set());
@@ -278,13 +284,16 @@ export function SpecFilesPage() {
     }
     const folder = parentFolderOf(activePath);
     try {
+      // We still confirm the blob exists — a flow with no XML can't actually
+      // be active even if its name lingers in the set.
       const items = await listFlowFiles(folder || undefined);
       const existingPaths = new Set(items.map(i => i.name));
+      const activeSet = getActiveFlows();
       const next = new Set<string>();
       for (const flow of generatedFlows) {
         if (flow.status !== "done") continue;
         const target = buildFlowFilePath(folder, flow.title);
-        if (existingPaths.has(target)) next.add(flow.ideaId);
+        if (existingPaths.has(target) && activeSet.has(target)) next.add(flow.ideaId);
       }
       setMarkedIds(next);
     } catch {
