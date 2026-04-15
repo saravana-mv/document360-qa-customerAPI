@@ -35,7 +35,7 @@ const FORWARDED_RESPONSE_HEADERS = ["content-type", "content-language", "etag"];
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-D360-Method, X-D360-No-Auth",
   // Allow the SPA to read our debug headers from cross-origin responses.
   "Access-Control-Expose-Headers": "X-D360-Proxy-Build, X-D360-Proxy-Crash, X-D360-Upstream-Status, X-D360-Upstream-Url, X-D360-Trace-Id, Content-Type",
 };
@@ -65,7 +65,7 @@ async function proxyHandler(req: HttpRequest, ctx: InvocationContext): Promise<H
       headers: {
         ...CORS_HEADERS,
         "Content-Type": "application/json",
-        "X-D360-Proxy-Build": "envelope-v4-timeout",
+        "X-D360-Proxy-Build": "envelope-v5-tunnel",
         "X-D360-Proxy-Crash": "1",
       },
       body: JSON.stringify({
@@ -89,6 +89,16 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
   // params.path contains everything after "d360/proxy/".
   const subPath = (req.params?.path ?? "").replace(/^\/+/, "");
   if (!subPath) return errJson(400, "Missing upstream path");
+
+  // Method tunneling: Azure SWA edge has been observed to reject DELETE
+  // requests from the browser with a bare 500 (no function invocation,
+  // only x-ms-middleware-request-id in the response). As a workaround,
+  // the SPA may send the request as POST with `X-D360-Method: DELETE`,
+  // and we'll forward to the upstream with the real method.
+  const methodOverride = (req.headers.get("x-d360-method") ?? "").toUpperCase();
+  const effectiveMethod = methodOverride && ["GET", "POST", "PUT", "PATCH", "DELETE"].includes(methodOverride)
+    ? methodOverride
+    : req.method;
 
   // Preserve the query string verbatim.
   const url = new URL(req.url);
@@ -128,8 +138,12 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
   // Body: only attach for methods that explicitly carry one. DELETE/GET/HEAD/
   // OPTIONS get NO body even if the SPA accidentally passed one — some
   // intermediaries reject DELETE with Content-Length > 0.
+  //
+  // Note: we key off EFFECTIVE method, not the incoming request method. A
+  // tunneled DELETE arrives as POST with x-d360-method: DELETE; we must
+  // drop the body before forwarding, matching a real DELETE.
   const methodsWithBody = new Set(["POST", "PUT", "PATCH"]);
-  const bodyBuf = methodsWithBody.has(req.method) ? await req.arrayBuffer() : undefined;
+  const bodyBuf = methodsWithBody.has(effectiveMethod) ? await req.arrayBuffer() : undefined;
 
   // SWA Free plan kills Functions at 30s. Cap the upstream request at 25s and
   // return a clean 502 envelope before SWA returns its generic bare 500.
@@ -142,7 +156,7 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
   let upstream: Response;
   try {
     upstream = await fetch(upstreamUrl, {
-      method: req.method,
+      method: effectiveMethod,
       headers: forwardHeaders,
       body: bodyBuf && bodyBuf.byteLength > 0 ? Buffer.from(bodyBuf) : undefined,
       signal: controller.signal,
@@ -159,14 +173,14 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
       headers: {
         ...CORS_HEADERS,
         "Content-Type": "application/json",
-        "X-D360-Proxy-Build": "envelope-v4-timeout",
+        "X-D360-Proxy-Build": "envelope-v5-tunnel",
         "X-D360-Upstream-Url": upstreamUrl,
         "X-D360-Upstream-Timeout": isAbort ? "1" : "0",
       },
       body: JSON.stringify({
         _proxyDebug: isAbort ? "Upstream timeout" : "Upstream fetch error",
         error: msg,
-        upstream: { method: req.method, url: upstreamUrl },
+        upstream: { method: effectiveMethod, url: upstreamUrl },
       }, null, 2),
     };
   }
@@ -179,7 +193,7 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
   }
   // Sentinel header — present on EVERY proxied response so we can confirm the
   // current proxy build is the one handling the request (cache-buster check).
-  responseHeaders["X-D360-Proxy-Build"] = "envelope-v4-timeout";
+  responseHeaders["X-D360-Proxy-Build"] = "envelope-v5-tunnel";
   responseHeaders["X-D360-Upstream-Status"] = String(upstream.status);
 
   // Pass through the body as a buffer — Functions v4 handles content-length.
@@ -204,6 +218,7 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
         bodyBytes: responseBuf.byteLength,
       },
       request: {
+        method: effectiveMethod,
         headers: { ...forwardHeaders, Authorization: noAuth ? "Bearer __invalid__" : "Bearer ***" },
         bodyBytes: bodyBuf?.byteLength ?? 0,
       },
@@ -215,7 +230,7 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
     const traceId = upstream.headers.get("trace_id") || upstream.headers.get("x-request-id") || upstream.headers.get("x-trace-id") || "";
     if (traceId) responseHeaders["X-D360-Trace-Id"] = traceId;
 
-    ctx.warn(`[d360Proxy] upstream ${upstream.status} ${req.method} ${upstreamUrl}`, {
+    ctx.warn(`[d360Proxy] upstream ${upstream.status} ${effectiveMethod} ${upstreamUrl}`, {
       requestHeaders: envelope.request.headers,
       requestBodyBytes: envelope.request.bodyBytes,
       responseHeaders: upstreamHeaders,

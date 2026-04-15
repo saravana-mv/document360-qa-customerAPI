@@ -225,9 +225,18 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
   // ASP.NET APIs) return 500 when DELETE/GET arrives with Content-Type:
   // application/json but no payload — the model binder tries to parse the
   // empty body as JSON and throws. Matches what the API docs try-it does.
+  //
+  // SWA edge has been observed to reject DELETE requests from the browser
+  // with a bare 500 that never reaches our function. Tunnel DELETE (and
+  // anything else, to be safe) through POST with X-D360-Method so the
+  // wire-level method is always one SWA handles reliably.
+  const TUNNEL_METHODS = new Set(["DELETE"]);
+  const tunnel = TUNNEL_METHODS.has(step.method);
+  const wireMethod = tunnel ? "POST" : step.method;
   const headers: Record<string, string> = {};
   if (requestBody !== undefined) headers["Content-Type"] = "application/json";
   if (step.noAuth) headers["X-D360-No-Auth"] = "1";
+  if (tunnel) headers["X-D360-Method"] = step.method;
 
   let httpStatus: number;
   let responseBody: unknown = undefined;
@@ -237,7 +246,7 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
 
   try {
     const res = await fetch(fetchUrl, {
-      method: step.method,
+      method: wireMethod,
       headers,
       body: requestBody !== undefined ? JSON.stringify(requestBody) : undefined,
     });
