@@ -44,7 +44,7 @@ The child elements of \`<step>\` must appear in this order:
 
 1. \`<name>\` — step title shown in logs (required)
 2. \`<endpointRef>\` — relative path to the endpoint MD file, e.g. \`articles/get-an-article-by-id.md\` (optional)
-3. \`<method>\` — one of \`GET\`, \`POST\`, \`PUT\`, \`PATCH\`, \`DELETE\` (required)
+3. \`<method>\` — one of \`GET\`, \`POST\`, \`PATCH\`, \`DELETE\` (required). **The D360 API uses PATCH for all updates — NEVER use PUT.**
 4. \`<path>\` — URL template with \`{placeholder}\` tokens, e.g. \`/v3/projects/{project_id}/articles/{article_id}\` (required)
 5. \`<pathParams>\` — bindings for \`{placeholders}\` in the path (required if path has placeholders)
 6. \`<queryParams>\` — query-string bindings (optional)
@@ -192,8 +192,9 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 8. **HTTP status codes (CRITICAL)**: Use these defaults unless the spec file explicitly states otherwise:
    - GET → \`200\`
    - POST (create) → \`201\`
-   - PUT/PATCH → \`200\`
+   - PATCH (update) → \`200\`
    - **DELETE → \`204\` (No Content) — the response body is EMPTY. NEVER add \`field-equals\`, \`field-exists\`, or \`array-not-empty\` assertions on DELETE steps. The ONLY assertion for a DELETE step should be \`<assertion type="status" code="204"/>\`.**
+   - **NEVER use PUT — the Document360 API does not support PUT. All update operations use PATCH. Using PUT will result in a 405 Method Not Allowed error.**
 9. **Spec-driven assertions**: When spec files are provided, read the documented response schema and status codes carefully. The spec is the source of truth. If the spec says a DELETE returns 200 with a body, follow the spec. If silent, use the defaults from rule 8.
 10. **Schema exactness**: Elements must appear in the order listed above. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status. Use \`field-exists\` / \`field-equals\` / \`array-not-empty\` — no other assertion types exist.
 

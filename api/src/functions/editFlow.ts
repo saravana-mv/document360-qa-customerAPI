@@ -44,7 +44,7 @@ The child elements of \`<step>\` must appear in this order:
 
 1. \`<name>\` — step title shown in logs (required)
 2. \`<endpointRef>\` — relative path to the endpoint MD file (optional)
-3. \`<method>\` — one of \`GET\`, \`POST\`, \`PUT\`, \`PATCH\`, \`DELETE\` (required)
+3. \`<method>\` — one of \`GET\`, \`POST\`, \`PATCH\`, \`DELETE\` (required). **The D360 API uses PATCH for all updates — NEVER use PUT.**
 4. \`<path>\` — URL template with \`{placeholder}\` tokens (required)
 5. \`<pathParams>\` — bindings for \`{placeholders}\` in the path (required if path has placeholders)
 6. \`<queryParams>\` — query-string bindings (optional)
@@ -134,8 +134,8 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 5. Teardown steps must keep \`<flags teardown="true"/>\`.
 6. Element order within \`<step>\` must match the schema order listed above.
 7. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status assertions.
-8. **HTTP status codes (CRITICAL)**: GET → 200, POST (create) → 201, PUT/PATCH → 200, **DELETE → 204 (No Content)**. DELETE responses have an EMPTY body — NEVER add \`field-equals\`, \`field-exists\`, or \`array-not-empty\` assertions on DELETE steps. The ONLY assertion for a DELETE should be \`<assertion type="status" code="204"/>\`.
-9. If you see incorrect assertions in the existing XML (e.g. DELETE with status 200 or body field checks), fix them as part of your edit.
+8. **HTTP status codes (CRITICAL)**: GET → 200, POST (create) → 201, PATCH (update) → 200, **DELETE → 204 (No Content)**. DELETE responses have an EMPTY body — NEVER add \`field-equals\`, \`field-exists\`, or \`array-not-empty\` assertions on DELETE steps. The ONLY assertion for a DELETE should be \`<assertion type="status" code="204"/>\`. **NEVER use PUT — the D360 API does not support PUT (returns 405). All updates use PATCH.**
+9. If you see incorrect assertions or methods in the existing XML (e.g. DELETE with status 200, body field checks on DELETE, or PUT instead of PATCH), fix them as part of your edit.
 
 ## Output format
 
