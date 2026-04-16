@@ -1477,6 +1477,7 @@ export function SpecFilesPage() {
                       maxIdeasTotal={MAX_IDEAS_TOTAL}
                       thisLevelOnly={thisLevelOnly}
                       onToggleThisLevel={(hasSubLevelIdeas || hasSubLevelFlows) ? () => setThisLevelOnly((v) => !v) : undefined}
+                      onCreateManualFlow={handleCreateManualFlow}
                     />
                   </div>
 
