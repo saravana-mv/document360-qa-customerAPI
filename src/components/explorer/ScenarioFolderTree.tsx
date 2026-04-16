@@ -7,6 +7,11 @@ import { TagNode } from "./TagNode";
 import { NEWLY_ADDED, depthOf, isNewlyAdded } from "../../lib/treeUtils";
 import type { ParsedTag } from "../../types/spec.types";
 
+// Stable fallback — must be a module-level constant so Zustand's Object.is
+// check doesn't see a "new" array on every selector call (which causes an
+// infinite re-render loop).
+const EMPTY_FOLDERS: string[] = [];
+
 interface ScenarioFolderTreeProps {
   version: string;
   tags: ParsedTag[];
@@ -76,7 +81,7 @@ function countFlowsInTree(node: FolderTreeNode): number {
 }
 
 export function ScenarioFolderTree({ version, tags, sortOrder }: ScenarioFolderTreeProps) {
-  const folders = useScenarioOrgStore((s) => s.folders[version] ?? [NEWLY_ADDED]);
+  const folders = useScenarioOrgStore((s) => s.folders[version] ?? EMPTY_FOLDERS);
   const placements = useScenarioOrgStore((s) => s.placements);
   const allTests = getAllTests();
 
