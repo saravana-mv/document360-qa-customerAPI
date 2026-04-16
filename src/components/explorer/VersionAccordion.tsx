@@ -137,7 +137,7 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
           {/* Inline folder creation at version root level */}
           {creatingFolder && (
             <div className="flex items-center gap-2 ml-2 px-2 py-1">
-              <svg className="w-3.5 h-3.5 shrink-0 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="w-4 h-4 shrink-0 text-[#656d76]" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
               </svg>
               <input

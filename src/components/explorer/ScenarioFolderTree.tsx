@@ -151,10 +151,10 @@ interface FolderNodeProps {
   sortCmp: (a: string, b: string) => number;
 }
 
-/** Yellow folder icon — matches FileTree */
+/** Grey folder icon — consistent greyscale across all tree views */
 function FolderIcon({ className }: { className?: string }) {
   return (
-    <svg className={`w-3.5 h-3.5 shrink-0 ${className ?? "text-yellow-500"}`} fill="currentColor" viewBox="0 0 20 20">
+    <svg className={`w-4 h-4 shrink-0 ${className ?? "text-[#656d76]"}`} fill="currentColor" viewBox="0 0 20 20">
       <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
     </svg>
   );
@@ -278,11 +278,9 @@ function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps)
           </svg>
         </button>
         <div className="flex items-center gap-2 flex-1 px-2 py-1.5 rounded-md hover:bg-[#f6f8fa] border border-transparent transition-colors text-xs">
-          {/* Folder icon: NEWLY-ADDED gets a distinct purple tint, others get yellow */}
+          {/* Folder icon: NEWLY-ADDED gets a lighter grey, regular folders get standard grey */}
           {reserved ? (
-            <svg className="w-3.5 h-3.5 shrink-0 text-[#8250df]" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
-            </svg>
+            <FolderIcon className="text-[#8b949e]" />
           ) : (
             <FolderIcon />
           )}

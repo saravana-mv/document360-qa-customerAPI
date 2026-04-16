@@ -154,7 +154,7 @@ export function TagNode({ tag, tests }: TagNodeProps) {
             isSelected ? "bg-[#ddf4ff] border border-[#b6e3ff]" : "hover:bg-[#f6f8fa] border border-transparent"
           }`}
         >
-          <svg className="w-3.5 h-3.5 text-[#9a6700] shrink-0" fill="currentColor" viewBox="0 0 16 16">
+          <svg className="w-4 h-4 text-[#656d76] shrink-0" fill="currentColor" viewBox="0 0 16 16">
             <path d="M.513 1.513A1.75 1.75 0 0 1 1.75 0h3.5c.465 0 .91.185 1.239.513l.61.61c.109.109.257.17.411.17h6.74a1.75 1.75 0 0 1 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15.5H1.75A1.75 1.75 0 0 1 0 13.75V1.75c0-.465.185-.91.513-1.237Z" />
           </svg>
           <StatusIcon status={status} />

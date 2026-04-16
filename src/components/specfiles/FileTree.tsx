@@ -86,15 +86,15 @@ function FileIcon({ name, hasIdeas, isSourced }: { name: string; hasIdeas?: bool
   const ext = name.split(".").pop()?.toLowerCase();
   if (ext === "xml" || ext === "xsd")
     return (
-      <svg className="w-3.5 h-3.5 text-orange-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+      <svg className="w-4 h-4 text-[#656d76] shrink-0" fill="currentColor" viewBox="0 0 20 20">
         <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.379 2H4.5Zm2.25 8.5a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Zm0 3a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Z" clipRule="evenodd" />
       </svg>
     );
-  // MD files: green if ideas generated, blue otherwise
-  const color = hasIdeas ? "text-[#1a7f37]" : "text-blue-400";
+  // MD files: slightly different grey if ideas generated
+  const color = hasIdeas ? "text-[#57606a]" : "text-[#8b949e]";
   return (
     <span className="relative shrink-0 flex items-center">
-      <svg className={`w-3.5 h-3.5 ${color}`} fill="currentColor" viewBox="0 0 20 20">
+      <svg className={`w-4 h-4 ${color}`} fill="currentColor" viewBox="0 0 20 20">
         <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.379 2H4.5Zm2.25 8.5a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Zm0 3a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Z" clipRule="evenodd" />
       </svg>
       {isSourced && (
@@ -262,7 +262,7 @@ function TreeNodeRow({
 
         {/* Icon */}
         {node.type === "folder" ? (
-          <svg className={`w-3.5 h-3.5 shrink-0 ${isSelected && !isDropTarget ? "text-yellow-300" : "text-yellow-500"}`} fill="currentColor" viewBox="0 0 20 20">
+          <svg className={`w-4 h-4 shrink-0 ${isSelected && !isDropTarget ? "text-[#8b949e]" : "text-[#656d76]"}`} fill="currentColor" viewBox="0 0 20 20">
             <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
           </svg>
         ) : (
@@ -369,7 +369,7 @@ function TreeNodeRow({
           {creatingUnder === node.path && (
             <div className="flex items-center gap-1 py-0.5 pr-1 mx-1" style={{ paddingLeft: (depth + 1) * 12 + 4 }}>
               <span className="w-3 shrink-0" />
-              <svg className="w-3.5 h-3.5 shrink-0 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="w-4 h-4 shrink-0 text-[#656d76]" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
               </svg>
               <InlineInput
@@ -691,7 +691,7 @@ export function FileTree({
         {creatingUnder === "__root__" && (
           <div className="flex items-center gap-1 py-0.5 pr-1 mx-1 pl-1">
             <span className="w-3 shrink-0" />
-            <svg className="w-3.5 h-3.5 shrink-0 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+            <svg className="w-4 h-4 shrink-0 text-[#656d76]" fill="currentColor" viewBox="0 0 20 20">
               <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
             </svg>
             <InlineInput
