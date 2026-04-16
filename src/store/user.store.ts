@@ -31,13 +31,15 @@ export const useUserStore = create<UserState>((set, get) => ({
     set({ status: "loading" });
     try {
       const res = await fetch("/api/users/me");
+      console.log("[user.store] /api/users/me status=%d", res.status);
       if (res.ok) {
         const data = (await res.json()) as AppUser;
+        console.log("[user.store] user=%s role=%s", data.email, data.role);
         set({ user: data, status: "active" });
       } else if (res.status === 403) {
         set({ user: null, status: "not_registered" });
       } else {
-        // Treat other errors as not registered for safety
+        console.warn("[user.store] unexpected status %d — treating as not_registered", res.status);
         set({ user: null, status: "not_registered" });
       }
     } catch {

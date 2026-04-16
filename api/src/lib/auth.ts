@@ -122,7 +122,12 @@ export function withAuth<T extends unknown[]>(
 
 /** Look up a user doc by OID. Auto-seeds the owner if the container is empty. */
 export async function lookupUser(oid: string, displayName: string, email: string): Promise<UserDocument | null> {
-  if (_userCache.has(oid)) return _userCache.get(oid) ?? null;
+  console.log("[lookupUser] oid=%s name=%s email=%s SEED_OWNER_OID=%s", oid, displayName, email, SEED_OWNER_OID);
+
+  if (_userCache.has(oid)) {
+    console.log("[lookupUser] cache hit, returning cached value");
+    return _userCache.get(oid) ?? null;
+  }
 
   const container = await getUsersContainer();
 
@@ -130,14 +135,18 @@ export async function lookupUser(oid: string, displayName: string, email: string
   try {
     const { resource } = await container.item(oid, TENANT_ID).read<UserDocument>();
     if (resource && resource.status !== "disabled") {
+      console.log("[lookupUser] found by OID, role=%s status=%s", resource.role, resource.status);
       _userCache.set(oid, resource);
       return resource;
     }
     if (resource?.status === "disabled") {
+      console.log("[lookupUser] user disabled");
       _userCache.set(oid, null);
       return null;
     }
-  } catch { /* not found — continue */ }
+  } catch (e) {
+    console.log("[lookupUser] point-read miss: %s", e instanceof Error ? e.message : String(e));
+  }
 
   // Try matching by email (pending invite)
   try {
@@ -148,6 +157,8 @@ export async function lookupUser(oid: string, displayName: string, email: string
         { name: "@email", value: email.toLowerCase() },
       ],
     }).fetchAll();
+
+    console.log("[lookupUser] email query returned %d results for email=%s", resources.length, email.toLowerCase());
 
     if (resources.length > 0) {
       const invite = resources[0];
@@ -169,30 +180,39 @@ export async function lookupUser(oid: string, displayName: string, email: string
       _userCache.set(oid, accepted);
       return accepted;
     }
-  } catch { /* query failed — continue */ }
-
-  // Auto-seed owner on first ever request
-  if (SEED_OWNER_OID && oid === SEED_OWNER_OID) {
-    const now = new Date().toISOString();
-    const ownerDoc: UserDocument = {
-      id: oid,
-      tenantId: TENANT_ID,
-      type: "user",
-      email: email.toLowerCase(),
-      displayName,
-      role: "owner",
-      status: "active",
-      invitedBy: "system",
-      invitedAt: now,
-      acceptedAt: now,
-      updatedAt: now,
-      updatedBy: "system",
-    };
-    await container.items.upsert(ownerDoc);
-    _userCache.set(oid, ownerDoc);
-    return ownerDoc;
+  } catch (e) {
+    console.log("[lookupUser] email query failed: %s", e instanceof Error ? e.message : String(e));
   }
 
+  // Auto-seed owner on first ever request
+  console.log("[lookupUser] seed check: SEED_OWNER_OID=%s oid=%s match=%s", SEED_OWNER_OID, oid, String(SEED_OWNER_OID === oid));
+  if (SEED_OWNER_OID && oid === SEED_OWNER_OID) {
+    try {
+      const now = new Date().toISOString();
+      const ownerDoc: UserDocument = {
+        id: oid,
+        tenantId: TENANT_ID,
+        type: "user",
+        email: email.toLowerCase(),
+        displayName,
+        role: "owner",
+        status: "active",
+        invitedBy: "system",
+        invitedAt: now,
+        acceptedAt: now,
+        updatedAt: now,
+        updatedBy: "system",
+      };
+      await container.items.upsert(ownerDoc);
+      console.log("[lookupUser] owner auto-seeded successfully");
+      _userCache.set(oid, ownerDoc);
+      return ownerDoc;
+    } catch (e) {
+      console.error("[lookupUser] SEED FAILED:", e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  console.log("[lookupUser] no match — returning null");
   _userCache.set(oid, null);
   return null;
 }
