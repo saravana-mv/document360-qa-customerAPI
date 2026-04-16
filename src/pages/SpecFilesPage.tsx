@@ -6,6 +6,7 @@ import { MarkdownViewer } from "../components/specfiles/MarkdownViewer";
 import { FileUploadModal } from "../components/specfiles/FileUploadModal";
 import { ImportFromUrlModal } from "../components/specfiles/ImportFromUrlModal";
 import { FlowIdeasPanel } from "../components/specfiles/FlowIdeasPanel";
+import { CustomPromptModal } from "../components/specfiles/CustomPromptModal";
 import { FlowsPanel, type GeneratedFlow } from "../components/specfiles/FlowsPanel";
 import { DetailPanel } from "../components/specfiles/DetailPanel";
 import {
@@ -108,6 +109,7 @@ export function SpecFilesPage() {
   const [ideasMessage, setIdeasMessage] = useState<string | null>(null);
   const [ideasExhausted, setIdeasExhausted] = useState(false);
   const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(new Set());
+  const [showCustomPromptModal, setShowCustomPromptModal] = useState(false);
 
   // ── Flow generation state ─────────────────────────────────────────────────
   const [generatedFlows, setGeneratedFlows] = useState<GeneratedFlow[]>([]);
@@ -1580,6 +1582,18 @@ export function SpecFilesPage() {
                         </button>
                       ))}
                     </div>
+                    <div className="flex flex-col items-center gap-2 pt-2">
+                      <span className="text-xs text-[#656d76]">or generate a flow directly from a custom prompt</span>
+                      <button
+                        onClick={() => setShowCustomPromptModal(true)}
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md px-3 py-2 transition-colors border border-[#1a7f37]/80"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                        </svg>
+                        New AI flow
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1624,6 +1638,14 @@ export function SpecFilesPage() {
           suggestedNewName={conflict.suggestedNewName}
           onResolve={handleConflictResolve}
           onCancel={() => setConflict(null)}
+        />
+      )}
+
+      {/* Custom prompt modal — shared between landing page and ideas panel */}
+      {showCustomPromptModal && (
+        <CustomPromptModal
+          onSubmit={handleCreateManualFlow}
+          onClose={() => setShowCustomPromptModal(false)}
         />
       )}
     </Layout>
