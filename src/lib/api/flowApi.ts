@@ -32,6 +32,33 @@ export async function generateFlowXml(
   return { xml: data.xml, usage: data.usage ?? null };
 }
 
+/** Edit an existing flow XML using AI. Returns updated XML and usage data. */
+export async function editFlowXml(
+  xml: string,
+  prompt: string,
+  model?: string,
+  signal?: AbortSignal
+): Promise<FlowXmlResult> {
+  const res = await fetch(`/api/edit-flow`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ xml, prompt, ...(model ? { model } : {}) }),
+    signal,
+  });
+
+  if (!res.ok) {
+    let msg = res.statusText;
+    try {
+      const body = await res.clone().json() as { error?: string };
+      if (body.error) msg = body.error;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+
+  const data = await res.json() as { xml: string; usage?: FlowUsage };
+  return { xml: data.xml, usage: data.usage ?? null };
+}
+
 /** Stream flow XML from Claude via SSE. Calls onChunk for each text delta. */
 export async function generateFlowStream(
   prompt: string,

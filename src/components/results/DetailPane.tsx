@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
 import { JsonCodeBlock } from "../common/JsonCodeBlock";
 import { XmlCodeBlock } from "../common/XmlCodeBlock";
 import { useRunnerStore } from "../../store/runner.store";
@@ -7,6 +7,7 @@ import { useSetupStore } from "../../store/setup.store";
 import { getTest } from "../../lib/tests/registry";
 import { rewriteApiVersion } from "../../lib/tests/flowXml/builder";
 import { getFlowFileContent, saveFlowFile } from "../../lib/api/flowFilesApi";
+import { editFlowXml } from "../../lib/api/flowApi";
 import { validateFlowXml } from "../../lib/tests/flowXml/validate";
 import { loadFlowsFromQueue } from "../../lib/tests/flowXml/loader";
 import { activateFlow } from "../../lib/tests/flowXml/activeTests";
@@ -523,39 +524,61 @@ type Tab = "design" | "run" | "xml";
 
 // ── Flow XML Tab ─────────────────────────────────────────────────────────────
 
+type EditMode = "view" | "manual" | "ai-prompt" | "ai-loading" | "ai-review";
+
 function FlowXmlTab({ fileName }: { fileName: string }) {
   const [xml, setXml] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
+  const [editMode, setEditMode] = useState<EditMode>("view");
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // AI Edit state
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiResult, setAiResult] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiCost, setAiCost] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
+
   const { setSpec } = useSpecStore();
+  const aiModel = useSetupStore((s) => s.aiModel);
 
   useEffect(() => {
     let cancelled = false;
     setXml(null);
     setLoadError(null);
-    setEditing(false);
+    setEditMode("view");
     setSaveSuccess(false);
+    setAiResult(null);
+    setAiError(null);
+    setAiPrompt("");
     getFlowFileContent(fileName)
       .then((content) => { if (!cancelled) setXml(content); })
       .catch((err) => { if (!cancelled) setLoadError(err instanceof Error ? err.message : String(err)); });
     return () => { cancelled = true; };
   }, [fileName]);
 
-  function handleStartEdit() {
+  // ── Manual edit handlers ──────────────────────────────────────────────────
+
+  function handleStartManualEdit() {
     if (xml === null) return;
     setDraft(xml);
-    setEditing(true);
+    setEditMode("manual");
     setValidationError(null);
     setSaveSuccess(false);
   }
 
   function handleCancelEdit() {
-    setEditing(false);
+    setEditMode("view");
     setValidationError(null);
+    setAiResult(null);
+    setAiError(null);
+    setAiCost(null);
+    setAiPrompt("");
+    if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
   }
 
   function handleDraftChange(next: string) {
@@ -564,9 +587,9 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
     setSaveSuccess(false);
   }
 
-  async function handleSave() {
-    // Validate first
-    const result = validateFlowXml(draft);
+  async function handleSave(content?: string) {
+    const toSave = content ?? draft;
+    const result = validateFlowXml(toSave);
     if (!result.ok) {
       setValidationError(result.error ?? "Invalid XML");
       return;
@@ -575,12 +598,15 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
     setSaving(true);
     setValidationError(null);
     try {
-      await saveFlowFile(fileName, draft, true);
+      await saveFlowFile(fileName, toSave, true);
       await activateFlow(fileName);
-      setXml(draft);
-      setEditing(false);
+      setXml(toSave);
+      setEditMode("view");
+      setAiResult(null);
+      setAiError(null);
+      setAiCost(null);
+      setAiPrompt("");
       setSaveSuccess(true);
-      // Re-register tests from the updated flow
       await loadFlowsFromQueue();
       const built = buildParsedTagsFromRegistry();
       setSpec(null as never, built, null as never);
@@ -592,6 +618,69 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
     }
   }
 
+  // ── AI Edit handlers ──────────────────────────────────────────────────────
+
+  function handleStartAiEdit() {
+    if (xml === null) return;
+    setEditMode("ai-prompt");
+    setAiPrompt("");
+    setAiResult(null);
+    setAiError(null);
+    setAiCost(null);
+    setValidationError(null);
+    setSaveSuccess(false);
+    setTimeout(() => promptRef.current?.focus(), 50);
+  }
+
+  const handleAiGenerate = useCallback(async () => {
+    if (!xml || !aiPrompt.trim()) return;
+    setEditMode("ai-loading");
+    setAiError(null);
+    setAiCost(null);
+    setValidationError(null);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const result = await editFlowXml(xml, aiPrompt.trim(), aiModel, controller.signal);
+      if (controller.signal.aborted) return;
+      setAiResult(result.xml);
+      setDraft(result.xml);
+      if (result.usage) {
+        setAiCost(`$${result.usage.costUsd.toFixed(4)} (${result.usage.totalTokens.toLocaleString()} tokens)`);
+      }
+      setEditMode("ai-review");
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      setAiError(err instanceof Error ? err.message : String(err));
+      setEditMode("ai-prompt");
+    } finally {
+      abortRef.current = null;
+    }
+  }, [xml, aiPrompt, aiModel]);
+
+  function handleAiAccept() {
+    if (!aiResult) return;
+    void handleSave(aiResult);
+  }
+
+  function handleAiEditManually() {
+    if (!aiResult) return;
+    setDraft(aiResult);
+    setEditMode("manual");
+    setAiResult(null);
+    setAiCost(null);
+  }
+
+  function handleAiRetry() {
+    setAiResult(null);
+    setEditMode("ai-prompt");
+    setTimeout(() => promptRef.current?.focus(), 50);
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
   if (loadError) {
     return (
       <div className="p-4 text-sm text-[#d1242f] bg-[#ffebe9] border border-[#ffcecb] rounded-md m-4">
@@ -602,26 +691,46 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
   if (xml === null) {
     return <div className="p-4 text-sm text-[#afb8c1] italic">Loading flow XML…</div>;
   }
+
+  const isView = editMode === "view";
+  const isManual = editMode === "manual";
+  const isAiPrompt = editMode === "ai-prompt";
+  const isAiLoading = editMode === "ai-loading";
+  const isAiReview = editMode === "ai-review";
+
   return (
     <div className="p-4 space-y-2 flex flex-col flex-1 overflow-hidden">
       {/* Header row */}
       <div className="flex items-center gap-1.5 shrink-0">
         <span className="text-xs font-mono text-[#656d76] flex-1 break-all">{fileName}</span>
-        {!editing && (
+
+        {/* View mode — show edit buttons */}
+        {isView && (
           <>
             <CopyButton value={xml} />
             <button
-              onClick={handleStartEdit}
-              title="Edit XML"
+              onClick={handleStartManualEdit}
+              title="Manual edit"
               className="shrink-0 text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff] rounded-md p-1 transition-colors"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
               </svg>
             </button>
+            <button
+              onClick={handleStartAiEdit}
+              title="AI Edit"
+              className="shrink-0 text-[#656d76] hover:text-[#8250df] hover:bg-[#fbefff] rounded-md p-1 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+              </svg>
+            </button>
           </>
         )}
-        {editing && (
+
+        {/* Manual edit mode — cancel + save */}
+        {isManual && (
           <div className="flex items-center gap-1.5">
             <button
               onClick={handleCancelEdit}
@@ -635,17 +744,108 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
               disabled={saving}
               className="text-sm font-medium text-white bg-[#0969da] hover:bg-[#0860ca] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-2.5 py-1 transition-colors flex items-center gap-1.5"
             >
-              {saving && (
-                <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
-                </svg>
-              )}
+              {saving && <SpinnerIcon />}
+              {saving ? "Saving…" : "Validate & Save"}
+            </button>
+          </div>
+        )}
+
+        {/* AI prompt / loading mode — cancel */}
+        {(isAiPrompt || isAiLoading) && (
+          <button
+            onClick={handleCancelEdit}
+            className="text-sm text-[#656d76] hover:text-[#1f2328] border border-[#d1d9e0] rounded-md px-2.5 py-1 hover:bg-[#f6f8fa] transition-colors"
+          >
+            Cancel
+          </button>
+        )}
+
+        {/* AI review mode — retry, edit manually, accept */}
+        {isAiReview && (
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleCancelEdit}
+              disabled={saving}
+              className="text-sm text-[#656d76] hover:text-[#1f2328] border border-[#d1d9e0] rounded-md px-2.5 py-1 hover:bg-[#f6f8fa] disabled:opacity-40 transition-colors"
+            >
+              Discard
+            </button>
+            <button
+              onClick={handleAiRetry}
+              disabled={saving}
+              className="text-sm text-[#656d76] hover:text-[#1f2328] border border-[#d1d9e0] rounded-md px-2.5 py-1 hover:bg-[#f6f8fa] disabled:opacity-40 transition-colors"
+            >
+              Retry
+            </button>
+            <button
+              onClick={handleAiEditManually}
+              disabled={saving}
+              className="text-sm text-[#656d76] hover:text-[#1f2328] border border-[#d1d9e0] rounded-md px-2.5 py-1 hover:bg-[#f6f8fa] disabled:opacity-40 transition-colors"
+            >
+              Edit manually
+            </button>
+            <button
+              onClick={handleAiAccept}
+              disabled={saving}
+              className="text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a6f2f] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-2.5 py-1 transition-colors flex items-center gap-1.5"
+            >
+              {saving && <SpinnerIcon />}
               {saving ? "Saving…" : "Validate & Save"}
             </button>
           </div>
         )}
       </div>
+
+      {/* AI prompt input */}
+      {(isAiPrompt || isAiLoading) && (
+        <div className="shrink-0 border border-[#d6d8de] rounded-md bg-[#f6f8fa] p-3 space-y-2">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-[#8250df]">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+            </svg>
+            AI Edit
+          </div>
+          <textarea
+            ref={promptRef}
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void handleAiGenerate(); }}
+            disabled={isAiLoading}
+            placeholder="Describe changes… e.g. &quot;Add an assertion to check data.title is not empty&quot;"
+            rows={3}
+            className="w-full text-sm border border-[#d1d9e0] rounded-md px-3 py-2 bg-white placeholder-[#afb8c1] focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] outline-none resize-none disabled:opacity-60"
+          />
+          {aiError && (
+            <div className="px-3 py-2 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-sm text-[#d1242f]">
+              {aiError}
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-[#656d76]">Ctrl+Enter to send</span>
+            <button
+              onClick={() => void handleAiGenerate()}
+              disabled={isAiLoading || !aiPrompt.trim()}
+              className="text-sm font-medium text-white bg-[#8250df] hover:bg-[#7340c9] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-3 py-1.5 transition-colors flex items-center gap-1.5"
+            >
+              {isAiLoading && <SpinnerIcon />}
+              {isAiLoading ? "Generating…" : "Generate"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* AI review — diff info and cost */}
+      {isAiReview && aiResult && (
+        <div className="shrink-0 space-y-2">
+          <div className="flex items-center gap-2 px-3 py-2 bg-[#ddf4ff] border border-[#54aeff66] rounded-md text-sm text-[#0969da]">
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+            </svg>
+            <span className="flex-1">Review the AI changes below. Green = added, red = removed.</span>
+            {aiCost && <span className="text-xs text-[#656d76] shrink-0">{aiCost}</span>}
+          </div>
+        </div>
+      )}
 
       {/* Validation error */}
       {validationError && (
@@ -655,7 +855,7 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
       )}
 
       {/* Save success */}
-      {saveSuccess && !editing && (
+      {saveSuccess && isView && (
         <div className="px-3 py-2 bg-[#dafbe1] border border-[#aceebb] rounded-md text-sm text-[#1a7f37] flex items-center gap-2 shrink-0">
           <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
@@ -664,18 +864,150 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
         </div>
       )}
 
-      {/* XML viewer / editor */}
+      {/* XML viewer / editor / diff */}
       <div className="border border-[#d1d9e0] rounded-md overflow-hidden bg-white flex-1 min-h-0 flex flex-col">
-        {editing ? (
+        {isManual ? (
           <Suspense fallback={<div className="p-4 text-sm text-[#afb8c1]">Loading editor…</div>}>
             <XmlEditor value={draft} onChange={handleDraftChange} height="100%" />
           </Suspense>
+        ) : isAiReview && aiResult ? (
+          <XmlDiffView original={xml} modified={aiResult} />
         ) : (
           <XmlCodeBlock value={xml} className="flex-1 min-h-0 overflow-auto" height="100%" />
         )}
       </div>
     </div>
   );
+}
+
+/** Small spinner icon for buttons */
+function SpinnerIcon() {
+  return (
+    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
+    </svg>
+  );
+}
+
+/** Inline line-by-line diff view for XML */
+function XmlDiffView({ original, modified }: { original: string; modified: string }) {
+  const diffLines = useMemo(() => computeLineDiff(original, modified), [original, modified]);
+
+  return (
+    <div className="flex-1 min-h-0 overflow-auto font-mono text-xs leading-5">
+      <table className="w-full border-collapse">
+        <tbody>
+          {diffLines.map((line, i) => (
+            <tr
+              key={i}
+              className={
+                line.type === "add"
+                  ? "bg-[#dafbe1]"
+                  : line.type === "remove"
+                    ? "bg-[#ffebe9]"
+                    : ""
+              }
+            >
+              <td className="w-8 text-right pr-2 select-none text-[#afb8c1] border-r border-[#d1d9e0]">
+                {line.type !== "add" ? line.oldNum : ""}
+              </td>
+              <td className="w-8 text-right pr-2 select-none text-[#afb8c1] border-r border-[#d1d9e0]">
+                {line.type !== "remove" ? line.newNum : ""}
+              </td>
+              <td className="w-5 text-center select-none font-bold" style={{
+                color: line.type === "add" ? "#1a7f37" : line.type === "remove" ? "#d1242f" : "#afb8c1",
+              }}>
+                {line.type === "add" ? "+" : line.type === "remove" ? "-" : " "}
+              </td>
+              <td className="whitespace-pre pl-2">{line.text}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+interface DiffLine {
+  type: "same" | "add" | "remove";
+  text: string;
+  oldNum?: number;
+  newNum?: number;
+}
+
+/** Simple line-level diff using longest common subsequence */
+function computeLineDiff(a: string, b: string): DiffLine[] {
+  const oldLines = a.split("\n");
+  const newLines = b.split("\n");
+
+  // Build LCS table
+  const m = oldLines.length;
+  const n = newLines.length;
+
+  // For large files, use a simpler O(n) approach
+  if (m * n > 500_000) {
+    return simpleDiff(oldLines, newLines);
+  }
+
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (oldLines[i - 1] === newLines[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+
+  // Backtrack to produce diff
+  const result: DiffLine[] = [];
+  let i = m, j = n;
+  const stack: DiffLine[] = [];
+
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+      stack.push({ type: "same", text: oldLines[i - 1], oldNum: i, newNum: j });
+      i--; j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      stack.push({ type: "add", text: newLines[j - 1], newNum: j });
+      j--;
+    } else {
+      stack.push({ type: "remove", text: oldLines[i - 1], oldNum: i });
+      i--;
+    }
+  }
+
+  while (stack.length) result.push(stack.pop()!);
+  return result;
+}
+
+function simpleDiff(oldLines: string[], newLines: string[]): DiffLine[] {
+  const result: DiffLine[] = [];
+  const oldSet = new Set(oldLines);
+  const newSet = new Set(newLines);
+
+  let oi = 0, ni = 0;
+  while (oi < oldLines.length || ni < newLines.length) {
+    if (oi < oldLines.length && ni < newLines.length && oldLines[oi] === newLines[ni]) {
+      result.push({ type: "same", text: oldLines[oi], oldNum: oi + 1, newNum: ni + 1 });
+      oi++; ni++;
+    } else if (oi < oldLines.length && !newSet.has(oldLines[oi])) {
+      result.push({ type: "remove", text: oldLines[oi], oldNum: oi + 1 });
+      oi++;
+    } else if (ni < newLines.length && !oldSet.has(newLines[ni])) {
+      result.push({ type: "add", text: newLines[ni], newNum: ni + 1 });
+      ni++;
+    } else if (oi < oldLines.length) {
+      result.push({ type: "remove", text: oldLines[oi], oldNum: oi + 1 });
+      oi++;
+    } else {
+      result.push({ type: "add", text: newLines[ni], newNum: ni + 1 });
+      ni++;
+    }
+  }
+  return result;
 }
 
 export function DetailPane({ testId, onClose }: DetailPaneProps) {
