@@ -80,6 +80,7 @@ export function SpecFilesPage() {
   // Loaded from Cosmos DB on mount, saved back per-folder on mutation.
   const [workshopMap, setWorkshopMap] = useState<WorkshopMap>({});
   const workshopLoadedRef = useRef(false);
+  const [workshopLoaded, setWorkshopLoaded] = useState(false);
 
   // Paths (file or folder) that have generated ideas — for tree indicators.
   // For folder-level entries, mark all child .md files so individual file
@@ -152,11 +153,27 @@ export function SpecFilesPage() {
         await migrateIdeasFromLocalStorage();
         const map = await getAllIdeas();
         setWorkshopMap(map);
+        setWorkshopLoaded(true);
       } catch (e) {
         console.warn("[SpecFilesPage] Failed to load ideas from API:", e);
+        setWorkshopLoaded(true);
       }
     })();
   }, []);
+
+  // Re-populate the working set when workshopMap loads from API and we have
+  // an active path. This fixes the flash of "generate ideas" on initial nav
+  // from another page (workshopMap starts empty, then fills from the API).
+  useEffect(() => {
+    if (!workshopLoaded || !activePath) return;
+    const agg = aggregateForPath(workshopMap, activePath);
+    if (agg.ideas.length > 0 || agg.generatedFlows.length > 0) {
+      setIdeas(agg.ideas);
+      setIdeasUsage(agg.usage);
+      setFlowsUsage(agg.flowsUsage);
+      setGeneratedFlows(agg.generatedFlows.filter(f => f.status === "done" || f.status === "error"));
+    }
+  }, [workshopLoaded, workshopMap, activePath]);
 
   // Persist workshopMap changes to API (debounced, per-folder diff)
   const prevMapRef = useRef<WorkshopMap>({});
