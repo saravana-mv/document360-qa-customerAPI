@@ -121,7 +121,7 @@ export function ProjectSettingsCard({ onDone }: ProjectSettingsCardProps = {}) {
           </div>
           <h3 className="text-xl font-semibold text-[#1f2328] mb-1">Connect to Document360</h3>
           <p className="text-sm text-[#656d76] mb-8 leading-relaxed">
-            Sign in to Document360 to load your project and run tests. Spec Manager and Settings don&apos;t require this.
+            Sign in to Document360 to select your Project, Version and Language before we can execute the test scenarios.
           </p>
           <button
             onClick={handleD360SignIn}
@@ -131,7 +131,6 @@ export function ProjectSettingsCard({ onDone }: ProjectSettingsCardProps = {}) {
             {signingIn && <Spinner size="sm" className="text-white" />}
             {signingIn ? "Redirecting…" : "Sign in"}
           </button>
-          <p className="mt-5 text-[11px] text-[#656d76]">OAuth 2.0 Authorization Code + PKCE</p>
         </div>
       </div>
     );
