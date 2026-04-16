@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Project, ProjectVersion } from "../types/api.types";
 import { setApiBaseUrl, setApiVersion } from "../lib/api/client";
+import { loadSettings, saveSettings, migrateFromLocalStorage } from "../lib/api/settingsApi";
 
 const DEFAULT_BASE_URL = "https://apihub.berlin.document360.net";
 const DEFAULT_API_VERSION = "v3";
@@ -25,6 +26,8 @@ interface SetupState {
   aiModel: AiModelId;
   loadingProjects: boolean;
   loadingVersions: boolean;
+  /** True while loading settings from server on first auth */
+  settingsLoaded: boolean;
   error: string | null;
   setProjects: (projects: Project[]) => void;
   setVersions: (versions: ProjectVersion[]) => void;
@@ -37,49 +40,72 @@ interface SetupState {
   setLoadingProjects: (v: boolean) => void;
   setLoadingVersions: (v: boolean) => void;
   setError: (error: string | null) => void;
+  /** Call once after Entra auth is confirmed — loads settings from Cosmos */
+  loadFromServer: () => Promise<void>;
 }
 
-const STORAGE_KEY = "setup_config";
+// localStorage is still used as a fast local cache so the UI doesn't flash
+// defaults on every page load. The server is the source of truth.
+const LOCAL_CACHE_KEY = "setup_config";
 
-function loadSaved(): Partial<SetupState> {
+function loadLocalCache(): Partial<SetupState> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(LOCAL_CACHE_KEY);
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
   }
 }
 
-const saved = loadSaved();
+const cached = loadLocalCache();
 
-// Apply saved config immediately so the client is configured before any API calls.
-const initialBaseUrl = (saved.baseUrl as string) || DEFAULT_BASE_URL;
-const initialApiVersion = (saved.apiVersion as string) || DEFAULT_API_VERSION;
+// Apply cached config immediately so the API client is configured before any calls.
+const initialBaseUrl = (cached.baseUrl as string) || DEFAULT_BASE_URL;
+const initialApiVersion = (cached.apiVersion as string) || DEFAULT_API_VERSION;
 setApiBaseUrl(initialBaseUrl);
 setApiVersion(initialApiVersion);
 
-function persist(state: Partial<SetupState>) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+function persistLocal(state: Partial<SetupState>) {
+  try {
+    localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify({
+      selectedProjectId: state.selectedProjectId ?? "",
+      selectedVersionId: state.selectedVersionId ?? "",
+      langCode: state.langCode ?? "en",
+      baseUrl: state.baseUrl ?? DEFAULT_BASE_URL,
+      apiVersion: state.apiVersion ?? DEFAULT_API_VERSION,
+      aiModel: state.aiModel ?? DEFAULT_AI_MODEL,
+    }));
+  } catch { /* quota exceeded — ignore */ }
+}
+
+function persistServer(state: Partial<SetupState>) {
+  saveSettings({
     selectedProjectId: state.selectedProjectId ?? "",
     selectedVersionId: state.selectedVersionId ?? "",
     langCode: state.langCode ?? "en",
     baseUrl: state.baseUrl ?? DEFAULT_BASE_URL,
     apiVersion: state.apiVersion ?? DEFAULT_API_VERSION,
     aiModel: state.aiModel ?? DEFAULT_AI_MODEL,
-  }));
+  }).catch((e) => console.warn("[setup.store] Failed to save settings:", e));
+}
+
+function persist(state: Partial<SetupState>) {
+  persistLocal(state);
+  persistServer(state);
 }
 
 export const useSetupStore = create<SetupState>((set, get) => ({
   projects: [],
   versions: [],
-  selectedProjectId: (saved.selectedProjectId as string) || "",
-  selectedVersionId: (saved.selectedVersionId as string) || "",
-  langCode: (saved.langCode as string) || "en",
+  selectedProjectId: (cached.selectedProjectId as string) || "",
+  selectedVersionId: (cached.selectedVersionId as string) || "",
+  langCode: (cached.langCode as string) || "en",
   baseUrl: initialBaseUrl,
-  apiVersion: (saved.apiVersion as string) || DEFAULT_API_VERSION,
-  aiModel: (AI_MODELS.some((m) => m.id === saved.aiModel) ? (saved.aiModel as AiModelId) : DEFAULT_AI_MODEL),
+  apiVersion: (cached.apiVersion as string) || DEFAULT_API_VERSION,
+  aiModel: (AI_MODELS.some((m) => m.id === cached.aiModel) ? (cached.aiModel as AiModelId) : DEFAULT_AI_MODEL),
   loadingProjects: false,
   loadingVersions: false,
+  settingsLoaded: false,
   error: null,
 
   setProjects: (projects) => set({ projects }),
@@ -116,4 +142,40 @@ export const useSetupStore = create<SetupState>((set, get) => ({
   setLoadingProjects: (v) => set({ loadingProjects: v }),
   setLoadingVersions: (v) => set({ loadingVersions: v }),
   setError: (error) => set({ error }),
+
+  loadFromServer: async () => {
+    try {
+      // Migrate localStorage → server if the old key still exists
+      await migrateFromLocalStorage();
+
+      const remote = await loadSettings();
+      if (!remote || Object.keys(remote).length === 0) {
+        set({ settingsLoaded: true });
+        return;
+      }
+
+      const updates: Partial<SetupState> = {};
+      if (remote.selectedProjectId) updates.selectedProjectId = remote.selectedProjectId;
+      if (remote.selectedVersionId) updates.selectedVersionId = remote.selectedVersionId;
+      if (remote.langCode) updates.langCode = remote.langCode;
+      if (remote.baseUrl) {
+        updates.baseUrl = remote.baseUrl;
+        setApiBaseUrl(remote.baseUrl);
+      }
+      if (remote.apiVersion) {
+        updates.apiVersion = remote.apiVersion;
+        setApiVersion(remote.apiVersion);
+      }
+      if (remote.aiModel && AI_MODELS.some((m) => m.id === remote.aiModel)) {
+        updates.aiModel = remote.aiModel as AiModelId;
+      }
+
+      set({ ...updates, settingsLoaded: true });
+      // Update local cache with server values
+      persistLocal({ ...get(), ...updates });
+    } catch (e) {
+      console.warn("[setup.store] Failed to load settings from server:", e);
+      set({ settingsLoaded: true });
+    }
+  },
 }));

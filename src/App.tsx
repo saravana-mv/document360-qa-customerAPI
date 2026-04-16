@@ -16,6 +16,7 @@ const SpecFilesPage = lazy(() => import("./pages/SpecFilesPage").then((m) => ({ 
 import "./lib/tests/suites/categories.suite";
 import "./lib/tests/suites/drive.suite";
 import { loadFlowsFromQueue } from "./lib/tests/flowXml/loader";
+import { useSetupStore } from "./store/setup.store";
 
 function PageLoader() {
   return (
@@ -30,6 +31,8 @@ function AppRoutes() {
 
   useEffect(() => {
     initFromSession();
+    // Load user settings from Cosmos (migrates localStorage on first run)
+    void useSetupStore.getState().loadFromServer();
     // Pull every queued .flow.xml, register parsed steps as runnable tests,
     // and populate the flow-status store. Idempotent.
     void loadFlowsFromQueue();

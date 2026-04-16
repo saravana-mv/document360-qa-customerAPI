@@ -1,7 +1,9 @@
 // Cosmos DB client for FlowForge multi-user data layer.
 //
 // Database: flowforge (serverless)
-// Containers: flows, ideas, test-runs (all partitioned by /projectId)
+// Containers:
+//   flows, ideas, test-runs — partitioned by /projectId
+//   settings                — partitioned by /userId (per-user, cross-project)
 //
 // Follows the tokenStore.ts pattern: lazy-init client, cache container refs,
 // auto-create database/containers on first access.
@@ -15,6 +17,7 @@ const CONTAINER_DEFS = [
   { id: "flows", partitionKey: "/projectId" },
   { id: "ideas", partitionKey: "/projectId" },
   { id: "test-runs", partitionKey: "/projectId" },
+  { id: "settings", partitionKey: "/userId" },
 ] as const;
 
 type ContainerName = (typeof CONTAINER_DEFS)[number]["id"];
@@ -68,4 +71,8 @@ export async function getIdeasContainer(): Promise<Container> {
 
 export async function getTestRunsContainer(): Promise<Container> {
   return ensureContainer("test-runs");
+}
+
+export async function getSettingsContainer(): Promise<Container> {
+  return ensureContainer("settings");
 }
