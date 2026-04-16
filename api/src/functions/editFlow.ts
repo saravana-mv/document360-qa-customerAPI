@@ -137,6 +137,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 8. **HTTP status codes (CRITICAL)**: GET → 200, POST (create) → 201, PATCH (update) → 200, **DELETE → 204 (No Content)**. DELETE responses have an EMPTY body — NEVER add \`field-equals\`, \`field-exists\`, or \`array-not-empty\` assertions on DELETE steps. The ONLY assertion for a DELETE should be \`<assertion type="status" code="204"/>\`. **NEVER use PUT — the D360 API does not support PUT (returns 405). All updates use PATCH.**
 9. If you see incorrect assertions or methods in the existing XML (e.g. DELETE with status 200, body field checks on DELETE, or PUT instead of PATCH), fix them as part of your edit.
 10. **Article update body**: When PATCHing an article, the body MUST include both \`"title"\` and \`"content"\` with non-null string values. The API returns 400 if \`content\` is missing or null. Use literal test content rather than relying on uncaptured state variables.
+11. **additionalProperties: false**: Article PATCH body only accepts: \`title\`, \`content\`, \`category_id\`, \`hidden\`, \`version_number\`, \`translation_option\`, \`source\`, \`order\`, \`auto_fork\`. Do NOT include \`project_version_id\` — it causes 400. If you see it in existing XML, remove it.
 
 ## Output format
 
