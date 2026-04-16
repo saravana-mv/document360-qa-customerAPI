@@ -243,10 +243,36 @@ export function MarkdownViewer({ path, content, onClose }: Props) {
       {/* Content */}
       <div className="flex-1 overflow-auto" ref={contentRef}>
         {isMarkdown && !raw ? (
-          <div className="p-6" data-color-mode="light" style={{ overflowWrap: "break-word", wordBreak: "break-word" }}>
+          <div className="p-6 md-wrap-fix" data-color-mode="light">
+            <style>{`
+              .md-wrap-fix .wmde-markdown pre > code {
+                white-space: pre-wrap !important;
+                word-break: break-word !important;
+                overflow-wrap: break-word !important;
+              }
+              .md-wrap-fix .wmde-markdown pre {
+                white-space: pre-wrap !important;
+                overflow-wrap: break-word !important;
+              }
+              .md-wrap-fix .wmde-markdown table {
+                table-layout: fixed;
+                width: 100%;
+              }
+              .md-wrap-fix .wmde-markdown td,
+              .md-wrap-fix .wmde-markdown th {
+                white-space: normal !important;
+                word-break: break-word !important;
+              }
+              .md-wrap-fix .wmde-markdown p,
+              .md-wrap-fix .wmde-markdown li,
+              .md-wrap-fix .wmde-markdown blockquote {
+                overflow-wrap: break-word !important;
+                word-break: break-word !important;
+              }
+            `}</style>
             <MDEditor.Markdown
               source={content}
-              style={{ background: "transparent", fontFamily: "inherit", overflowWrap: "break-word", wordBreak: "break-word" }}
+              style={{ background: "transparent", fontFamily: "inherit" }}
             />
           </div>
         ) : (
