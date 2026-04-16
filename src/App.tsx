@@ -37,6 +37,7 @@ function AppRoutes() {
     // Global handler: any 401 from the API client means the session is stale.
     // Clear auth + loaded tests so TestExplorer falls back to the settings card.
     const onExpired = () => {
+      console.warn("[session-expired] event fired — logging out. Stack:", new Error().stack);
       useAuthStore.getState().logout();
       useSpecStore.getState().setSpec(null, [], null);
     };

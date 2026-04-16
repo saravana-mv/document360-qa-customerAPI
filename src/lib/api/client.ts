@@ -67,6 +67,9 @@ async function request<T>(path: string, options: RequestOptions): Promise<T> {
     }
 
     if (response.status === 401) {
+      let detail = "";
+      try { detail = await response.clone().text(); } catch { /* ignore */ }
+      console.warn(`[apiClient] 401 on ${method} ${url} (attempt ${attempts}):`, detail);
       // Proxy returns 401 when the D360 token is missing/unrefreshable.
       // But immediately after a fresh sign-in, the proxy may not yet have
       // the token available (cold start, Table Storage propagation). Retry
@@ -76,6 +79,7 @@ async function request<T>(path: string, options: RequestOptions): Promise<T> {
         continue;
       }
       // Notify the app so the UI falls back to the sign-in prompt.
+      console.warn("[apiClient] 401 persisted after retry — dispatching session-expired");
       window.dispatchEvent(new CustomEvent("session-expired"));
     }
 
