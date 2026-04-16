@@ -55,7 +55,7 @@ export function MarkdownViewer({ path, content, onClose }: Props) {
       {/* Content */}
       <div className="flex-1 overflow-auto">
         {isMarkdown && !raw ? (
-          <div className="p-6 max-w-4xl" data-color-mode="light">
+          <div className="p-6" data-color-mode="light">
             <MDEditor.Markdown
               source={content}
               style={{ background: "transparent", fontFamily: "inherit" }}
