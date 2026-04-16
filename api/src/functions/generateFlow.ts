@@ -197,6 +197,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
    - **NEVER use PUT — the Document360 API does not support PUT. All update operations use PATCH. Using PUT will result in a 405 Method Not Allowed error.**
 9. **Spec-driven assertions**: When spec files are provided, read the documented response schema and status codes carefully. The spec is the source of truth. If the spec says a DELETE returns 200 with a body, follow the spec. If silent, use the defaults from rule 8.
 10. **Schema exactness**: Elements must appear in the order listed above. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status. Use \`field-exists\` / \`field-equals\` / \`array-not-empty\` — no other assertion types exist.
+11. **Article update body (CRITICAL)**: When PATCHing an article, the request body MUST include both \`"title"\` and \`"content"\` fields with non-null string values. The API returns 400 "The content is required" if \`content\` is missing or null, even though the spec marks it nullable. Use literal test content like \`"<p>Updated test content - {{timestamp}}</p>"\` — do NOT rely on capturing and echoing back the original content unless the flow explicitly reads and captures it first.
 
 ## Output format
 
