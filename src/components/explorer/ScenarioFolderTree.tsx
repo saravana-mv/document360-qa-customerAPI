@@ -24,7 +24,6 @@ interface FolderTreeNode {
 function buildFolderTree(
   folders: string[],
   placements: Record<string, string>,
-  _version: string,
   allFlowPaths: string[],
 ): FolderTreeNode[] {
   // Collect flows per folder for this version
@@ -86,7 +85,7 @@ export function ScenarioFolderTree({ version, tags, sortOrder }: ScenarioFolderT
     (fp) => fp.startsWith(version + "/"),
   );
 
-  const tree = buildFolderTree(folders, placements, version, versionFlowPaths);
+  const tree = buildFolderTree(folders, placements, versionFlowPaths);
 
   const cmp = sortOrder === "asc"
     ? (a: string, b: string) => a.localeCompare(b)
@@ -105,21 +104,18 @@ export function ScenarioFolderTree({ version, tags, sortOrder }: ScenarioFolderT
         />
       ))}
       {/* Unplaced scenarios (no folder assignment) — render at root */}
-      {renderUnplacedTags(version, tags, versionFlowPaths, placements, folders, allTests, cmp)}
+      {renderUnplacedTags(tags, versionFlowPaths, placements, allTests, cmp)}
     </div>
   );
 }
 
 function renderUnplacedTags(
-  _version: string,
   tags: ParsedTag[],
   versionFlowPaths: string[],
   placements: Record<string, string>,
-  _folders: string[],
   allTests: ReturnType<typeof getAllTests>,
   sortCmp: (a: string, b: string) => number,
 ) {
-  // Find tags whose flow paths are in this version but not in any known folder
   const placedFlowPaths = new Set(versionFlowPaths.filter((fp) => placements[fp]));
   const unplacedFlows = versionFlowPaths.filter((fp) => !placedFlowPaths.has(fp));
   if (unplacedFlows.length === 0) return null;
@@ -148,6 +144,15 @@ interface FolderNodeProps {
   tags: ParsedTag[];
   allTests: ReturnType<typeof getAllTests>;
   sortCmp: (a: string, b: string) => number;
+}
+
+/** Yellow folder icon — matches FileTree */
+function FolderIcon({ className }: { className?: string }) {
+  return (
+    <svg className={`w-3.5 h-3.5 shrink-0 ${className ?? "text-yellow-500"}`} fill="currentColor" viewBox="0 0 20 20">
+      <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
+    </svg>
+  );
 }
 
 function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps) {
@@ -185,7 +190,6 @@ function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps)
     const path = node.fullPath ? `${node.fullPath}/${name}` : name;
     createFolder(version, path);
     setCreating(false);
-    // Auto-expand so user sees the new folder
     if (!open) toggleFolder(version, node.fullPath);
   }, [newFolderName, node.fullPath, version, createFolder, open, toggleFolder]);
 
@@ -226,10 +230,11 @@ function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps)
     }
   }, [moveScenario, node.fullPath]);
 
-  // Build context menu
+  // Build context menu items — grey icons, "..." trigger, consistent style
   const menuItems: Array<{ label: string; icon: React.ReactNode; onClick: () => void; danger?: boolean; disabled?: boolean }> = [];
 
-  if (depth < 4) {
+  // NEWLY-ADDED: no subfolder, no rename, no delete
+  if (!reserved && depth < 4) {
     menuItems.push({
       label: "New subfolder",
       icon: MenuIcons.folder,
@@ -268,9 +273,14 @@ function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps)
           </svg>
         </button>
         <div className="flex items-center gap-2 flex-1 px-2 py-1.5 rounded-md hover:bg-[#f6f8fa] border border-transparent transition-colors text-xs">
-          <svg className="w-3.5 h-3.5 text-[#54aeff] shrink-0" fill="currentColor" viewBox="0 0 16 16">
-            <path d="M.513 1.513A1.75 1.75 0 0 1 1.75 0h3.5c.465 0 .91.185 1.239.513l.61.61c.109.109.257.17.411.17h6.74a1.75 1.75 0 0 1 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15.5H1.75A1.75 1.75 0 0 1 0 13.75V1.75c0-.465.185-.91.513-1.237Z" />
-          </svg>
+          {/* Folder icon: NEWLY-ADDED gets a distinct purple tint, others get yellow */}
+          {reserved ? (
+            <svg className="w-3.5 h-3.5 shrink-0 text-[#8250df]" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
+            </svg>
+          ) : (
+            <FolderIcon />
+          )}
           {renaming ? (
             <input
               autoFocus
@@ -284,13 +294,8 @@ function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps)
               onBlur={confirmRename}
             />
           ) : (
-            <span className="font-medium text-[13px] text-[#1f2328] truncate">
-              {reserved && (
-                <span className="text-[#8250df]" title="Default folder for new scenarios">
-                  {node.name}
-                </span>
-              )}
-              {!reserved && node.name}
+            <span className={`font-medium text-[13px] truncate ${reserved ? "text-[#8250df]" : "text-[#1f2328]"}`} title={reserved ? "Default folder for new scenarios" : undefined}>
+              {node.name}
             </span>
           )}
           <span className="text-xs text-[#656d76] ml-auto shrink-0">{totalFlows}</span>
@@ -323,9 +328,7 @@ function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps)
           {/* Inline create folder input */}
           {creating && (
             <div className="flex items-center gap-2 px-2 py-1">
-              <svg className="w-3.5 h-3.5 text-[#54aeff] shrink-0" fill="currentColor" viewBox="0 0 16 16">
-                <path d="M.513 1.513A1.75 1.75 0 0 1 1.75 0h3.5c.465 0 .91.185 1.239.513l.61.61c.109.109.257.17.411.17h6.74a1.75 1.75 0 0 1 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15.5H1.75A1.75 1.75 0 0 1 0 13.75V1.75c0-.465.185-.91.513-1.237Z" />
-              </svg>
+              <FolderIcon />
               <input
                 autoFocus
                 className="text-[13px] text-[#1f2328] bg-white border border-[#0969da] rounded px-1 py-0.5 w-32 outline-none"
