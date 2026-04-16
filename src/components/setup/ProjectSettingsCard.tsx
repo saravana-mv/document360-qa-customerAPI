@@ -16,7 +16,7 @@ import { buildOAuthConfig } from "../../config/oauth";
 import { Spinner } from "../common/Spinner";
 
 interface ProjectSettingsCardProps {
-  /** When provided, called after "Start testing" succeeds instead of navigating. */
+  /** When provided, called after "Save" succeeds instead of navigating. */
   onDone?: () => void;
 }
 
@@ -141,7 +141,7 @@ export function ProjectSettingsCard({ onDone }: ProjectSettingsCardProps = {}) {
     <div className="flex flex-col h-full overflow-y-auto p-3">
       <div className="bg-white rounded-md border border-[#d1d9e0] p-4">
         <h3 className="text-sm font-semibold text-[#1f2328] mb-0.5">Project settings</h3>
-        <p className="text-xs text-[#656d76] mb-4">Select a project version to load tests.</p>
+        <p className="text-xs text-[#656d76] mb-4">Select a project version and language before running scenarios.</p>
 
         <div className="space-y-3">
           {/* Project */}
@@ -207,10 +207,10 @@ export function ProjectSettingsCard({ onDone }: ProjectSettingsCardProps = {}) {
         <button
           onClick={handleStart}
           disabled={starting || !setup.selectedProjectId || !setup.selectedVersionId}
-          className="mt-4 w-full py-2 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50 border border-[#1a7f37]/80"
+          className="mt-4 w-24 py-1.5 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50 border border-[#1a7f37]/80"
         >
           {starting && <Spinner size="sm" className="text-white" />}
-          {starting ? "Loading…" : "Start testing"}
+          {starting ? "Saving…" : "Save"}
         </button>
       </div>
     </div>

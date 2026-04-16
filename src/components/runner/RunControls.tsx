@@ -32,6 +32,8 @@ export function RunControls() {
     (t) => t.status !== "idle" && t.status !== "running"
   ).length;
 
+  const settingsMissing = !setup.selectedVersionId || !setup.langCode;
+
   async function runAll() {
     if (guardSession() || !token) return;
     runner.resetRun();
@@ -95,13 +97,28 @@ export function RunControls() {
       {/* Title row — aligns with LHS h-10 title header */}
       <div className="flex items-center gap-2 px-4 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa]">
         <span className="text-sm font-semibold text-[#1f2328]">Run Console</span>
-        <span className="ml-auto text-xs text-[#656d76]">{allTests.length} tests</span>
+        <span className="ml-auto text-xs text-[#656d76]">{allTests.length} scenario{allTests.length !== 1 ? "s" : ""}</span>
       </div>
+      {/* Settings warning */}
+      {settingsMissing && (
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-[#d1d9e0] bg-[#fff8c5]">
+          <svg className="w-4 h-4 text-[#9a6700] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+          </svg>
+          <span className="text-xs text-[#9a6700]">
+            {!setup.selectedVersionId && !setup.langCode
+              ? "Version and language not set — open Project Settings and save before running."
+              : !setup.selectedVersionId
+                ? "Version not set — open Project Settings and save before running."
+                : "Language not set — open Project Settings and save before running."}
+          </span>
+        </div>
+      )}
       {/* Controls row — aligns with LHS h-9 toolbar */}
       <div className="flex items-center gap-2 px-4 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa]">
         <button
           onClick={runAll}
-          disabled={runner.running}
+          disabled={runner.running || settingsMissing}
           className="px-2.5 py-1 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-xs font-medium rounded-md transition-colors disabled:opacity-50 flex items-center gap-1.5 border border-[#1a7f37]/80"
         >
           {runner.running && <Spinner size="sm" className="text-white" />}
@@ -109,7 +126,7 @@ export function RunControls() {
         </button>
         <button
           onClick={runSelected}
-          disabled={runner.running}
+          disabled={runner.running || settingsMissing}
           className="px-2.5 py-1 bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-xs font-medium rounded-md transition-colors disabled:opacity-50 border border-[#d1d9e0]"
         >
           Run selected
