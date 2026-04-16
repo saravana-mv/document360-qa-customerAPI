@@ -7,7 +7,6 @@ import { useFlowStatusStore } from "../../store/flowStatus.store";
 import { useExplorerUIStore } from "../../store/explorerUI.store";
 import { getAllTests, unregisterWhere } from "../../lib/tests/registry";
 import { getProjectIdFromToken, fetchProject } from "../../lib/api/projects";
-import { fetchProjectVersions } from "../../lib/api/project-versions";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import { deactivateAll } from "../../lib/tests/flowXml/activeTests";
 import { EntityNode } from "./EntityNode";
