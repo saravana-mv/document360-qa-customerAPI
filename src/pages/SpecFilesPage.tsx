@@ -889,6 +889,21 @@ export function SpecFilesPage() {
     }
   }
 
+  // ── Update flow XML (manual or AI edit) ──────────────────────────────────
+
+  function handleUpdateFlowXml(ideaId: string, newXml: string) {
+    setGeneratedFlows((prev) =>
+      prev.map((f) => (f.ideaId === ideaId ? { ...f, xml: newXml } : f))
+    );
+    // Persist to workshopMap
+    if (activePath) {
+      const updated = generatedFlows.map((f) =>
+        f.ideaId === ideaId ? { ...f, xml: newXml } : f
+      );
+      persistFlowsForPath(activePath, updated);
+    }
+  }
+
   // ── Generate flows from selected ideas ────────────────────────────────────
 
   function handleGenerateFlowForIdea(ideaId: string) {
@@ -1467,6 +1482,7 @@ export function SpecFilesPage() {
                       isFlowMarked={selectedFlow ? markedIds.has(selectedFlow.ideaId) : false}
                       onCreateTest={handleMarkForImplementation}
                       creatingTest={selectedFlow ? markingIds.has(selectedFlow.ideaId) : false}
+                      onUpdateFlowXml={handleUpdateFlowXml}
                     />
                   </div>
                 </div>

@@ -1,9 +1,14 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState, lazy, Suspense } from "react";
 import type { FlowIdea } from "../../lib/api/specFilesApi";
 import type { GeneratedFlow } from "./FlowsPanel";
 import { buildFlowPrompt } from "../../lib/flow/buildPrompt";
 import { XmlCodeBlock } from "../common/XmlCodeBlock";
+import { XmlDiffView } from "../common/XmlDiffView";
+import { editFlowXml } from "../../lib/api/flowApi";
 import { validateFlowXml } from "../../lib/tests/flowXml/validate";
+import { useSetupStore } from "../../store/setup.store";
+
+const XmlEditor = lazy(() => import("../common/XmlEditor").then(m => ({ default: m.XmlEditor })));
 
 const COMPLEXITY_COLORS: Record<string, string> = {
   simple: "bg-[#dafbe1] text-[#1a7f37] border-[#aceebb]",
@@ -27,6 +32,8 @@ interface Props {
   onCreateTest?: (flow: GeneratedFlow) => void;
   /** Whether a "create test" operation is in progress */
   creatingTest?: boolean;
+  /** Called when the flow XML is edited (manual or AI) */
+  onUpdateFlowXml?: (ideaId: string, xml: string) => void;
 }
 
 type FlowTab = "idea" | "flow-xml";
@@ -109,16 +116,347 @@ function IdeaContent({ idea }: { idea: FlowIdea }) {
   );
 }
 
-// ── Flow XML content ───────────────────────────────────────────────────────
+// ── Small shared components ─────────────────────────────────────────────────
 
-function FlowXmlContent({ flow, validation }: {
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => { void navigator.clipboard.writeText(value).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }}
+      title={copied ? "Copied!" : "Copy"}
+      className="shrink-0 text-[#afb8c1] hover:text-[#656d76] transition-colors"
+    >
+      {copied ? (
+        <svg className="w-3.5 h-3.5 text-[#1a7f37]" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+        </svg>
+      ) : (
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+function SpinnerIcon() {
+  return (
+    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
+    </svg>
+  );
+}
+
+// ── Flow XML content with manual + AI edit ─────────────────────────────────
+
+type EditMode = "view" | "manual" | "ai-prompt" | "ai-loading" | "ai-review";
+
+function FlowXmlContent({ flow, validation, onUpdateXml }: {
   flow: GeneratedFlow;
   validation: ReturnType<typeof validateFlowXml> | null;
+  onUpdateXml?: (xml: string) => void;
 }) {
+  const [editMode, setEditMode] = useState<EditMode>("view");
+  const [draft, setDraft] = useState("");
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // AI Edit state
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiResult, setAiResult] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiCost, setAiCost] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
+  const aiModel = useSetupStore((s) => s.aiModel);
+
+  const xmlContent = flow.xml;
+
+  // ── Manual edit handlers ──────────────────────────────────────────────────
+
+  function handleStartManualEdit() {
+    if (!xmlContent) return;
+    setDraft(xmlContent);
+    setEditMode("manual");
+    setValidationError(null);
+    setSaveSuccess(false);
+  }
+
+  function handleCancelEdit() {
+    setEditMode("view");
+    setValidationError(null);
+    setAiResult(null);
+    setAiError(null);
+    setAiCost(null);
+    setAiPrompt("");
+    if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
+  }
+
+  function handleSave(content?: string) {
+    const toSave = content ?? draft;
+    const result = validateFlowXml(toSave);
+    if (!result.ok) {
+      setValidationError(result.error ?? "Invalid XML");
+      return;
+    }
+    setValidationError(null);
+    onUpdateXml?.(toSave);
+    setEditMode("view");
+    setAiResult(null);
+    setAiError(null);
+    setAiCost(null);
+    setAiPrompt("");
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
+  }
+
+  // ── AI Edit handlers ──────────────────────────────────────────────────────
+
+  function handleStartAiEdit() {
+    if (!xmlContent) return;
+    setEditMode("ai-prompt");
+    setAiPrompt("");
+    setAiResult(null);
+    setAiError(null);
+    setAiCost(null);
+    setValidationError(null);
+    setSaveSuccess(false);
+    setTimeout(() => promptRef.current?.focus(), 50);
+  }
+
+  const handleAiGenerate = useCallback(async () => {
+    if (!xmlContent || !aiPrompt.trim()) return;
+    setEditMode("ai-loading");
+    setAiError(null);
+    setAiCost(null);
+    setValidationError(null);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const result = await editFlowXml(xmlContent, aiPrompt.trim(), aiModel, controller.signal);
+      if (controller.signal.aborted) return;
+      setAiResult(result.xml);
+      setDraft(result.xml);
+      if (result.usage) {
+        setAiCost(`$${result.usage.costUsd.toFixed(4)} (${result.usage.totalTokens.toLocaleString()} tokens)`);
+      }
+      setEditMode("ai-review");
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      setAiError(err instanceof Error ? err.message : String(err));
+      setEditMode("ai-prompt");
+    } finally {
+      abortRef.current = null;
+    }
+  }, [xmlContent, aiPrompt, aiModel]);
+
+  function handleAiAccept() {
+    if (!aiResult) return;
+    handleSave(aiResult);
+  }
+
+  function handleAiEditManually() {
+    if (!aiResult) return;
+    setDraft(aiResult);
+    setEditMode("manual");
+    setAiResult(null);
+    setAiCost(null);
+  }
+
+  function handleAiRetry() {
+    setAiResult(null);
+    setEditMode("ai-prompt");
+    setTimeout(() => promptRef.current?.focus(), 50);
+  }
+
+  // ── Non-done states ────────────────────────────────────────────────────────
+
+  if (flow.status !== "done") {
+    return (
+      <div className="flex-1 flex flex-col overflow-hidden p-4">
+        {flow.status === "generating" && (
+          <div className="flex items-center gap-2 py-8 justify-center">
+            <svg className="w-5 h-5 text-[#0969da] animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <span className="text-sm text-[#656d76]">Generating XML...</span>
+          </div>
+        )}
+        {flow.status === "pending" && (
+          <p className="text-sm text-[#656d76] text-center py-8">Waiting to generate...</p>
+        )}
+        {flow.status === "error" && (
+          <div className="bg-[#ffebe9] border border-[#ffcecb] rounded-md p-3">
+            <p className="text-sm text-[#d1242f]">{flow.error}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Render (done state with edit modes) ─────────────────────────────────
+
+  const isView = editMode === "view";
+  const isManual = editMode === "manual";
+  const isAiPrompt = editMode === "ai-prompt";
+  const isAiLoading = editMode === "ai-loading";
+  const isAiReview = editMode === "ai-review";
+
   return (
-    <div className="flex-1 flex flex-col overflow-hidden p-4">
-      {flow.status === "done" && validation && !validation.ok && (
-        <div className="mb-3 px-3 py-2 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-sm text-[#d1242f] flex items-start gap-2 shrink-0">
+    <div className="flex-1 flex flex-col overflow-hidden p-4 space-y-2">
+      {/* Header row with edit buttons */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        <span className="text-xs font-mono text-[#656d76] flex-1 truncate">{flow.title}</span>
+
+        {/* View mode — show edit buttons */}
+        {isView && (
+          <>
+            <CopyButton value={xmlContent} />
+            <button
+              onClick={handleStartManualEdit}
+              title="Manual edit"
+              className="shrink-0 text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff] rounded-md p-1 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+              </svg>
+            </button>
+            <button
+              onClick={handleStartAiEdit}
+              title="AI Edit"
+              className="shrink-0 text-[#656d76] hover:text-[#8250df] hover:bg-[#fbefff] rounded-md p-1 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+              </svg>
+            </button>
+          </>
+        )}
+
+        {/* Manual edit mode — cancel + save */}
+        {isManual && (
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleCancelEdit}
+              className="text-sm text-[#656d76] hover:text-[#1f2328] border border-[#d1d9e0] rounded-md px-2.5 py-1 hover:bg-[#f6f8fa] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => handleSave()}
+              className="text-sm font-medium text-white bg-[#0969da] hover:bg-[#0860ca] rounded-md px-2.5 py-1 transition-colors"
+            >
+              Validate & Save
+            </button>
+          </div>
+        )}
+
+        {/* AI prompt / loading mode — cancel */}
+        {(isAiPrompt || isAiLoading) && (
+          <button
+            onClick={handleCancelEdit}
+            className="text-sm text-[#656d76] hover:text-[#1f2328] border border-[#d1d9e0] rounded-md px-2.5 py-1 hover:bg-[#f6f8fa] transition-colors"
+          >
+            Cancel
+          </button>
+        )}
+
+        {/* AI review mode — discard, retry, edit manually, accept */}
+        {isAiReview && (
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleCancelEdit}
+              className="text-sm text-[#656d76] hover:text-[#1f2328] border border-[#d1d9e0] rounded-md px-2.5 py-1 hover:bg-[#f6f8fa] transition-colors"
+            >
+              Discard
+            </button>
+            <button
+              onClick={handleAiRetry}
+              className="text-sm text-[#656d76] hover:text-[#1f2328] border border-[#d1d9e0] rounded-md px-2.5 py-1 hover:bg-[#f6f8fa] transition-colors"
+            >
+              Retry
+            </button>
+            <button
+              onClick={handleAiEditManually}
+              className="text-sm text-[#656d76] hover:text-[#1f2328] border border-[#d1d9e0] rounded-md px-2.5 py-1 hover:bg-[#f6f8fa] transition-colors"
+            >
+              Edit manually
+            </button>
+            <button
+              onClick={handleAiAccept}
+              className="text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a6f2f] rounded-md px-2.5 py-1 transition-colors"
+            >
+              Validate & Save
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* AI prompt input */}
+      {(isAiPrompt || isAiLoading) && (
+        <div className="shrink-0 border border-[#d6d8de] rounded-md bg-[#f6f8fa] p-3 space-y-2">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-[#8250df]">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+            </svg>
+            AI Edit
+          </div>
+          <textarea
+            ref={promptRef}
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void handleAiGenerate(); }}
+            disabled={isAiLoading}
+            placeholder='Describe changes… e.g. "Add an assertion to check data.title is not empty"'
+            rows={3}
+            className="w-full text-sm border border-[#d1d9e0] rounded-md px-3 py-2 bg-white placeholder-[#afb8c1] focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] outline-none resize-none disabled:opacity-60"
+          />
+          {aiError && (
+            <div className="px-3 py-2 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-sm text-[#d1242f]">
+              {aiError}
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-[#656d76]">Ctrl+Enter to send</span>
+            <button
+              onClick={() => void handleAiGenerate()}
+              disabled={isAiLoading || !aiPrompt.trim()}
+              className="text-sm font-medium text-white bg-[#8250df] hover:bg-[#7340c9] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-3 py-1.5 transition-colors flex items-center gap-1.5"
+            >
+              {isAiLoading && <SpinnerIcon />}
+              {isAiLoading ? "Generating…" : "Generate"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* AI review — diff info and cost */}
+      {isAiReview && aiResult && (
+        <div className="shrink-0 space-y-2">
+          <div className="flex items-center gap-2 px-3 py-2 bg-[#ddf4ff] border border-[#54aeff66] rounded-md text-sm text-[#0969da]">
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+            </svg>
+            <span className="flex-1">Review the AI changes below. Green = added, red = removed.</span>
+            {aiCost && <span className="text-xs text-[#656d76] shrink-0">{aiCost}</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Validation error */}
+      {validationError && (
+        <div className="px-3 py-2 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-sm text-[#d1242f] shrink-0">
+          {validationError}
+        </div>
+      )}
+
+      {/* Schema validation (view mode) */}
+      {isView && validation && !validation.ok && (
+        <div className="px-3 py-2 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-sm text-[#d1242f] flex items-start gap-2 shrink-0">
           <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A9.05 9.05 0 0 0 11.484 21h.032A9.05 9.05 0 0 0 12 2.714ZM12 17.25h.008v.008H12v-.008Z" />
           </svg>
@@ -128,36 +466,36 @@ function FlowXmlContent({ flow, validation }: {
           </div>
         </div>
       )}
-      {flow.status === "done" && (
-        <XmlCodeBlock
-          value={flow.xml}
-          className="flex-1 min-h-0 overflow-hidden border border-[#d1d9e0] rounded-md bg-white"
-        />
-      )}
-      {flow.status === "generating" && (
-        <div className="flex items-center gap-2 py-8 justify-center">
-          <svg className="w-5 h-5 text-[#0969da] animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+
+      {/* Save success */}
+      {saveSuccess && isView && (
+        <div className="px-3 py-2 bg-[#dafbe1] border border-[#aceebb] rounded-md text-sm text-[#1a7f37] flex items-center gap-2 shrink-0">
+          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
           </svg>
-          <span className="text-sm text-[#656d76]">Generating XML...</span>
+          Flow XML updated successfully
         </div>
       )}
-      {flow.status === "pending" && (
-        <p className="text-sm text-[#656d76] text-center py-8">Waiting to generate...</p>
-      )}
-      {flow.status === "error" && (
-        <div className="bg-[#ffebe9] border border-[#ffcecb] rounded-md p-3">
-          <p className="text-sm text-[#d1242f]">{flow.error}</p>
-        </div>
-      )}
+
+      {/* XML viewer / editor / diff */}
+      <div className="border border-[#d1d9e0] rounded-md overflow-hidden bg-white flex-1 min-h-0 flex flex-col">
+        {isManual ? (
+          <Suspense fallback={<div className="p-4 text-sm text-[#afb8c1]">Loading editor…</div>}>
+            <XmlEditor value={draft} onChange={(v) => { setDraft(v); setValidationError(null); }} height="100%" />
+          </Suspense>
+        ) : isAiReview && aiResult ? (
+          <XmlDiffView original={xmlContent} modified={aiResult} />
+        ) : (
+          <XmlCodeBlock value={xmlContent} className="flex-1 min-h-0 overflow-auto" height="100%" />
+        )}
+      </div>
     </div>
   );
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFlow, onGenerateFlow, generatingFlows, isFlowMarked, onCreateTest, creatingTest }: Props) {
+export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFlow, onGenerateFlow, generatingFlows, isFlowMarked, onCreateTest, creatingTest, onUpdateFlowXml }: Props) {
   const [activeTab, setActiveTab] = useState<FlowTab>("idea");
   const validation = useMemo(
     () => (selectedFlow && selectedFlow.status === "done" ? validateFlowXml(selectedFlow.xml) : null),
@@ -261,7 +599,11 @@ export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFl
         {hasTabs && activeTab === "idea" && idea ? (
           <IdeaContent idea={idea} />
         ) : (
-          <FlowXmlContent flow={selectedFlow} validation={validation} />
+          <FlowXmlContent
+            flow={selectedFlow}
+            validation={validation}
+            onUpdateXml={onUpdateFlowXml ? (xml) => onUpdateFlowXml(selectedFlow.ideaId, xml) : undefined}
+          />
         )}
 
         {/* Create scenario bar */}
