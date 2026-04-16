@@ -5,6 +5,8 @@ export interface FlowFileItem {
   size: number;
   lastModified: string;
   contentType: string;
+  lockedBy?: { oid: string; name: string };
+  lockedAt?: string;
 }
 
 /** Thrown when POST /api/flow-files returns 409 (file already exists). */
@@ -98,4 +100,40 @@ export function parentFolderOf(activePath: string | null): string {
 export function buildFlowFilePath(folder: string, title: string): string {
   const base = slugifyFlowTitle(title) + FLOW_SUFFIX;
   return folder ? `${folder}/${base}` : base;
+}
+
+// ── Lock / Unlock ───────────────────────────────────────────────────────────
+
+export interface FlowLockInfo {
+  lockedBy: { oid: string; name: string };
+  lockedAt: string;
+}
+
+/** Lock a flow. Only owner/qa_manager. */
+export async function lockFlow(name: string): Promise<FlowLockInfo> {
+  const res = await fetch(`/api/flow-locks`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getProjectHeaders() },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    let msg = res.statusText;
+    try { const b = await res.clone().json() as { error?: string }; if (b.error) msg = b.error; } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  const data = await res.json() as { lockedBy: { oid: string; name: string }; lockedAt: string };
+  return { lockedBy: data.lockedBy, lockedAt: data.lockedAt };
+}
+
+/** Unlock a flow. Only owner/qa_manager. */
+export async function unlockFlow(name: string): Promise<void> {
+  const res = await fetch(`/api/flow-locks?name=${encodeURIComponent(name)}`, {
+    method: "DELETE",
+    headers: getProjectHeaders(),
+  });
+  if (!res.ok) {
+    let msg = res.statusText;
+    try { const b = await res.clone().json() as { error?: string }; if (b.error) msg = b.error; } catch { /* ignore */ }
+    throw new Error(msg);
+  }
 }

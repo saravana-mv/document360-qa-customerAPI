@@ -1,6 +1,6 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { getFlowsContainer } from "../lib/cosmosClient";
-import { withAuth, getUserInfo, getProjectId, ProjectIdMissingError } from "../lib/auth";
+import { withAuth, getUserInfo, getProjectId, parseClientPrincipal, lookupUser, ProjectIdMissingError } from "../lib/auth";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -31,6 +31,8 @@ interface FlowDocument {
   createdBy: { oid: string; name: string };
   updatedAt: string;
   updatedBy: { oid: string; name: string };
+  lockedBy?: { oid: string; name: string };
+  lockedAt?: string;
 }
 
 function flowDocId(path: string): string {
@@ -46,8 +48,8 @@ async function listFiles(req: HttpRequest): Promise<HttpResponseInit> {
     const container = await getFlowsContainer();
 
     const query = prefix
-      ? `SELECT c.path, c.size, c.updatedAt FROM c WHERE c.type="flow" AND c.projectId=@pid AND STARTSWITH(c.path, @prefix)`
-      : `SELECT c.path, c.size, c.updatedAt FROM c WHERE c.type="flow" AND c.projectId=@pid`;
+      ? `SELECT c.path, c.size, c.updatedAt, c.lockedBy, c.lockedAt FROM c WHERE c.type="flow" AND c.projectId=@pid AND STARTSWITH(c.path, @prefix)`
+      : `SELECT c.path, c.size, c.updatedAt, c.lockedBy, c.lockedAt FROM c WHERE c.type="flow" AND c.projectId=@pid`;
 
     const params = prefix
       ? [{ name: "@pid", value: projectId }, { name: "@prefix", value: prefix }]
@@ -56,11 +58,12 @@ async function listFiles(req: HttpRequest): Promise<HttpResponseInit> {
     const { resources } = await container.items.query({ query, parameters: params }, { partitionKey: projectId }).fetchAll();
 
     // Map to same shape frontend expects
-    const items = resources.map((r: { path: string; size: number; updatedAt: string }) => ({
+    const items = resources.map((r: { path: string; size: number; updatedAt: string; lockedBy?: { oid: string; name: string }; lockedAt?: string }) => ({
       name: r.path,
       size: r.size,
       lastModified: r.updatedAt,
       contentType: "application/xml",
+      ...(r.lockedBy ? { lockedBy: r.lockedBy, lockedAt: r.lockedAt } : {}),
     }));
 
     return ok(items);
@@ -112,7 +115,7 @@ async function createFile(req: HttpRequest): Promise<HttpResponseInit> {
       }
     }
 
-    // Read existing to preserve createdAt/createdBy
+    // Read existing to preserve createdAt/createdBy and check lock
     let createdAt = now;
     let createdBy = { oid: user.oid, name: user.name };
     try {
@@ -120,6 +123,10 @@ async function createFile(req: HttpRequest): Promise<HttpResponseInit> {
       if (existing) {
         createdAt = existing.createdAt;
         createdBy = existing.createdBy;
+        // Reject save if flow is locked
+        if (existing.lockedBy) {
+          return err(423, `Flow is locked by ${existing.lockedBy.name}`);
+        }
       }
     } catch {
       // new doc
@@ -154,6 +161,23 @@ async function deleteFile(req: HttpRequest): Promise<HttpResponseInit> {
     if (!name) return err(400, "name query param is required");
 
     const container = await getFlowsContainer();
+
+    // Check lock — only owner/qa_manager can delete locked flows
+    try {
+      const { resource: existing } = await container.item(flowDocId(name), projectId).read<FlowDocument>();
+      if (existing?.lockedBy) {
+        const principal = parseClientPrincipal(req);
+        const email = principal?.userDetails ?? "";
+        const user = principal ? await lookupUser(principal.userId, principal.userDetails ?? "Unknown", email) : null;
+        const canOverride = user && (user.role === "owner" || user.role === "qa_manager");
+        if (!canOverride) {
+          return err(423, `Flow is locked by ${existing.lockedBy.name}. Only Owner or QA Manager can delete locked flows.`);
+        }
+      }
+    } catch {
+      // Not found — proceed to idempotent delete
+    }
+
     try {
       await container.item(flowDocId(name), projectId).delete();
     } catch {

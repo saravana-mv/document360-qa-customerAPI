@@ -26,7 +26,7 @@ async function doLoad(): Promise<void> {
   const status = useFlowStatusStore.getState();
   status.setLoading(true);
 
-  let files: { name: string }[] = [];
+  let files: { name: string; lockedBy?: { oid: string; name: string }; lockedAt?: string }[] = [];
   try {
     const all = await listFlowFiles();
     files = all.filter((f) => f.name.endsWith(".flow.xml"));
@@ -35,6 +35,12 @@ async function doLoad(): Promise<void> {
     console.error("[loadFlowsFromQueue] listing failed:", err);
     status.setLoading(false);
     return;
+  }
+
+  // Build a lock lookup so loadOne can attach lock info to status entries
+  const lockMap = new Map<string, { lockedBy: { oid: string; name: string }; lockedAt: string }>();
+  for (const f of files) {
+    if (f.lockedBy && f.lockedAt) lockMap.set(f.name, { lockedBy: f.lockedBy, lockedAt: f.lockedAt });
   }
 
   // Only register flows that are in the active-tests set (now async)
@@ -59,13 +65,17 @@ async function doLoad(): Promise<void> {
   }
 
   // Fetch + parse + register in parallel.
-  await Promise.all(activeFiles.map((f) => loadOne(f.name)));
+  await Promise.all(activeFiles.map((f) => loadOne(f.name, lockMap)));
 
   status.setLoading(false);
 }
 
-async function loadOne(name: string): Promise<void> {
+async function loadOne(
+  name: string,
+  lockMap: Map<string, { lockedBy: { oid: string; name: string }; lockedAt: string }>,
+): Promise<void> {
   const status = useFlowStatusStore.getState();
+  const lock = lockMap.get(name);
   try {
     const xml = await getFlowFileContent(name);
     const parsed = parseFlowXml(xml);
@@ -76,6 +86,7 @@ async function loadOne(name: string): Promise<void> {
       status: "implemented",
       flowName: parsed.name,
       testCount: built.tests.length,
+      ...(lock ? { lockedBy: lock.lockedBy, lockedAt: lock.lockedAt } : {}),
     });
   } catch (err) {
     const message = err instanceof FlowXmlParseError
@@ -83,7 +94,12 @@ async function loadOne(name: string): Promise<void> {
       : err instanceof Error
         ? err.message
         : String(err);
-    status.setEntry({ name, status: "invalid", error: message });
+    status.setEntry({
+      name,
+      status: "invalid",
+      error: message,
+      ...(lock ? { lockedBy: lock.lockedBy, lockedAt: lock.lockedAt } : {}),
+    });
     // eslint-disable-next-line no-console
     console.warn(`[loadFlowsFromQueue] ${name} failed:`, message);
   }

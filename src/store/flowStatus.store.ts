@@ -17,6 +17,10 @@ export interface FlowStatusEntry {
   flowName?: string;
   /** Human-readable error (for invalid flows). */
   error?: string;
+  /** Who locked this flow (undefined = unlocked). */
+  lockedBy?: { oid: string; name: string };
+  /** ISO timestamp when locked. */
+  lockedAt?: string;
 }
 
 interface FlowStatusState {
