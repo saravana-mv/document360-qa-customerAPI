@@ -407,11 +407,26 @@ function resolveExpr(expr: string, ctx: TestContext, state: RunState): unknown {
 }
 
 function readDotPath(obj: unknown, path: string): unknown {
-  const parts = path.split(".");
+  // Split on "." but also expand bracket notation: "data[0].id" → ["data", "0", "id"]
+  const parts: string[] = [];
+  for (const segment of path.split(".")) {
+    const bracketMatch = segment.match(/^([^[]*)\[(\d+)]$/);
+    if (bracketMatch) {
+      if (bracketMatch[1]) parts.push(bracketMatch[1]);
+      parts.push(bracketMatch[2]);
+    } else {
+      parts.push(segment);
+    }
+  }
   let cur: unknown = obj;
   for (const p of parts) {
     if (cur === null || typeof cur !== "object") return undefined;
-    cur = (cur as Record<string, unknown>)[p];
+    if (Array.isArray(cur)) {
+      const idx = Number(p);
+      cur = Number.isNaN(idx) ? undefined : cur[idx];
+    } else {
+      cur = (cur as Record<string, unknown>)[p];
+    }
   }
   return cur;
 }
