@@ -8,6 +8,7 @@ export function buildTestContext(
   versionId: string,
   langCode: string,
   apiVersion: string,
+  baseUrl?: string,
 ): TestContext {
   // Use the upstream D360 host as ctx.baseUrl. The built-in proxy at
   // /api/d360/proxy/* is an internal detail — rewriting happens in builder.ts
@@ -18,7 +19,7 @@ export function buildTestContext(
     versionId,
     langCode,
     token: token.access_token,
-    baseUrl: useSetupStore.getState().baseUrl,
+    baseUrl: baseUrl ?? useSetupStore.getState().baseUrl,
     apiVersion,
   };
 }

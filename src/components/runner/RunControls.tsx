@@ -3,11 +3,14 @@ import { useRunnerStore } from "../../store/runner.store";
 import { useAuthStore, isSessionValid } from "../../store/auth.store";
 import { useSetupStore } from "../../store/setup.store";
 import { useSpecStore } from "../../store/spec.store";
+import { useScenarioOrgStore } from "../../store/scenarioOrg.store";
 import { getAllTests, getTestsByTag } from "../../lib/tests/registry";
 import { runTests } from "../../lib/tests/runner";
 import { buildTestContext } from "../../lib/tests/context";
 import { ProgressBar } from "./ProgressBar";
 import { Spinner } from "../common/Spinner";
+import type { TestContext } from "../../types/test.types";
+import type { TestDef } from "../../types/test.types";
 
 export function RunControls() {
   const runner = useRunnerStore();
@@ -34,6 +37,34 @@ export function RunControls() {
 
   const settingsMissing = !setup.selectedVersionId || !setup.langCode;
 
+  /** Build per-tag context overrides from version configs */
+  function buildContextByTag(tests: TestDef[]): Record<string, TestContext> {
+    if (!token) return {};
+    const scenarioOrg = useScenarioOrgStore.getState();
+    const byTag: Record<string, TestContext> = {};
+    const seen = new Set<string>();
+
+    for (const t of tests) {
+      if (seen.has(t.tag)) continue;
+      seen.add(t.tag);
+      const flowPath = t.flowFileName;
+      if (!flowPath) continue;
+      const version = scenarioOrg.getVersionForFlow(flowPath);
+      if (!version) continue;
+      const vc = scenarioOrg.versionConfigs[version];
+      if (!vc?.baseUrl && !vc?.apiVersion) continue;
+      byTag[t.tag] = buildTestContext(
+        token,
+        setup.selectedProjectId,
+        setup.selectedVersionId,
+        setup.langCode,
+        vc.apiVersion || setup.apiVersion,
+        vc.baseUrl || undefined,
+      );
+    }
+    return byTag;
+  }
+
   async function runAll() {
     if (guardSession() || !token) return;
     runner.resetRun();
@@ -54,7 +85,8 @@ export function RunControls() {
       method: t.method,
     })));
 
-    await runTests({ tests: allTests, context: ctx });
+    const contextByTag = buildContextByTag(allTests);
+    await runTests({ tests: allTests, context: ctx, contextByTag });
   }
 
   async function runSelected() {
@@ -81,7 +113,8 @@ export function RunControls() {
       id: t.id, name: t.name, tag: t.tag, path: t.path, method: t.method,
     })));
 
-    await runTests({ tests: selectedTests, context: ctx });
+    const contextByTag = buildContextByTag(selectedTests);
+    await runTests({ tests: selectedTests, context: ctx, contextByTag });
   }
 
   // Listen for "run-selected" event dispatched by TopBar button

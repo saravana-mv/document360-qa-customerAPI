@@ -41,6 +41,7 @@ import { activateFlow, activateFlows, getActiveFlows } from "../lib/tests/flowXm
 import { buildParsedTagsFromRegistry } from "../lib/tests/buildParsedTags";
 import { useSpecStore } from "../store/spec.store";
 import { useFlowStatusStore } from "../store/flowStatus.store";
+import { useScenarioOrgStore } from "../store/scenarioOrg.store";
 import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
 import { useAuthStore } from "../store/auth.store";
 import { useSetupStore } from "../store/setup.store";
@@ -1111,6 +1112,7 @@ export function SpecFilesPage() {
       await saveFlowFile(targetName, flow.xml, overwrite);
       // Mark this flow as an active test so the loader picks it up
       await activateFlow(targetName);
+      useScenarioOrgStore.getState().placeNewScenarios([targetName]);
       setMarkedIds(prev => { const n = new Set(prev); n.add(flow.ideaId); return n; });
       // Immediately register the saved flow as runnable tests and rebuild
       // the Test Manager's tag list so new tests appear without a refresh.
@@ -1217,6 +1219,7 @@ export function SpecFilesPage() {
     // Batch-activate all succeeded flows in a single API call
     if (toActivate.length > 0) {
       await activateFlows(toActivate);
+      useScenarioOrgStore.getState().placeNewScenarios(toActivate);
     }
 
     // Mark succeeded flows and clear "in progress" state in one go.

@@ -7,6 +7,7 @@ import { saveTestRun } from "../api/testRunsApi";
 export interface RunOptions {
   tests: TestDef[];
   context: TestContext;
+  contextByTag?: Record<string, TestContext>;
   onComplete?: () => void;
 }
 
@@ -176,7 +177,8 @@ export async function runTests(options: RunOptions): Promise<void> {
 
   for (const tag of tagOrder) {
     if (getStore().cancelled) break;
-    await runTag(tag, testsByTag.get(tag)!, context);
+    const tagCtx = options.contextByTag?.[tag] ?? context;
+    await runTag(tag, testsByTag.get(tag)!, tagCtx);
   }
 
   const completedAt = Date.now();
