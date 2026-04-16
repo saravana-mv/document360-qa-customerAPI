@@ -35,7 +35,7 @@ export function RunHistory() {
   useEffect(() => { load(); }, [load]);
 
   async function handleDelete(id: string) {
-    if (!window.confirm("Delete this test run?")) return;
+    if (!window.confirm("Delete this run?")) return;
     try {
       await deleteTestRun(id);
       setRuns((prev) => prev.filter((r) => r.id !== id));
@@ -58,7 +58,7 @@ export function RunHistory() {
   }
 
   if (runs.length === 0) {
-    return <div className="p-4 text-sm text-[#59636e]">No test runs yet. Run some tests to see history here.</div>;
+    return <div className="p-4 text-sm text-[#59636e]">No runs yet. Run some scenarios to see history here.</div>;
   }
 
   return (

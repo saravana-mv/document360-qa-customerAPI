@@ -37,7 +37,7 @@ export function TestPage() {
             className={`py-2 text-sm font-medium border-b-2 -mb-px ${tab === "tests" ? "border-[#fd8c73] text-[#1f2328]" : "border-transparent text-[#59636e] hover:text-[#1f2328]"}`}
             onClick={() => setTab("tests")}
           >
-            Tests
+            Scenarios
           </button>
           <button
             className={`py-2 text-sm font-medium border-b-2 -mb-px ${tab === "history" ? "border-[#fd8c73] text-[#1f2328]" : "border-transparent text-[#59636e] hover:text-[#1f2328]"}`}

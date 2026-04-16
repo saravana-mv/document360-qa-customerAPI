@@ -31,7 +31,7 @@ export function TagNode({ tag, tests }: TagNodeProps) {
 
   async function handleDelete() {
     if (!flowFileName) return;
-    if (!window.confirm(`Delete test "${tag.name}"?\n\nThis unregisters the test from the runner. The flow XML file is preserved and can be reused.`)) return;
+    if (!window.confirm(`Delete scenario "${tag.name}"?\n\nThis unregisters the scenario from the runner. The flow XML file is preserved and can be reused.`)) return;
     setDeleting(true);
     try {
       // Unregister only — flow XML is a reusable asset and must be preserved.
@@ -47,7 +47,7 @@ export function TagNode({ tag, tests }: TagNodeProps) {
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error("[TagNode] delete failed:", err);
-      alert(`Failed to delete test: ${err instanceof Error ? err.message : String(err)}`);
+      alert(`Failed to delete scenario: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setDeleting(false);
     }
@@ -79,7 +79,7 @@ export function TagNode({ tag, tests }: TagNodeProps) {
             <span className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
               <ContextMenu
                 items={[
-                  { label: "Delete test", icon: MenuIcons.trash, onClick: () => void handleDelete(), danger: true, disabled: deleting },
+                  { label: "Delete scenario", icon: MenuIcons.trash, onClick: () => void handleDelete(), danger: true, disabled: deleting },
                 ]}
                 align="left"
               />
@@ -103,7 +103,7 @@ export function TagNode({ tag, tests }: TagNodeProps) {
       )}
 
       {open && tests.length === 0 && (
-        <div className="ml-7 px-2 py-1 text-xs text-[#656d76] italic">No tests</div>
+        <div className="ml-7 px-2 py-1 text-xs text-[#656d76] italic">No steps</div>
       )}
     </div>
   );

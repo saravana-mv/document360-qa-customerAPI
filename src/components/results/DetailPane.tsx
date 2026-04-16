@@ -312,7 +312,7 @@ function DesignTab({ testId }: { testId: string }) {
         <div><span className="font-medium text-[#656d76]">Flow:</span> {def.tag}</div>
         {def.entity && <div><span className="font-medium text-[#656d76]">Entity:</span> {def.entity}</div>}
         <div className="flex items-center gap-1.5 group/id">
-          <span className="font-medium text-[#656d76]">Test ID:</span>
+          <span className="font-medium text-[#656d76]">Scenario ID:</span>
           <span className="font-mono">{def.id}</span>
           <CopyButton value={def.id} className="opacity-0 group-hover/id:opacity-100 transition-opacity" />
         </div>
@@ -369,7 +369,7 @@ function RunTab({ testId }: { testId: string }) {
       <div className="flex flex-col items-center justify-center h-48 text-[#afb8c1] gap-2">
         <span className="text-3xl">○</span>
         <span className="text-sm">Not run yet</span>
-        <span className="text-xs">Run the test to see results here</span>
+        <span className="text-xs">Run the scenario to see results here</span>
       </div>
     );
   }
@@ -860,7 +860,7 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
           <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
           </svg>
-          Saved and tests re-created successfully
+          Saved and scenario re-created successfully
         </div>
       )}
 
@@ -1039,7 +1039,7 @@ export function DetailPane({ testId, onClose }: DetailPaneProps) {
         {/* Placeholder row — aligns with LHS h-9 toolbar */}
         <div className="flex items-center px-4 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0" />
         <div className="flex-1 flex items-center justify-center text-sm text-[#afb8c1]">
-          Select a test to view details
+          Select a scenario to view details
         </div>
       </div>
     );

@@ -234,13 +234,13 @@ export function FlowIdeasPanel({
                       </span>
                       {isMarked && (
                         <span
-                          title="Tests have been created for this flow"
+                          title="Scenario has been created for this flow"
                           className="text-xs px-1.5 py-px rounded-full font-medium shrink-0 border bg-[#ddf4ff] text-[#0969da] border-[#54aeff]/40 inline-flex items-center gap-0.5"
                         >
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                           </svg>
-                          Tests
+                          Scenario
                         </span>
                       )}
                     </div>
@@ -288,7 +288,7 @@ export function FlowIdeasPanel({
             <div className="text-center">
               <p className="text-sm font-medium text-[#1f2328] mb-1">No ideas generated</p>
               <p className="text-sm text-[#656d76] leading-relaxed">
-                {message || "AI could not generate test flow ideas for this context."}
+                {message || "AI could not generate scenario flow ideas for this context."}
               </p>
             </div>
           </div>
@@ -393,7 +393,7 @@ export function FlowIdeasPanel({
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
                     </svg>
                     <p className="text-sm text-[#9a6700] leading-relaxed">
-                      Tests have been created from this flow. Deleting the idea does not remove the registered tests — delete the flow from the Test Manager if you no longer need it.
+                      A scenario has been created from this flow. Deleting the idea does not remove the registered scenario — delete it from the Scenario Manager if you no longer need it.
                     </p>
                   </div>
                 )}

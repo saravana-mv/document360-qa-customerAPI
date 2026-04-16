@@ -171,9 +171,9 @@ Steps:
               selectedCount === 0
                 ? "Select flows to delete"
                 : selectedDeletableCount === 0
-                  ? "Cannot delete — all selected flows have tests. Delete tests first from the Test Manager."
+                  ? "Cannot delete — all selected flows have scenarios. Delete scenarios first from the Scenario Manager."
                   : selectedMarkedCount > 0
-                    ? `Delete ${selectedDeletableCount} flow${selectedDeletableCount !== 1 ? "s" : ""} (${selectedMarkedCount} with tests will be skipped)`
+                    ? `Delete ${selectedDeletableCount} flow${selectedDeletableCount !== 1 ? "s" : ""} (${selectedMarkedCount} with scenarios will be skipped)`
                     : `Delete ${selectedDeletableCount} selected flow${selectedDeletableCount !== 1 ? "s" : ""}`
             }
             className={`rounded-md p-1 transition-colors ${
@@ -262,13 +262,13 @@ Steps:
                       )}
                       {markedIds.has(flow.ideaId) && (
                         <span
-                          title="Tests have been created for this flow"
+                          title="Scenario has been created for this flow"
                           className="text-xs px-1.5 py-px rounded-full font-medium shrink-0 border bg-[#ddf4ff] text-[#0969da] border-[#54aeff]/40 inline-flex items-center gap-0.5"
                         >
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                           </svg>
-                          Tests
+                          Scenario
                         </span>
                       )}
                     </div>
@@ -297,7 +297,7 @@ Steps:
                     const items: MenuItem[] = [];
                     if (flow.status === "done") {
                       items.push({
-                        label: isMarked ? "Re-create tests" : "Create tests",
+                        label: isMarked ? "Re-create scenario" : "Create scenario",
                         icon: MenuIcons.check,
                         onClick: () => onMarkForImplementation(flow),
                         disabled: isMarking || !isValid,
@@ -311,7 +311,7 @@ Steps:
                       onClick: () => setDeleteFlowId(flow.ideaId),
                       danger: true,
                       disabled: isMarked,
-                      tooltip: isMarked ? "Cannot delete — tests depend on this flow. Delete the tests first from the Test Manager." : undefined,
+                      tooltip: isMarked ? "Cannot delete — a scenario depends on this flow. Delete the scenario first from the Scenario Manager." : undefined,
                     });
                     return (
                       <div className="shrink-0">
@@ -346,14 +346,14 @@ Steps:
             disabled={selectedUnmarkedCount === 0 || markingIds.size > 0}
             title={
               selectedCount === 0
-                ? "Select one or more flows to create tests"
+                ? "Select one or more flows to create scenarios"
                 : selectedInvalidCount > 0 && selectedUnmarkedCount === 0
                   ? `${selectedInvalidCount} selected flow${selectedInvalidCount !== 1 ? "s are" : " is"} invalid — fix validation errors first`
                   : selectedUnmarkedCount === 0
-                    ? "Tests already created for all selected flows"
+                    ? "Scenarios already created for all selected flows"
                     : selectedInvalidCount > 0
-                      ? `Create tests for ${selectedUnmarkedCount} valid flow${selectedUnmarkedCount !== 1 ? "s" : ""}; ${selectedInvalidCount} invalid flow${selectedInvalidCount !== 1 ? "s" : ""} will be skipped`
-                      : `Create tests for ${selectedUnmarkedCount} selected flow${selectedUnmarkedCount !== 1 ? "s" : ""}`
+                      ? `Create scenarios for ${selectedUnmarkedCount} valid flow${selectedUnmarkedCount !== 1 ? "s" : ""}; ${selectedInvalidCount} invalid flow${selectedInvalidCount !== 1 ? "s" : ""} will be skipped`
+                      : `Create scenarios for ${selectedUnmarkedCount} selected flow${selectedUnmarkedCount !== 1 ? "s" : ""}`
             }
             className="flex items-center justify-center gap-1.5 bg-[#1a7f37] hover:bg-[#1a7f37]/90 disabled:bg-[#eef1f6] disabled:text-[#656d76] disabled:border-[#d1d9e0] text-white text-sm font-medium rounded-md px-3 py-1.5 transition-colors border border-[#1a7f37]/80"
           >
@@ -361,10 +361,10 @@ Steps:
               <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
             </svg>
             {selectedCount === 0
-              ? "Create tests"
+              ? "Create scenarios"
               : selectedUnmarkedCount === 0
                 ? `${selectedCount} already created`
-                : `Create ${selectedUnmarkedCount} test${selectedUnmarkedCount !== 1 ? "s" : ""}`}
+                : `Create ${selectedUnmarkedCount} scenario${selectedUnmarkedCount !== 1 ? "s" : ""}`}
           </button>
         </div>
       )}
@@ -467,7 +467,7 @@ Steps:
                   value={newFlowPrompt}
                   onChange={(e) => setNewFlowPrompt(e.target.value)}
                   rows={12}
-                  placeholder="Describe the test flow: title, steps, expected results..."
+                  placeholder="Describe the scenario flow: title, steps, expected results..."
                   className="w-full text-sm font-mono border border-[#d1d9e0] rounded-md px-2.5 py-1.5 focus:outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] resize-y leading-relaxed"
                 />
               </div>

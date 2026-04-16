@@ -170,7 +170,7 @@ export function TestExplorer() {
       return (
         <div className="flex items-center justify-center h-full text-xs text-[#656d76] gap-2">
           <Spinner size="sm" className="text-[#656d76]" />
-          Loading tests…
+          Loading scenarios…
         </div>
       );
     }
@@ -181,9 +181,9 @@ export function TestExplorer() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0 1 12 15a9.065 9.065 0 0 0-6.23.693L5 14.5m14.8.8 1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0 1 12 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
           </svg>
         </div>
-        <p className="text-sm font-medium text-[#1f2328] mb-1">No tests yet</p>
+        <p className="text-sm font-medium text-[#1f2328] mb-1">No scenarios yet</p>
         <p className="text-sm text-[#656d76] text-center leading-relaxed">
-          Generate ideas and flows in the Spec Manager, then create tests to see them here.
+          Generate ideas and flows in the Spec Manager, then create scenarios to see them here.
         </p>
       </div>
     );
@@ -194,7 +194,7 @@ export function TestExplorer() {
       <div className="flex flex-col h-full">
         {/* Title header */}
         <div className="flex items-center gap-2 px-4 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
-          <span className="text-sm font-bold text-[#1f2328]">API Test Manager</span>
+          <span className="text-sm font-bold text-[#1f2328]">API Scenario Manager</span>
           <div className="flex-1" />
           <button
             onClick={() => explorerUI.setShowSettings(!explorerUI.showSettings)}
@@ -234,7 +234,7 @@ export function TestExplorer() {
             <svg className="w-4 h-4 text-[#656d76] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
             </svg>
-            <span className="text-sm font-semibold text-[#1f2328]">Tests</span>
+            <span className="text-sm font-semibold text-[#1f2328]">Scenarios</span>
             <div className="flex-1" />
             <button
               onClick={isAllExpanded ? handleCollapseAll : handleExpandAll}
@@ -268,7 +268,7 @@ export function TestExplorer() {
             </button>
             <button
               onClick={() => setShowDeleteAll(true)}
-              title="Delete all tests"
+              title="Delete all scenarios"
               className="rounded-md p-1 text-[#656d76] hover:text-[#d1242f] hover:bg-[#ffebe9] transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -294,14 +294,14 @@ export function TestExplorer() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
                   </svg>
                 </div>
-                <span className="text-base font-semibold text-[#1f2328]">Delete all tests?</span>
+                <span className="text-base font-semibold text-[#1f2328]">Delete all scenarios?</span>
               </div>
               <div className="px-4 py-3 space-y-2">
                 <p className="text-sm text-[#656d76] leading-relaxed">
-                  This will unregister all <strong className="text-[#1f2328]">{parsedTags.length} test{parsedTags.length !== 1 ? "s" : ""}</strong> from the test runner.
+                  This will unregister all <strong className="text-[#1f2328]">{parsedTags.length} scenario{parsedTags.length !== 1 ? "s" : ""}</strong> from the runner.
                 </p>
                 <p className="text-sm text-[#656d76] leading-relaxed">
-                  Flow XML files are preserved — you can recreate tests from them at any time.
+                  Flow XML files are preserved — you can recreate scenarios from them at any time.
                 </p>
               </div>
               <div className="flex justify-end gap-2 px-4 py-3 border-t border-[#d1d9e0] bg-[#f6f8fa] rounded-b-lg">
@@ -315,7 +315,7 @@ export function TestExplorer() {
                   onClick={handleDeleteAll}
                   className="text-sm font-medium text-white bg-[#d1242f] hover:bg-[#d1242f]/90 border border-[#d1242f]/80 rounded-md px-3 py-1.5 transition-colors"
                 >
-                  Delete all tests
+                  Delete all scenarios
                 </button>
               </div>
             </div>
