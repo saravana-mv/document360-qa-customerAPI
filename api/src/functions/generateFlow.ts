@@ -188,9 +188,14 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 4. **State passing**: Use \`<capture variable="state.X" source="response.data.Y"/>\` then reference \`{{state.X}}\` in later steps.
 5. **Version paths**: Use \`/v3/…\` for every endpoint — the test runner rewrites the version segment at runtime to match the user's selected API version.
 6. **Unique names**: For resource names, use \`[TEST] Something - {{timestamp}}\`.
-7. **Assertions**: Every step needs at least one \`<assertion type="status" code="…"/>\`. Write operations should also assert \`field-exists\` on the created resource id.
-8. **HTTP status codes**: GET returns \`200\`. POST that creates a resource returns \`201\`. DELETE returns \`204\` (No Content). PUT/PATCH returns \`200\`. Use these defaults unless the spec file explicitly states otherwise.
-9. **Schema exactness**: Elements must appear in the order listed above. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status. Use \`field-exists\` / \`field-equals\` / \`array-not-empty\` — no other assertion types exist.
+7. **Assertions**: Every step needs at least one \`<assertion type="status" code="…"/>\`. Write operations should also assert \`field-exists\` on the created resource id. **Read the spec file carefully** — use the exact status code and response structure documented there. Do NOT guess.
+8. **HTTP status codes (CRITICAL)**: Use these defaults unless the spec file explicitly states otherwise:
+   - GET → \`200\`
+   - POST (create) → \`201\`
+   - PUT/PATCH → \`200\`
+   - **DELETE → \`204\` (No Content) — the response body is EMPTY. NEVER add \`field-equals\`, \`field-exists\`, or \`array-not-empty\` assertions on DELETE steps. The ONLY assertion for a DELETE step should be \`<assertion type="status" code="204"/>\`.**
+9. **Spec-driven assertions**: When spec files are provided, read the documented response schema and status codes carefully. The spec is the source of truth. If the spec says a DELETE returns 200 with a body, follow the spec. If silent, use the defaults from rule 8.
+10. **Schema exactness**: Elements must appear in the order listed above. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status. Use \`field-exists\` / \`field-equals\` / \`array-not-empty\` — no other assertion types exist.
 
 ## Output format
 

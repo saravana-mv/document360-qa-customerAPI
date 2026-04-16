@@ -134,6 +134,8 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 5. Teardown steps must keep \`<flags teardown="true"/>\`.
 6. Element order within \`<step>\` must match the schema order listed above.
 7. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status assertions.
+8. **HTTP status codes (CRITICAL)**: GET → 200, POST (create) → 201, PUT/PATCH → 200, **DELETE → 204 (No Content)**. DELETE responses have an EMPTY body — NEVER add \`field-equals\`, \`field-exists\`, or \`array-not-empty\` assertions on DELETE steps. The ONLY assertion for a DELETE should be \`<assertion type="status" code="204"/>\`.
+9. If you see incorrect assertions in the existing XML (e.g. DELETE with status 200 or body field checks), fix them as part of your edit.
 
 ## Output format
 
