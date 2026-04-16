@@ -109,6 +109,8 @@ export function UsersPage() {
     }
   }
 
+  const ownerCount = users.filter((u) => u.role === "owner" && u.status !== "disabled").length;
+
   return (
     <Layout>
       <div className="flex flex-col h-full">
@@ -151,20 +153,31 @@ export function UsersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((u) => (
+                  {users.map((u) => {
+                    const isSoleOwner = u.role === "owner" && ownerCount <= 1;
+                    return (
                     <tr key={u.id} className="border-b border-[#d1d9e0] last:border-0 hover:bg-[#f6f8fa]">
                       <td className="px-4 py-2.5 font-medium text-[#1f2328]">{u.displayName}</td>
                       <td className="px-4 py-2.5 text-[#656d76]">{u.email}</td>
                       <td className="px-4 py-2.5">
-                        <select
-                          value={u.role}
-                          onChange={(e) => handleChangeRole(u.id, e.target.value as AppRole)}
-                          className={`text-xs font-medium px-2 py-0.5 rounded-full border cursor-pointer ${ROLE_COLOR[u.role]}`}
-                        >
-                          <option value="owner">Owner</option>
-                          <option value="qa_manager">QA Manager</option>
-                          <option value="qa_engineer">QA Engineer</option>
-                        </select>
+                        {isSoleOwner ? (
+                          <span
+                            title="At least one owner is required"
+                            className={`text-xs font-medium px-2 py-0.5 rounded-full border ${ROLE_COLOR[u.role]}`}
+                          >
+                            Owner
+                          </span>
+                        ) : (
+                          <select
+                            value={u.role}
+                            onChange={(e) => handleChangeRole(u.id, e.target.value as AppRole)}
+                            className={`text-xs font-medium px-2 py-0.5 rounded-full border cursor-pointer ${ROLE_COLOR[u.role]}`}
+                          >
+                            <option value="owner">Owner</option>
+                            <option value="qa_manager">QA Manager</option>
+                            <option value="qa_engineer">QA Engineer</option>
+                          </select>
+                        )}
                       </td>
                       <td className={`px-4 py-2.5 text-xs font-medium capitalize ${STATUS_COLOR[u.status] ?? ""}`}>
                         {u.status}
@@ -172,18 +185,30 @@ export function UsersPage() {
                       <td className="px-4 py-2.5 text-[#656d76] text-xs">{formatDate(u.invitedAt)}</td>
                       <td className="px-4 py-2.5 text-[#656d76] text-xs">{formatDate(u.acceptedAt)}</td>
                       <td className="px-4 py-2.5 text-right">
-                        <button
-                          onClick={() => handleRemove(u.id, u.displayName)}
-                          title="Remove user"
-                          className="text-[#656d76] hover:text-[#d1242f] p-1 rounded-md hover:bg-[#ffebe9] transition-colors"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                          </svg>
-                        </button>
+                        {isSoleOwner ? (
+                          <span
+                            title="Cannot remove the last owner"
+                            className="text-[#d1d9e0] p-1 inline-block"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                            </svg>
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleRemove(u.id, u.displayName)}
+                            title="Remove user"
+                            className="text-[#656d76] hover:text-[#d1242f] p-1 rounded-md hover:bg-[#ffebe9] transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                            </svg>
+                          </button>
+                        )}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                   {users.length === 0 && (
                     <tr><td colSpan={7} className="px-4 py-8 text-center text-[#656d76]">No users yet</td></tr>
                   )}

@@ -129,6 +129,17 @@ async function changeRole(req: HttpRequest): Promise<HttpResponseInit> {
     const { resource } = await container.item(userId, TENANT_ID).read<UserDocument>();
     if (!resource) return err(404, "User not found");
 
+    // Prevent removing the last owner
+    if (resource.role === "owner" && role !== "owner") {
+      const { resources: owners } = await container.items.query<UserDocument>({
+        query: "SELECT c.id FROM c WHERE c.tenantId = @tid AND c.role = 'owner' AND c.status != 'disabled'",
+        parameters: [{ name: "@tid", value: TENANT_ID }],
+      }).fetchAll();
+      if (owners.length <= 1) {
+        return err(400, "Cannot change role — at least one owner is required");
+      }
+    }
+
     resource.role = role;
     resource.updatedAt = new Date().toISOString();
     resource.updatedBy = oid;
@@ -153,6 +164,19 @@ async function removeUser(req: HttpRequest): Promise<HttpResponseInit> {
     if (userId === oid) return err(400, "Cannot remove yourself");
 
     const container = await getUsersContainer();
+
+    // Check if removing an owner — prevent if last one
+    const { resource } = await container.item(userId, TENANT_ID).read<UserDocument>();
+    if (resource?.role === "owner") {
+      const { resources: owners } = await container.items.query<UserDocument>({
+        query: "SELECT c.id FROM c WHERE c.tenantId = @tid AND c.role = 'owner' AND c.status != 'disabled'",
+        parameters: [{ name: "@tid", value: TENANT_ID }],
+      }).fetchAll();
+      if (owners.length <= 1) {
+        return err(400, "Cannot remove the last owner");
+      }
+    }
+
     await container.item(userId, TENANT_ID).delete();
     return { status: 204, headers: CORS_HEADERS };
   } catch (e) {
