@@ -31,8 +31,10 @@ export function buildParsedTagsFromRegistry(): ParsedTag[] {
     }
   }
 
-  return Array.from(tagMap.entries()).map(([name, endpointMap]) => ({
-    name,
-    endpoints: Array.from(endpointMap.values()),
-  }));
+  return Array.from(tagMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, endpointMap]) => ({
+      name,
+      endpoints: Array.from(endpointMap.values()),
+    }));
 }

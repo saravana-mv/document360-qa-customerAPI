@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+type SortOrder = "asc" | "desc";
+
 interface ExplorerUIState {
   /** Set of expanded entity names */
   expandedEntities: Set<string>;
@@ -7,18 +9,24 @@ interface ExplorerUIState {
   expandedTags: Set<string>;
   /** Whether settings panel is visible */
   showSettings: boolean;
+  /** Sort order for entities and scenarios */
+  sortOrder: SortOrder;
 
   toggleEntity: (name: string) => void;
   toggleTag: (name: string) => void;
   setShowSettings: (v: boolean) => void;
   expandAll: (entities: string[], tags: string[]) => void;
   collapseAll: () => void;
+  toggleSortOrder: () => void;
 }
+
+const SORT_KEY = "explorerSortOrder";
 
 export const useExplorerUIStore = create<ExplorerUIState>((set) => ({
   expandedEntities: new Set<string>(),
   expandedTags: new Set<string>(),
   showSettings: false,
+  sortOrder: (localStorage.getItem(SORT_KEY) as SortOrder) || "asc",
 
   toggleEntity: (name) =>
     set((s) => {
@@ -43,4 +51,11 @@ export const useExplorerUIStore = create<ExplorerUIState>((set) => ({
 
   collapseAll: () =>
     set({ expandedEntities: new Set(), expandedTags: new Set() }),
+
+  toggleSortOrder: () =>
+    set((s) => {
+      const next: SortOrder = s.sortOrder === "asc" ? "desc" : "asc";
+      localStorage.setItem(SORT_KEY, next);
+      return { sortOrder: next };
+    }),
 }));

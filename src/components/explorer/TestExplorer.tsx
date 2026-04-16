@@ -96,6 +96,11 @@ export function TestExplorer() {
   }, [flowsByName, flowsLoading, setup.selectedProjectId]);
 
   // Group parsedTags by test.entity (fall back to "General" if not set)
+  const sortOrder = explorerUI.sortOrder;
+  const cmp = sortOrder === "asc"
+    ? (a: string, b: string) => a.localeCompare(b)
+    : (a: string, b: string) => b.localeCompare(a);
+
   const entityMap = new Map<string, ParsedTag[]>();
   for (const tag of parsedTags) {
     const repTest = allTests.find((t) => t.tag === tag.name);
@@ -103,7 +108,10 @@ export function TestExplorer() {
     if (!entityMap.has(entityName)) entityMap.set(entityName, []);
     entityMap.get(entityName)!.push(tag);
   }
-  const entities = Array.from(entityMap.entries());
+  // Sort entities and tags within each entity
+  const entities = Array.from(entityMap.entries())
+    .sort(([a], [b]) => cmp(a, b))
+    .map(([name, tags]) => [name, [...tags].sort((a, b) => cmp(a.name, b.name))] as const);
 
   function handleExpandAll() {
     const entityNames = entities.map(([name]) => name);
@@ -244,6 +252,23 @@ export function TestExplorer() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 5.25l-7.5 7.5-7.5-7.5m15 5.25l-7.5 7.5-7.5-7.5" />
                 </svg>
               )}
+            </button>
+            <button
+              onClick={explorerUI.toggleSortOrder}
+              title={sortOrder === "asc" ? "Sort A → Z" : "Sort Z → A"}
+              className="rounded-md p-1 text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff] transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                {sortOrder === "asc" ? (
+                  <>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m6-6v12m0 0-3.75-3.75M14.25 19.5l3.75-3.75" />
+                  </>
+                ) : (
+                  <>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m6 6V7.5m0 0 3.75 3.75M14.25 7.5 18 3.75" />
+                  </>
+                )}
+              </svg>
             </button>
             <button
               onClick={allTagsSelected ? clearSelection : selectAll}
