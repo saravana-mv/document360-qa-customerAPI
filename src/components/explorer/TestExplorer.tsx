@@ -130,11 +130,11 @@ export function TestExplorer() {
 
   const isAllExpanded = explorerUI.expandedEntities.size > 0 || explorerUI.expandedTags.size > 0;
 
-  function handleDeleteAll() {
+  async function handleDeleteAll() {
     // Unregister all xml-sourced tests (keep flow XML files in blob storage)
     unregisterWhere((def) => def.id.startsWith("xml:"));
     // Clear the active-tests set so they don't come back on refresh
-    deactivateAll();
+    await deactivateAll();
     // Clear flow status store
     const flowStatus = useFlowStatusStore.getState();
     flowStatus.pruneTo(new Set());

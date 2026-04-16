@@ -35,7 +35,7 @@ export function TagNode({ tag, tests }: TagNodeProps) {
     setDeleting(true);
     try {
       // Unregister only — flow XML is a reusable asset and must be preserved.
-      deactivateFlow(flowFileName);
+      await deactivateFlow(flowFileName);
       unregisterWhere((def) => def.flowFileName === flowFileName);
       const status = useFlowStatusStore.getState();
       const remaining = new Set(

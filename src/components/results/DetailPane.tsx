@@ -576,7 +576,7 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
     setValidationError(null);
     try {
       await saveFlowFile(fileName, draft, true);
-      activateFlow(fileName);
+      await activateFlow(fileName);
       setXml(draft);
       setEditing(false);
       setSaveSuccess(true);

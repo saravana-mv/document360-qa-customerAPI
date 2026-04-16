@@ -1,18 +1,11 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import {
-  listBlobs,
-  downloadBlob,
-  uploadBlob,
-  deleteBlob,
-  blobExists,
-  FLOW_CONTAINER,
-} from "../lib/blobClient";
-import { withAuth } from "../lib/auth";
+import { getFlowsContainer } from "../lib/cosmosClient";
+import { withAuth, getUserInfo, getProjectId, ProjectIdMissingError } from "../lib/auth";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-FlowForge-ProjectId",
 };
 
 function ok(body: unknown): HttpResponseInit {
@@ -27,13 +20,51 @@ function err(status: number, message: string, extra?: Record<string, unknown>): 
   };
 }
 
+interface FlowDocument {
+  id: string;
+  projectId: string;
+  type: "flow";
+  path: string;
+  xml: string;
+  size: number;
+  createdAt: string;
+  createdBy: { oid: string; name: string };
+  updatedAt: string;
+  updatedBy: { oid: string; name: string };
+}
+
+function flowDocId(path: string): string {
+  return "flow:" + path;
+}
+
 /** GET /api/flow-files?prefix=<folder> — list flow files */
 async function listFiles(req: HttpRequest): Promise<HttpResponseInit> {
   try {
-    const prefix = req.query.get("prefix") ?? undefined;
-    const blobs = await listBlobs(prefix, FLOW_CONTAINER);
-    return ok(blobs);
+    const projectId = getProjectId(req);
+    const prefix = req.query.get("prefix") ?? "";
+    const container = await getFlowsContainer();
+
+    const query = prefix
+      ? `SELECT c.path, c.size, c.updatedAt FROM c WHERE c.type="flow" AND c.projectId=@pid AND STARTSWITH(c.path, @prefix)`
+      : `SELECT c.path, c.size, c.updatedAt FROM c WHERE c.type="flow" AND c.projectId=@pid`;
+
+    const params = prefix
+      ? [{ name: "@pid", value: projectId }, { name: "@prefix", value: prefix }]
+      : [{ name: "@pid", value: projectId }];
+
+    const { resources } = await container.items.query({ query, parameters: params }, { partitionKey: projectId }).fetchAll();
+
+    // Map to same shape frontend expects
+    const items = resources.map((r: { path: string; size: number; updatedAt: string }) => ({
+      name: r.path,
+      size: r.size,
+      lastModified: r.updatedAt,
+      contentType: "application/xml",
+    }));
+
+    return ok(items);
   } catch (e) {
+    if (e instanceof ProjectIdMissingError) return err(400, e.message);
     return err(500, e instanceof Error ? e.message : String(e));
   }
 }
@@ -42,35 +73,74 @@ async function listFiles(req: HttpRequest): Promise<HttpResponseInit> {
 async function getFileContent(req: HttpRequest): Promise<HttpResponseInit> {
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
   try {
+    const projectId = getProjectId(req);
     const name = req.query.get("name");
     if (!name) return err(400, "name query param is required");
-    const content = await downloadBlob(name, FLOW_CONTAINER);
-    return { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/xml" }, body: content };
+
+    const container = await getFlowsContainer();
+    const { resource } = await container.item(flowDocId(name), projectId).read<FlowDocument>();
+    if (!resource) return err(404, `Flow not found: ${name}`);
+
+    return { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/xml" }, body: resource.xml };
   } catch (e) {
+    if (e instanceof ProjectIdMissingError) return err(400, e.message);
     return err(500, e instanceof Error ? e.message : String(e));
   }
 }
 
-/** POST /api/flow-files — create / overwrite a flow file
- *  Body: { name: string; xml: string; overwrite?: boolean }
- *  Returns 409 with { error, conflict: true } when the target already exists
- *  and `overwrite` is not true.
- */
+/** POST /api/flow-files — create / overwrite a flow file */
 async function createFile(req: HttpRequest): Promise<HttpResponseInit> {
   try {
+    const projectId = getProjectId(req);
+    const user = getUserInfo(req);
     const body = (await req.json()) as { name: string; xml: string; overwrite?: boolean };
     if (!body.name || body.xml === undefined) return err(400, "name and xml are required");
 
+    const container = await getFlowsContainer();
+    const docId = flowDocId(body.name);
+    const now = new Date().toISOString();
+
     if (!body.overwrite) {
-      const exists = await blobExists(body.name, FLOW_CONTAINER);
-      if (exists) {
-        return err(409, `A flow already exists at ${body.name}`, { conflict: true, name: body.name });
+      try {
+        const { resource } = await container.item(docId, projectId).read();
+        if (resource) {
+          return err(409, `A flow already exists at ${body.name}`, { conflict: true, name: body.name });
+        }
+      } catch {
+        // 404 = doesn't exist, which is what we want
       }
     }
 
-    await uploadBlob(body.name, body.xml, "application/xml", FLOW_CONTAINER);
+    // Read existing to preserve createdAt/createdBy
+    let createdAt = now;
+    let createdBy = { oid: user.oid, name: user.name };
+    try {
+      const { resource: existing } = await container.item(docId, projectId).read<FlowDocument>();
+      if (existing) {
+        createdAt = existing.createdAt;
+        createdBy = existing.createdBy;
+      }
+    } catch {
+      // new doc
+    }
+
+    const doc: FlowDocument = {
+      id: docId,
+      projectId,
+      type: "flow",
+      path: body.name,
+      xml: body.xml,
+      size: Buffer.byteLength(body.xml, "utf8"),
+      createdAt,
+      createdBy,
+      updatedAt: now,
+      updatedBy: { oid: user.oid, name: user.name },
+    };
+
+    await container.items.upsert(doc);
     return ok({ name: body.name, uploaded: true });
   } catch (e) {
+    if (e instanceof ProjectIdMissingError) return err(400, e.message);
     return err(500, e instanceof Error ? e.message : String(e));
   }
 }
@@ -78,11 +148,19 @@ async function createFile(req: HttpRequest): Promise<HttpResponseInit> {
 /** DELETE /api/flow-files?name=<blobName> */
 async function deleteFile(req: HttpRequest): Promise<HttpResponseInit> {
   try {
+    const projectId = getProjectId(req);
     const name = req.query.get("name");
     if (!name) return err(400, "name query param is required");
-    await deleteBlob(name, FLOW_CONTAINER);
+
+    const container = await getFlowsContainer();
+    try {
+      await container.item(flowDocId(name), projectId).delete();
+    } catch {
+      // Ignore if not found — idempotent delete
+    }
     return ok({ deleted: true, name });
   } catch (e) {
+    if (e instanceof ProjectIdMissingError) return err(400, e.message);
     return err(500, e instanceof Error ? e.message : String(e));
   }
 }

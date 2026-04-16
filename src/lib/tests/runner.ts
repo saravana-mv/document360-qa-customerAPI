@@ -2,6 +2,7 @@ import type { TestDef, TestContext, RunState, TestExecutionResult } from "../../
 import { runAssertions } from "./assertions";
 import { useRunnerStore } from "../../store/runner.store";
 import { isBreakpointSet } from "../../store/breakpoints.store";
+import { saveTestRun } from "../api/testRunsApi";
 
 export interface RunOptions {
   tests: TestDef[];
@@ -192,5 +193,18 @@ export async function runTests(options: RunOptions): Promise<void> {
   };
 
   store.setSummary(summary);
+
+  // Persist run to Cosmos DB (fire-and-forget — don't block UI)
+  const finalState = getStore();
+  saveTestRun({
+    id: `run:${crypto.randomUUID()}`,
+    startedAt: new Date(startedAt).toISOString(),
+    completedAt: new Date(completedAt).toISOString(),
+    summary,
+    tagResults: { ...finalState.tagResults },
+    testResults: { ...finalState.testResults },
+    log: finalState.log.slice(0, 500),
+  }).catch((e) => console.warn("[runner] Failed to save test run:", e));
+
   options.onComplete?.();
 }

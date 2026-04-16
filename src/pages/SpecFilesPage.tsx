@@ -35,129 +35,20 @@ import {
 } from "../lib/api/flowFilesApi";
 import { buildFlowPrompt, filterRelevantSpecs } from "../lib/flow/buildPrompt";
 import { loadFlowsFromQueue } from "../lib/tests/flowXml/loader";
-import { activateFlow, getActiveFlows } from "../lib/tests/flowXml/activeTests";
+import { activateFlow, activateFlows, getActiveFlows } from "../lib/tests/flowXml/activeTests";
 import { buildParsedTagsFromRegistry } from "../lib/tests/buildParsedTags";
 import { useSpecStore } from "../store/spec.store";
 import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
 import { useAuthStore } from "../store/auth.store";
 import { useSetupStore } from "../store/setup.store";
-
-// ── localStorage persistence helpers (multi-context map) ─────────────────────
-
-const STORAGE_KEY_V2 = "specfiles_workshop_v2";
-const STORAGE_KEY_V1 = "specfiles_workshop"; // legacy key for migration
-
-interface ContextData {
-  ideas: FlowIdea[];
-  usage: FlowIdeasUsage | null;
-  flowsUsage: FlowUsage | null;
-  generatedFlows: GeneratedFlow[];
-}
-
-type WorkshopMap = Record<string, ContextData>;
-
-function loadWorkshopMap(): WorkshopMap {
-  // Try v2 first
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_V2);
-    if (raw) return JSON.parse(raw) as WorkshopMap;
-  } catch { /* ignore */ }
-
-  // Migrate from v1 single-context format
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_V1);
-    if (raw) {
-      const v1 = JSON.parse(raw);
-      if (v1.ideasFolderPath && v1.ideas?.length > 0) {
-        const map: WorkshopMap = {
-          [v1.ideasFolderPath]: {
-            ideas: v1.ideas,
-            usage: v1.ideasUsage ?? null,
-            flowsUsage: null,
-            generatedFlows: (v1.generatedFlows ?? []).filter(
-              (f: GeneratedFlow) => f.status === "done" || f.status === "error"
-            ),
-          },
-        };
-        localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(map));
-        localStorage.removeItem(STORAGE_KEY_V1);
-        return map;
-      }
-    }
-  } catch { /* ignore */ }
-
-  return {};
-}
-
-function saveWorkshopMap(map: WorkshopMap) {
-  try {
-    localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(map));
-  } catch { /* quota exceeded — ignore */ }
-}
-
-/** Aggregate ideas + flows from a path and all descendant paths */
-function aggregateForPath(map: WorkshopMap, path: string | null): ContextData {
-  if (!path) return { ideas: [], usage: null, flowsUsage: null, generatedFlows: [] };
-  const prefix = path.endsWith("/") ? path : `${path}/`;
-  const matchingKeys = Object.keys(map).filter(k => k === path || k.startsWith(prefix));
-
-  if (matchingKeys.length === 0) return { ideas: [], usage: null, flowsUsage: null, generatedFlows: [] };
-  if (matchingKeys.length === 1) {
-    const ctx = map[matchingKeys[0]];
-    return { ...ctx, flowsUsage: ctx.flowsUsage ?? null };
-  }
-
-  const allIdeas: FlowIdea[] = [];
-  const allFlows: GeneratedFlow[] = [];
-  let totalUsage: FlowIdeasUsage | null = null;
-  let totalFlowsUsage: FlowUsage | null = null;
-
-  for (const key of matchingKeys) {
-    const ctx = map[key];
-    allIdeas.push(...ctx.ideas);
-    allFlows.push(...ctx.generatedFlows);
-    if (ctx.usage) {
-      if (!totalUsage) {
-        totalUsage = { ...ctx.usage };
-      } else {
-        totalUsage = {
-          inputTokens: totalUsage.inputTokens + ctx.usage.inputTokens,
-          outputTokens: totalUsage.outputTokens + ctx.usage.outputTokens,
-          totalTokens: totalUsage.totalTokens + ctx.usage.totalTokens,
-          costUsd: parseFloat((totalUsage.costUsd + ctx.usage.costUsd).toFixed(6)),
-          filesAnalyzed: totalUsage.filesAnalyzed + ctx.usage.filesAnalyzed,
-          totalSpecCharacters: totalUsage.totalSpecCharacters + ctx.usage.totalSpecCharacters,
-        };
-      }
-    }
-    if (ctx.flowsUsage) {
-      if (!totalFlowsUsage) {
-        totalFlowsUsage = { ...ctx.flowsUsage };
-      } else {
-        totalFlowsUsage = {
-          inputTokens: totalFlowsUsage.inputTokens + ctx.flowsUsage.inputTokens,
-          outputTokens: totalFlowsUsage.outputTokens + ctx.flowsUsage.outputTokens,
-          totalTokens: totalFlowsUsage.totalTokens + ctx.flowsUsage.totalTokens,
-          costUsd: parseFloat((totalFlowsUsage.costUsd + ctx.flowsUsage.costUsd).toFixed(6)),
-        };
-      }
-    }
-  }
-
-  return { ideas: allIdeas, usage: totalUsage, flowsUsage: totalFlowsUsage, generatedFlows: allFlows };
-}
-
-/** Get next globally unique idea index across all contexts */
-function nextGlobalIdeaIndex(map: WorkshopMap): number {
-  let max = 0;
-  for (const ctx of Object.values(map)) {
-    for (const idea of ctx.ideas) {
-      const match = idea.id.match(/^idea-(\d+)$/);
-      if (match) max = Math.max(max, parseInt(match[1]));
-    }
-  }
-  return max + 1;
-}
+import {
+  getAllIdeas,
+  saveIdeas,
+  aggregateForPath,
+  nextGlobalIdeaIndex,
+  migrateFromLocalStorage as migrateIdeasFromLocalStorage,
+  type WorkshopMap,
+} from "../lib/api/ideasApi";
 
 const MAX_IDEAS_PER_RUN = 5;   // Default max per generation run
 const MAX_IDEAS_TOTAL = 30;    // Hard cap to prevent over-engineering
@@ -186,10 +77,9 @@ export function SpecFilesPage() {
   const [sourcedPaths, setSourcedPaths] = useState<Set<string>>(new Set());
 
   // ── Multi-context workshop state ──────────────────────────────────────────
-  // Read localStorage on every mount (not a module-level snapshot) so that
-  // edits persisted in an earlier mount are picked up when the page remounts
-  // (e.g. after navigating to Flow Manager and back).
-  const [workshopMap, setWorkshopMap] = useState<WorkshopMap>(() => loadWorkshopMap());
+  // Loaded from Cosmos DB on mount, saved back per-folder on mutation.
+  const [workshopMap, setWorkshopMap] = useState<WorkshopMap>({});
+  const workshopLoadedRef = useRef(false);
 
   // Paths (file or folder) that have generated ideas — for tree indicators.
   // For folder-level entries, mark all child .md files so individual file
@@ -253,9 +143,31 @@ export function SpecFilesPage() {
   const activePath = selectedPath ?? selectedFolderPath;
   const showWorkshop = ideas.length > 0 || ideasLoading || ideasAppending || ideasError !== null || ideasMessage !== null;
 
-  // Persist workshopMap to localStorage whenever it changes
+  // Load workshop data from API on mount (+ migrate from localStorage if needed)
   useEffect(() => {
-    saveWorkshopMap(workshopMap);
+    if (workshopLoadedRef.current) return;
+    workshopLoadedRef.current = true;
+    (async () => {
+      try {
+        await migrateIdeasFromLocalStorage();
+        const map = await getAllIdeas();
+        setWorkshopMap(map);
+      } catch (e) {
+        console.warn("[SpecFilesPage] Failed to load ideas from API:", e);
+      }
+    })();
+  }, []);
+
+  // Persist workshopMap changes to API (debounced, per-folder diff)
+  const prevMapRef = useRef<WorkshopMap>({});
+  useEffect(() => {
+    const prev = prevMapRef.current;
+    for (const [folder, data] of Object.entries(workshopMap)) {
+      if (data !== prev[folder]) {
+        saveIdeas(folder, data).catch(e => console.warn("[SpecFilesPage] Failed to save ideas:", e));
+      }
+    }
+    prevMapRef.current = workshopMap;
   }, [workshopMap]);
 
   // Persist tree selection so the view survives navigation away and back
@@ -288,7 +200,7 @@ export function SpecFilesPage() {
       // be active even if its name lingers in the set.
       const items = await listFlowFiles(folder || undefined);
       const existingPaths = new Set(items.map(i => i.name));
-      const activeSet = getActiveFlows();
+      const activeSet = await getActiveFlows();
       const next = new Set<string>();
       for (const flow of generatedFlows) {
         if (flow.status !== "done") continue;
@@ -1162,7 +1074,7 @@ export function SpecFilesPage() {
     try {
       await saveFlowFile(targetName, flow.xml, overwrite);
       // Mark this flow as an active test so the loader picks it up
-      activateFlow(targetName);
+      await activateFlow(targetName);
       setMarkedIds(prev => { const n = new Set(prev); n.add(flow.ideaId); return n; });
       // Immediately register the saved flow as runnable tests and rebuild
       // the Test Manager's tag list so new tests appear without a refresh.
@@ -1237,12 +1149,13 @@ export function SpecFilesPage() {
 
     let firstConflict: { flow: GeneratedFlow; existingName: string; suggestedNewName: string } | null = null;
     const succeededIds: string[] = [];
+    const toActivate: string[] = [];
 
     for (let i = 0; i < jobs.length; i += 1) {
       const { flow, target } = jobs[i];
       const result = results[i];
       if (result.status === "fulfilled") {
-        activateFlow(target);
+        toActivate.push(target);
         succeededIds.push(flow.ideaId);
       } else if (result.reason instanceof FlowFileConflictError) {
         // Only surface the first conflict — the user will resolve it through
@@ -1263,6 +1176,11 @@ export function SpecFilesPage() {
       } else {
         console.error("Failed to mark flow for implementation:", result.reason);
       }
+    }
+
+    // Batch-activate all succeeded flows in a single API call
+    if (toActivate.length > 0) {
+      await activateFlows(toActivate);
     }
 
     // Mark succeeded flows and clear "in progress" state in one go.

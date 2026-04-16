@@ -3,7 +3,6 @@ import { BlobServiceClient, ContainerClient, RestError } from "@azure/storage-bl
 const CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING ?? "";
 
 export const SPEC_CONTAINER = "spec-files";
-export const FLOW_CONTAINER = "flow-files";
 
 const _clientCache: Record<string, ContainerClient> = {};
 

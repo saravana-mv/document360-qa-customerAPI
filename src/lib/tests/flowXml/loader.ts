@@ -1,4 +1,4 @@
-// Loads .flow.xml files from blob storage that are marked as "active tests",
+// Loads .flow.xml files from Cosmos DB that are marked as "active tests",
 // parses each into a TestDef[] and registers them in the test runner's registry.
 // Updates the flow-status store so the Flow Manager UI can reflect status.
 
@@ -37,8 +37,15 @@ async function doLoad(): Promise<void> {
     return;
   }
 
-  // Only register flows that are in the active-tests set
-  const activeSet = getActiveFlows();
+  // Only register flows that are in the active-tests set (now async)
+  let activeSet: Set<string>;
+  try {
+    activeSet = await getActiveFlows();
+  } catch (err) {
+    console.error("[loadFlowsFromQueue] fetching active tests failed:", err);
+    status.setLoading(false);
+    return;
+  }
   const activeFiles = files.filter((f) => activeSet.has(f.name));
 
   // Clean slate — drop every previously registered xml-sourced test and

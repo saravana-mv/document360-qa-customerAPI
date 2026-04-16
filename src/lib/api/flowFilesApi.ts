@@ -1,3 +1,5 @@
+import { getProjectHeaders } from "./projectHeader";
+
 export interface FlowFileItem {
   name: string;
   size: number;
@@ -16,7 +18,8 @@ export class FlowFileConflictError extends Error {
 }
 
 async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
-  const res = await fetch(url, init);
+  const headers = { ...getProjectHeaders(), ...init?.headers };
+  const res = await fetch(url, { ...init, headers });
   if (!res.ok) {
     let msg = res.statusText;
     try {
@@ -43,7 +46,7 @@ export async function getFlowFileContent(name: string): Promise<string> {
 export async function saveFlowFile(name: string, xml: string, overwrite = false): Promise<void> {
   const res = await fetch(`/api/flow-files`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getProjectHeaders() },
     body: JSON.stringify({ name, xml, overwrite }),
   });
   if (res.status === 409) {

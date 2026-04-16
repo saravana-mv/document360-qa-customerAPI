@@ -51,6 +51,30 @@ export function parseClientPrincipal(req: HttpRequest): ClientPrincipal | null {
  * - When AUTH_ENABLED=false, auth is bypassed (local dev).
  * - Otherwise, a valid x-ms-client-principal is required; else 401.
  */
+/** Extracts { oid, name } from the Entra client principal on the request. */
+export function getUserInfo(req: HttpRequest): { oid: string; name: string } {
+  const principal = parseClientPrincipal(req);
+  return {
+    oid: principal?.userId ?? "anonymous",
+    name: principal?.userDetails ?? "Anonymous",
+  };
+}
+
+/** Reads X-FlowForge-ProjectId header. Throws 400 if missing. */
+export function getProjectId(req: HttpRequest): string {
+  const pid = req.headers.get("x-flowforge-projectid");
+  if (!pid) {
+    throw new ProjectIdMissingError();
+  }
+  return pid;
+}
+
+export class ProjectIdMissingError extends Error {
+  constructor() {
+    super("X-FlowForge-ProjectId header is required");
+  }
+}
+
 export function withAuth<T extends unknown[]>(
   handler: (req: HttpRequest, ...rest: T) => Promise<HttpResponseInit>,
 ): (req: HttpRequest, ...rest: T) => Promise<HttpResponseInit> {
