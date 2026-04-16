@@ -243,10 +243,10 @@ export function MarkdownViewer({ path, content, onClose }: Props) {
       {/* Content */}
       <div className="flex-1 overflow-auto" ref={contentRef}>
         {isMarkdown && !raw ? (
-          <div className="p-6" data-color-mode="light">
+          <div className="p-6" data-color-mode="light" style={{ overflowWrap: "break-word", wordBreak: "break-word" }}>
             <MDEditor.Markdown
               source={content}
-              style={{ background: "transparent", fontFamily: "inherit" }}
+              style={{ background: "transparent", fontFamily: "inherit", overflowWrap: "break-word", wordBreak: "break-word" }}
             />
           </div>
         ) : (
