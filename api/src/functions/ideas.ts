@@ -17,7 +17,8 @@ function err(status: number, message: string): HttpResponseInit {
 }
 
 function ideasDocId(folderPath: string): string {
-  return "ideas:" + folderPath;
+  // Cosmos DB forbids '/' in document IDs — replace with '|'
+  return "ideas:" + folderPath.replace(/\//g, "|");
 }
 
 interface IdeasDocument {

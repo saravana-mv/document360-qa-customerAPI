@@ -34,7 +34,8 @@ interface FlowDocument {
 }
 
 function flowDocId(path: string): string {
-  return "flow:" + path;
+  // Cosmos DB forbids '/' in document IDs — replace with '|'
+  return "flow:" + path.replace(/\//g, "|");
 }
 
 /** GET /api/flow-files?prefix=<folder> — list flow files */

@@ -61,7 +61,7 @@ async function main() {
       continue;
     }
 
-    const docId = "flow:" + name;
+    const docId = "flow:" + name.replace(/\//g, "|");
 
     // Check if already migrated
     try {
