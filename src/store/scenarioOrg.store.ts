@@ -50,6 +50,7 @@ function extractVersion(flowPath: string): string | null {
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let loadStarted = false;
 
 export const useScenarioOrgStore = create<ScenarioOrgState>((set, get) => ({
   loaded: false,
@@ -59,7 +60,8 @@ export const useScenarioOrgStore = create<ScenarioOrgState>((set, get) => ({
   placements: {},
 
   load: async () => {
-    if (get().loading) return;
+    if (get().loading || get().loaded || loadStarted) return;
+    loadStarted = true;
     set({ loading: true });
     try {
       const data = await getScenarioOrg();

@@ -22,7 +22,11 @@ export function TestExplorer() {
   const { status, token } = useAuthStore();
   const setup = useSetupStore();
   const explorerUI = useExplorerUIStore();
-  const scenarioOrg = useScenarioOrgStore();
+  const orgLoaded = useScenarioOrgStore((s) => s.loaded);
+  const orgLoading = useScenarioOrgStore((s) => s.loading);
+  const orgFolders = useScenarioOrgStore((s) => s.folders);
+  const orgLoad = useScenarioOrgStore((s) => s.load);
+  const orgClearPlacements = useScenarioOrgStore((s) => s.clearPlacements);
   const flowsLoading = useFlowStatusStore((s) => s.loading);
   const flowsByName = useFlowStatusStore((s) => s.byName);
   const allTests = getAllTests();
@@ -83,11 +87,10 @@ export function TestExplorer() {
 
   // Load scenario org once tests are available
   useEffect(() => {
-    if (!scenarioOrg.loaded && !scenarioOrg.loading && parsedTags.length > 0) {
-      scenarioOrg.load();
+    if (!orgLoaded && !orgLoading && parsedTags.length > 0) {
+      orgLoad();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [parsedTags.length, scenarioOrg.loaded, scenarioOrg.loading]);
+  }, [parsedTags.length, orgLoaded, orgLoading, orgLoad]);
 
   // Group scenarios by version using scenarioOrg store
   const sortOrder = explorerUI.sortOrder;
@@ -95,19 +98,19 @@ export function TestExplorer() {
     ? (a: string, b: string) => a.localeCompare(b)
     : (a: string, b: string) => b.localeCompare(a);
 
-  // Build version → tags mapping
+  // Build version → tags mapping (pure derivation, no store method calls)
   const versionTagsMap = new Map<string, ParsedTag[]>();
   for (const tag of parsedTags) {
     const repTest = allTests.find((t) => t.tag === tag.name);
     const flowFileName = repTest?.flowFileName;
     if (!flowFileName) {
-      // Unversioned — put in "other"
       if (!versionTagsMap.has("other")) versionTagsMap.set("other", []);
       versionTagsMap.get("other")!.push(tag);
       continue;
     }
-    const version = scenarioOrg.getVersionForFlow(flowFileName);
-    const v = version ?? "other";
+    // Extract version from flow path prefix (e.g. "v3/Articles/foo.flow.xml" → "v3")
+    const slashIdx = flowFileName.indexOf("/");
+    const v = slashIdx > 0 ? flowFileName.slice(0, slashIdx) : "other";
     if (!versionTagsMap.has(v)) versionTagsMap.set(v, []);
     versionTagsMap.get(v)!.push(tag);
   }
@@ -126,13 +129,12 @@ export function TestExplorer() {
 
   function handleExpandAll() {
     const allVersions = versions.map((v) => v.version);
-    const allFolders: Record<string, string[]> = {};
+    const allFoldersMap: Record<string, string[]> = {};
     for (const v of versions) {
-      const folders = scenarioOrg.folders[v.version] ?? [];
-      allFolders[v.version] = folders;
+      allFoldersMap[v.version] = orgFolders[v.version] ?? [];
     }
     const allTagNames = parsedTags.map((t) => t.name);
-    explorerUI.expandAllVersions(allVersions, allFolders, allTagNames);
+    explorerUI.expandAllVersions(allVersions, allFoldersMap, allTagNames);
   }
 
   function handleCollapseAll() {
@@ -147,7 +149,7 @@ export function TestExplorer() {
     const flowStatus = useFlowStatusStore.getState();
     flowStatus.pruneTo(new Set());
     clearSelection();
-    scenarioOrg.clearPlacements();
+    orgClearPlacements();
     const built = buildParsedTagsFromRegistry();
     setSpec(null as never, built, null as never);
     setShowDeleteAll(false);
