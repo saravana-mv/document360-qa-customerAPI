@@ -34,17 +34,15 @@ export function TestExplorer() {
   const [autoLoading, setAutoLoading] = useState(false);
   const [showDeleteAll, setShowDeleteAll] = useState(false);
 
-  // Auto-load tests as soon as we have a valid token — the project settings
-  // card should only appear when the session is missing/expired.
+  // Auto-load scenarios once we have a valid token AND the user has already
+  // saved project settings (version selected). On first sign-in the settings
+  // card is shown instead — the user must explicitly Save before we proceed.
   useEffect(() => {
-    // Re-run when project or version is missing, even if parsedTags is populated.
-    // Otherwise a mid-session loss of localStorage (e.g. post-logout re-sign-in)
-    // leaves ctx.projectId empty and every test fails with "Path param is empty".
     if (parsedTags.length > 0 && setup.selectedProjectId && setup.selectedVersionId) return;
     if (status !== "authenticated" || !token) return;
-    // Wait for the flow loader to finish and for at least one test to be
-    // registered before building the tag list. This handles the refresh race
-    // where loadFlowsFromQueue() in App.tsx is still in flight.
+    // Don't auto-load if the user hasn't confirmed settings yet — let the
+    // ProjectSettingsCard handle first-time setup.
+    if (!setup.settingsConfirmed) return;
     if (flowsLoading) return;
     if (getAllTests().length === 0) return;
     let cancelled = false;
@@ -60,16 +58,6 @@ export function TestExplorer() {
           if (cancelled) return;
           setup.setProjects([project]);
           setup.selectProject(projectId);
-        }
-        let versionId = setup.selectedVersionId;
-        if (!versionId) {
-          const versions = await fetchProjectVersions(projectId, token.access_token);
-          if (cancelled) return;
-          if (versions.length === 0) throw new Error("No versions returned from API.");
-          setup.setVersions(versions);
-          const def = versions.find((v) => v.isDefault) ?? versions[0];
-          versionId = def.id;
-          setup.selectVersion(versionId);
         }
         const built = buildParsedTagsFromRegistry();
         if (cancelled) return;
@@ -146,12 +134,19 @@ export function TestExplorer() {
     setShowDeleteAll(false);
   }
 
-  // Auth gate: D360 sign-in is required to run tests. Check this BEFORE
+  // Auth gate: D360 sign-in is required to run scenarios. Check this BEFORE
   // parsedTags — the flow loader can populate parsedTags in the background
   // even when the user isn't signed in, which previously caused the sign-in
-  // card to vanish after a few seconds and show the test tree in an
+  // card to vanish after a few seconds and show the scenario tree in an
   // unauthenticated state.
   if (status !== "authenticated" || !token) {
+    return <ProjectSettingsCard />;
+  }
+
+  // Settings gate: after first sign-in the user must select version/language
+  // and click Save before we show scenarios. On returning visits settingsConfirmed
+  // is true from Cosmos/cache so this gate passes immediately.
+  if (!setup.settingsConfirmed) {
     return <ProjectSettingsCard />;
   }
 

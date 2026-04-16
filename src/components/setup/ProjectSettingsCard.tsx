@@ -91,8 +91,13 @@ export function ProjectSettingsCard({ onDone }: ProjectSettingsCardProps = {}) {
       setup.setError("Please select a project version.");
       return;
     }
+    if (!setup.langCode.trim()) {
+      setup.setError("Please enter a language code.");
+      return;
+    }
     setStarting(true);
     try {
+      setup.confirmSettings();
       const parsedTags = buildParsedTagsFromRegistry();
       spec.setSpec(null as never, parsedTags, null as never);
       if (onDone) {
@@ -101,7 +106,7 @@ export function ProjectSettingsCard({ onDone }: ProjectSettingsCardProps = {}) {
         navigate("/test");
       }
     } catch (err) {
-      spec.setError(err instanceof Error ? err.message : "Failed to initialise tests");
+      spec.setError(err instanceof Error ? err.message : "Failed to initialise scenarios");
     } finally {
       setStarting(false);
     }

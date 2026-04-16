@@ -28,6 +28,9 @@ interface SetupState {
   loadingVersions: boolean;
   /** True while loading settings from server on first auth */
   settingsLoaded: boolean;
+  /** True once the user has explicitly saved project settings (or they were loaded from Cosmos).
+   *  Gates the scenario manager — prevents auto-navigating past the settings card on first sign-in. */
+  settingsConfirmed: boolean;
   error: string | null;
   setProjects: (projects: Project[]) => void;
   setVersions: (versions: ProjectVersion[]) => void;
@@ -40,6 +43,8 @@ interface SetupState {
   setLoadingProjects: (v: boolean) => void;
   setLoadingVersions: (v: boolean) => void;
   setError: (error: string | null) => void;
+  /** Mark settings as explicitly confirmed by the user (Save button). */
+  confirmSettings: () => void;
   /** Call once after Entra auth is confirmed — loads settings from Cosmos */
   loadFromServer: () => Promise<void>;
 }
@@ -106,6 +111,7 @@ export const useSetupStore = create<SetupState>((set, get) => ({
   loadingProjects: false,
   loadingVersions: false,
   settingsLoaded: false,
+  settingsConfirmed: !!(cached.selectedVersionId),
   error: null,
 
   setProjects: (projects) => set({ projects }),
@@ -142,6 +148,7 @@ export const useSetupStore = create<SetupState>((set, get) => ({
   setLoadingProjects: (v) => set({ loadingProjects: v }),
   setLoadingVersions: (v) => set({ loadingVersions: v }),
   setError: (error) => set({ error }),
+  confirmSettings: () => set({ settingsConfirmed: true }),
 
   loadFromServer: async () => {
     try {
@@ -170,7 +177,8 @@ export const useSetupStore = create<SetupState>((set, get) => ({
         updates.aiModel = remote.aiModel as AiModelId;
       }
 
-      set({ ...updates, settingsLoaded: true });
+      const confirmed = !!updates.selectedVersionId || !!get().selectedVersionId;
+      set({ ...updates, settingsLoaded: true, settingsConfirmed: confirmed });
       // Update local cache with server values
       persistLocal({ ...get(), ...updates });
     } catch (e) {
