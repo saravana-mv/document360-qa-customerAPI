@@ -146,12 +146,16 @@ export function TestExplorer() {
     setShowDeleteAll(false);
   }
 
+  // Auth gate: D360 sign-in is required to run tests. Check this BEFORE
+  // parsedTags — the flow loader can populate parsedTags in the background
+  // even when the user isn't signed in, which previously caused the sign-in
+  // card to vanish after a few seconds and show the test tree in an
+  // unauthenticated state.
+  if (status !== "authenticated" || !token) {
+    return <ProjectSettingsCard />;
+  }
+
   if (parsedTags.length === 0) {
-    // Session expired or missing → show the settings card so user can re-auth
-    // or enter project details manually.
-    if (status !== "authenticated" || !token) {
-      return <ProjectSettingsCard />;
-    }
     if (autoLoadError) {
       return (
         <div className="p-4">
