@@ -48,6 +48,7 @@ import { useSetupStore } from "../store/setup.store";
 import {
   getAllIdeas,
   saveIdeas,
+  deleteIdeas,
   aggregateForPath,
   nextGlobalIdeaIndex,
   migrateFromLocalStorage as migrateIdeasFromLocalStorage,
@@ -184,9 +185,16 @@ export function SpecFilesPage() {
   const prevMapRef = useRef<WorkshopMap>({});
   useEffect(() => {
     const prev = prevMapRef.current;
+    // Save changed or new entries
     for (const [folder, data] of Object.entries(workshopMap)) {
       if (data !== prev[folder]) {
         saveIdeas(folder, data).catch(e => console.warn("[SpecFilesPage] Failed to save ideas:", e));
+      }
+    }
+    // Delete entries that were removed from the map
+    for (const folder of Object.keys(prev)) {
+      if (!(folder in workshopMap)) {
+        deleteIdeas(folder).catch(e => console.warn("[SpecFilesPage] Failed to delete ideas:", e));
       }
     }
     prevMapRef.current = workshopMap;
