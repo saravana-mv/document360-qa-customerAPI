@@ -15,8 +15,8 @@ interface Props {
 
 const baseTheme = EditorView.theme({
   "&": { fontSize: "12px" },
-  "&.cm-editor": { height: "100%" },
-  ".cm-scroller": { fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace", overflow: "auto" },
+  "&.cm-editor": { height: "100%", overflow: "hidden" },
+  ".cm-scroller": { fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace", overflow: "auto !important" },
   ".cm-gutters": { backgroundColor: "#f6f8fa", borderRight: "1px solid #d1d9e0" },
 });
 
