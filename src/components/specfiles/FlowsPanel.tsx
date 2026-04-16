@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ContextMenu, MenuIcons } from "../common/ContextMenu";
 import type { MenuItem } from "../common/ContextMenu";
 import type { FlowIdea, FlowUsage } from "../../lib/api/specFilesApi";
@@ -90,12 +90,8 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
   const [deleteFlowId, setDeleteFlowId] = useState<string | null>(null);
   const [showNewFlow, setShowNewFlow] = useState(false);
   const [newFlowPrompt, setNewFlowPrompt] = useState("");
-  const [aiTitle, setAiTitle] = useState("");
   const [aiTitleLoading, setAiTitleLoading] = useState(false);
   const titleAbortRef = useRef<AbortController | null>(null);
-  const titleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** The prompt snapshot that produced the current aiTitle — avoids re-fetching for same text. */
-  const titlePromptRef = useRef("");
 
   const EXAMPLE_PROMPT = `Title: Article settings configuration and SEO optimization
 Description: Creates article, configures comprehensive settings including tags, SEO metadata, and related articles
@@ -106,54 +102,34 @@ Steps:
   2. PATCH /v3/projects/{project_id}/articles/{article_id}/settings
   3. GET /v3/projects/{project_id}/articles/{article_id}/settings`;
 
-  // Debounced AI title generation — fires 1.2s after the user stops typing
-  const requestAiTitle = useCallback((prompt: string) => {
-    // Clear any pending timer
-    if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
-
+  // Generate AI title on demand (when user clicks Generate flow)
+  async function requestAiTitle(prompt: string): Promise<string> {
     const trimmed = prompt.trim();
     if (!trimmed || trimmed.length < 20) {
-      setAiTitle("");
-      setAiTitleLoading(false);
-      return;
+      return trimmed.split("\n")[0].slice(0, 80);
     }
 
-    // Don't re-fetch if the prompt hasn't meaningfully changed
-    if (trimmed === titlePromptRef.current) return;
-
+    titleAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    titleAbortRef.current = ctrl;
     setAiTitleLoading(true);
 
-    titleTimerRef.current = setTimeout(() => {
-      // Abort any in-flight request
-      titleAbortRef.current?.abort();
-      const ctrl = new AbortController();
-      titleAbortRef.current = ctrl;
+    try {
+      const title = await generateTitle(trimmed, ctrl.signal);
 
-      generateTitle(trimmed, ctrl.signal)
-        .then((title) => {
-          if (!ctrl.signal.aborted) {
-            setAiTitle(title);
-            titlePromptRef.current = trimmed;
-          }
-        })
-        .catch((e) => {
-          if (!ctrl.signal.aborted) {
-            // Silently fall back — title is optional
-            console.warn("AI title generation failed:", e);
-          }
-        })
-        .finally(() => {
-          if (!ctrl.signal.aborted) setAiTitleLoading(false);
-        });
-    }, 1200);
-  }, []);
+      return title;
+    } catch (e) {
+      if (!ctrl.signal.aborted) console.warn("AI title generation failed:", e);
+      // Fall back to first line of prompt
+      return trimmed.split("\n")[0].slice(0, 80);
+    } finally {
+      if (!ctrl.signal.aborted) setAiTitleLoading(false);
+    }
+  }
 
   // Cleanup on unmount
   useEffect(() => {
-    return () => {
-      titleAbortRef.current?.abort();
-      if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
-    };
+    return () => { titleAbortRef.current?.abort(); };
   }, []);
   const doneFlows = flows.filter((f) => f.status === "done");
   const completedFlows = flows.filter((f) => f.status === "done" || f.status === "error");
@@ -500,25 +476,19 @@ Steps:
               <p className="text-sm text-[#656d76] leading-relaxed">
                 Describe the flow you want to generate. A title will be generated automatically from your prompt.
               </p>
-              {/* AI-generated title preview */}
-              {newFlowPrompt.trim() && (
+              {/* AI-generated title preview — shown after Generate is clicked */}
+              {aiTitleLoading && (
                 <div className="flex items-center gap-2 px-3 py-2 bg-[#f6f8fa] border border-[#d1d9e0] rounded-md min-h-[36px]">
                   <svg className="w-3.5 h-3.5 text-[#8250df] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
                   </svg>
-                  {aiTitleLoading ? (
-                    <span className="flex items-center gap-1.5 text-sm text-[#656d76]">
-                      <svg className="w-3.5 h-3.5 animate-spin text-[#8250df]" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                      Generating title…
-                    </span>
-                  ) : aiTitle ? (
-                    <span className="text-sm font-medium text-[#1f2328] truncate">{aiTitle}</span>
-                  ) : (
-                    <span className="text-sm text-[#afb8c1] italic">Title will appear as you type…</span>
-                  )}
+                  <span className="flex items-center gap-1.5 text-sm text-[#656d76]">
+                    <svg className="w-3.5 h-3.5 animate-spin text-[#8250df]" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Generating title…
+                  </span>
                 </div>
               )}
               <div>
@@ -529,7 +499,6 @@ Steps:
                       type="button"
                       onClick={() => {
                         setNewFlowPrompt(EXAMPLE_PROMPT);
-                        requestAiTitle(EXAMPLE_PROMPT);
                       }}
                       className="text-xs font-medium text-[#0969da] hover:underline"
                     >
@@ -540,10 +509,8 @@ Steps:
                         type="button"
                         onClick={() => {
                           setNewFlowPrompt("");
-                          setAiTitle("");
                           setAiTitleLoading(false);
                           titleAbortRef.current?.abort();
-                          if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
                         }}
                         className="text-xs font-medium text-[#656d76] hover:text-[#d1242f] hover:underline"
                       >
@@ -555,9 +522,7 @@ Steps:
                 <textarea
                   value={newFlowPrompt}
                   onChange={(e) => {
-                    const val = e.target.value;
-                    setNewFlowPrompt(val);
-                    requestAiTitle(val);
+                    setNewFlowPrompt(e.target.value);
                   }}
                   rows={12}
                   autoFocus
@@ -571,22 +536,19 @@ Steps:
                 onClick={() => {
                   setShowNewFlow(false);
                   titleAbortRef.current?.abort();
-                  if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
                 }}
                 className="text-sm font-medium text-[#1f2328] border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] rounded-md px-3 py-1.5 transition-colors"
               >
                 Cancel
               </button>
               <button
-                disabled={!newFlowPrompt.trim() || (!aiTitle && aiTitleLoading)}
-                onClick={() => {
-                  const title = aiTitle || newFlowPrompt.trim().split("\n")[0].slice(0, 80);
-                  onCreateManualFlow(title, newFlowPrompt.trim());
+                disabled={!newFlowPrompt.trim() || aiTitleLoading}
+                onClick={async () => {
+                  const prompt = newFlowPrompt.trim();
+                  const title = await requestAiTitle(prompt);
+                  onCreateManualFlow(title, prompt);
                   setShowNewFlow(false);
                   setNewFlowPrompt("");
-                  setAiTitle("");
-                  titleAbortRef.current?.abort();
-                  if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
                 }}
                 className="text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 border border-[#1a7f37]/80 rounded-md px-3 py-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
