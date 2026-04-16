@@ -88,7 +88,6 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [deleteFlowId, setDeleteFlowId] = useState<string | null>(null);
   const [showNewFlow, setShowNewFlow] = useState(false);
-  const [newFlowTitle, setNewFlowTitle] = useState("");
   const [newFlowPrompt, setNewFlowPrompt] = useState("");
 
   const EXAMPLE_PROMPT = `Title: Article settings configuration and SEO optimization
@@ -99,7 +98,19 @@ Steps:
   1. POST /v3/projects/{project_id}/articles
   2. PATCH /v3/projects/{project_id}/articles/{article_id}/settings
   3. GET /v3/projects/{project_id}/articles/{article_id}/settings`;
-  const EXAMPLE_TITLE = "Article settings configuration and SEO optimization";
+
+  /** Derive a display title from the prompt text — checks for a "Title:" line,
+   *  falls back to the first non-empty line, truncated to 80 chars. */
+  function deriveTitle(prompt: string): string {
+    const lines = prompt.split("\n").map((l) => l.trim()).filter(Boolean);
+    for (const line of lines) {
+      const m = line.match(/^title\s*:\s*(.+)/i);
+      if (m) return m[1].trim().slice(0, 80);
+    }
+    if (lines.length === 0) return "";
+    const first = lines[0].replace(/^[-*#]+\s*/, "");
+    return first.length > 80 ? first.slice(0, 77) + "..." : first;
+  }
   const doneFlows = flows.filter((f) => f.status === "done");
   const completedFlows = flows.filter((f) => f.status === "done" || f.status === "error");
   // Validate every done flow once per render. Cheap — runs a DOM parser over a small string.
@@ -443,28 +454,22 @@ Steps:
             </div>
             <div className="px-4 py-3 space-y-3 overflow-y-auto">
               <p className="text-sm text-[#656d76] leading-relaxed">
-                Paste a prompt from an idea (or write your own). The current spec context will be attached automatically.
+                Describe the flow you want to generate. A title will be derived automatically from your prompt.
+                Include a <code className="text-xs bg-[#f6f8fa] px-1 py-0.5 rounded border border-[#d1d9e0]">Title:</code> line for an explicit name.
               </p>
-              <div>
-                <label className="block text-sm font-medium text-[#1f2328] mb-1">Flow title</label>
-                <input
-                  type="text"
-                  value={newFlowTitle}
-                  onChange={(e) => setNewFlowTitle(e.target.value)}
-                  placeholder="e.g. Create and publish an article"
-                  className="w-full text-sm border border-[#d1d9e0] rounded-md px-2.5 py-1.5 focus:outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da]"
-                />
-              </div>
+              {newFlowPrompt.trim() && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-[#f6f8fa] border border-[#d1d9e0] rounded-md">
+                  <span className="text-xs font-medium text-[#656d76] shrink-0">Title:</span>
+                  <span className="text-sm font-medium text-[#1f2328] truncate">{deriveTitle(newFlowPrompt)}</span>
+                </div>
+              )}
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-sm font-medium text-[#1f2328]">Prompt</label>
                   <div className="flex items-center gap-3">
                     <button
                       type="button"
-                      onClick={() => {
-                        setNewFlowPrompt(EXAMPLE_PROMPT);
-                        if (!newFlowTitle.trim()) setNewFlowTitle(EXAMPLE_TITLE);
-                      }}
+                      onClick={() => setNewFlowPrompt(EXAMPLE_PROMPT)}
                       className="text-xs font-medium text-[#0969da] hover:underline"
                     >
                       Insert example
@@ -484,7 +489,8 @@ Steps:
                   value={newFlowPrompt}
                   onChange={(e) => setNewFlowPrompt(e.target.value)}
                   rows={12}
-                  placeholder="Describe the scenario flow: title, steps, expected results..."
+                  autoFocus
+                  placeholder={"Describe the scenario flow...\n\nExample:\nTitle: Create and publish an article\nDescription: Creates article with category, publishes it\nEntities: articles, categories\n\nSteps:\n  1. POST /v3/projects/{project_id}/categories\n  2. POST /v3/projects/{project_id}/articles\n  3. PATCH /v3/projects/{project_id}/articles/{article_id}"}
                   className="w-full text-sm font-mono border border-[#d1d9e0] rounded-md px-2.5 py-1.5 focus:outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] resize-y leading-relaxed"
                 />
               </div>
@@ -497,11 +503,11 @@ Steps:
                 Cancel
               </button>
               <button
-                disabled={!newFlowTitle.trim() || !newFlowPrompt.trim()}
+                disabled={!newFlowPrompt.trim() || !deriveTitle(newFlowPrompt)}
                 onClick={() => {
-                  onCreateManualFlow(newFlowTitle.trim(), newFlowPrompt.trim());
+                  const title = deriveTitle(newFlowPrompt);
+                  onCreateManualFlow(title, newFlowPrompt.trim());
                   setShowNewFlow(false);
-                  setNewFlowTitle("");
                   setNewFlowPrompt("");
                 }}
                 className="text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 border border-[#1a7f37]/80 rounded-md px-3 py-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
