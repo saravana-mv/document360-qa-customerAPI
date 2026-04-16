@@ -10,6 +10,29 @@
 // Production: AUTH_ENABLED must be "true" (or unset — defaults to enabled).
 
 import type { HttpRequest, HttpResponseInit } from "@azure/functions";
+import { getUsersContainer } from "./cosmosClient";
+
+export type AppRole = "owner" | "qa_manager" | "qa_engineer";
+const TENANT_ID = "kovai";
+const SEED_OWNER_OID = process.env.SEED_OWNER_OID ?? "";
+
+export interface UserDocument {
+  id: string;
+  tenantId: string;
+  type: "user";
+  email: string;
+  displayName: string;
+  role: AppRole;
+  status: "active" | "invited" | "disabled";
+  invitedBy: string;
+  invitedAt: string;
+  acceptedAt?: string;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+// In-memory cache per function invocation — avoid repeated Cosmos reads.
+const _userCache = new Map<string, UserDocument | null>();
 
 const CORS_HEADERS_JSON = {
   "Access-Control-Allow-Origin": "*",
@@ -95,4 +118,109 @@ export function withAuth<T extends unknown[]>(
     }
     return handler(req, ...rest);
   };
+}
+
+/** Look up a user doc by OID. Auto-seeds the owner if the container is empty. */
+export async function lookupUser(oid: string, displayName: string, email: string): Promise<UserDocument | null> {
+  if (_userCache.has(oid)) return _userCache.get(oid) ?? null;
+
+  const container = await getUsersContainer();
+
+  // Try point-read by OID first
+  try {
+    const { resource } = await container.item(oid, TENANT_ID).read<UserDocument>();
+    if (resource && resource.status !== "disabled") {
+      _userCache.set(oid, resource);
+      return resource;
+    }
+    if (resource?.status === "disabled") {
+      _userCache.set(oid, null);
+      return null;
+    }
+  } catch { /* not found — continue */ }
+
+  // Try matching by email (pending invite)
+  try {
+    const { resources } = await container.items.query<UserDocument>({
+      query: "SELECT * FROM c WHERE c.tenantId = @tid AND c.email = @email AND c.status = 'invited'",
+      parameters: [
+        { name: "@tid", value: TENANT_ID },
+        { name: "@email", value: email.toLowerCase() },
+      ],
+    }).fetchAll();
+
+    if (resources.length > 0) {
+      const invite = resources[0];
+      // Accept the invite — update with real OID and display name
+      const accepted: UserDocument = {
+        ...invite,
+        id: oid,
+        displayName,
+        email: email.toLowerCase(),
+        status: "active",
+        acceptedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      // Delete old invite doc (keyed by placeholder id) and create real one
+      if (invite.id !== oid) {
+        try { await container.item(invite.id, TENANT_ID).delete(); } catch { /* ignore */ }
+      }
+      await container.items.upsert(accepted);
+      _userCache.set(oid, accepted);
+      return accepted;
+    }
+  } catch { /* query failed — continue */ }
+
+  // Auto-seed owner on first ever request
+  if (SEED_OWNER_OID && oid === SEED_OWNER_OID) {
+    const now = new Date().toISOString();
+    const ownerDoc: UserDocument = {
+      id: oid,
+      tenantId: TENANT_ID,
+      type: "user",
+      email: email.toLowerCase(),
+      displayName,
+      role: "owner",
+      status: "active",
+      invitedBy: "system",
+      invitedAt: now,
+      acceptedAt: now,
+      updatedAt: now,
+      updatedBy: "system",
+    };
+    await container.items.upsert(ownerDoc);
+    _userCache.set(oid, ownerDoc);
+    return ownerDoc;
+  }
+
+  _userCache.set(oid, null);
+  return null;
+}
+
+/**
+ * Wraps a handler with role-based access control.
+ * Must be used INSIDE withAuth (Entra is already validated).
+ */
+export function withRole<T extends unknown[]>(
+  allowedRoles: AppRole[],
+  handler: (req: HttpRequest, ...rest: T) => Promise<HttpResponseInit>,
+): (req: HttpRequest, ...rest: T) => Promise<HttpResponseInit> {
+  return withAuth(async (req: HttpRequest, ...rest: T): Promise<HttpResponseInit> => {
+    if (!isAuthEnabled()) {
+      return handler(req, ...rest);
+    }
+    const principal = parseClientPrincipal(req);
+    if (!principal) {
+      return { status: 401, headers: CORS_HEADERS_JSON, body: JSON.stringify({ error: "Unauthorized" }) };
+    }
+    const email = principal.userDetails ?? "";
+    const user = await lookupUser(principal.userId, principal.userDetails ?? "Unknown", email);
+    if (!user) {
+      return { status: 403, headers: CORS_HEADERS_JSON, body: JSON.stringify({ error: "not_registered" }) };
+    }
+    if (!allowedRoles.includes(user.role)) {
+      return { status: 403, headers: CORS_HEADERS_JSON, body: JSON.stringify({ error: "insufficient_role", role: user.role, required: allowedRoles }) };
+    }
+    return handler(req, ...rest);
+  });
 }

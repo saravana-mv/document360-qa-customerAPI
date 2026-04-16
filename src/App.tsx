@@ -8,8 +8,10 @@ import { TestPage } from "./pages/TestPage";
 import { Spinner } from "./components/common/Spinner";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { EntraGate } from "./components/auth/EntraGate";
+import { AccessGate } from "./components/auth/AccessGate";
 
 const SpecFilesPage = lazy(() => import("./pages/SpecFilesPage").then((m) => ({ default: m.SpecFilesPage })));
+const UsersPage = lazy(() => import("./pages/UsersPage").then((m) => ({ default: m.UsersPage })));
 
 // Register placeholder suites (categories/drive stubs).
 // Articles tests come from .flow.xml files — loaded at runtime via loadFlowsFromQueue.
@@ -59,6 +61,7 @@ function AppRoutes() {
       <Route path="/setup" element={<Navigate to="/settings" replace />} />
       <Route path="/test" element={<TestPage />} />
       <Route path="/spec-files" element={<Suspense fallback={<PageLoader />}><SpecFilesPage /></Suspense>} />
+      <Route path="/users" element={<Suspense fallback={<PageLoader />}><UsersPage /></Suspense>} />
       <Route path="*" element={<Navigate to="/spec-files" replace />} />
     </Routes>
   );
@@ -68,9 +71,11 @@ export default function App() {
   return (
     <ErrorBoundary>
       <EntraGate>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
+        <AccessGate>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </AccessGate>
       </EntraGate>
     </ErrorBoundary>
   );
