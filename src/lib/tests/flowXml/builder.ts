@@ -321,10 +321,21 @@ function failError(start: number, err: unknown): TestExecutionResult {
 function extractErrorMessage(body: unknown): string | undefined {
   if (!body || typeof body !== "object") return undefined;
   const b = body as Record<string, unknown>;
+
+  // D360 ProblemDetails: collect all errors with field info for debugging
   if (Array.isArray(b.errors) && b.errors.length > 0) {
-    const first = b.errors[0] as Record<string, unknown>;
-    if (typeof first.message === "string") return first.message;
+    const parts = (b.errors as Array<Record<string, unknown>>).map((e) => {
+      const msg = typeof e.message === "string" ? e.message : "";
+      const field = typeof e.field === "string" ? e.field : "";
+      const code = typeof e.code === "string" ? e.code : "";
+      return field ? `${msg} (field: ${field})` : code ? `${msg} [${code}]` : msg;
+    }).filter(Boolean);
+    if (parts.length > 0) {
+      const prefix = typeof b.detail === "string" ? `${b.detail} — ` : "";
+      return `${prefix}${parts.join("; ")}`;
+    }
   }
+
   if (typeof b.detail === "string") return b.detail;
   if (typeof b.message === "string") return b.message;
   if (typeof b.title === "string") return b.title;
