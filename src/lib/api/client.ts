@@ -68,6 +68,13 @@ async function request<T>(path: string, options: RequestOptions): Promise<T> {
 
     if (response.status === 401) {
       // Proxy returns 401 when the D360 token is missing/unrefreshable.
+      // But immediately after a fresh sign-in, the proxy may not yet have
+      // the token available (cold start, Table Storage propagation). Retry
+      // once before declaring the session expired.
+      if (attempts < 2) {
+        await new Promise((res) => setTimeout(res, 1500));
+        continue;
+      }
       // Notify the app so the UI falls back to the sign-in prompt.
       window.dispatchEvent(new CustomEvent("session-expired"));
     }
