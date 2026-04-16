@@ -38,6 +38,10 @@ interface Props {
   onToggleSelectFlow: (ideaId: string) => void;
   onSelectAllFlows: () => void;
   onDeselectAllFlows: () => void;
+  /** Whether to show only this-level flows (vs aggregated from all sub-levels) */
+  thisLevelOnly?: boolean;
+  /** If set, renders the "This level / All levels" toggle button */
+  onToggleThisLevel?: () => void;
 }
 
 function formatRelativeTime(iso: string): string {
@@ -80,7 +84,7 @@ const STATUS_ICON: Record<string, React.ReactNode> = {
   ),
 };
 
-export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickFlow, onDownloadFlow, onDownloadAll, onDeleteFlow, onDeleteAllFlows, onCreateManualFlow, onMarkForImplementation, onMarkSelectedForImplementation, markedIds, markingIds, selectedFlowIds, onToggleSelectFlow, onSelectAllFlows, onDeselectAllFlows }: Props) {
+export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickFlow, onDownloadFlow, onDownloadAll, onDeleteFlow, onDeleteAllFlows, onCreateManualFlow, onMarkForImplementation, onMarkSelectedForImplementation, markedIds, markingIds, selectedFlowIds, onToggleSelectFlow, onSelectAllFlows, onDeselectAllFlows, thisLevelOnly, onToggleThisLevel }: Props) {
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [deleteFlowId, setDeleteFlowId] = useState<string | null>(null);
   const [showNewFlow, setShowNewFlow] = useState(false);
@@ -132,6 +136,19 @@ Steps:
           <span className="text-xs px-1.5 py-px rounded-full font-medium bg-[#656d76]/10 text-[#656d76] border border-[#656d76]/20">
             {flows.length}
           </span>
+        )}
+        {onToggleThisLevel && (
+          <button
+            onClick={onToggleThisLevel}
+            title={thisLevelOnly ? "Showing this level only — click for all" : "Showing all levels — click for this level only"}
+            className={`text-xs px-1.5 py-0.5 rounded-md font-medium border transition-colors ${
+              thisLevelOnly
+                ? "bg-[#ddf4ff] text-[#0969da] border-[#b6e3ff]"
+                : "bg-white text-[#656d76] border-[#d1d9e0] hover:bg-[#f6f8fa]"
+            }`}
+          >
+            {thisLevelOnly ? "This level" : "All levels"}
+          </button>
         )}
         <div className="flex-1" />
         {!generating && (

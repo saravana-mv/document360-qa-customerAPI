@@ -1312,6 +1312,13 @@ export function SpecFilesPage() {
   const hasSubLevelIdeas = !isFileContext && activePath
     && (workshopMap[activePath]?.ideas.length ?? 0) < ideas.length;
 
+  // Filter flows the same way — "this level only" shows only this folder's flows
+  const thisLevelFlows = (!isFileContext && activePath && thisLevelOnly)
+    ? (workshopMap[activePath]?.generatedFlows ?? []).filter(f => f.status === "done" || f.status === "error")
+    : generatedFlows;
+  const hasSubLevelFlows = !isFileContext && activePath
+    && ((workshopMap[activePath]?.generatedFlows ?? []).filter(f => f.status === "done" || f.status === "error").length) < generatedFlows.length;
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -1440,7 +1447,7 @@ export function SpecFilesPage() {
                       ideasExhausted={ideasExhausted}
                       maxIdeasTotal={MAX_IDEAS_TOTAL}
                       thisLevelOnly={thisLevelOnly}
-                      onToggleThisLevel={hasSubLevelIdeas ? () => setThisLevelOnly((v) => !v) : undefined}
+                      onToggleThisLevel={(hasSubLevelIdeas || hasSubLevelFlows) ? () => setThisLevelOnly((v) => !v) : undefined}
                     />
                   </div>
 
@@ -1452,7 +1459,7 @@ export function SpecFilesPage() {
                       {/* Column 2 — Flows */}
                       <div className="shrink-0 flex flex-col overflow-hidden" style={{ width: flowsWidth }}>
                         <FlowsPanel
-                          flows={generatedFlows}
+                          flows={thisLevelFlows}
                           ideas={ideas}
                           generating={generatingFlows}
                           progress={flowProgress}
@@ -1471,6 +1478,8 @@ export function SpecFilesPage() {
                           onToggleSelectFlow={toggleSelectFlow}
                           onSelectAllFlows={selectAllFlows}
                           onDeselectAllFlows={deselectAllFlows}
+                          thisLevelOnly={thisLevelOnly}
+                          onToggleThisLevel={(hasSubLevelFlows || hasSubLevelIdeas) ? () => setThisLevelOnly((v) => !v) : undefined}
                         />
                       </div>
                       <ResizeHandle width={flowsWidth} onResize={setFlowsWidth} minWidth={180} maxWidth={500} />
