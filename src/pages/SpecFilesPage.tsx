@@ -143,6 +143,7 @@ export function SpecFilesPage() {
   // Workshop is visible when aggregated data exists for the current path (or loading/error)
   const activePath = selectedPath ?? selectedFolderPath;
   const showWorkshop = ideas.length > 0 || ideasLoading || ideasAppending || ideasError !== null || ideasMessage !== null;
+  const hasIdeas = ideas.length > 0 || ideasLoading || ideasAppending;
 
   // Load workshop data from API on mount (+ migrate from localStorage if needed)
   useEffect(() => {
@@ -1410,10 +1411,10 @@ export function SpecFilesPage() {
                   <MarkdownViewer path={selectedPath!} content={content} onClose={() => setViewingContent(false)} />
                 )
               ) : showWorkshop ? (
-                /* Three-column workshop: Ideas | Flows | Detail */
+                /* Workshop layout — full-width Ideas panel when no ideas, 3-column when ideas exist */
                 <div className="flex-1 flex overflow-hidden">
-                  {/* Column 1 — Ideas */}
-                  <div className="shrink-0 flex flex-col overflow-hidden" style={{ width: ideasWidth }}>
+                  {/* Column 1 — Ideas (full width when no ideas to show empty state) */}
+                  <div className={`flex flex-col overflow-hidden ${hasIdeas ? "shrink-0" : "flex-1"}`} style={hasIdeas ? { width: ideasWidth } : undefined}>
                     <FlowIdeasPanel
                       ideas={thisLevelIdeas.length > 0 ? thisLevelIdeas : null}
                       loading={ideasLoading}
@@ -1442,49 +1443,55 @@ export function SpecFilesPage() {
                       onToggleThisLevel={hasSubLevelIdeas ? () => setThisLevelOnly((v) => !v) : undefined}
                     />
                   </div>
-                  <ResizeHandle width={ideasWidth} onResize={setIdeasWidth} minWidth={200} maxWidth={500} />
 
-                  {/* Column 2 — Flows */}
-                  <div className="shrink-0 flex flex-col overflow-hidden" style={{ width: flowsWidth }}>
-                    <FlowsPanel
-                      flows={generatedFlows}
-                      ideas={ideas}
-                      generating={generatingFlows}
-                      progress={flowProgress}
-                      activeFlowId={activeFlowId}
-                      onClickFlow={handleClickFlow}
-                      onDownloadFlow={downloadFlow}
-                      onDownloadAll={downloadAllFlows}
-                      onDeleteFlow={handleDeleteFlow}
-                      onDeleteAllFlows={handleDeleteAllFlows}
-                      onCreateManualFlow={handleCreateManualFlow}
-                      onMarkForImplementation={handleMarkForImplementation}
-                      onMarkSelectedForImplementation={handleMarkSelectedForImplementation}
-                      markedIds={markedIds}
-                      markingIds={markingIds}
-                      selectedFlowIds={selectedFlowIds}
-                      onToggleSelectFlow={toggleSelectFlow}
-                      onSelectAllFlows={selectAllFlows}
-                      onDeselectAllFlows={deselectAllFlows}
-                    />
-                  </div>
-                  <ResizeHandle width={flowsWidth} onResize={setFlowsWidth} minWidth={180} maxWidth={500} />
+                  {/* Flows + Detail columns — only shown when ideas exist */}
+                  {hasIdeas && (
+                    <>
+                      <ResizeHandle width={ideasWidth} onResize={setIdeasWidth} minWidth={200} maxWidth={500} />
 
-                  {/* Column 3 — Detail (takes remaining space) */}
-                  <div className="flex-1 flex flex-col overflow-hidden min-w-[200px]">
-                    <DetailPanel
-                      selectedIdea={selectedIdea}
-                      selectedFlow={selectedFlow}
-                      flowIdea={selectedFlow ? ideas.find((i) => i.id === selectedFlow.ideaId) ?? null : null}
-                      onDownloadFlow={downloadFlow}
-                      onGenerateFlow={handleGenerateFlowForIdea}
-                      generatingFlows={generatingFlows}
-                      isFlowMarked={selectedFlow ? markedIds.has(selectedFlow.ideaId) : false}
-                      onCreateTest={handleMarkForImplementation}
-                      creatingTest={selectedFlow ? markingIds.has(selectedFlow.ideaId) : false}
-                      onUpdateFlowXml={handleUpdateFlowXml}
-                    />
-                  </div>
+                      {/* Column 2 — Flows */}
+                      <div className="shrink-0 flex flex-col overflow-hidden" style={{ width: flowsWidth }}>
+                        <FlowsPanel
+                          flows={generatedFlows}
+                          ideas={ideas}
+                          generating={generatingFlows}
+                          progress={flowProgress}
+                          activeFlowId={activeFlowId}
+                          onClickFlow={handleClickFlow}
+                          onDownloadFlow={downloadFlow}
+                          onDownloadAll={downloadAllFlows}
+                          onDeleteFlow={handleDeleteFlow}
+                          onDeleteAllFlows={handleDeleteAllFlows}
+                          onCreateManualFlow={handleCreateManualFlow}
+                          onMarkForImplementation={handleMarkForImplementation}
+                          onMarkSelectedForImplementation={handleMarkSelectedForImplementation}
+                          markedIds={markedIds}
+                          markingIds={markingIds}
+                          selectedFlowIds={selectedFlowIds}
+                          onToggleSelectFlow={toggleSelectFlow}
+                          onSelectAllFlows={selectAllFlows}
+                          onDeselectAllFlows={deselectAllFlows}
+                        />
+                      </div>
+                      <ResizeHandle width={flowsWidth} onResize={setFlowsWidth} minWidth={180} maxWidth={500} />
+
+                      {/* Column 3 — Detail (takes remaining space) */}
+                      <div className="flex-1 flex flex-col overflow-hidden min-w-[200px]">
+                        <DetailPanel
+                          selectedIdea={selectedIdea}
+                          selectedFlow={selectedFlow}
+                          flowIdea={selectedFlow ? ideas.find((i) => i.id === selectedFlow.ideaId) ?? null : null}
+                          onDownloadFlow={downloadFlow}
+                          onGenerateFlow={handleGenerateFlowForIdea}
+                          generatingFlows={generatingFlows}
+                          isFlowMarked={selectedFlow ? markedIds.has(selectedFlow.ideaId) : false}
+                          onCreateTest={handleMarkForImplementation}
+                          creatingTest={selectedFlow ? markingIds.has(selectedFlow.ideaId) : false}
+                          onUpdateFlowXml={handleUpdateFlowXml}
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
               ) : (
                 /* Generate Ideas landing */
