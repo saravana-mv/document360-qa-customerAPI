@@ -32,7 +32,9 @@ import {
   parentFolderOf,
   buildFlowFilePath,
   slugifyFlowTitle,
+  unlockFlow,
 } from "../lib/api/flowFilesApi";
+import { useUserStore } from "../store/user.store";
 import { buildFlowPrompt, filterRelevantSpecs } from "../lib/flow/buildPrompt";
 import { loadFlowsFromQueue } from "../lib/tests/flowXml/loader";
 import { activateFlow, activateFlows, getActiveFlows } from "../lib/tests/flowXml/activeTests";
@@ -1280,13 +1282,26 @@ export function SpecFilesPage() {
 
   // ── Lock status for the selected flow ──────────────────────────────────
   const flowStatusByName = useFlowStatusStore((s) => s.byName);
+  const canUnlockFlow = useUserStore((s) => s.hasRole("qa_manager"));
   const selectedFlowLock = useMemo(() => {
     if (!selectedFlow || selectedFlow.status !== "done") return null;
     const folder = parentFolderOf(activePath);
     const target = buildFlowFilePath(folder, selectedFlow.title);
     const entry = flowStatusByName[target];
-    return entry?.lockedBy ? { lockedBy: entry.lockedBy, lockedAt: entry.lockedAt } : null;
+    return entry?.lockedBy ? { lockedBy: entry.lockedBy, lockedAt: entry.lockedAt, filePath: target } : null;
   }, [selectedFlow, activePath, flowStatusByName]);
+
+  async function handleUnlockSelectedFlow() {
+    if (!selectedFlowLock) return;
+    try {
+      await unlockFlow(selectedFlowLock.filePath);
+      const store = useFlowStatusStore.getState();
+      const entry = store.byName[selectedFlowLock.filePath];
+      if (entry) store.setEntry({ ...entry, lockedBy: undefined, lockedAt: undefined });
+    } catch (err) {
+      alert(`Failed to unlock: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
 
   // ── Derived header info ──────────────────────────────────────────────────
 
@@ -1509,7 +1524,9 @@ export function SpecFilesPage() {
                           creatingTest={selectedFlow ? markingIds.has(selectedFlow.ideaId) : false}
                           onUpdateFlowXml={handleUpdateFlowXml}
                           isFlowLocked={!!selectedFlowLock}
-                          flowLockTooltip={selectedFlowLock ? `Locked by ${selectedFlowLock.lockedBy.name}. Unlock the scenario before editing.` : undefined}
+                          flowLockTooltip={selectedFlowLock ? `Locked by ${selectedFlowLock.lockedBy.name}${canUnlockFlow ? " — click to unlock" : ". Unlock the scenario before editing."}` : undefined}
+                          canUnlockFlow={canUnlockFlow}
+                          onUnlockFlow={selectedFlowLock ? () => void handleUnlockSelectedFlow() : undefined}
                         />
                       </div>
                     </>

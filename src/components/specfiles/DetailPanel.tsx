@@ -38,6 +38,10 @@ interface Props {
   isFlowLocked?: boolean;
   /** Tooltip for the lock icon */
   flowLockTooltip?: string;
+  /** Whether the current user can unlock */
+  canUnlockFlow?: boolean;
+  /** Called when the user clicks the lock icon to unlock */
+  onUnlockFlow?: () => void;
 }
 
 type FlowTab = "idea" | "flow-xml";
@@ -148,12 +152,14 @@ function CopyButton({ value }: { value: string }) {
 
 type EditMode = "view" | "manual" | "ai-prompt" | "ai-loading" | "ai-review";
 
-function FlowXmlContent({ flow, validation, onUpdateXml, isLocked, lockTooltip }: {
+function FlowXmlContent({ flow, validation, onUpdateXml, isLocked, lockTooltip, canUnlock, onUnlock }: {
   flow: GeneratedFlow;
   validation: ReturnType<typeof validateFlowXml> | null;
   onUpdateXml?: (xml: string) => void;
   isLocked?: boolean;
   lockTooltip?: string;
+  canUnlock?: boolean;
+  onUnlock?: () => void;
 }) {
   const [editMode, setEditMode] = useState<EditMode>("view");
   const [draft, setDraft] = useState("");
@@ -315,11 +321,23 @@ function FlowXmlContent({ flow, validation, onUpdateXml, isLocked, lockTooltip }
           <>
             <CopyButton value={xmlContent} />
             {isLocked && (
-              <span title={lockTooltip} className="shrink-0 text-[#bf8700] p-1">
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
-                  <path fillRule="evenodd" d="M4 4a4 4 0 0 1 8 0v2h.25c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25v-5.5C2 6.784 2.784 6 3.75 6H4Zm8.25 3.5h-8.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25ZM10.5 4a2.5 2.5 0 1 0-5 0v2h5Z" clipRule="evenodd" />
-                </svg>
-              </span>
+              canUnlock && onUnlock ? (
+                <button
+                  onClick={onUnlock}
+                  title={lockTooltip}
+                  className="shrink-0 text-[#bf8700] hover:text-[#953800] rounded-md p-1 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
+                    <path fillRule="evenodd" d="M4 4a4 4 0 0 1 8 0v2h.25c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25v-5.5C2 6.784 2.784 6 3.75 6H4Zm8.25 3.5h-8.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25ZM10.5 4a2.5 2.5 0 1 0-5 0v2h5Z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              ) : (
+                <span title={lockTooltip} className="shrink-0 text-[#bf8700] p-1">
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
+                    <path fillRule="evenodd" d="M4 4a4 4 0 0 1 8 0v2h.25c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25v-5.5C2 6.784 2.784 6 3.75 6H4Zm8.25 3.5h-8.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25ZM10.5 4a2.5 2.5 0 1 0-5 0v2h5Z" clipRule="evenodd" />
+                  </svg>
+                </span>
+              )
             )}
             <button
               onClick={handleStartManualEdit}
@@ -513,7 +531,7 @@ function FlowXmlContent({ flow, validation, onUpdateXml, isLocked, lockTooltip }
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFlow, onGenerateFlow, generatingFlows, isFlowMarked, onCreateTest, creatingTest, onUpdateFlowXml, isFlowLocked, flowLockTooltip }: Props) {
+export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFlow, onGenerateFlow, generatingFlows, isFlowMarked, onCreateTest, creatingTest, onUpdateFlowXml, isFlowLocked, flowLockTooltip, canUnlockFlow, onUnlockFlow }: Props) {
   const [activeTab, setActiveTab] = useState<FlowTab>("idea");
   const validation = useMemo(
     () => (selectedFlow && selectedFlow.status === "done" ? validateFlowXml(selectedFlow.xml) : null),
@@ -623,6 +641,8 @@ export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFl
             onUpdateXml={onUpdateFlowXml ? (xml) => onUpdateFlowXml(selectedFlow.ideaId, xml) : undefined}
             isLocked={isFlowLocked}
             lockTooltip={flowLockTooltip}
+            canUnlock={canUnlockFlow}
+            onUnlock={onUnlockFlow}
           />
         )}
 

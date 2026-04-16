@@ -8,7 +8,8 @@ import { useSetupStore } from "../../store/setup.store";
 import { useFlowStatusStore } from "../../store/flowStatus.store";
 import { getTest } from "../../lib/tests/registry";
 import { rewriteApiVersion } from "../../lib/tests/flowXml/builder";
-import { getFlowFileContent, saveFlowFile } from "../../lib/api/flowFilesApi";
+import { getFlowFileContent, saveFlowFile, unlockFlow } from "../../lib/api/flowFilesApi";
+import { useUserStore } from "../../store/user.store";
 import { editFlowXml } from "../../lib/api/flowApi";
 import { validateFlowXml } from "../../lib/tests/flowXml/validate";
 import { loadFlowsFromQueue } from "../../lib/tests/flowXml/loader";
@@ -538,9 +539,26 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
   // Lock state — if locked, editing is disabled for everyone
   const flowEntry = useFlowStatusStore((s) => s.byName[fileName]);
   const isLocked = !!flowEntry?.lockedBy;
+  const canUnlock = useUserStore((s) => s.hasRole("qa_manager"));
+  const [unlocking, setUnlocking] = useState(false);
   const lockTooltip = flowEntry?.lockedBy
-    ? `Locked by ${flowEntry.lockedBy.name}. Unlock the scenario before editing.`
+    ? `Locked by ${flowEntry.lockedBy.name}${canUnlock ? " — click to unlock" : ". Unlock the scenario before editing."}`
     : undefined;
+
+  async function handleUnlock() {
+    if (!canUnlock) return;
+    setUnlocking(true);
+    try {
+      await unlockFlow(fileName);
+      const store = useFlowStatusStore.getState();
+      const entry = store.byName[fileName];
+      if (entry) store.setEntry({ ...entry, lockedBy: undefined, lockedAt: undefined });
+    } catch (err) {
+      alert(`Failed to unlock: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setUnlocking(false);
+    }
+  }
   const [validationError, setValidationError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -718,16 +736,29 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
           <>
             <CopyButton value={xml} />
             {isLocked && (
-              <span title={lockTooltip} className="shrink-0 text-[#bf8700] p-1">
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
-                  <path fillRule="evenodd" d="M4 4a4 4 0 0 1 8 0v2h.25c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25v-5.5C2 6.784 2.784 6 3.75 6H4Zm8.25 3.5h-8.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25ZM10.5 4a2.5 2.5 0 1 0-5 0v2h5Z" clipRule="evenodd" />
-                </svg>
-              </span>
+              canUnlock ? (
+                <button
+                  onClick={() => void handleUnlock()}
+                  disabled={unlocking}
+                  title={lockTooltip}
+                  className="shrink-0 text-[#bf8700] hover:text-[#953800] rounded-md p-1 transition-colors disabled:opacity-40"
+                >
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
+                    <path fillRule="evenodd" d="M4 4a4 4 0 0 1 8 0v2h.25c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25v-5.5C2 6.784 2.784 6 3.75 6H4Zm8.25 3.5h-8.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25ZM10.5 4a2.5 2.5 0 1 0-5 0v2h5Z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              ) : (
+                <span title={lockTooltip} className="shrink-0 text-[#bf8700] p-1">
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
+                    <path fillRule="evenodd" d="M4 4a4 4 0 0 1 8 0v2h.25c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25v-5.5C2 6.784 2.784 6 3.75 6H4Zm8.25 3.5h-8.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25ZM10.5 4a2.5 2.5 0 1 0-5 0v2h5Z" clipRule="evenodd" />
+                  </svg>
+                </span>
+              )
             )}
             <button
               onClick={handleStartManualEdit}
               disabled={isLocked}
-              title={isLocked ? lockTooltip : "Manual edit"}
+              title={isLocked ? (flowEntry?.lockedBy ? `Locked by ${flowEntry.lockedBy.name}` : "Locked") : "Manual edit"}
               className="shrink-0 text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff] rounded-md p-1 transition-colors disabled:opacity-40 disabled:pointer-events-none"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -737,7 +768,7 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
             <button
               onClick={handleStartAiEdit}
               disabled={isLocked}
-              title={isLocked ? lockTooltip : "AI Edit"}
+              title={isLocked ? (flowEntry?.lockedBy ? `Locked by ${flowEntry.lockedBy.name}` : "Locked") : "AI Edit"}
               className="shrink-0 text-[#656d76] hover:text-[#8250df] hover:bg-[#fbefff] rounded-md p-1 transition-colors disabled:opacity-40 disabled:pointer-events-none"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
