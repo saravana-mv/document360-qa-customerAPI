@@ -139,14 +139,6 @@ function CopyButton({ value }: { value: string }) {
   );
 }
 
-function SpinnerIcon() {
-  return (
-    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
-    </svg>
-  );
-}
 
 // ── Flow XML content with manual + AI edit ─────────────────────────────────
 
@@ -421,15 +413,26 @@ function FlowXmlContent({ flow, validation, onUpdateXml }: {
             </div>
           )}
           <div className="flex items-center justify-between">
-            <span className="text-xs text-[#656d76]">Ctrl+Enter to send</span>
-            <button
-              onClick={() => void handleAiGenerate()}
-              disabled={isAiLoading || !aiPrompt.trim()}
-              className="text-sm font-medium text-white bg-[#8250df] hover:bg-[#7340c9] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-3 py-1.5 transition-colors flex items-center gap-1.5"
-            >
-              {isAiLoading && <SpinnerIcon />}
-              {isAiLoading ? "Generating…" : "Generate"}
-            </button>
+            <span className="text-xs text-[#656d76]">{isAiLoading ? "" : "Ctrl+Enter to send"}</span>
+            {isAiLoading ? (
+              <button
+                onClick={() => { abortRef.current?.abort(); abortRef.current = null; setEditMode("ai-prompt"); }}
+                className="text-sm font-medium text-white bg-[#d1242f] hover:bg-[#d1242f]/90 rounded-md px-3 py-1.5 transition-colors flex items-center gap-1.5"
+              >
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
+                </svg>
+                Stop
+              </button>
+            ) : (
+              <button
+                onClick={() => void handleAiGenerate()}
+                disabled={!aiPrompt.trim()}
+                className="text-sm font-medium text-white bg-[#8250df] hover:bg-[#7340c9] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-3 py-1.5 transition-colors flex items-center gap-1.5"
+              >
+                Generate
+              </button>
+            )}
           </div>
         </div>
       )}
