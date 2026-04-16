@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,6 +31,36 @@ export function ContextMenu({ items, triggerClass, trigger, align = "right" }: C
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  // Position the dropdown relative to the trigger button in viewport coords.
+  // Runs on open and on scroll/resize so the menu tracks correctly.
+  const reposition = useCallback(() => {
+    if (!btnRef.current) return;
+    const rect = btnRef.current.getBoundingClientRect();
+    const menuW = 180; // min-w-[180px]
+    let left = align === "right" ? rect.right - menuW : rect.left;
+    // Clamp to viewport so the dropdown doesn't overflow the right edge
+    if (left + menuW > window.innerWidth - 8) left = window.innerWidth - menuW - 8;
+    if (left < 8) left = 8;
+    setPos({ top: rect.bottom + 4, left });
+  }, [align]);
+
+  useLayoutEffect(() => {
+    if (open) reposition();
+  }, [open, reposition]);
+
+  // Reposition on scroll/resize so the dropdown follows the trigger
+  useEffect(() => {
+    if (!open) return;
+    const handler = () => reposition();
+    window.addEventListener("scroll", handler, true);
+    window.addEventListener("resize", handler);
+    return () => {
+      window.removeEventListener("scroll", handler, true);
+      window.removeEventListener("resize", handler);
+    };
+  }, [open, reposition]);
 
   // Close on outside click
   useEffect(() => {
@@ -79,12 +110,11 @@ export function ContextMenu({ items, triggerClass, trigger, align = "right" }: C
         )}
       </button>
 
-      {open && (
+      {open && pos && createPortal(
         <div
           ref={menuRef}
-          className={`absolute top-full mt-1 z-50 bg-white border border-[#d1d9e0] rounded-lg shadow-lg py-0.5 min-w-[180px] ${
-            align === "right" ? "right-0" : "left-0"
-          }`}
+          className="fixed z-[9999] bg-white border border-[#d1d9e0] rounded-lg shadow-lg py-0.5 min-w-[180px]"
+          style={{ top: pos.top, left: pos.left }}
           onClick={(e) => e.stopPropagation()}
         >
           {visibleItems.map((item, i) => {
@@ -116,7 +146,8 @@ export function ContextMenu({ items, triggerClass, trigger, align = "right" }: C
               </button>
             );
           })}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
