@@ -38,6 +38,7 @@ import { loadFlowsFromQueue } from "../lib/tests/flowXml/loader";
 import { activateFlow, activateFlows, getActiveFlows } from "../lib/tests/flowXml/activeTests";
 import { buildParsedTagsFromRegistry } from "../lib/tests/buildParsedTags";
 import { useSpecStore } from "../store/spec.store";
+import { useFlowStatusStore } from "../store/flowStatus.store";
 import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
 import { useAuthStore } from "../store/auth.store";
 import { useSetupStore } from "../store/setup.store";
@@ -1277,6 +1278,16 @@ export function SpecFilesPage() {
   const selectedIdea = activeIdeaId ? ideas.find((i) => i.id === activeIdeaId) ?? null : null;
   const selectedFlow = activeFlowId ? generatedFlows.find((f) => f.ideaId === activeFlowId) ?? null : null;
 
+  // ── Lock status for the selected flow ──────────────────────────────────
+  const flowStatusByName = useFlowStatusStore((s) => s.byName);
+  const selectedFlowLock = useMemo(() => {
+    if (!selectedFlow || selectedFlow.status !== "done") return null;
+    const folder = parentFolderOf(activePath);
+    const target = buildFlowFilePath(folder, selectedFlow.title);
+    const entry = flowStatusByName[target];
+    return entry?.lockedBy ? { lockedBy: entry.lockedBy, lockedAt: entry.lockedAt } : null;
+  }, [selectedFlow, activePath, flowStatusByName]);
+
   // ── Derived header info ──────────────────────────────────────────────────
 
   const isFileContext = !!selectedPath;
@@ -1497,6 +1508,8 @@ export function SpecFilesPage() {
                           onCreateTest={handleMarkForImplementation}
                           creatingTest={selectedFlow ? markingIds.has(selectedFlow.ideaId) : false}
                           onUpdateFlowXml={handleUpdateFlowXml}
+                          isFlowLocked={!!selectedFlowLock}
+                          flowLockTooltip={selectedFlowLock ? `Locked by ${selectedFlowLock.lockedBy.name}. Unlock the scenario before editing.` : undefined}
                         />
                       </div>
                     </>

@@ -34,6 +34,10 @@ interface Props {
   creatingTest?: boolean;
   /** Called when the flow XML is edited (manual or AI) */
   onUpdateFlowXml?: (ideaId: string, xml: string) => void;
+  /** Whether the flow is locked (prevents editing) */
+  isFlowLocked?: boolean;
+  /** Tooltip for the lock icon */
+  flowLockTooltip?: string;
 }
 
 type FlowTab = "idea" | "flow-xml";
@@ -144,10 +148,12 @@ function CopyButton({ value }: { value: string }) {
 
 type EditMode = "view" | "manual" | "ai-prompt" | "ai-loading" | "ai-review";
 
-function FlowXmlContent({ flow, validation, onUpdateXml }: {
+function FlowXmlContent({ flow, validation, onUpdateXml, isLocked, lockTooltip }: {
   flow: GeneratedFlow;
   validation: ReturnType<typeof validateFlowXml> | null;
   onUpdateXml?: (xml: string) => void;
+  isLocked?: boolean;
+  lockTooltip?: string;
 }) {
   const [editMode, setEditMode] = useState<EditMode>("view");
   const [draft, setDraft] = useState("");
@@ -304,14 +310,22 @@ function FlowXmlContent({ flow, validation, onUpdateXml }: {
       <div className="flex items-center gap-1.5 shrink-0">
         <span className="text-xs font-mono text-[#656d76] flex-1 truncate">{flow.title}</span>
 
-        {/* View mode — show edit buttons */}
+        {/* View mode — show edit buttons (disabled when locked) */}
         {isView && (
           <>
             <CopyButton value={xmlContent} />
+            {isLocked && (
+              <span title={lockTooltip} className="shrink-0 text-[#bf8700] p-1">
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
+                  <path fillRule="evenodd" d="M4 4a4 4 0 0 1 8 0v2h.25c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25v-5.5C2 6.784 2.784 6 3.75 6H4Zm8.25 3.5h-8.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25ZM10.5 4a2.5 2.5 0 1 0-5 0v2h5Z" clipRule="evenodd" />
+                </svg>
+              </span>
+            )}
             <button
               onClick={handleStartManualEdit}
-              title="Manual edit"
-              className="shrink-0 text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff] rounded-md p-1 transition-colors"
+              disabled={isLocked}
+              title={isLocked ? lockTooltip : "Manual edit"}
+              className="shrink-0 text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff] rounded-md p-1 transition-colors disabled:opacity-40 disabled:pointer-events-none"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
@@ -319,8 +333,9 @@ function FlowXmlContent({ flow, validation, onUpdateXml }: {
             </button>
             <button
               onClick={handleStartAiEdit}
-              title="AI Edit"
-              className="shrink-0 text-[#656d76] hover:text-[#8250df] hover:bg-[#fbefff] rounded-md p-1 transition-colors"
+              disabled={isLocked}
+              title={isLocked ? lockTooltip : "AI Edit"}
+              className="shrink-0 text-[#656d76] hover:text-[#8250df] hover:bg-[#fbefff] rounded-md p-1 transition-colors disabled:opacity-40 disabled:pointer-events-none"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
@@ -498,7 +513,7 @@ function FlowXmlContent({ flow, validation, onUpdateXml }: {
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFlow, onGenerateFlow, generatingFlows, isFlowMarked, onCreateTest, creatingTest, onUpdateFlowXml }: Props) {
+export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFlow, onGenerateFlow, generatingFlows, isFlowMarked, onCreateTest, creatingTest, onUpdateFlowXml, isFlowLocked, flowLockTooltip }: Props) {
   const [activeTab, setActiveTab] = useState<FlowTab>("idea");
   const validation = useMemo(
     () => (selectedFlow && selectedFlow.status === "done" ? validateFlowXml(selectedFlow.xml) : null),
@@ -606,6 +621,8 @@ export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFl
             flow={selectedFlow}
             validation={validation}
             onUpdateXml={onUpdateFlowXml ? (xml) => onUpdateFlowXml(selectedFlow.ideaId, xml) : undefined}
+            isLocked={isFlowLocked}
+            lockTooltip={flowLockTooltip}
           />
         )}
 
