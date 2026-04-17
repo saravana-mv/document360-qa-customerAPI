@@ -1,9 +1,7 @@
-// Server-backed active-tests API. Replaces localStorage-based activeTests.ts.
+// Server-backed active-tests API (Cosmos DB).
 // All functions are async (API calls) — callers must await.
 
 import { getProjectHeaders } from "./projectHeader";
-
-const LEGACY_KEY = "flowforge:active-tests";
 
 async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
   const headers = { ...getProjectHeaders(), ...init?.headers };
@@ -63,25 +61,3 @@ export async function deactivateAll(): Promise<void> {
   });
 }
 
-/**
- * Client-side migration: if localStorage still has the old key,
- * push it to the server and delete it. Call once on app startup.
- */
-export async function migrateFromLocalStorage(): Promise<void> {
-  try {
-    const raw = localStorage.getItem(LEGACY_KEY);
-    if (!raw) return;
-    const arr = JSON.parse(raw) as string[];
-    if (arr.length > 0) {
-      await apiFetch("/api/active-tests/activate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ flows: arr }),
-      });
-    }
-    localStorage.removeItem(LEGACY_KEY);
-    console.log(`[activeTestsApi] Migrated ${arr.length} active tests from localStorage`);
-  } catch (e) {
-    console.warn("[activeTestsApi] Migration from localStorage failed:", e);
-  }
-}
