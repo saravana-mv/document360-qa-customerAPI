@@ -51,7 +51,6 @@ import {
   saveIdeas,
   deleteIdeas,
   aggregateForPath,
-  nextGlobalIdeaIndex,
   migrateFromLocalStorage as migrateIdeasFromLocalStorage,
   type WorkshopMap,
 } from "../lib/api/ideasApi";
@@ -160,8 +159,25 @@ export function SpecFilesPage() {
       try {
         await migrateIdeasFromLocalStorage();
         const map = await getAllIdeas();
+        // Clean up orphaned flows — flows whose ideaId doesn't match any idea
+        // in the same context (can happen after partial deletes or ID collisions)
+        let cleaned = false;
+        for (const ctx of Object.values(map)) {
+          const ideaIds = new Set(ctx.ideas.map(i => i.id));
+          const orphans = ctx.generatedFlows.filter(f => !ideaIds.has(f.ideaId));
+          if (orphans.length > 0) {
+            ctx.generatedFlows = ctx.generatedFlows.filter(f => ideaIds.has(f.ideaId));
+            cleaned = true;
+          }
+        }
         setWorkshopMap(map);
         setWorkshopLoaded(true);
+        // Persist cleaned data
+        if (cleaned) {
+          for (const [folder, ctx] of Object.entries(map)) {
+            saveIdeas(folder, ctx).catch(e => console.warn("[SpecFilesPage] Failed to save cleaned ideas:", e));
+          }
+        }
       } catch (e) {
         console.warn("[SpecFilesPage] Failed to load ideas from API:", e);
         setWorkshopLoaded(true);
@@ -593,15 +609,14 @@ export function SpecFilesPage() {
     setIdeasLoading(true);
     try {
       const result = await generateFlowIdeas(contextPath, [], undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN);
-      // Assign globally unique IDs to avoid collisions across contexts
-      const startIdx = nextGlobalIdeaIndex(workshopMap);
       const perIdeaCost = result.usage && result.ideas.length > 0
         ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
         : undefined;
       const now = new Date().toISOString();
+      const base = Date.now();
       const newIdeas = result.ideas.map((idea, i) => ({
         ...idea,
-        id: `idea-${startIdx + i}`,
+        id: `idea-${base}-${i}`,
         costUsd: perIdeaCost,
         createdAt: now,
       }));
@@ -652,14 +667,14 @@ export function SpecFilesPage() {
     try {
       const result = await generateFlowIdeas(currentPath, existingTitles, undefined, aiModel, count);
       if (result.ideas.length > 0) {
-        const startIdx = nextGlobalIdeaIndex(workshopMap);
         const perIdeaCost = result.usage && result.ideas.length > 0
           ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
           : undefined;
         const now = new Date().toISOString();
+        const base = Date.now();
         const newIdeas = result.ideas.map((idea, i) => ({
           ...idea,
-          id: `idea-${startIdx + i}`,
+          id: `idea-${base}-${i}`,
           costUsd: perIdeaCost,
           createdAt: now,
         }));
