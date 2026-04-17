@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { ContextMenu, MenuIcons } from "../common/ContextMenu";
-import { CustomPromptModal } from "./CustomPromptModal";
 import type { FlowIdea } from "../../lib/api/specFilesApi";
 
 function formatRelativeTime(iso: string): string {
@@ -58,8 +57,6 @@ interface Props {
   thisLevelOnly?: boolean;
   /** Toggle handler — only provided when sub-level ideas exist */
   onToggleThisLevel?: () => void;
-  /** Create a flow from a custom prompt (title auto-generated) */
-  onCreateManualFlow?: (title: string, prompt: string) => void;
 }
 
 export function FlowIdeasPanel({
@@ -68,11 +65,10 @@ export function FlowIdeasPanel({
   onToggleSelect, onSelectAll, onDeselectAll,
   onGenerateFlows, onGenerateFlowForIdea, onGenerateMore, onDeleteSelected, onDeleteIdea, onClickIdea, generatingFlows,
   ideasExhausted, maxIdeasTotal = 30, markedIds,
-  thisLevelOnly, onToggleThisLevel, onCreateManualFlow,
+  thisLevelOnly, onToggleThisLevel,
 }: Props) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [rowDeleteId, setRowDeleteId] = useState<string | null>(null);
-  const [showCustomPrompt, setShowCustomPrompt] = useState(false);
   const totalIdeas = ideas?.length ?? 0;
   const lockedCount = ideas?.filter(i => lockedIds.has(i.id)).length ?? 0;
   const selectedCount = selectedIds.size;
@@ -295,21 +291,6 @@ export function FlowIdeasPanel({
                 {message || "AI could not generate scenario flow ideas for this context."}
               </p>
             </div>
-            {onCreateManualFlow && (
-              <div className="mt-2 flex flex-col items-center gap-2">
-                <div className="w-full border-t border-[#d1d9e0] pt-4" />
-                <p className="text-xs text-[#656d76]">or generate a flow directly from a custom prompt</p>
-                <button
-                  onClick={() => setShowCustomPrompt(true)}
-                  className="flex items-center gap-1.5 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md px-3 py-1.5 transition-colors border border-[#1a7f37]/80"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-                  </svg>
-                  New AI flow
-                </button>
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -436,13 +417,6 @@ export function FlowIdeasPanel({
         );
       })()}
 
-      {/* Custom prompt modal */}
-      {showCustomPrompt && onCreateManualFlow && (
-        <CustomPromptModal
-          onSubmit={onCreateManualFlow}
-          onClose={() => setShowCustomPrompt(false)}
-        />
-      )}
     </div>
   );
 }

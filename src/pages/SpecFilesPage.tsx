@@ -6,9 +6,9 @@ import { MarkdownViewer } from "../components/specfiles/MarkdownViewer";
 import { FileUploadModal } from "../components/specfiles/FileUploadModal";
 import { ImportFromUrlModal } from "../components/specfiles/ImportFromUrlModal";
 import { FlowIdeasPanel } from "../components/specfiles/FlowIdeasPanel";
-import { CustomPromptModal } from "../components/specfiles/CustomPromptModal";
 import { FlowsPanel, type GeneratedFlow } from "../components/specfiles/FlowsPanel";
 import { DetailPanel } from "../components/specfiles/DetailPanel";
+import { FlowChatPanel } from "../components/specfiles/FlowChatPanel";
 import {
   listSpecFiles,
   getSpecFileContent,
@@ -119,7 +119,7 @@ export function SpecFilesPage() {
   const [ideasMessage, setIdeasMessage] = useState<string | null>(null);
   const [ideasExhausted, setIdeasExhausted] = useState(false);
   const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(new Set());
-  const [showCustomPromptModal, setShowCustomPromptModal] = useState(false);
+  const [chatActive, setChatActive] = useState(false);
 
   // ── Flow generation state ─────────────────────────────────────────────────
   const [generatedFlows, setGeneratedFlows] = useState<GeneratedFlow[]>([]);
@@ -1107,69 +1107,51 @@ export function SpecFilesPage() {
     }
   }
 
-  // ── Generate a flow from a manually entered prompt ────────────────────────
 
-  async function handleCreateManualFlow(title: string, prompt: string) {
-    if (!activePath) return;
 
-    // Resolve spec files from the current context (same logic as handleGenerateFlows)
-    let specFileNames: string[];
-    if (activePath.endsWith(".md")) {
-      specFileNames = [activePath];
-    } else {
-      const prefix = activePath.endsWith("/") ? activePath : `${activePath}/`;
-      specFileNames = files
-        .filter((f) => f.name.startsWith(prefix) && f.name.endsWith(".md"))
-        .map((f) => f.name);
-    }
+  // ── Spec files for current context (used by flow chat) ────────────────────
 
-    // Cap spec files to control token usage
-    const MAX_MANUAL_SPECS = 5;
-    const cappedSpecs = specFileNames.slice(0, MAX_MANUAL_SPECS);
+  const contextSpecFiles = useMemo(() => {
+    if (!activePath) return [];
+    if (activePath.endsWith(".md")) return [activePath];
+    const prefix = activePath.endsWith("/") ? activePath : `${activePath}/`;
+    return files
+      .filter((f) => f.name.startsWith(prefix) && f.name.endsWith(".md"))
+      .map((f) => f.name)
+      .slice(0, 5);
+  }, [activePath, files]);
 
-    const manualId = `manual-${Date.now()}`;
-    const pending: GeneratedFlow = {
-      ideaId: manualId,
+  // ── Handle flow generated from chat panel ─────────────────────────────────
+
+  function handleChatFlowGenerated(title: string, xml: string, usage: FlowUsage | null) {
+    const chatId = `chat-${Date.now()}`;
+    const newFlow: GeneratedFlow = {
+      ideaId: chatId,
       title,
-      status: "generating",
-      xml: "",
+      status: "done",
+      xml,
+      usage,
+      createdAt: new Date().toISOString(),
     };
-    setGeneratedFlows((prev) => [...prev, pending]);
-    setActiveFlowId(manualId);
+    setGeneratedFlows((prev) => [...prev, newFlow]);
+    setActiveFlowId(chatId);
     setActiveIdeaId(null);
+    setChatActive(false);
 
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    setGeneratingFlows(true);
-    setFlowProgress({ current: 0, total: 1 });
-
-    try {
-      const result = await generateFlowXml(prompt, cappedSpecs, aiModel, ctrl.signal);
-      setGeneratedFlows((prev) =>
-        prev.map((f) => f.ideaId === manualId ? { ...f, status: "done", xml: result.xml, usage: result.usage, createdAt: new Date().toISOString() } : f)
-      );
-      if (result.usage) {
-        setFlowsUsage(prev => prev ? {
-          inputTokens: prev.inputTokens + result.usage!.inputTokens,
-          outputTokens: prev.outputTokens + result.usage!.outputTokens,
-          totalTokens: prev.totalTokens + result.usage!.totalTokens,
-          costUsd: parseFloat((prev.costUsd + result.usage!.costUsd).toFixed(6)),
-        } : result.usage!);
-      }
-    } catch (e) {
-      if (!ctrl.signal.aborted) {
-        setGeneratedFlows((prev) =>
-          prev.map((f) => f.ideaId === manualId
-            ? { ...f, status: "error", error: e instanceof Error ? e.message : String(e) }
-            : f
-          )
-        );
-      }
+    // Persist to workshopMap
+    if (activePath) {
+      persistFlowsForPath(activePath, [...generatedFlows, newFlow]);
     }
 
-    setFlowProgress({ current: 1, total: 1 });
-    setGeneratingFlows(false);
-    abortRef.current = null;
+    // Accumulate flow usage
+    if (usage) {
+      setFlowsUsage(prev => prev ? {
+        inputTokens: prev.inputTokens + usage.inputTokens,
+        outputTokens: prev.outputTokens + usage.outputTokens,
+        totalTokens: prev.totalTokens + usage.totalTokens,
+        costUsd: parseFloat((prev.costUsd + usage.costUsd).toFixed(6)),
+      } : usage);
+    }
   }
 
   // ── Create tests — save flow XML to blob and register as runnable tests ──
@@ -1484,11 +1466,23 @@ export function SpecFilesPage() {
                     </span>
                   </>
                 )}
-                {/* Cost summary — right side */}
+                {/* New Flow button */}
+                <button
+                  onClick={() => setChatActive(true)}
+                  disabled={chatActive}
+                  className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-[#0969da] hover:text-[#0860ca] px-2 py-1 rounded-md hover:bg-[#ddf4ff] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                  </svg>
+                  New Flow
+                </button>
+
+                {/* Cost summary */}
                 {(ideasUsage || flowsUsage) && (() => {
                   const totalCost = (ideasUsage?.costUsd ?? 0) + (flowsUsage?.costUsd ?? 0);
                   return (
-                    <div className="ml-auto flex items-center gap-3 text-xs text-[#656d76]">
+                    <div className="flex items-center gap-3 text-xs text-[#656d76]">
                       {ideasUsage && (
                         <span>Ideas <span className="font-medium text-[#1f2328]">${ideasUsage.costUsd.toFixed(4)}</span></span>
                       )}
@@ -1545,7 +1539,6 @@ export function SpecFilesPage() {
                       maxIdeasTotal={MAX_IDEAS_TOTAL}
                       thisLevelOnly={thisLevelOnly}
                       onToggleThisLevel={(hasSubLevelIdeas || hasSubLevelFlows) ? () => setThisLevelOnly((v) => !v) : undefined}
-                      onCreateManualFlow={handleCreateManualFlow}
                     />
                   </div>
 
@@ -1567,7 +1560,7 @@ export function SpecFilesPage() {
                           onDownloadAll={downloadAllFlows}
                           onDeleteFlow={handleDeleteFlow}
                           onDeleteAllFlows={handleDeleteAllFlows}
-                          onCreateManualFlow={handleCreateManualFlow}
+                          onStartFlowChat={() => setChatActive(true)}
                           onMarkForImplementation={handleMarkForImplementation}
                           onMarkSelectedForImplementation={handleMarkSelectedForImplementation}
                           markedIds={markedIds}
@@ -1582,8 +1575,16 @@ export function SpecFilesPage() {
                       </div>
                       <ResizeHandle width={flowsWidth} onResize={setFlowsWidth} minWidth={180} maxWidth={500} />
 
-                      {/* Column 3 — Detail (takes remaining space) */}
+                      {/* Column 3 — Detail or Chat (takes remaining space) */}
                       <div className="flex-1 flex flex-col overflow-hidden min-w-[200px]">
+                        {chatActive ? (
+                          <FlowChatPanel
+                            specFiles={contextSpecFiles}
+                            aiModel={aiModel}
+                            onFlowGenerated={handleChatFlowGenerated}
+                            onClose={() => setChatActive(false)}
+                          />
+                        ) : (
                         <DetailPanel
                           selectedIdea={selectedIdea}
                           selectedFlow={selectedFlow}
@@ -1600,9 +1601,20 @@ export function SpecFilesPage() {
                           canUnlockFlow={canUnlockFlow}
                           onUnlockFlow={selectedFlowLock ? () => void handleUnlockSelectedFlow() : undefined}
                         />
+                        )}
                       </div>
                     </>
                   )}
+                </div>
+              ) : chatActive ? (
+                /* Full-width chat panel on landing page */
+                <div className="flex-1 flex overflow-hidden">
+                  <FlowChatPanel
+                    specFiles={contextSpecFiles}
+                    aiModel={aiModel}
+                    onFlowGenerated={handleChatFlowGenerated}
+                    onClose={() => setChatActive(false)}
+                  />
                 </div>
               ) : (
                 /* Generate Ideas landing */
@@ -1641,15 +1653,15 @@ export function SpecFilesPage() {
                       ))}
                     </div>
                     <div className="flex flex-col items-center gap-2 pt-2">
-                      <span className="text-xs text-[#656d76]">or generate a flow directly from a custom prompt</span>
+                      <span className="text-xs text-[#656d76]">or design a flow interactively</span>
                       <button
-                        onClick={() => setShowCustomPromptModal(true)}
+                        onClick={() => setChatActive(true)}
                         className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md px-3 py-2 transition-colors border border-[#1a7f37]/80"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
                         </svg>
-                        New AI flow
+                        New Flow
                       </button>
                     </div>
                   </div>
@@ -1699,13 +1711,7 @@ export function SpecFilesPage() {
         />
       )}
 
-      {/* Custom prompt modal — shared between landing page and ideas panel */}
-      {showCustomPromptModal && (
-        <CustomPromptModal
-          onSubmit={handleCreateManualFlow}
-          onClose={() => setShowCustomPromptModal(false)}
-        />
-      )}
+      {/* CustomPromptModal removed — replaced by inline FlowChatPanel */}
     </Layout>
   );
 }

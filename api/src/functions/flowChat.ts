@@ -1,0 +1,234 @@
+import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
+import Anthropic from "@anthropic-ai/sdk";
+import { downloadBlob, listBlobs } from "../lib/blobClient";
+import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
+import { withAuth } from "../lib/auth";
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+// Cap spec context to ~50k characters (~12k tokens)
+const MAX_SPEC_CONTEXT_CHARS = 50_000;
+const MAX_SPEC_FILES = 5;
+
+const FLOW_CHAT_SYSTEM_PROMPT = `You are an expert API test flow designer for the Document360 QA Customer API testing platform.
+
+You help users interactively design test flows through conversation. Your role has TWO phases:
+
+## Phase 1: Planning (default mode)
+
+When the user describes what they want to test, you should:
+
+1. **Understand the intent** — ask clarifying questions if the request is ambiguous.
+2. **Propose a structured flow plan** using the exact format below.
+3. **Iterate** — the user may ask you to add, remove, or modify steps.
+
+### Flow Plan Format
+
+When you have enough information to propose a plan, output it inside a JSON block like this:
+
+\`\`\`flowplan
+{
+  "name": "Human readable flow name",
+  "entity": "Primary entity (e.g. Articles, Categories)",
+  "description": "What this flow tests",
+  "steps": [
+    {
+      "number": 1,
+      "name": "Step name",
+      "method": "POST",
+      "path": "/v3/projects/{project_id}/endpoint",
+      "captures": ["state.createdId from response.data.id"],
+      "assertions": ["status 201", "field-exists data.id"],
+      "flags": []
+    },
+    {
+      "number": 2,
+      "name": "Delete resource (cleanup)",
+      "method": "DELETE",
+      "path": "/v3/projects/{project_id}/resource/{resource_id}",
+      "captures": [],
+      "assertions": ["status 204"],
+      "flags": ["teardown"]
+    }
+  ]
+}
+\`\`\`
+
+### Planning Rules
+
+- **Article dependency (CRITICAL)**: EVERY flow that operates on an article MUST start with: (a) Create Category (POST /v2/projects/{project_id}/categories), (b) Create Article. End with teardown steps that delete article, then category.
+- **Teardown is MANDATORY**: Every flow MUST end with teardown steps that delete ALL resources created. Mark each with the "teardown" flag.
+- **Scope**: Only use endpoints from the provided spec files. Do not invent endpoints.
+- **HTTP methods**: The D360 API uses PATCH for updates — NEVER use PUT.
+- **DELETE returns 204**: No body assertions on DELETE steps.
+- **Version paths**: Use /v3/... for all endpoints.
+
+### Conversation Guidelines
+
+- Be concise but helpful.
+- When proposing a plan, include a brief explanation BEFORE the flowplan block.
+- If the user's request is clear enough, propose a plan right away — don't over-ask.
+- When the user says "looks good", "generate", "create it", or similar confirmation, respond with exactly: "CONFIRMED: Generating the flow XML now..." and nothing else. The system will take over from there.
+- You may include text commentary alongside the flowplan block — the client parses the JSON block separately.
+
+## Phase 2: XML Generation
+
+When the system tells you to generate XML, you switch to XML generation mode. You will receive the confirmed plan and must output ONLY the raw XML. This phase uses a different system prompt — you do not handle it directly.
+
+Remember: keep responses concise. Propose plans proactively when you have enough information. Ask at most 1-2 clarifying questions before showing a plan.`;
+
+async function buildSpecContext(specFiles: string[]): Promise<string> {
+  if (!specFiles || specFiles.length === 0) {
+    try {
+      const blobs = await listBlobs();
+      const mdFiles = blobs.filter((b) => b.name.endsWith(".md")).slice(0, MAX_SPEC_FILES);
+      if (mdFiles.length === 0) return "";
+      const contents = await Promise.all(mdFiles.map((b) => downloadBlob(b.name)));
+      return truncateContext(
+        contents.map((c, i) => `## ${mdFiles[i].name}\n\n${c}`),
+      );
+    } catch {
+      return "";
+    }
+  }
+
+  const capped = specFiles.slice(0, MAX_SPEC_FILES);
+  const contents = await Promise.all(
+    capped.map(async (name) => {
+      try {
+        const content = await downloadBlob(name);
+        return `## ${name}\n\n${content}`;
+      } catch {
+        return `## ${name}\n\n(File not found)`;
+      }
+    })
+  );
+  return truncateContext(contents);
+}
+
+function truncateContext(sections: string[]): string {
+  const result: string[] = [];
+  let totalChars = 0;
+  for (const section of sections) {
+    if (totalChars + section.length > MAX_SPEC_CONTEXT_CHARS) {
+      result.push("(Remaining spec files omitted to stay within token budget)");
+      break;
+    }
+    result.push(section);
+    totalChars += section.length;
+  }
+  return result.join("\n\n---\n\n");
+}
+
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+interface FlowChatBody {
+  messages: ChatMessage[];
+  specFiles?: string[];
+  model?: string;
+}
+
+/** POST /api/flow-chat
+ *  Body: { messages: [{role, content}], specFiles?: string[], model?: string }
+ *  Response: { reply: string, usage: {...} }
+ */
+async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
+  if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return {
+      status: 500,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      body: JSON.stringify({ error: "ANTHROPIC_API_KEY is not configured" }),
+    };
+  }
+
+  let body: FlowChatBody;
+  try {
+    body = (await req.json()) as FlowChatBody;
+  } catch {
+    return {
+      status: 400,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      body: JSON.stringify({ error: "Invalid JSON body" }),
+    };
+  }
+
+  if (!body.messages || body.messages.length === 0) {
+    return {
+      status: 400,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      body: JSON.stringify({ error: "messages array is required" }),
+    };
+  }
+
+  const client = new Anthropic({ apiKey });
+  const model = resolveModel(body.model, DEFAULT_FLOW_MODEL);
+
+  // Build spec context and prepend to the first user message
+  const specContext = await buildSpecContext(body.specFiles ?? []);
+  const specCount = body.specFiles?.length ?? 0;
+
+  // Construct messages for the API — inject spec context into the first user message
+  const apiMessages: ChatMessage[] = body.messages.map((m, i) => {
+    if (i === 0 && m.role === "user" && specContext) {
+      const scopeNote = specCount === 1
+        ? `\n\nYou are working with 1 endpoint specification. Focus the flow on this endpoint, but always include required setup/teardown steps.`
+        : specCount > 1
+          ? `\n\nYou are working with ${specCount} endpoint specifications. Focus the flow on endpoints described in these specs.`
+          : "";
+      return {
+        role: m.role,
+        content: `${m.content}${scopeNote}\n\n# Available API Specifications\n\n${specContext}`,
+      };
+    }
+    return m;
+  });
+
+  try {
+    const response = await client.messages.create({
+      model,
+      max_tokens: 4096,
+      system: FLOW_CHAT_SYSTEM_PROMPT,
+      messages: apiMessages,
+    });
+
+    const textBlock = response.content.find((b) => b.type === "text");
+    const reply = textBlock && textBlock.type === "text" ? textBlock.text : "";
+
+    const inputTokens = response.usage.input_tokens;
+    const outputTokens = response.usage.output_tokens;
+    const costUsd = computeCost(model, inputTokens, outputTokens);
+
+    return {
+      status: 200,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        reply,
+        usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, costUsd },
+      }),
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      status: 500,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      body: JSON.stringify({ error: msg }),
+    };
+  }
+}
+
+app.http("flowChat", {
+  methods: ["POST", "OPTIONS"],
+  authLevel: "anonymous",
+  route: "flow-chat",
+  handler: withAuth(flowChat),
+});
