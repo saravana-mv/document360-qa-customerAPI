@@ -12,7 +12,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { withAuth, parseClientPrincipal } from "../lib/auth";
 import { getValidAccessToken } from "../lib/d360Token";
-import { getApiKeyForVersion } from "./versionAuth";
+import { getApiKeyForVersion } from "../lib/versionApiKeyStore";
 
 const D360_BASE_URL =
   (process.env.D360_API_BASE_URL ?? "https://apihub.berlin.document360.net").replace(/\/$/, "");

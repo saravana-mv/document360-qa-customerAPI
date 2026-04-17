@@ -8,10 +8,7 @@
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { withAuth, parseClientPrincipal } from "../lib/auth";
-import { TableClient, RestError } from "@azure/data-tables";
-
-const CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING ?? "";
-const TABLE_NAME = "versionapikeys";
+import { putApiKey, deleteApiKey, hasApiKey } from "../lib/versionApiKeyStore";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -19,45 +16,6 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Content-Type": "application/json",
 };
-
-interface ApiKeyEntity {
-  partitionKey: string;
-  rowKey: string;
-  apiKey: string;
-  version: string;
-  createdAt: number;
-  updatedAt: number;
-}
-
-let _client: TableClient | null = null;
-let _tableEnsured = false;
-
-function getClient(): TableClient {
-  if (_client) return _client;
-  if (!CONNECTION_STRING) throw new Error("AZURE_STORAGE_CONNECTION_STRING is not set");
-  _client = TableClient.fromConnectionString(CONNECTION_STRING, TABLE_NAME, {
-    allowInsecureConnection: CONNECTION_STRING.includes("UseDevelopmentStorage=true"),
-  });
-  return _client;
-}
-
-async function ensureTable(): Promise<void> {
-  if (_tableEnsured) return;
-  try {
-    await getClient().createTable();
-  } catch (e) {
-    if (e instanceof RestError && e.statusCode === 409) {
-      // already exists
-    } else {
-      throw e;
-    }
-  }
-  _tableEnsured = true;
-}
-
-function rowKey(oid: string, version: string): string {
-  return `${oid}:${version}`;
-}
 
 async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
   if (req.method === "OPTIONS") {
@@ -75,23 +33,7 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
     if (!body.version || !body.apiKey) {
       return { status: 400, headers: CORS_HEADERS, body: JSON.stringify({ error: "version and apiKey are required" }) };
     }
-    await ensureTable();
-    const now = Date.now();
-    let createdAt = now;
-    try {
-      const existing = await getClient().getEntity<ApiKeyEntity>(oid, rowKey(oid, body.version));
-      createdAt = existing.createdAt ?? now;
-    } catch { /* new entry */ }
-
-    const entity: ApiKeyEntity = {
-      partitionKey: oid,
-      rowKey: rowKey(oid, body.version),
-      apiKey: body.apiKey,
-      version: body.version,
-      createdAt,
-      updatedAt: now,
-    };
-    await getClient().upsertEntity(entity, "Replace");
+    await putApiKey(oid, body.version, body.apiKey);
     return { status: 200, headers: CORS_HEADERS, body: JSON.stringify({ configured: true, version: body.version }) };
   }
 
@@ -100,16 +42,7 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
     if (!version) {
       return { status: 400, headers: CORS_HEADERS, body: JSON.stringify({ error: "version query param required" }) };
     }
-    await ensureTable();
-    try {
-      await getClient().deleteEntity(oid, rowKey(oid, version));
-    } catch (e) {
-      if (e instanceof RestError && e.statusCode === 404) {
-        // already gone
-      } else {
-        throw e;
-      }
-    }
+    await deleteApiKey(oid, version);
     return { status: 200, headers: CORS_HEADERS, body: JSON.stringify({ configured: false, version }) };
   }
 
@@ -118,31 +51,15 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
     if (!version) {
       return { status: 400, headers: CORS_HEADERS, body: JSON.stringify({ error: "version query param required" }) };
     }
-    await ensureTable();
-    try {
-      await getClient().getEntity<ApiKeyEntity>(oid, rowKey(oid, version));
-      return { status: 200, headers: CORS_HEADERS, body: JSON.stringify({ configured: true, method: "apikey", version }) };
-    } catch (e) {
-      if (e instanceof RestError && e.statusCode === 404) {
-        return { status: 200, headers: CORS_HEADERS, body: JSON.stringify({ configured: false, method: "oauth", version }) };
-      }
-      throw e;
-    }
+    const configured = await hasApiKey(oid, version);
+    return {
+      status: 200,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ configured, method: configured ? "apikey" : "oauth", version }),
+    };
   }
 
   return { status: 405, headers: CORS_HEADERS, body: JSON.stringify({ error: "Method not allowed" }) };
-}
-
-/** Fetches the stored API key for a user+version. Returns null if none. */
-export async function getApiKeyForVersion(oid: string, version: string): Promise<string | null> {
-  await ensureTable();
-  try {
-    const entity = await getClient().getEntity<ApiKeyEntity>(oid, rowKey(oid, version));
-    return entity.apiKey ?? null;
-  } catch (e) {
-    if (e instanceof RestError && e.statusCode === 404) return null;
-    throw e;
-  }
 }
 
 app.http("versionAuth", {
