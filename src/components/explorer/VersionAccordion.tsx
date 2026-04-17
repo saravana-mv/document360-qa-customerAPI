@@ -131,16 +131,15 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
     useExplorerUIStore.setState({ expandedFolders: ef, expandedTags: et });
   }, [version, tags]);
 
-  // Delete all scenarios in this version
-  async function handleDeleteAll() {
-    const versionTests = getAllTests().filter((t) => {
-      const fp = t.flowFileName;
-      return fp && fp.startsWith(version + "/");
-    });
-    for (const t of versionTests) {
+  // Delete selected scenarios in this version
+  async function handleDeleteSelected() {
+    const selectedInVersion = tags.filter((t) => selectedTags.has(t.name));
+    if (selectedInVersion.length === 0) return;
+    const targetTests = getAllTests().filter((t) => selectedInVersion.some((st) => st.name === t.tag));
+    for (const t of targetTests) {
       if (t.flowFileName) await deactivateFlow(t.flowFileName);
     }
-    const flowFileNames = new Set(versionTests.map((t) => t.flowFileName).filter(Boolean) as string[]);
+    const flowFileNames = new Set(targetTests.map((t) => t.flowFileName).filter(Boolean) as string[]);
     unregisterWhere((def) => def.flowFileName !== undefined && flowFileNames.has(def.flowFileName));
     const flowStatus = useFlowStatusStore.getState();
     const remaining = new Set(
@@ -359,9 +358,9 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
         {/* ── Danger ── */}
         <button
           onClick={() => setShowDeleteAll(true)}
-          disabled={noScenarios}
-          title="Delete all scenarios in this version"
-          className={`shrink-0 rounded-md p-1 transition-colors ${noScenarios ? "text-[#656d76] opacity-40 cursor-not-allowed" : "text-[#656d76] hover:text-[#d1242f] hover:bg-[#ffebe9]"}`}
+          disabled={selectedCount === 0}
+          title={selectedCount === 0 ? "Select scenarios to delete" : `Delete ${selectedCount} selected scenario${selectedCount !== 1 ? "s" : ""}`}
+          className={`shrink-0 rounded-md p-1 transition-colors ${selectedCount === 0 ? "text-[#656d76] opacity-40 cursor-not-allowed" : "text-[#656d76] hover:text-[#d1242f] hover:bg-[#ffebe9]"}`}
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
@@ -540,7 +539,7 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
           )}
         </div>
       )}
-      {/* Delete all confirmation modal */}
+      {/* Delete selected confirmation modal */}
       {showDeleteAll && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowDeleteAll(false)}>
           <div className="bg-white rounded-lg shadow-xl border border-[#d1d9e0] w-[420px] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
@@ -550,11 +549,11 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
                   <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
                 </svg>
               </div>
-              <span className="text-base font-semibold text-[#1f2328]">Delete all {version} scenarios?</span>
+              <span className="text-base font-semibold text-[#1f2328]">Delete {selectedCount} selected scenario{selectedCount !== 1 ? "s" : ""}?</span>
             </div>
             <div className="px-4 py-3 space-y-2">
               <p className="text-sm text-[#656d76] leading-relaxed">
-                This will unregister all <strong className="text-[#1f2328]">{tags.length} scenario{tags.length !== 1 ? "s" : ""}</strong> in {version}.
+                This will unregister <strong className="text-[#1f2328]">{selectedCount} scenario{selectedCount !== 1 ? "s" : ""}</strong> from the runner.
               </p>
               <p className="text-sm text-[#656d76] leading-relaxed">
                 Flow XML files are preserved — you can recreate scenarios from them at any time.
@@ -568,10 +567,10 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
                 Cancel
               </button>
               <button
-                onClick={() => void handleDeleteAll()}
+                onClick={() => void handleDeleteSelected()}
                 className="text-sm font-medium text-white bg-[#d1242f] hover:bg-[#d1242f]/90 border border-[#d1242f]/80 rounded-md px-3 py-1.5 transition-colors"
               >
-                Delete all scenarios
+                Delete {selectedCount} scenario{selectedCount !== 1 ? "s" : ""}
               </button>
             </div>
           </div>
