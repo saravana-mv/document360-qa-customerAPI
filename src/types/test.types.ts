@@ -9,6 +9,8 @@ export interface TestContext {
   token: string;
   baseUrl: string;
   apiVersion: string; // e.g. "v3"
+  authMethod?: "oauth" | "apikey";
+  authVersion?: string; // version hint for proxy (e.g. "v2")
 }
 
 export interface RunState {

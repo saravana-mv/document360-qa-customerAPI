@@ -10,6 +10,7 @@ import { getAllTests, unregisterWhere } from "../../lib/tests/registry";
 import { getProjectIdFromToken, fetchProject } from "../../lib/api/projects";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import { deactivateAll } from "../../lib/tests/flowXml/activeTests";
+import { useUserStore } from "../../store/user.store";
 import { VersionAccordion } from "./VersionAccordion";
 import { ProjectSettingsCard } from "../setup/ProjectSettingsCard";
 import { Spinner } from "../common/Spinner";
@@ -239,6 +240,7 @@ export function TestExplorer() {
         {(() => {
           const totalTags = parsedTags.length;
           const allTagsSelected = totalTags > 0 && selectedTags.size >= totalTags;
+          const canRearrange = useUserStore.getState().hasRole("qa_manager");
           return (
           <div className="flex items-center gap-2 px-3 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
             <svg className="w-4 h-4 text-[#656d76] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -278,6 +280,22 @@ export function TestExplorer() {
                 )}
               </svg>
             </button>
+            {canRearrange && (
+              <button
+                onClick={explorerUI.toggleRearrangeMode}
+                title={explorerUI.rearrangeMode ? "Exit rearrange mode" : "Rearrange scenarios and folders"}
+                className={`rounded-md p-1 transition-colors ${explorerUI.rearrangeMode ? "text-[#0969da] bg-[#ddf4ff]" : "text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff]"}`}
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                  <circle cx="5" cy="3" r="1.5" />
+                  <circle cx="11" cy="3" r="1.5" />
+                  <circle cx="5" cy="8" r="1.5" />
+                  <circle cx="11" cy="8" r="1.5" />
+                  <circle cx="5" cy="13" r="1.5" />
+                  <circle cx="11" cy="13" r="1.5" />
+                </svg>
+              </button>
+            )}
             <button
               onClick={allTagsSelected ? clearSelection : selectAll}
               title={allTagsSelected ? "Deselect all" : "Select all"}

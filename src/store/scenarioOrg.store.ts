@@ -7,6 +7,8 @@ import { NEWLY_ADDED, depthOf } from "../lib/treeUtils";
 interface VersionConfig {
   baseUrl: string;
   apiVersion: string;
+  authMethod?: "oauth" | "apikey";  // default "oauth"
+  apiKeyConfigured?: boolean;       // read-only — true when server has a stored key
 }
 
 interface ScenarioOrgState {
@@ -27,6 +29,9 @@ interface ScenarioOrgState {
   createFolder: (version: string, folderPath: string) => void;
   renameFolder: (version: string, oldPath: string, newPath: string) => void;
   deleteFolder: (version: string, folderPath: string) => void;
+
+  // Folder move
+  moveFolder: (version: string, sourcePath: string, targetPath: string) => void;
 
   // Scenario placement
   moveScenario: (flowPath: string, targetFolder: string) => void;
@@ -181,6 +186,35 @@ export const useScenarioOrgStore = create<ScenarioOrgState>((set, get) => ({
       );
       return {
         folders: { ...s.folders, [version]: newFolders },
+      };
+    });
+    get().save();
+  },
+
+  moveFolder: (version, sourcePath, targetPath) => {
+    // Reparent folder: move sourcePath under targetPath
+    const newBasePath = targetPath ? `${targetPath}/${sourcePath.split("/").pop()}` : sourcePath.split("/").pop()!;
+    if (depthOf(newBasePath) > 4) return;
+    // Prevent moving into self or descendant
+    if (targetPath === sourcePath || targetPath.startsWith(sourcePath + "/")) return;
+    set((s) => {
+      const folderList = s.folders[version] ?? [];
+      const newFolders = folderList.map((f) => {
+        if (f === sourcePath) return newBasePath;
+        if (f.startsWith(sourcePath + "/")) return newBasePath + f.slice(sourcePath.length);
+        return f;
+      });
+      const newPlacements = { ...s.placements };
+      for (const [flowPath, folder] of Object.entries(newPlacements)) {
+        if (folder === sourcePath) {
+          newPlacements[flowPath] = newBasePath;
+        } else if (folder.startsWith(sourcePath + "/")) {
+          newPlacements[flowPath] = newBasePath + folder.slice(sourcePath.length);
+        }
+      }
+      return {
+        folders: { ...s.folders, [version]: newFolders },
+        placements: newPlacements,
       };
     });
     get().save();

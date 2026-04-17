@@ -52,7 +52,7 @@ export function RunControls() {
       const version = scenarioOrg.getVersionForFlow(flowPath);
       if (!version) continue;
       const vc = scenarioOrg.versionConfigs[version];
-      if (!vc?.baseUrl && !vc?.apiVersion) continue;
+      if (!vc?.baseUrl && !vc?.apiVersion && !vc?.authMethod) continue;
       byTag[t.tag] = buildTestContext(
         token,
         setup.selectedProjectId,
@@ -60,6 +60,8 @@ export function RunControls() {
         setup.langCode,
         vc.apiVersion || setup.apiVersion,
         vc.baseUrl || undefined,
+        vc.authMethod || "oauth",
+        version,
       );
     }
     return byTag;

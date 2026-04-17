@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useExplorerUIStore } from "../../store/explorerUI.store";
 import { useScenarioOrgStore } from "../../store/scenarioOrg.store";
 import { useRunnerStore } from "../../store/runner.store";
+import { useAuthStore } from "../../store/auth.store";
 import { ContextMenu, MenuIcons } from "../common/ContextMenu";
 import { ScenarioFolderTree } from "./ScenarioFolderTree";
+import { saveApiKey, deleteApiKey, getVersionAuthStatus } from "../../lib/api/versionAuthApi";
+import { startAuthFlow, loadOAuthConfig } from "../../lib/oauth/flow";
 import type { ParsedTag } from "../../types/spec.types";
 
 interface VersionAccordionProps {
@@ -30,17 +33,62 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
   const createFolder = useScenarioOrgStore((s) => s.createFolder);
   const { selectedTags } = useRunnerStore();
 
+  const authStatus = useAuthStore((s) => s.status);
+
   const [showConfig, setShowConfig] = useState(false);
   const [baseUrl, setBaseUrl] = useState(versionConfig?.baseUrl ?? "");
   const [apiVersion, setApiVersion] = useState(versionConfig?.apiVersion ?? "");
+  const [authMethod, setAuthMethod] = useState<"oauth" | "apikey">(versionConfig?.authMethod ?? "oauth");
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [apiKeyConfigured, setApiKeyConfigured] = useState(versionConfig?.apiKeyConfigured ?? false);
+  const [apiKeySaving, setApiKeySaving] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+
+  // Check API key status when config panel opens
+  useEffect(() => {
+    if (!showConfig || authMethod !== "apikey") return;
+    getVersionAuthStatus(version)
+      .then((s) => setApiKeyConfigured(s.configured))
+      .catch(() => { /* ignore */ });
+  }, [showConfig, authMethod, version]);
 
   const selectedCount = tags.filter((t) => selectedTags.has(t.name)).length;
 
   function handleSaveConfig() {
-    setVersionConfig(version, { baseUrl: baseUrl.trim(), apiVersion: apiVersion.trim() });
+    setVersionConfig(version, {
+      baseUrl: baseUrl.trim(),
+      apiVersion: apiVersion.trim(),
+      authMethod,
+      apiKeyConfigured,
+    });
     setShowConfig(false);
+  }
+
+  async function handleSaveApiKey() {
+    if (!apiKeyInput.trim()) return;
+    setApiKeySaving(true);
+    try {
+      await saveApiKey(version, apiKeyInput.trim());
+      setApiKeyConfigured(true);
+      setApiKeyInput("");
+    } catch (err) {
+      alert(`Failed to save API key: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setApiKeySaving(false);
+    }
+  }
+
+  async function handleRemoveApiKey() {
+    setApiKeySaving(true);
+    try {
+      await deleteApiKey(version);
+      setApiKeyConfigured(false);
+    } catch (err) {
+      alert(`Failed to remove API key: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setApiKeySaving(false);
+    }
   }
 
   function handleCreateFolder() {
@@ -84,10 +132,10 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
           <svg className={`w-3 h-3 text-[#656d76] shrink-0 transition-transform ${open ? "rotate-90" : ""}`} fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clipRule="evenodd" />
           </svg>
-          <span className="text-[13px] font-bold text-[#1f2328] uppercase">{version}</span>
+          <span className="text-sm font-bold text-[#1f2328] uppercase">{version}</span>
           <span className="text-xs text-[#656d76] shrink-0">{scenarioCount}</span>
           {selectedCount > 0 && (
-            <span className="text-[11px] text-[#0969da] font-medium shrink-0 px-1.5 py-px rounded-full bg-[#ddf4ff] border border-[#b6e3ff]">
+            <span className="text-xs text-[#0969da] font-medium shrink-0 px-1.5 py-px rounded-full bg-[#ddf4ff] border border-[#b6e3ff]">
               {selectedCount}/{tags.length}
             </span>
           )}
@@ -119,7 +167,113 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
               placeholder="v3"
             />
           </div>
-          <div className="flex justify-end">
+          {/* Auth method */}
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-[#656d76] w-16 shrink-0">Auth</label>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setAuthMethod("oauth")}
+                className={`text-xs px-2 py-0.5 rounded border transition-colors ${
+                  authMethod === "oauth"
+                    ? "bg-[#ddf4ff] border-[#b6e3ff] text-[#0969da] font-medium"
+                    : "bg-white border-[#d1d9e0] text-[#656d76] hover:text-[#1f2328]"
+                }`}
+              >
+                D360 OAuth
+              </button>
+              <button
+                onClick={() => setAuthMethod("apikey")}
+                className={`text-xs px-2 py-0.5 rounded border transition-colors ${
+                  authMethod === "apikey"
+                    ? "bg-[#ddf4ff] border-[#b6e3ff] text-[#0969da] font-medium"
+                    : "bg-white border-[#d1d9e0] text-[#656d76] hover:text-[#1f2328]"
+                }`}
+              >
+                API Key
+              </button>
+            </div>
+          </div>
+          {/* Auth status / actions */}
+          {authMethod === "oauth" && (
+            <div className="flex items-center gap-2">
+              <span className="w-16 shrink-0" />
+              <div className="flex items-center gap-2">
+                {authStatus === "authenticated" ? (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-[#1a7f37] shrink-0" />
+                    <span className="text-xs text-[#1a7f37]">Authenticated</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-[#d1242f] shrink-0" />
+                    <span className="text-xs text-[#d1242f]">Not signed in</span>
+                  </>
+                )}
+                <button
+                  onClick={() => {
+                    const config = loadOAuthConfig();
+                    if (config) void startAuthFlow(config);
+                  }}
+                  className="text-xs text-[#0969da] hover:underline ml-1"
+                >
+                  {authStatus === "authenticated" ? "Refresh" : "Sign in"}
+                </button>
+              </div>
+            </div>
+          )}
+          {authMethod === "apikey" && (
+            <div className="flex items-center gap-2">
+              <span className="w-16 shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                {apiKeyConfigured ? (
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#1a7f37] shrink-0" />
+                    <span className="text-xs text-[#1a7f37]">API key configured</span>
+                    <button
+                      onClick={() => void handleRemoveApiKey()}
+                      disabled={apiKeySaving}
+                      className="text-xs text-[#d1242f] hover:underline ml-1"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-[#9a6700] shrink-0" />
+                    <span className="text-xs text-[#9a6700]">No API key</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="password"
+                    className="flex-1 text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded px-2 py-1 outline-none focus:border-[#0969da]"
+                    value={apiKeyInput}
+                    onChange={(e) => setApiKeyInput(e.target.value)}
+                    placeholder="Paste API key"
+                  />
+                  <button
+                    onClick={() => void handleSaveApiKey()}
+                    disabled={apiKeySaving || !apiKeyInput.trim()}
+                    className="text-xs font-medium text-white bg-[#0969da] hover:bg-[#0969da]/90 rounded px-2 py-1 transition-colors disabled:opacity-50"
+                  >
+                    {apiKeySaving ? "…" : "Save key"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => {
+                setBaseUrl(versionConfig?.baseUrl ?? "");
+                setApiVersion(versionConfig?.apiVersion ?? "");
+                setAuthMethod(versionConfig?.authMethod ?? "oauth");
+                setShowConfig(false);
+              }}
+              className="text-xs font-medium text-[#1f2328] border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] rounded-md px-3 py-1 transition-colors"
+            >
+              Cancel
+            </button>
             <button
               onClick={handleSaveConfig}
               className="text-xs font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md px-3 py-1 transition-colors border border-[#1a7f37]/80"
@@ -142,7 +296,7 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
               </svg>
               <input
                 autoFocus
-                className="text-[13px] text-[#1f2328] bg-white border border-[#0969da] rounded px-1 py-0.5 w-32 outline-none"
+                className="text-sm text-[#1f2328] bg-white border border-[#0969da] rounded px-1 py-0.5 w-32 outline-none"
                 placeholder="Folder name"
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}

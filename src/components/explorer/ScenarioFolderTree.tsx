@@ -137,7 +137,7 @@ function renderUnplacedTags(
     <>
       {matchingTags.map((tag) => {
         const tests = allTests.filter((t) => t.tag === tag.name);
-        return <TagNode key={tag.name} tag={tag} tests={tests} />;
+        return <DraggableTagNode key={tag.name} tag={tag} tests={tests} />;
       })}
     </>
   );
@@ -160,18 +160,37 @@ function FolderIcon({ className }: { className?: string }) {
   );
 }
 
+/** 6-dot grip handle shown in rearrange mode */
+function GripHandle() {
+  return (
+    <span className="cursor-grab text-[#656d76] shrink-0">
+      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+        <circle cx="5" cy="3" r="1.2" />
+        <circle cx="11" cy="3" r="1.2" />
+        <circle cx="5" cy="8" r="1.2" />
+        <circle cx="11" cy="8" r="1.2" />
+        <circle cx="5" cy="13" r="1.2" />
+        <circle cx="11" cy="13" r="1.2" />
+      </svg>
+    </span>
+  );
+}
+
 function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps) {
   const open = useExplorerUIStore((s) => (s.expandedFolders[version] ?? new Set()).has(node.fullPath));
+  const rearrangeMode = useExplorerUIStore((s) => s.rearrangeMode);
   const toggleFolder = useExplorerUIStore((s) => s.toggleFolder);
   const createFolder = useScenarioOrgStore((s) => s.createFolder);
   const renameFolder = useScenarioOrgStore((s) => s.renameFolder);
   const deleteFolder = useScenarioOrgStore((s) => s.deleteFolder);
   const moveScenario = useScenarioOrgStore((s) => s.moveScenario);
+  const moveFolderAction = useScenarioOrgStore((s) => s.moveFolder);
 
   const [creating, setCreating] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [renameName, setRenameName] = useState(node.name);
+  const [dragOver, setDragOver] = useState(false);
 
   const reserved = isNewlyAdded(node.fullPath);
   const depth = depthOf(node.fullPath);
@@ -218,22 +237,40 @@ function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps)
     deleteFolder(version, node.fullPath);
   }, [totalFlows, node.name, version, node.fullPath, deleteFolder]);
 
-  // Drag-and-drop: accept scenario drops
+  // Drag-and-drop: accept scenario and folder drops
   const handleDragOver = useCallback((e: React.DragEvent) => {
-    const flowPath = e.dataTransfer.types.includes("application/x-flow-path");
-    if (flowPath) {
+    const hasFlow = e.dataTransfer.types.includes("application/x-flow-path");
+    const hasFolder = e.dataTransfer.types.includes("application/x-folder-path");
+    if (hasFlow || hasFolder) {
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
+      setDragOver(true);
     }
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOver(false);
   }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    setDragOver(false);
     const flowPath = e.dataTransfer.getData("application/x-flow-path");
     if (flowPath) {
       moveScenario(flowPath, node.fullPath);
+      return;
     }
-  }, [moveScenario, node.fullPath]);
+    const folderPath = e.dataTransfer.getData("application/x-folder-path");
+    if (folderPath && folderPath !== node.fullPath) {
+      moveFolderAction(version, folderPath, node.fullPath);
+    }
+  }, [moveScenario, moveFolderAction, node.fullPath, version]);
+
+  // Folder drag start (rearrange mode only)
+  const handleFolderDragStart = useCallback((e: React.DragEvent) => {
+    e.dataTransfer.setData("application/x-folder-path", node.fullPath);
+    e.dataTransfer.effectAllowed = "move";
+  }, [node.fullPath]);
 
   // Build context menu items — grey icons, "..." trigger, consistent style
   const menuItems: Array<{ label: string; icon: React.ReactNode; onClick: () => void; danger?: boolean; disabled?: boolean }> = [];
@@ -266,9 +303,13 @@ function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps)
     <div className="mb-px">
       <div
         className="group flex items-center gap-1"
+        draggable={rearrangeMode && !reserved}
+        onDragStart={rearrangeMode && !reserved ? handleFolderDragStart : undefined}
         onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
+        {rearrangeMode && !reserved && <GripHandle />}
         <button
           onClick={() => toggleFolder(version, node.fullPath)}
           className="text-[#656d76] hover:text-[#1f2328] w-4 flex items-center justify-center shrink-0"
@@ -277,7 +318,7 @@ function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps)
             <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clipRule="evenodd" />
           </svg>
         </button>
-        <div className="flex items-center gap-2 flex-1 px-2 py-1.5 rounded-md hover:bg-[#f6f8fa] border border-transparent transition-colors text-xs">
+        <div className={`flex items-center gap-2 flex-1 px-2 py-1.5 rounded-md hover:bg-[#f6f8fa] border transition-colors text-xs ${dragOver ? "border-[#0969da] bg-[#ddf4ff]/30" : "border-transparent"}`}>
           {/* Folder icon: NEWLY-ADDED gets a lighter grey, regular folders get standard grey */}
           {reserved ? (
             <FolderIcon className="text-[#8b949e]" />
@@ -287,7 +328,7 @@ function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps)
           {renaming ? (
             <input
               autoFocus
-              className="text-[13px] text-[#1f2328] bg-white border border-[#0969da] rounded px-1 py-0.5 w-32 outline-none"
+              className="text-sm text-[#1f2328] bg-white border border-[#0969da] rounded px-1 py-0.5 w-32 outline-none"
               value={renameName}
               onChange={(e) => setRenameName(e.target.value)}
               onKeyDown={(e) => {
@@ -297,7 +338,7 @@ function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps)
               onBlur={confirmRename}
             />
           ) : (
-            <span className={`font-medium text-[13px] truncate ${reserved ? "text-[#8250df]" : "text-[#1f2328]"}`} title={reserved ? "Default folder for new scenarios" : undefined}>
+            <span className={`font-medium text-sm truncate ${reserved ? "text-[#8250df]" : "text-[#1f2328]"}`} title={reserved ? "Default folder for new scenarios" : undefined}>
               {node.name}
             </span>
           )}
@@ -334,7 +375,7 @@ function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps)
               <FolderIcon />
               <input
                 autoFocus
-                className="text-[13px] text-[#1f2328] bg-white border border-[#0969da] rounded px-1 py-0.5 w-32 outline-none"
+                className="text-sm text-[#1f2328] bg-white border border-[#0969da] rounded px-1 py-0.5 w-32 outline-none"
                 placeholder="Folder name"
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
@@ -355,9 +396,10 @@ function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps)
   );
 }
 
-/** Wrapper around TagNode that adds drag support */
+/** Wrapper around TagNode that adds drag support (gated by rearrange mode) */
 function DraggableTagNode({ tag, tests }: { tag: ParsedTag; tests: ReturnType<typeof getAllTests> }) {
   const flowFileName = tests[0]?.flowFileName;
+  const rearrangeMode = useExplorerUIStore((s) => s.rearrangeMode);
 
   const handleDragStart = useCallback((e: React.DragEvent) => {
     if (flowFileName) {
@@ -366,9 +408,14 @@ function DraggableTagNode({ tag, tests }: { tag: ParsedTag; tests: ReturnType<ty
     }
   }, [flowFileName]);
 
+  const canDrag = rearrangeMode && !!flowFileName;
+
   return (
-    <div draggable={!!flowFileName} onDragStart={handleDragStart}>
-      <TagNode tag={tag} tests={tests} />
+    <div draggable={canDrag} onDragStart={canDrag ? handleDragStart : undefined} className="flex items-center gap-0">
+      {rearrangeMode && <GripHandle />}
+      <div className="flex-1">
+        <TagNode tag={tag} tests={tests} />
+      </div>
     </div>
   );
 }

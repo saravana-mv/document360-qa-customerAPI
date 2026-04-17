@@ -12,6 +12,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { withAuth, parseClientPrincipal } from "../lib/auth";
 import { getValidAccessToken } from "../lib/d360Token";
+import { getApiKeyForVersion } from "./versionAuth";
 
 const D360_BASE_URL =
   (process.env.D360_API_BASE_URL ?? "https://apihub.berlin.document360.net").replace(/\/$/, "");
@@ -35,7 +36,7 @@ const FORWARDED_RESPONSE_HEADERS = ["content-type", "content-language", "etag"];
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-D360-Method, X-D360-No-Auth",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-D360-Method, X-D360-No-Auth, X-D360-Auth-Method, X-D360-Version",
   // Allow the SPA to read our debug headers from cross-origin responses.
   "Access-Control-Expose-Headers": "X-D360-Proxy-Build, X-D360-Proxy-Crash, X-D360-Upstream-Status, X-D360-Upstream-Url, X-D360-Trace-Id, Content-Type",
 };
@@ -102,15 +103,35 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
 
   // Preserve the query string verbatim.
   const url = new URL(req.url);
-  const upstreamUrl = `${D360_BASE_URL}/${subPath}${url.search}`;
+  let upstreamUrl = `${D360_BASE_URL}/${subPath}${url.search}`;
 
   // Opt-out header lets flow tests deliberately call D360 without auth so they
   // can verify the 401 path. We still require Entra — this is only about
   // whether we inject the D360 Bearer header.
   const noAuth = (req.headers.get("x-d360-no-auth") ?? "").toLowerCase() === "1";
 
-  let accessToken = "";
-  if (!noAuth) {
+  // Per-version auth: client may send X-D360-Auth-Method: apikey and
+  // X-D360-Version: v2 to indicate this version uses API key auth.
+  const authMethodHint = (req.headers.get("x-d360-auth-method") ?? "").toLowerCase();
+  const versionHint = req.headers.get("x-d360-version") ?? "";
+
+  const forwardHeaders: Record<string, string> = {};
+  forwardHeaders["Accept"] = "application/json";
+
+  if (noAuth) {
+    forwardHeaders["Authorization"] = "Bearer __invalid__";
+  } else if (authMethodHint === "apikey" && versionHint) {
+    // API key auth: fetch the stored key for this user+version and inject
+    // as api_token query parameter (D360's API key mechanism).
+    const apiKey = await getApiKeyForVersion(principal.userId, versionHint);
+    if (!apiKey) {
+      return errJson(401, "API key not configured for this version", { code: "APIKEY_NOT_CONFIGURED", version: versionHint });
+    }
+    // D360 API key goes as api_token query param
+    const separator = upstreamUrl.includes("?") ? "&" : "?";
+    upstreamUrl = `${upstreamUrl}${separator}api_token=${encodeURIComponent(apiKey)}`;
+  } else {
+    let accessToken = "";
     try {
       ({ accessToken } = await getValidAccessToken(principal.userId));
     } catch (e) {
@@ -120,15 +141,8 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
       }
       return errJson(502, `Token refresh failed: ${msg}`);
     }
+    forwardHeaders["Authorization"] = `Bearer ${accessToken}`;
   }
-
-  // Build forwarded headers from the strict allowlist + our injected ones.
-  // Default Accept to application/json so D360's content negotiation always
-  // picks the JSON serializer (browser default `*/*` has tripped 500s before).
-  const forwardHeaders: Record<string, string> = noAuth
-    ? { Authorization: "Bearer __invalid__" }
-    : { Authorization: `Bearer ${accessToken}` };
-  forwardHeaders["Accept"] = "application/json";
   req.headers.forEach((value, key) => {
     if (ALLOWED_REQUEST_HEADERS.has(key.toLowerCase())) {
       forwardHeaders[key] = value;

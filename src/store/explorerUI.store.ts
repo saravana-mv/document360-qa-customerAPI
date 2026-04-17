@@ -59,6 +59,10 @@ interface ExplorerUIState {
   collapseAll: () => void;
   toggleSortOrder: () => void;
 
+  // Rearrange mode
+  rearrangeMode: boolean;
+  toggleRearrangeMode: () => void;
+
   // Version/folder toggles
   toggleVersion: (version: string) => void;
   toggleFolder: (version: string, folder: string) => void;
@@ -73,6 +77,7 @@ export const useExplorerUIStore = create<ExplorerUIState>((set) => ({
   sortOrder: (localStorage.getItem(SORT_KEY) as SortOrder) || "asc",
   expandedVersions: loadSetFromStorage(VERSIONS_KEY),
   expandedFolders: loadFoldersFromStorage(),
+  rearrangeMode: false,
 
   toggleEntity: (name) =>
     set((s) => {
@@ -104,6 +109,9 @@ export const useExplorerUIStore = create<ExplorerUIState>((set) => ({
       localStorage.setItem(SORT_KEY, next);
       return { sortOrder: next };
     }),
+
+  toggleRearrangeMode: () =>
+    set((s) => ({ rearrangeMode: !s.rearrangeMode })),
 
   toggleVersion: (version) =>
     set((s) => {

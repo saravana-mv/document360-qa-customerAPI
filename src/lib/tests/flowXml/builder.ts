@@ -229,6 +229,10 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
   const headers: Record<string, string> = {};
   if (requestBody !== undefined) headers["Content-Type"] = "application/json";
   if (step.noAuth) headers["X-D360-No-Auth"] = "1";
+  if (ctx.authMethod === "apikey" && ctx.authVersion) {
+    headers["X-D360-Auth-Method"] = "apikey";
+    headers["X-D360-Version"] = ctx.authVersion;
+  }
 
   let httpStatus: number;
   let responseBody: unknown = undefined;
