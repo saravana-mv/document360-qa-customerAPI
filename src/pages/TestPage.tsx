@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Layout } from "../components/common/Layout";
 import { TestExplorer } from "../components/explorer/TestExplorer";
 import { ResultsPanel } from "../components/results/ResultsPanel";
@@ -7,7 +7,6 @@ import { DetailPane } from "../components/results/DetailPane";
 import { RunHistory } from "../components/results/RunHistory";
 import { useRunnerStore } from "../store/runner.store";
 import { useSpecStore } from "../store/spec.store";
-import { getAllTests } from "../lib/tests/registry";
 
 type Tab = "tests" | "history";
 
@@ -16,15 +15,7 @@ export function TestPage() {
   const parsedTags = useSpecStore((s) => s.parsedTags);
   const [tab, setTab] = useState<Tab>("tests");
 
-  // Auto-select the first test once tests are loaded
-  useEffect(() => {
-    if (selectedTestId) return;
-    if (parsedTags.length === 0) return;
-    const allTests = getAllTests();
-    if (allTests.length > 0) {
-      selectTest(allTests[0].id);
-    }
-  }, [parsedTags, selectedTestId, selectTest]);
+  // No auto-select — user picks a scenario explicitly
 
   const hasTests = parsedTags.length > 0;
 
