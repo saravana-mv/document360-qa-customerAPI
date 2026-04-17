@@ -28,6 +28,7 @@ import { generateFlowXml } from "../lib/api/flowApi";
 import { validateFlowXml } from "../lib/tests/flowXml/validate";
 import {
   saveFlowFile,
+  deleteFlowFile,
   listFlowFiles,
   FlowFileConflictError,
   parentFolderOf,
@@ -818,6 +819,15 @@ export function SpecFilesPage() {
   function handleDeleteFlow(ideaId: string) {
     // Prevent deletion of flows that have active tests
     if (markedIds.has(ideaId)) return;
+
+    // Clean up orphaned Cosmos doc (best-effort, fire-and-forget)
+    const flow = generatedFlows.find(f => f.ideaId === ideaId);
+    if (flow?.status === "done" && flow.title) {
+      const folder = parentFolderOf(activePath);
+      const blobName = buildFlowFilePath(folder, flow.title);
+      void deleteFlowFile(blobName).catch(() => { /* orphan already gone or never saved */ });
+    }
+
     setGeneratedFlows(prev => prev.filter(f => f.ideaId !== ideaId));
     if (activeFlowId === ideaId) setActiveFlowId(null);
     // Remove from workshopMap
@@ -863,6 +873,16 @@ export function SpecFilesPage() {
   function handleDeleteAllFlows() {
     // Keep flows that have active tests (markedIds) — they can't be deleted
     const keep = generatedFlows.filter(f => markedIds.has(f.ideaId));
+
+    // Clean up orphaned Cosmos docs for all deleted flows (best-effort)
+    const folder = parentFolderOf(activePath);
+    for (const f of generatedFlows) {
+      if (!markedIds.has(f.ideaId) && f.status === "done" && f.title) {
+        const blobName = buildFlowFilePath(folder, f.title);
+        void deleteFlowFile(blobName).catch(() => { /* orphan already gone or never saved */ });
+      }
+    }
+
     setGeneratedFlows(keep);
     if (activeFlowId && !markedIds.has(activeFlowId)) setActiveFlowId(null);
     // Recompute usage from remaining
@@ -1201,7 +1221,7 @@ export function SpecFilesPage() {
     }
     const folder = parentFolderOf(activePath);
     const target = buildFlowFilePath(folder, flow.title);
-    void markFlow(flow, target, false);
+    void markFlow(flow, target, true);
   }
 
   async function handleMarkSelectedForImplementation() {
@@ -1232,7 +1252,7 @@ export function SpecFilesPage() {
     // flows that are still saving, and their registrations get discarded
     // when the shared in-flight promise resolves.
     const results = await Promise.allSettled(
-      jobs.map((j) => saveFlowFile(j.target, j.flow.xml, false)),
+      jobs.map((j) => saveFlowFile(j.target, j.flow.xml, true)),
     );
 
     let firstConflict: { flow: GeneratedFlow; existingName: string; suggestedNewName: string } | null = null;
