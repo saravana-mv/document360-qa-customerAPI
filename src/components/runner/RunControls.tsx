@@ -103,13 +103,12 @@ export function RunControls() {
       setup.apiVersion,
     );
 
-    let selectedTests = allTests;
-    if (runner.selectedTags.size > 0 || runner.selectedTests.size > 0) {
-      const fromTags = Array.from(runner.selectedTags).flatMap((tag) => getTestsByTag(tag));
-      const fromTests = allTests.filter((t) => runner.selectedTests.has(t.id));
-      const ids = new Set([...fromTags, ...fromTests].map((t) => t.id));
-      selectedTests = allTests.filter((t) => ids.has(t.id));
-    }
+    if (runner.selectedTags.size === 0 && runner.selectedTests.size === 0) return;
+    const fromTags = Array.from(runner.selectedTags).flatMap((tag) => getTestsByTag(tag));
+    const fromTests = allTests.filter((t) => runner.selectedTests.has(t.id));
+    const ids = new Set([...fromTags, ...fromTests].map((t) => t.id));
+    const selectedTests = allTests.filter((t) => ids.has(t.id));
+    if (selectedTests.length === 0) return;
 
     runner.initTests(selectedTests.map((t) => ({
       id: t.id, name: t.name, tag: t.tag, path: t.path, method: t.method,
@@ -161,7 +160,7 @@ export function RunControls() {
         </button>
         <button
           onClick={runSelected}
-          disabled={runner.running || settingsMissing}
+          disabled={runner.running || settingsMissing || (runner.selectedTags.size === 0 && runner.selectedTests.size === 0)}
           className="px-2.5 py-1 bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-xs font-medium rounded-md transition-colors disabled:opacity-50 border border-[#d1d9e0]"
         >
           Run selected
