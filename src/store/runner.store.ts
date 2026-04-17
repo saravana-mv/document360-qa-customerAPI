@@ -34,6 +34,9 @@ interface RunnerState {
   appendLog: (entry: Omit<LogEntry, "id" | "timestamp">) => void;
   setSummary: (summary: RunSummary) => void;
   toggleTagSelection: (tag: string) => void;
+  /** Exclusive select: clear all, select only this flow */
+  selectFlow: (tag: string, testIds: string[]) => void;
+  /** Additive toggle: add/remove flow from selection (Ctrl+click) */
   toggleFlowSelection: (tag: string, testIds: string[]) => void;
   toggleTestSelection: (testId: string) => void;
   selectAll: () => void;
@@ -148,6 +151,13 @@ export const useRunnerStore = create<RunnerState>((set) => ({
       return { selectedTags: next };
     }),
 
+  selectFlow: (tag, testIds) =>
+    set(() => ({
+      selectedTags: new Set([tag]),
+      selectedTests: new Set(testIds),
+      selectedTestId: testIds[0] ?? null,
+    })),
+
   toggleFlowSelection: (tag, testIds) =>
     set((state) => {
       const tags = new Set(state.selectedTags);
@@ -159,7 +169,6 @@ export const useRunnerStore = create<RunnerState>((set) => ({
         tags.add(tag);
         for (const id of testIds) tests.add(id);
       }
-      // Close detail pane when switching to flow-level selection
       return { selectedTags: tags, selectedTests: tests, selectedTestId: null };
     }),
 

@@ -24,7 +24,7 @@ export function TagNode({ tag, tests }: TagNodeProps) {
   const toggleTag = useExplorerUIStore((s) => s.toggleTag);
   const [deleting, setDeleting] = useState(false);
   const [locking, setLocking] = useState(false);
-  const { tagResults, selectedTags, toggleFlowSelection } = useRunnerStore();
+  const { tagResults, selectedTags, selectFlow, toggleFlowSelection } = useRunnerStore();
   const { setSpec } = useSpecStore();
   const tagResult = tagResults[tag.name];
   const status = tagResult?.status ?? "idle";
@@ -149,7 +149,14 @@ export function TagNode({ tag, tests }: TagNodeProps) {
           </svg>
         </button>
         <div
-          onClick={() => toggleFlowSelection(tag.name, tests.map((t) => t.id))}
+          onClick={(e) => {
+            const ids = tests.map((t) => t.id);
+            if (e.ctrlKey || e.metaKey) {
+              toggleFlowSelection(tag.name, ids);
+            } else {
+              selectFlow(tag.name, ids);
+            }
+          }}
           className={`flex items-center gap-2 flex-1 px-2 py-1.5 rounded-md cursor-pointer transition-colors text-xs ${
             isSelected ? "bg-[#ddf4ff] border border-[#b6e3ff]" : "hover:bg-[#f6f8fa] border border-transparent"
           }`}
