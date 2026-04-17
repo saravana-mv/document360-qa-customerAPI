@@ -22,6 +22,9 @@ interface VersionAccordionProps {
 }
 
 
+const EMPTY_SET = new Set<string>();
+const EMPTY_ARR: string[] = [];
+
 export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: VersionAccordionProps) {
   const open = useExplorerUIStore((s) => s.expandedVersions.has(version));
   const toggleVersion = useExplorerUIStore((s) => s.toggleVersion);
@@ -100,8 +103,8 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
   }
 
   // Expand/collapse all folders + tags within this version
-  const versionFolders = useScenarioOrgStore((s) => s.folders[version] ?? []);
-  const expandedFolders = useExplorerUIStore((s) => s.expandedFolders[version] ?? new Set());
+  const versionFolders = useScenarioOrgStore((s) => s.folders[version] ?? EMPTY_ARR);
+  const expandedFolders = useExplorerUIStore((s) => s.expandedFolders[version] ?? EMPTY_SET);
   const expandedTags = useExplorerUIStore((s) => s.expandedTags);
   const isAllExpanded = (expandedFolders.size > 0 || tags.some((t) => expandedTags.has(t.name)));
 
