@@ -2,6 +2,7 @@ import { useAuthStore } from "../../store/auth.store";
 import { useEntraAuthStore } from "../../store/entraAuth.store";
 import { useSetupStore } from "../../store/setup.store";
 import { useSpecStore } from "../../store/spec.store";
+import { useAiCostStore } from "../../store/aiCost.store";
 import { Spinner } from "./Spinner";
 
 interface TopBarProps {
@@ -15,6 +16,7 @@ export function TopBar({ showTestControls }: TopBarProps) {
   const entraLogout = useEntraAuthStore((s) => s.logout);
   const { selectedProjectId, selectedVersionId, projects, versions } = useSetupStore();
   const { loading: specLoading } = useSpecStore();
+  const totalCostUsd = useAiCostStore((s) => s.totalCostUsd);
 
   const project = projects.find((p) => p.id === selectedProjectId);
   const version = versions.find((v) => v.id === selectedVersionId);
@@ -45,6 +47,15 @@ export function TopBar({ showTestControls }: TopBarProps) {
       {specLoading && showTestControls && <Spinner size="sm" className="text-[#58a6ff]" />}
 
       <div className="flex-1" />
+
+      {totalCostUsd > 0 && (
+        <span
+          title="Cumulative AI cost this session (ideas + flows + edits)"
+          className="text-[11px] font-medium text-[#8b949e] px-2 py-0.5 rounded-full bg-[#2d333b] border border-[#31363b] shrink-0"
+        >
+          Total AI cost: <span className="text-[#e6edf3]">${totalCostUsd.toFixed(4)}</span>
+        </span>
+      )}
 
       {status === "authenticated" && (
         <button

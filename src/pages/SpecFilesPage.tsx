@@ -43,6 +43,7 @@ import { buildParsedTagsFromRegistry } from "../lib/tests/buildParsedTags";
 import { useSpecStore } from "../store/spec.store";
 import { useFlowStatusStore } from "../store/flowStatus.store";
 import { useScenarioOrgStore } from "../store/scenarioOrg.store";
+import { useAiCostStore } from "../store/aiCost.store";
 import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
 import { useAuthStore } from "../store/auth.store";
 import { useSetupStore } from "../store/setup.store";
@@ -96,6 +97,16 @@ export function SpecFilesPage() {
       if (ctx.ideas.length > 0) s.add(key);
     }
     return s;
+  }, [workshopMap]);
+
+  // Push total workshop cost to global store whenever workshopMap changes
+  useEffect(() => {
+    let total = 0;
+    for (const ctx of Object.values(workshopMap)) {
+      if (ctx.usage) total += ctx.usage.costUsd;
+      if (ctx.flowsUsage) total += ctx.flowsUsage.costUsd;
+    }
+    useAiCostStore.getState().setWorkshopCost(parseFloat(total.toFixed(6)));
   }, [workshopMap]);
 
   // Working set — flat state loaded from workshopMap when navigating

@@ -7,6 +7,7 @@ import { XmlDiffView } from "../common/XmlDiffView";
 import { editFlowXml } from "../../lib/api/flowApi";
 import { validateFlowXml } from "../../lib/tests/flowXml/validate";
 import { useSetupStore } from "../../store/setup.store";
+import { useAiCostStore } from "../../store/aiCost.store";
 
 const XmlEditor = lazy(() => import("../common/XmlEditor").then(m => ({ default: m.XmlEditor })));
 
@@ -246,6 +247,7 @@ function FlowXmlContent({ flow, validation, onUpdateXml, isLocked, lockTooltip, 
       setDraft(result.xml);
       if (result.usage) {
         setAiCost(`$${result.usage.costUsd.toFixed(4)} (${result.usage.totalTokens.toLocaleString()} tokens)`);
+        useAiCostStore.getState().addAdhocCost(result.usage.costUsd);
       }
       setEditMode("ai-review");
     } catch (err) {

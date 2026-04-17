@@ -11,6 +11,7 @@ import { rewriteApiVersion } from "../../lib/tests/flowXml/builder";
 import { getFlowFileContent, saveFlowFile, unlockFlow } from "../../lib/api/flowFilesApi";
 import { useUserStore } from "../../store/user.store";
 import { editFlowXml } from "../../lib/api/flowApi";
+import { useAiCostStore } from "../../store/aiCost.store";
 import { validateFlowXml } from "../../lib/tests/flowXml/validate";
 import { loadFlowsFromQueue } from "../../lib/tests/flowXml/loader";
 import { activateFlow } from "../../lib/tests/flowXml/activeTests";
@@ -676,6 +677,7 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
       setDraft(result.xml);
       if (result.usage) {
         setAiCost(`$${result.usage.costUsd.toFixed(4)} (${result.usage.totalTokens.toLocaleString()} tokens)`);
+        useAiCostStore.getState().addAdhocCost(result.usage.costUsd);
       }
       setEditMode("ai-review");
     } catch (err) {
