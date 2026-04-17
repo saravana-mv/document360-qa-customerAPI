@@ -7,6 +7,7 @@ import { useSpecStore } from "../../store/spec.store";
 import { useAuthStore } from "../../store/auth.store";
 import { useUserStore } from "../../store/user.store";
 import { ScenarioFolderTree } from "./ScenarioFolderTree";
+import { ProjectSettingsCard } from "../setup/ProjectSettingsCard";
 import { getAllTests, getTestsByTag, unregisterWhere } from "../../lib/tests/registry";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import { deactivateFlow } from "../../lib/tests/flowXml/activeTests";
@@ -46,6 +47,7 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [showDeleteAll, setShowDeleteAll] = useState(false);
+  const [showProjectSettings, setShowProjectSettings] = useState(false);
 
   const canRearrange = useUserStore((s) => s.hasRole("qa_manager"));
   const selectMode = useExplorerUIStore((s) => s.selectMode);
@@ -300,6 +302,16 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
           </svg>
         </button>
+        {/* Project settings */}
+        <button
+          onClick={() => setShowProjectSettings(!showProjectSettings)}
+          title="Project settings"
+          className={`shrink-0 rounded-md p-1 transition-colors ${showProjectSettings ? "text-[#0969da] bg-[#ddf4ff]" : "text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff]"}`}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
+          </svg>
+        </button>
         {/* Version settings */}
         <button
           onClick={() => setShowConfig(!showConfig)}
@@ -341,6 +353,13 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
           </svg>
         </button>
       </div>
+
+      {/* Project settings */}
+      {showProjectSettings && (
+        <div className="ml-5 mt-1 mb-1 border border-[#d1d9e0] rounded-md overflow-hidden">
+          <ProjectSettingsCard onDone={() => setShowProjectSettings(false)} />
+        </div>
+      )}
 
       {/* Config row */}
       {showConfig && (
