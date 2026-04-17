@@ -1009,59 +1009,72 @@ export function SpecFilesPage() {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
 
-    for (let i = 0; i < selectedIdeas.length; i++) {
-      if (ctrl.signal.aborted) break;
-
-      const idea = selectedIdeas[i];
-      const prompt = buildFlowPrompt(idea);
-      // Only send spec files relevant to this idea to reduce token usage
-      const relevantSpecs = filterRelevantSpecs(idea, specFileNames);
-
-      setGeneratedFlows((prev) =>
-        prev.map((f) => f.ideaId === idea.id ? { ...f, status: "generating" as const } : f)
-      );
-      // Auto-select the currently generating flow in the detail panel
-      setActiveFlowId(idea.id);
-      setActiveIdeaId(null);
-
-      try {
-        const result = await generateFlowXml(prompt, relevantSpecs, aiModel, ctrl.signal);
-        setGeneratedFlows((prev) => {
-          const next = prev.map((f) => f.ideaId === idea.id ? { ...f, status: "done" as const, xml: result.xml, usage: result.usage, createdAt: new Date().toISOString() } : f);
-          // Persist progress to workshopMap for the ORIGINAL generation path on
-          // every completion — guarantees that even a hard reload / tab close
-          // mid-batch won't wipe already-generated flows.
-          persistFlowsForPath(generationPath, next);
-          return next;
-        });
-        // Auto-select the newly generated flow
-        setSelectedFlowIds((prev) => { const n = new Set(prev); n.add(idea.id); return n; });
-        // Accumulate flow usage
-        if (result.usage) {
-          setFlowsUsage(prev => prev ? {
-            inputTokens: prev.inputTokens + result.usage!.inputTokens,
-            outputTokens: prev.outputTokens + result.usage!.outputTokens,
-            totalTokens: prev.totalTokens + result.usage!.totalTokens,
-            costUsd: parseFloat((prev.costUsd + result.usage!.costUsd).toFixed(6)),
-          } : result.usage!);
-        }
-      } catch (e) {
+    try {
+      for (let i = 0; i < selectedIdeas.length; i++) {
         if (ctrl.signal.aborted) break;
-        setGeneratedFlows((prev) => {
-          const next = prev.map((f) => f.ideaId === idea.id
-            ? { ...f, status: "error" as const, error: e instanceof Error ? e.message : String(e) }
-            : f
-          );
-          persistFlowsForPath(generationPath, next);
-          return next;
-        });
+
+        const idea = selectedIdeas[i];
+
+        setGeneratedFlows((prev) =>
+          prev.map((f) => f.ideaId === idea.id ? { ...f, status: "generating" as const } : f)
+        );
+        // Auto-select the currently generating flow in the detail panel
+        setActiveFlowId(idea.id);
+        setActiveIdeaId(null);
+
+        try {
+          const prompt = buildFlowPrompt(idea);
+          // Only send spec files relevant to this idea to reduce token usage
+          const relevantSpecs = filterRelevantSpecs(idea, specFileNames);
+          const result = await generateFlowXml(prompt, relevantSpecs, aiModel, ctrl.signal);
+          setGeneratedFlows((prev) => {
+            const next = prev.map((f) => f.ideaId === idea.id ? { ...f, status: "done" as const, xml: result.xml, usage: result.usage, createdAt: new Date().toISOString() } : f);
+            // Persist progress to workshopMap for the ORIGINAL generation path on
+            // every completion — guarantees that even a hard reload / tab close
+            // mid-batch won't wipe already-generated flows.
+            persistFlowsForPath(generationPath, next);
+            return next;
+          });
+          // Auto-select the newly generated flow
+          setSelectedFlowIds((prev) => { const n = new Set(prev); n.add(idea.id); return n; });
+          // Accumulate flow usage
+          if (result.usage) {
+            setFlowsUsage(prev => prev ? {
+              inputTokens: prev.inputTokens + result.usage!.inputTokens,
+              outputTokens: prev.outputTokens + result.usage!.outputTokens,
+              totalTokens: prev.totalTokens + result.usage!.totalTokens,
+              costUsd: parseFloat((prev.costUsd + result.usage!.costUsd).toFixed(6)),
+            } : result.usage!);
+          }
+        } catch (e) {
+          if (ctrl.signal.aborted) break;
+          setGeneratedFlows((prev) => {
+            const next = prev.map((f) => f.ideaId === idea.id
+              ? { ...f, status: "error" as const, error: e instanceof Error ? e.message : String(e) }
+              : f
+            );
+            persistFlowsForPath(generationPath, next);
+            return next;
+          });
+          // Continue to next idea — don't stop the batch on individual failures
+        }
+
+        setFlowProgress({ current: i + 1, total: selectedIdeas.length });
       }
-
-      setFlowProgress({ current: i + 1, total: selectedIdeas.length });
+    } finally {
+      // Clean up any flows still stuck in "pending" or "generating" state
+      setGeneratedFlows((prev) => {
+        const next = prev.map((f) =>
+          f.status === "pending" || f.status === "generating"
+            ? { ...f, status: "error" as const, error: "Generation interrupted" }
+            : f
+        );
+        persistFlowsForPath(generationPath, next);
+        return next;
+      });
+      setGeneratingFlows(false);
+      abortRef.current = null;
     }
-
-    setGeneratingFlows(false);
-    abortRef.current = null;
   }
 
   // ── Generate a flow from a manually entered prompt ────────────────────────
