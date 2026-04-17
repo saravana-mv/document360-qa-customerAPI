@@ -67,6 +67,8 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
   }, [showConfig, authMethod, version]);
 
   const selectedCount = tags.filter((t) => selectedTags.has(t.name)).length;
+  const noScenarios = tags.length === 0;
+  const fewScenarios = tags.length <= 1;
 
   function handleSaveConfig() {
     setVersionConfig(version, {
@@ -218,8 +220,9 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
         {/* ── Navigation ── */}
         <button
           onClick={isAllExpanded ? handleCollapseAll : handleExpandAll}
+          disabled={noScenarios}
           title={isAllExpanded ? "Collapse all" : "Expand all"}
-          className="shrink-0 rounded-md p-1 text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff] transition-colors"
+          className={`shrink-0 rounded-md p-1 transition-colors ${noScenarios ? "text-[#656d76] opacity-40 cursor-not-allowed" : "text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff]"}`}
         >
           {isAllExpanded ? (
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -233,8 +236,9 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
         </button>
         <button
           onClick={toggleSortOrder}
+          disabled={fewScenarios}
           title={sortOrder === "asc" ? "Sort A → Z" : "Sort Z → A"}
-          className="shrink-0 rounded-md p-1 text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff] transition-colors"
+          className={`shrink-0 rounded-md p-1 transition-colors ${fewScenarios ? "text-[#656d76] opacity-40 cursor-not-allowed" : "text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff]"}`}
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             {sortOrder === "asc" ? (
@@ -251,8 +255,9 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
         {canRearrange && (
           <button
             onClick={toggleRearrangeMode}
+            disabled={noScenarios}
             title={rearrangeMode ? "Exit rearrange mode" : "Rearrange scenarios"}
-            className={`shrink-0 rounded-md p-1 transition-colors ${rearrangeMode ? "text-[#0969da] bg-[#ddf4ff]" : "text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff]"}`}
+            className={`shrink-0 rounded-md p-1 transition-colors ${noScenarios ? "text-[#656d76] opacity-40 cursor-not-allowed" : rearrangeMode ? "text-[#0969da] bg-[#ddf4ff]" : "text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff]"}`}
           >
             <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
               <circle cx="5" cy="3" r="1.5" />
@@ -269,8 +274,9 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
             if (selectMode) { handleDeselectAll(); }
             toggleSelectMode();
           }}
+          disabled={noScenarios}
           title={selectMode ? "Exit select mode" : "Multi-select scenarios"}
-          className={`shrink-0 rounded-md p-1 transition-colors ${selectMode ? "text-[#0969da] bg-[#ddf4ff]" : "text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff]"}`}
+          className={`shrink-0 rounded-md p-1 transition-colors ${noScenarios ? "text-[#656d76] opacity-40 cursor-not-allowed" : selectMode ? "text-[#0969da] bg-[#ddf4ff]" : "text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff]"}`}
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
@@ -353,8 +359,9 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
         {/* ── Danger ── */}
         <button
           onClick={() => setShowDeleteAll(true)}
+          disabled={noScenarios}
           title="Delete all scenarios in this version"
-          className="shrink-0 rounded-md p-1 text-[#656d76] hover:text-[#d1242f] hover:bg-[#ffebe9] transition-colors"
+          className={`shrink-0 rounded-md p-1 transition-colors ${noScenarios ? "text-[#656d76] opacity-40 cursor-not-allowed" : "text-[#656d76] hover:text-[#d1242f] hover:bg-[#ffebe9]"}`}
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
