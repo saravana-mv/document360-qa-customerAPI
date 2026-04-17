@@ -1013,39 +1013,53 @@ export function SpecFilesPage() {
       xml: "",
     }));
     const existingCompleted = generatedFlows.filter(f => f.status === "done" || f.status === "error");
-    setGeneratedFlows([...existingCompleted, ...newPending]);
+
+    // Local mirror of flow state — we maintain this alongside React state so we
+    // always have the latest snapshot available for persistence without relying
+    // on state updater timing.
+    let localFlows: GeneratedFlow[] = [...existingCompleted, ...newPending];
+    setGeneratedFlows(localFlows);
     setGeneratingFlows(true);
     setFlowProgress({ current: 0, total: selectedIdeas.length });
 
     const ctrl = new AbortController();
     abortRef.current = ctrl;
 
+    console.log(`[FlowGen] Starting batch: ${selectedIdeas.length} ideas`, selectedIdeas.map(i => i.id));
+
     try {
       for (let i = 0; i < selectedIdeas.length; i++) {
-        if (ctrl.signal.aborted) break;
+        if (ctrl.signal.aborted) {
+          console.warn(`[FlowGen] Aborted before idea ${i + 1}/${selectedIdeas.length}`);
+          break;
+        }
 
         const idea = selectedIdeas[i];
+        console.log(`[FlowGen] Processing idea ${i + 1}/${selectedIdeas.length}: ${idea.id} — "${idea.title}"`);
 
-        setGeneratedFlows((prev) =>
-          prev.map((f) => f.ideaId === idea.id ? { ...f, status: "generating" as const } : f)
+        localFlows = localFlows.map((f) =>
+          f.ideaId === idea.id ? { ...f, status: "generating" as const } : f
         );
+        setGeneratedFlows(localFlows);
         // Auto-select the currently generating flow in the detail panel
         setActiveFlowId(idea.id);
         setActiveIdeaId(null);
 
         try {
           const prompt = buildFlowPrompt(idea);
-          // Only send spec files relevant to this idea to reduce token usage
           const relevantSpecs = filterRelevantSpecs(idea, specFileNames);
+          console.log(`[FlowGen] Calling API for "${idea.title}" with ${relevantSpecs.length} spec files`);
           const result = await generateFlowXml(prompt, relevantSpecs, aiModel, ctrl.signal);
-          setGeneratedFlows((prev) => {
-            const next = prev.map((f) => f.ideaId === idea.id ? { ...f, status: "done" as const, xml: result.xml, usage: result.usage, createdAt: new Date().toISOString() } : f);
-            // Persist progress to workshopMap for the ORIGINAL generation path on
-            // every completion — guarantees that even a hard reload / tab close
-            // mid-batch won't wipe already-generated flows.
-            persistFlowsForPath(generationPath, next);
-            return next;
-          });
+          console.log(`[FlowGen] Success for "${idea.title}" — ${result.xml.length} chars`);
+
+          localFlows = localFlows.map((f) =>
+            f.ideaId === idea.id
+              ? { ...f, status: "done" as const, xml: result.xml, usage: result.usage, createdAt: new Date().toISOString() }
+              : f
+          );
+          setGeneratedFlows(localFlows);
+          persistFlowsForPath(generationPath, localFlows);
+
           // Auto-select the newly generated flow
           setSelectedFlowIds((prev) => { const n = new Set(prev); n.add(idea.id); return n; });
           // Accumulate flow usage
@@ -1058,33 +1072,38 @@ export function SpecFilesPage() {
             } : result.usage!);
           }
         } catch (e) {
-          if (ctrl.signal.aborted) break;
-          setGeneratedFlows((prev) => {
-            const next = prev.map((f) => f.ideaId === idea.id
-              ? { ...f, status: "error" as const, error: e instanceof Error ? e.message : String(e) }
+          const errMsg = e instanceof Error ? e.message : String(e);
+          console.error(`[FlowGen] Error for idea ${i + 1} "${idea.title}":`, errMsg);
+          if (ctrl.signal.aborted) {
+            console.warn("[FlowGen] Signal was aborted — stopping batch");
+            break;
+          }
+          localFlows = localFlows.map((f) =>
+            f.ideaId === idea.id
+              ? { ...f, status: "error" as const, error: errMsg }
               : f
-            );
-            persistFlowsForPath(generationPath, next);
-            return next;
-          });
+          );
+          setGeneratedFlows(localFlows);
+          persistFlowsForPath(generationPath, localFlows);
           // Continue to next idea — don't stop the batch on individual failures
         }
 
         setFlowProgress({ current: i + 1, total: selectedIdeas.length });
+        console.log(`[FlowGen] Progress: ${i + 1}/${selectedIdeas.length} complete`);
       }
     } finally {
+      console.log("[FlowGen] Batch complete — cleaning up");
       // Clean up any flows still stuck in "pending" or "generating" state
-      setGeneratedFlows((prev) => {
-        const next = prev.map((f) =>
-          f.status === "pending" || f.status === "generating"
-            ? { ...f, status: "error" as const, error: "Generation interrupted" }
-            : f
-        );
-        persistFlowsForPath(generationPath, next);
-        return next;
-      });
+      localFlows = localFlows.map((f) =>
+        f.status === "pending" || f.status === "generating"
+          ? { ...f, status: "error" as const, error: "Generation interrupted" }
+          : f
+      );
+      setGeneratedFlows(localFlows);
+      persistFlowsForPath(generationPath, localFlows);
       setGeneratingFlows(false);
       abortRef.current = null;
+      console.log("[FlowGen] Final state:", localFlows.map(f => `${f.ideaId}: ${f.status}`));
     }
   }
 
