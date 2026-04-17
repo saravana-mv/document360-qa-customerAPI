@@ -214,7 +214,8 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
           )}
         </button>
         <div className="flex-1" />
-        {/* Expand / Collapse */}
+
+        {/* ── Navigation ── */}
         <button
           onClick={isAllExpanded ? handleCollapseAll : handleExpandAll}
           title={isAllExpanded ? "Collapse all" : "Expand all"}
@@ -230,7 +231,6 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
             </svg>
           )}
         </button>
-        {/* Sort */}
         <button
           onClick={toggleSortOrder}
           title={sortOrder === "asc" ? "Sort A → Z" : "Sort Z → A"}
@@ -244,7 +244,10 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
             )}
           </svg>
         </button>
-        {/* Rearrange */}
+
+        <span className="w-px h-4 bg-[#d1d9e0] shrink-0" />
+
+        {/* ── Organization ── */}
         {canRearrange && (
           <button
             onClick={toggleRearrangeMode}
@@ -261,7 +264,6 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
             </svg>
           </button>
         )}
-        {/* Select mode */}
         <button
           onClick={() => {
             if (selectMode) { handleDeselectAll(); }
@@ -274,7 +276,6 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
           </svg>
         </button>
-        {/* Select all / Deselect all (only in select mode) */}
         {selectMode && (
           <button
             onClick={allTagsSelected ? handleDeselectAll : handleSelectAll}
@@ -292,7 +293,10 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
             )}
           </button>
         )}
-        {/* New folder */}
+
+        <span className="w-px h-4 bg-[#d1d9e0] shrink-0" />
+
+        {/* ── Create ── */}
         <button
           onClick={handleCreateFolder}
           title="New folder"
@@ -302,7 +306,10 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
           </svg>
         </button>
-        {/* Project settings */}
+
+        <span className="w-px h-4 bg-[#d1d9e0] shrink-0" />
+
+        {/* ── Settings ── */}
         <button
           onClick={() => setShowProjectSettings(!showProjectSettings)}
           title="Project settings"
@@ -312,7 +319,6 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
             <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
           </svg>
         </button>
-        {/* Version settings */}
         <button
           onClick={() => setShowConfig(!showConfig)}
           title="Version settings"
@@ -323,7 +329,6 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
           </svg>
         </button>
-        {/* OAuth refresh */}
         {authMethod === "oauth" && (
           <button
             onClick={() => {
@@ -342,7 +347,10 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
             </svg>
           </button>
         )}
-        {/* Delete all */}
+
+        <span className="w-px h-4 bg-[#d1d9e0] shrink-0" />
+
+        {/* ── Danger ── */}
         <button
           onClick={() => setShowDeleteAll(true)}
           title="Delete all scenarios in this version"
