@@ -63,6 +63,10 @@ interface ExplorerUIState {
   rearrangeMode: boolean;
   toggleRearrangeMode: () => void;
 
+  // Multi-select mode (checkboxes)
+  selectMode: boolean;
+  toggleSelectMode: () => void;
+
   // Version/folder toggles
   toggleVersion: (version: string) => void;
   toggleFolder: (version: string, folder: string) => void;
@@ -78,6 +82,7 @@ export const useExplorerUIStore = create<ExplorerUIState>((set) => ({
   expandedVersions: loadSetFromStorage(VERSIONS_KEY),
   expandedFolders: loadFoldersFromStorage(),
   rearrangeMode: false,
+  selectMode: false,
 
   toggleEntity: (name) =>
     set((s) => {
@@ -111,7 +116,10 @@ export const useExplorerUIStore = create<ExplorerUIState>((set) => ({
     }),
 
   toggleRearrangeMode: () =>
-    set((s) => ({ rearrangeMode: !s.rearrangeMode })),
+    set((s) => ({ rearrangeMode: !s.rearrangeMode, selectMode: false })),
+
+  toggleSelectMode: () =>
+    set((s) => ({ selectMode: !s.selectMode, rearrangeMode: false })),
 
   toggleVersion: (version) =>
     set((s) => {

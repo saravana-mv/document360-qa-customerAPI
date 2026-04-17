@@ -25,6 +25,7 @@ export function TagNode({ tag, tests }: TagNodeProps) {
   const [deleting, setDeleting] = useState(false);
   const [locking, setLocking] = useState(false);
   const { tagResults, selectedTags, selectFlow, toggleFlowSelection } = useRunnerStore();
+  const selectMode = useExplorerUIStore((s) => s.selectMode);
   const { setSpec } = useSpecStore();
   const tagResult = tagResults[tag.name];
   const status = tagResult?.status ?? "idle";
@@ -151,7 +152,7 @@ export function TagNode({ tag, tests }: TagNodeProps) {
         <div
           onClick={(e) => {
             const ids = tests.map((t) => t.id);
-            if (e.ctrlKey || e.metaKey) {
+            if (selectMode || e.ctrlKey || e.metaKey) {
               toggleFlowSelection(tag.name, ids);
             } else {
               selectFlow(tag.name, ids);
@@ -161,9 +162,23 @@ export function TagNode({ tag, tests }: TagNodeProps) {
             isSelected ? "bg-[#ddf4ff] border border-[#b6e3ff]" : "hover:bg-[#f6f8fa] border border-transparent"
           }`}
         >
-          <svg className="w-4 h-4 text-[#656d76] shrink-0" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.379 2H4.5Zm2.25 8.5a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Zm0 3a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Z" clipRule="evenodd" />
-          </svg>
+          {selectMode ? (
+            <span className="shrink-0 flex items-center justify-center w-4 h-4">
+              <span className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center transition-colors ${
+                isSelected ? "bg-[#0969da] border-[#0969da]" : "border-[#afb8c1] bg-white"
+              }`}>
+                {isSelected && (
+                  <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                )}
+              </span>
+            </span>
+          ) : (
+            <svg className="w-4 h-4 text-[#656d76] shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.379 2H4.5Zm2.25 8.5a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Zm0 3a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Z" clipRule="evenodd" />
+            </svg>
+          )}
           <StatusIcon status={status} />
           <span className="font-medium text-sm text-[#1f2328] truncate">{tag.name}</span>
           {isLocked && (
