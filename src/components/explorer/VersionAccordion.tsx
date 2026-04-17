@@ -311,6 +311,25 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
           </svg>
         </button>
+        {/* OAuth refresh */}
+        {authMethod === "oauth" && (
+          <button
+            onClick={() => {
+              const config = loadOAuthConfig();
+              if (config) void startAuthFlow(config);
+            }}
+            title="Sign in / refresh token"
+            className={`shrink-0 rounded-md p-1 transition-colors ${
+              authStatus === "authenticated"
+                ? "text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff]"
+                : "text-[#d1242f] hover:text-[#d1242f] hover:bg-[#ffebe9]"
+            }`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+            </svg>
+          </button>
+        )}
         {/* Delete all */}
         <button
           onClick={() => setShowDeleteAll(true)}
