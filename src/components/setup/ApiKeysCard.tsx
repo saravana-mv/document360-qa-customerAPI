@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { listApiKeys, createApiKey, revokeApiKey } from "../../lib/api/apiKeysApi";
 import type { ApiKeyInfo } from "../../lib/api/apiKeysApi";
 import { useScenarioOrgStore } from "../../store/scenarioOrg.store";
@@ -66,12 +66,14 @@ export function ApiKeysCard() {
   // Revoke state
   const [revoking, setRevoking] = useState<string | null>(null);
 
-  const versions = useScenarioOrgStore((s) => {
+  const versionConfigs = useScenarioOrgStore((s) => s.versionConfigs);
+  const folders = useScenarioOrgStore((s) => s.folders);
+  const versions = useMemo(() => {
     const vs = new Set<string>();
-    for (const v of Object.keys(s.versionConfigs)) vs.add(v);
-    for (const v of Object.keys(s.folders)) vs.add(v);
+    for (const v of Object.keys(versionConfigs)) vs.add(v);
+    for (const v of Object.keys(folders)) vs.add(v);
     return Array.from(vs).sort((a, b) => b.localeCompare(a));
-  });
+  }, [versionConfigs, folders]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
