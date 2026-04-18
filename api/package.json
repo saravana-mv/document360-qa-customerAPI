@@ -12,7 +12,8 @@
     "test": "jest"
   },
   "dependencies": {
-    "@azure/functions": "^4.6.0"
+    "@azure/functions": "^4.6.0",
+    "@xmldom/xmldom": "^0.9.9"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
