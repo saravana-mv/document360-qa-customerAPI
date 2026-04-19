@@ -168,10 +168,7 @@ export function ApiKeysCard() {
           <button
             onClick={() => {
               navigator.clipboard.writeText(
-                `curl -X POST https://flowforge.document360.io/api/run-scenario \\
-  -H "Content-Type: application/json" \\
-  -H "X-Api-Key: ff_your_api_key_here" \\
-  -d '{"scenarioId": "a00c7330-c560-4ba0-b66a-26bd2f72655b"}'`
+                `curl -X POST https://flowforge.document360.io/api/run-scenario -H "Content-Type: application/json" -H "X-Api-Key: ff_your_api_key_here" -d "{\\"scenarioId\\": \\"a00c7330-c560-4ba0-b66a-26bd2f72655b\\"}"`
               );
             }}
             className="absolute top-2.5 right-3 p-1.5 rounded-md hover:bg-white/10 text-[#8b949e] hover:text-white transition-colors"
@@ -180,10 +177,7 @@ export function ApiKeysCard() {
             <CopyIcon className="w-4 h-4" />
           </button>
           <pre className="text-xs font-mono text-[#e6edf3] leading-relaxed whitespace-pre-wrap break-all pr-8">
-{`curl -X POST https://flowforge.document360.io/api/run-scenario \\
-  -H "Content-Type: application/json" \\
-  -H "X-Api-Key: ff_your_api_key_here" \\
-  -d '{"scenarioId": "a00c7330-c560-4ba0-b66a-26bd2f72655b"}'`}
+{`curl -X POST https://flowforge.document360.io/api/run-scenario \\\n  -H "Content-Type: application/json" \\\n  -H "X-Api-Key: ff_your_api_key_here" \\\n  -d "{\\"scenarioId\\": \\"a00c7330-c560-4ba0-b66a-26bd2f72655b\\"}"`}
           </pre>
           <p className="text-[11px] text-[#8b949e] mt-2.5 leading-relaxed">
             Replace <code className="text-[#79c0ff]">ff_your_api_key_here</code> with a key from the table below.
