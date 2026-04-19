@@ -61,7 +61,7 @@ async function listRuns(req: HttpRequest): Promise<HttpResponseInit> {
     const limit = parseInt(req.query.get("limit") ?? "20", 10);
     const container = await getTestRunsContainer();
 
-    const query = `SELECT c.id, c.triggeredBy, c.startedAt, c.completedAt, c.summary FROM c WHERE c.type="test_run" AND c.projectId=@pid ORDER BY c.startedAt DESC OFFSET 0 LIMIT @limit`;
+    const query = `SELECT c.id, c.triggeredBy, c.startedAt, c.completedAt, c.summary, c.source, c.scenarioName, c.apiKeyName FROM c WHERE c.type="test_run" AND c.projectId=@pid ORDER BY c.startedAt DESC OFFSET 0 LIMIT @limit`;
     const { resources } = await container.items.query(
       { query, parameters: [{ name: "@pid", value: projectId }, { name: "@limit", value: limit }] },
       { partitionKey: projectId },

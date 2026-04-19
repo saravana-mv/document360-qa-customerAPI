@@ -9,7 +9,7 @@ import { resolveScenario, ScenarioNotFoundError } from "../lib/flowRunner";
 import { parseFlowXml, FlowXmlParseError } from "../lib/flowRunner";
 import { executeScenario } from "../lib/flowRunner";
 import type { RunContext } from "../lib/flowRunner";
-import { getSettingsContainer } from "../lib/cosmosClient";
+import { getSettingsContainer, getTestRunsContainer } from "../lib/cosmosClient";
 import { audit } from "../lib/auditLog";
 
 const CORS_HEADERS = {
@@ -110,7 +110,28 @@ async function handleRunScenario(req: HttpRequest, _ctx: InvocationContext): Pro
   // Execute the scenario
   const result = await executeScenario(flow, ctx, scenarioId);
 
-  audit(apiKeyDoc.projectId, "scenario.run", apiKeyDoc.createdBy, scenarioId, { status: result.status, durationMs: result.summary.durationMs });
+  // Persist run to test-runs container (fire-and-forget)
+  const runId = `api-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  getTestRunsContainer()
+    .then((c) =>
+      c.items.upsert({
+        id: runId,
+        projectId: apiKeyDoc.projectId,
+        type: "test_run",
+        source: "api",
+        apiKeyName: apiKeyDoc.name,
+        triggeredBy: { oid: apiKeyDoc.createdBy.oid, name: apiKeyDoc.createdBy.name },
+        scenarioId,
+        scenarioName: result.scenarioName,
+        startedAt: result.startedAt,
+        completedAt: result.completedAt,
+        summary: result.summary,
+        steps: result.steps,
+      }),
+    )
+    .catch((e) => console.error("[run-scenario] failed to save run:", e instanceof Error ? e.message : String(e)));
+
+  audit(apiKeyDoc.projectId, "scenario.run", apiKeyDoc.createdBy, scenarioId, { source: "api", status: result.status, durationMs: result.summary.durationMs });
   return ok(result);
 }
 

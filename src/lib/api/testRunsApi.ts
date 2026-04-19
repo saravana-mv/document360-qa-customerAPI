@@ -21,6 +21,9 @@ export interface TestRunListItem {
   startedAt: string;
   completedAt: string;
   summary: RunSummary;
+  source?: "api" | "ui";
+  scenarioName?: string;
+  apiKeyName?: string;
 }
 
 async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
