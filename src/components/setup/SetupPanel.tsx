@@ -2,14 +2,14 @@ import { useState } from "react";
 import { useSetupStore, AI_MODELS, type AiModelId } from "../../store/setup.store";
 import { useUserStore } from "../../store/user.store";
 import { fullProjectReset } from "../../lib/api/resetApi";
-import { ApiKeysCard } from "./ApiKeysCard";
+
 
 const API_VERSIONS = ["v3", "v2"];
 
 export function SetupPanel() {
   const setup = useSetupStore();
   const isOwner = useUserStore((s) => s.hasRole("owner"));
-  const canManageKeys = useUserStore((s) => s.hasRole("qa_manager"));
+
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
@@ -75,9 +75,6 @@ export function SetupPanel() {
             </p>
           </div>
         </div>
-        {/* ── API Keys (owner + qa_manager) ──────────────────────── */}
-        {canManageKeys && <ApiKeysCard />}
-
         {/* ── Danger zone (owner only) ──────────────────────────── */}
         {isOwner && (
           <div className="bg-white rounded-xl border border-[#d1242f]/40 shadow-sm p-6">

@@ -132,20 +132,26 @@ export function ApiKeysCard() {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-[#d1d9e0] shadow-sm p-6">
-      <div className="flex items-center justify-between mb-0.5">
-        <h2 className="text-base font-semibold text-[#1f2328] flex items-center gap-2">
-          <KeyIcon className="w-4 h-4 text-[#656d76]" />
-          API Keys
-        </h2>
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-6 h-14 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+        <KeyIcon className="w-5 h-5 text-[#656d76]" />
+        <span className="text-sm font-bold text-[#1f2328]">API Keys</span>
+        <span className="text-xs text-[#656d76] ml-1">
+          {keys.length} {keys.length === 1 ? "key" : "keys"}
+        </span>
+        <div className="flex-1" />
         <button
           onClick={() => { setShowCreate(true); setNewKey(null); }}
-          className="flex items-center gap-1 px-2.5 py-[5px] text-xs font-medium text-white bg-[#1a7f37] border border-[#1a7f37]/80 rounded-md hover:bg-[#1a7f37]/90 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-sm font-medium rounded-md transition-colors border border-[#1a7f37]/80"
         >
-          <PlusIcon className="w-3.5 h-3.5" />
+          <PlusIcon className="w-4 h-4" />
           New key
         </button>
       </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-6">
       <p className="text-sm text-[#656d76] mb-4">
         Authenticate external API calls to run scenarios via <code className="text-xs bg-[#f6f8fa] px-1 py-0.5 rounded border border-[#d1d9e0]">POST /api/run-scenario</code>.
       </p>
@@ -300,6 +306,7 @@ export function ApiKeysCard() {
           </table>
         </div>
       )}
+      </div>
     </div>
   );
 }
