@@ -4,7 +4,7 @@
 // Owner-only endpoint.
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import { getFlowsContainer, getIdeasContainer, getTestRunsContainer } from "../lib/cosmosClient";
+import { getFlowsContainer, getIdeasContainer, getTestRunsContainer, getAuditLogContainer } from "../lib/cosmosClient";
 import { withRole, getProjectId, getUserInfo, ProjectIdMissingError } from "../lib/auth";
 import { audit } from "../lib/auditLog";
 
@@ -49,10 +49,11 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
     // Audit BEFORE the destructive action
     audit(projectId, "project.reset", user, projectId);
 
-    const [flows, ideas, testRuns] = await Promise.all([
+    const [flows, ideas, testRuns, auditLogs] = await Promise.all([
       deleteAllInContainer(getFlowsContainer, projectId),
       deleteAllInContainer(getIdeasContainer, projectId),
       deleteAllInContainer(getTestRunsContainer, projectId),
+      deleteAllInContainer(getAuditLogContainer, projectId),
     ]);
 
     return {
@@ -60,7 +61,7 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
       headers: CORS_HEADERS,
       body: JSON.stringify({
         message: "Project data reset complete",
-        deleted: { flows, ideas, testRuns },
+        deleted: { flows, ideas, testRuns, auditLogs },
       }),
     };
   } catch (e) {
