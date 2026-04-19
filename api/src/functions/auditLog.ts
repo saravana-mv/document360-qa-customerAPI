@@ -82,17 +82,10 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
       .fetchAll();
     const total = countRes[0] ?? 0;
 
-    // Get paginated results
-    const dataQuery = `SELECT * FROM c WHERE ${where} ORDER BY c.timestamp DESC OFFSET @offset LIMIT @limit`;
+    // Get paginated results (OFFSET/LIMIT must be integer literals in Cosmos SQL)
+    const dataQuery = `SELECT * FROM c WHERE ${where} ORDER BY c.timestamp DESC OFFSET ${offset} LIMIT ${limit}`;
     const { resources: entries } = await container.items
-      .query({
-        query: dataQuery,
-        parameters: [
-          ...parameters,
-          { name: "@offset", value: String(offset) },
-          { name: "@limit", value: String(limit) },
-        ],
-      })
+      .query({ query: dataQuery, parameters })
       .fetchAll();
 
     return ok({ entries, total, limit, offset });
