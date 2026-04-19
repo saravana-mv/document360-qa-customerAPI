@@ -1,6 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { uploadBlob, downloadBlob, listBlobs } from "../lib/blobClient";
-import { withAuth } from "../lib/auth";
+import { withAuth, getUserInfo, getProjectId } from "../lib/auth";
+import { audit } from "../lib/auditLog";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -123,6 +124,10 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
     const filename = body.filename?.trim();
     const accessToken = body.accessToken?.trim();
 
+    const user = getUserInfo(req);
+    let projectId: string;
+    try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
+
     if (filename) {
       // Single file sync
       const manifest = await readManifest(folderPath);
@@ -131,6 +136,7 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
 
       const result = await syncOneFile(folderPath, filename, entry, manifest, accessToken);
       await writeManifest(folderPath, manifest);
+      audit(projectId, "spec.sync", user, folderPath ? `${folderPath}/${filename}` : filename, { updated: result.updated });
       return ok({ synced: [result] });
     }
 
@@ -168,6 +174,9 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
     if (results.length === 0) {
       return ok({ synced: [], message: "No URL-sourced files found under this path" });
     }
+
+    const updatedCount = results.filter((r) => r.updated).length;
+    audit(projectId, "spec.sync", user, folderPath || "/", { total: results.length, updated: updatedCount });
 
     return ok({ synced: results });
   } catch (e) {

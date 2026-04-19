@@ -21,7 +21,13 @@ export type AuditAction =
   | "user.invite"
   | "user.role_change"
   | "user.remove"
-  | "project.reset";
+  | "project.reset"
+  | "spec.upload"
+  | "spec.update"
+  | "spec.rename"
+  | "spec.delete"
+  | "spec.import_url"
+  | "spec.sync";
 
 interface AuditEntry {
   id: string;

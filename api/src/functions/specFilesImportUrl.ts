@@ -1,6 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { uploadBlob, downloadBlob, blobExists } from "../lib/blobClient";
-import { withAuth } from "../lib/auth";
+import { withAuth, getUserInfo, getProjectId } from "../lib/auth";
+import { audit } from "../lib/auditLog";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -216,6 +217,11 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
       lastSyncedAt: null,
     };
     await writeManifest(folderPath, manifest);
+
+    const user = getUserInfo(req);
+    let projectId: string;
+    try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
+    audit(projectId, "spec.import_url", user, blobPath, { sourceUrl: url, size: content.length });
 
     return ok({ name: blobPath, filename, uploaded: true, sourceUrl: url });
   } catch (e) {

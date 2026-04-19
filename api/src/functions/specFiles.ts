@@ -1,6 +1,12 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { listBlobs, downloadBlob, uploadBlob, deleteBlob, renameBlob } from "../lib/blobClient";
-import { withAuth } from "../lib/auth";
+import { withAuth, getUserInfo, getProjectId } from "../lib/auth";
+import { audit } from "../lib/auditLog";
+
+/** Safe project ID extraction — returns "unknown" if header missing (spec files are blob-based). */
+function safeProjectId(req: HttpRequest): string {
+  try { return getProjectId(req); } catch { return "unknown"; }
+}
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -50,6 +56,9 @@ async function createFile(req: HttpRequest, _ctx: InvocationContext): Promise<Ht
     const body = (await req.json()) as { name: string; content: string; contentType?: string };
     if (!body.name || body.content === undefined) return err(400, "name and content are required");
     await uploadBlob(body.name, body.content, body.contentType);
+    const user = getUserInfo(req);
+    const projectId = safeProjectId(req);
+    audit(projectId, "spec.upload", user, body.name, { size: body.content.length });
     return ok({ name: body.name, uploaded: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -64,15 +73,19 @@ async function updateFile(req: HttpRequest, _ctx: InvocationContext): Promise<Ht
   try {
     const body = (await req.json()) as { name: string; content?: string; newName?: string };
     if (!body.name) return err(400, "name is required");
+    const user = getUserInfo(req);
+    const projectId = safeProjectId(req);
     if (body.newName && body.newName !== body.name) {
       await renameBlob(body.name, body.newName);
       if (body.content !== undefined) {
         await uploadBlob(body.newName, body.content);
       }
+      audit(projectId, "spec.rename", user, body.name, { newName: body.newName });
       return ok({ renamed: true, name: body.newName });
     }
     if (body.content !== undefined) {
       await uploadBlob(body.name, body.content);
+      audit(projectId, "spec.update", user, body.name);
       return ok({ updated: true, name: body.name });
     }
     return err(400, "Provide content to update or newName to rename");
@@ -88,6 +101,9 @@ async function deleteFile(req: HttpRequest, _ctx: InvocationContext): Promise<Ht
     const name = req.query.get("name");
     if (!name) return err(400, "name query param is required");
     await deleteBlob(name);
+    const user = getUserInfo(req);
+    const projectId = safeProjectId(req);
+    audit(projectId, "spec.delete", user, name);
     return ok({ deleted: true, name });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

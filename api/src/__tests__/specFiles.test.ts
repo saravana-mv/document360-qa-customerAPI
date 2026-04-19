@@ -10,6 +10,17 @@
 
 import type { InvocationContext } from "@azure/functions";
 
+jest.mock("../lib/auditLog", () => ({
+  audit: jest.fn(),
+}));
+
+jest.mock("../lib/auth", () => ({
+  withAuth: (fn: Function) => fn,
+  getUserInfo: () => ({ oid: "test-oid", name: "Test User" }),
+  getProjectId: () => "test-project",
+  ProjectIdMissingError: class extends Error { constructor() { super("missing"); } },
+}));
+
 // Mock blobClient before importing the router
 jest.mock("../lib/blobClient", () => ({
   listBlobs: jest.fn().mockResolvedValue([
