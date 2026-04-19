@@ -156,6 +156,42 @@ export function ApiKeysCard() {
         Authenticate external API calls to run scenarios via <code className="text-xs bg-[#f6f8fa] px-1 py-0.5 rounded border border-[#d1d9e0]">POST /api/run-scenario</code>.
       </p>
 
+      {/* ── Curl example ─────────────────────────────────────── */}
+      <details className="mb-4 border border-[#d1d9e0] rounded-lg overflow-hidden group">
+        <summary className="flex items-center gap-2 px-4 py-2.5 bg-[#f6f8fa] cursor-pointer text-sm font-medium text-[#1f2328] select-none hover:bg-[#eef1f4] transition-colors">
+          <svg className="w-4 h-4 text-[#656d76] transition-transform group-open:rotate-90" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+          </svg>
+          Example: Run a scenario with curl
+        </summary>
+        <div className="px-4 py-3 bg-[#24292f] relative">
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(
+                `curl -X POST https://flowforge.document360.io/api/run-scenario \\
+  -H "Content-Type: application/json" \\
+  -H "X-Api-Key: ff_your_api_key_here" \\
+  -d '{"scenarioId": "a00c7330-c560-4ba0-b66a-26bd2f72655b"}'`
+              );
+            }}
+            className="absolute top-2.5 right-3 p-1.5 rounded-md hover:bg-white/10 text-[#8b949e] hover:text-white transition-colors"
+            title="Copy to clipboard"
+          >
+            <CopyIcon className="w-4 h-4" />
+          </button>
+          <pre className="text-xs font-mono text-[#e6edf3] leading-relaxed whitespace-pre-wrap break-all pr-8">
+{`curl -X POST https://flowforge.document360.io/api/run-scenario \\
+  -H "Content-Type: application/json" \\
+  -H "X-Api-Key: ff_your_api_key_here" \\
+  -d '{"scenarioId": "a00c7330-c560-4ba0-b66a-26bd2f72655b"}'`}
+          </pre>
+          <p className="text-[11px] text-[#8b949e] mt-2.5 leading-relaxed">
+            Replace <code className="text-[#79c0ff]">ff_your_api_key_here</code> with a key from the table below.
+            The <code className="text-[#79c0ff]">scenarioId</code> is shown in the Scenario Manager context menu.
+          </p>
+        </div>
+      </details>
+
       {/* ── Newly created key banner ───────────────────────────── */}
       {newKey && (
         <div className="mb-4 p-3 bg-[#dafbe1] border border-[#aceebb] rounded-md">
