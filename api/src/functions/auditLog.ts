@@ -77,20 +77,16 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
     // Get total count
     const container = await getAuditLogContainer();
     const countQuery = `SELECT VALUE COUNT(1) FROM c WHERE ${where}`;
-    console.log("[audit-log] countQuery:", countQuery, "params:", JSON.stringify(parameters));
     const { resources: countRes } = await container.items
       .query<number>({ query: countQuery, parameters })
       .fetchAll();
     const total = countRes[0] ?? 0;
-    console.log("[audit-log] total:", total);
 
     // Get paginated results (OFFSET/LIMIT must be integer literals in Cosmos SQL)
     const dataQuery = `SELECT * FROM c WHERE ${where} ORDER BY c.timestamp DESC OFFSET ${offset} LIMIT ${limit}`;
     const { resources: entries } = await container.items
       .query({ query: dataQuery, parameters })
       .fetchAll();
-
-    console.log("[audit-log] returned:", entries.length, "entries");
     return ok({ entries, total, limit, offset });
   } catch (e) {
     if (e instanceof ProjectIdMissingError) {

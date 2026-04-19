@@ -62,9 +62,8 @@ export function audit(
     timestamp: new Date().toISOString(),
   };
 
-  // Fire-and-forget — log errors for diagnostics but never block the request
+  // Fire-and-forget — log errors but never block the request
   getAuditLogContainer()
     .then((c) => c.items.upsert(entry))
-    .then(() => console.log("[audit] written:", action, target ?? ""))
-    .catch((e) => console.error("[audit] WRITE FAILED:", action, e instanceof Error ? e.message : String(e)));
+    .catch((e) => console.error("[audit] write failed:", action, e instanceof Error ? e.message : String(e)));
 }
