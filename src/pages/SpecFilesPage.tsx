@@ -200,8 +200,12 @@ export function SpecFilesPage() {
   // Re-populate the working set when workshopMap loads from API and we have
   // an active path. This fixes the flash of "generate ideas" on initial nav
   // from another page (workshopMap starts empty, then fills from the API).
+  // IMPORTANT: Skip while flow generation is running — the async loop manages
+  // generatedFlows directly via localFlows mirror. Letting this effect fire
+  // mid-batch would overwrite pending/generating placeholders with only the
+  // done/error entries from workshopMap, causing them to vanish.
   useEffect(() => {
-    if (!workshopLoaded || !activePath) return;
+    if (!workshopLoaded || !activePath || generatingFlows) return;
     const agg = aggregateForPath(workshopMap, activePath);
     if (agg.ideas.length > 0 || agg.generatedFlows.length > 0) {
       setIdeas(agg.ideas);
@@ -209,7 +213,7 @@ export function SpecFilesPage() {
       setFlowsUsage(agg.flowsUsage);
       setGeneratedFlows(agg.generatedFlows.filter(f => f.status === "done" || f.status === "error"));
     }
-  }, [workshopLoaded, workshopMap, activePath]);
+  }, [workshopLoaded, workshopMap, activePath, generatingFlows]);
 
   // Persist workshopMap changes to API (debounced, per-folder diff)
   const prevMapRef = useRef<WorkshopMap>({});
@@ -1411,8 +1415,9 @@ export function SpecFilesPage() {
   const hasSubLevelIdeas = !isFileContext && activePath
     && (workshopMap[activePath]?.ideas.length ?? 0) < ideas.length;
 
-  // Filter flows the same way — "this level only" shows only this folder's flows
-  const thisLevelFlows = (!isFileContext && activePath && thisLevelOnly)
+  // Filter flows the same way — "this level only" shows only this folder's flows.
+  // During active generation, always show the full generatedFlows (includes pending/generating placeholders).
+  const thisLevelFlows = (!isFileContext && activePath && thisLevelOnly && !generatingFlows)
     ? (workshopMap[activePath]?.generatedFlows ?? []).filter(f => f.status === "done" || f.status === "error")
     : generatedFlows;
   const hasSubLevelFlows = !isFileContext && activePath
