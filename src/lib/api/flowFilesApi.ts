@@ -5,6 +5,7 @@ export interface FlowFileItem {
   size: number;
   lastModified: string;
   contentType: string;
+  scenarioId?: string;
   lockedBy?: { oid: string; name: string };
   lockedAt?: string;
 }

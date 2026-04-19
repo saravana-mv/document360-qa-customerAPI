@@ -1,4 +1,5 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
+import { randomUUID } from "node:crypto";
 import { getFlowsContainer } from "../lib/cosmosClient";
 import { withAuth, getUserInfo, getProjectId, parseClientPrincipal, lookupUser, ProjectIdMissingError } from "../lib/auth";
 
@@ -27,6 +28,7 @@ interface FlowDocument {
   path: string;
   xml: string;
   size: number;
+  scenarioId: string;
   createdAt: string;
   createdBy: { oid: string; name: string };
   updatedAt: string;
@@ -48,8 +50,8 @@ async function listFiles(req: HttpRequest): Promise<HttpResponseInit> {
     const container = await getFlowsContainer();
 
     const query = prefix
-      ? `SELECT c.path, c.size, c.updatedAt, c.lockedBy, c.lockedAt FROM c WHERE c.type="flow" AND c.projectId=@pid AND STARTSWITH(c.path, @prefix)`
-      : `SELECT c.path, c.size, c.updatedAt, c.lockedBy, c.lockedAt FROM c WHERE c.type="flow" AND c.projectId=@pid`;
+      ? `SELECT c.id, c.path, c.size, c.updatedAt, c.lockedBy, c.lockedAt, c.scenarioId FROM c WHERE c.type="flow" AND c.projectId=@pid AND STARTSWITH(c.path, @prefix)`
+      : `SELECT c.id, c.path, c.size, c.updatedAt, c.lockedBy, c.lockedAt, c.scenarioId FROM c WHERE c.type="flow" AND c.projectId=@pid`;
 
     const params = prefix
       ? [{ name: "@pid", value: projectId }, { name: "@prefix", value: prefix }]
@@ -57,12 +59,27 @@ async function listFiles(req: HttpRequest): Promise<HttpResponseInit> {
 
     const { resources } = await container.items.query({ query, parameters: params }, { partitionKey: projectId }).fetchAll();
 
+    // Backfill scenarioId for existing flows that don't have one
+    const backfillPromises: Promise<void>[] = [];
+    for (const r of resources) {
+      if (!r.scenarioId) {
+        r.scenarioId = randomUUID();
+        backfillPromises.push(
+          container.item(r.id, projectId).patch([
+            { op: "add", path: "/scenarioId", value: r.scenarioId },
+          ]).then(() => {}).catch(() => {}),
+        );
+      }
+    }
+    if (backfillPromises.length > 0) await Promise.all(backfillPromises);
+
     // Map to same shape frontend expects
-    const items = resources.map((r: { path: string; size: number; updatedAt: string; lockedBy?: { oid: string; name: string }; lockedAt?: string }) => ({
+    const items = resources.map((r: { path: string; size: number; updatedAt: string; scenarioId?: string; lockedBy?: { oid: string; name: string }; lockedAt?: string }) => ({
       name: r.path,
       size: r.size,
       lastModified: r.updatedAt,
       contentType: "application/xml",
+      scenarioId: r.scenarioId,
       ...(r.lockedBy ? { lockedBy: r.lockedBy, lockedAt: r.lockedAt } : {}),
     }));
 
@@ -115,14 +132,16 @@ async function createFile(req: HttpRequest): Promise<HttpResponseInit> {
       }
     }
 
-    // Read existing to preserve createdAt/createdBy and check lock
+    // Read existing to preserve createdAt/createdBy/scenarioId and check lock
     let createdAt = now;
     let createdBy = { oid: user.oid, name: user.name };
+    let scenarioId: string = randomUUID();
     try {
       const { resource: existing } = await container.item(docId, projectId).read<FlowDocument>();
       if (existing) {
         createdAt = existing.createdAt;
         createdBy = existing.createdBy;
+        scenarioId = existing.scenarioId || scenarioId;
         // Reject save if flow is locked
         if (existing.lockedBy) {
           return err(423, `Flow is locked by ${existing.lockedBy.name}`);
@@ -139,6 +158,7 @@ async function createFile(req: HttpRequest): Promise<HttpResponseInit> {
       path: body.name,
       xml: body.xml,
       size: Buffer.byteLength(body.xml, "utf8"),
+      scenarioId,
       createdAt,
       createdBy,
       updatedAt: now,
@@ -146,7 +166,7 @@ async function createFile(req: HttpRequest): Promise<HttpResponseInit> {
     };
 
     await container.items.upsert(doc);
-    return ok({ name: body.name, uploaded: true });
+    return ok({ name: body.name, uploaded: true, scenarioId });
   } catch (e) {
     if (e instanceof ProjectIdMissingError) return err(400, e.message);
     return err(500, e instanceof Error ? e.message : String(e));
