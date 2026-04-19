@@ -85,7 +85,10 @@ async function handleRunScenario(req: HttpRequest, _ctx: InvocationContext): Pro
     return err(401, `D360 credential error: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  // Build RunContext from API key doc + creator's settings
+  // Build RunContext from API key doc + creator's settings.
+  // The API key stores a version *label* (e.g. "v3") from the scenario org,
+  // but D360 expects the real version GUID for project_version_id fields.
+  // The creator's settings.selectedVersionId holds the actual GUID.
   const settings = await getCreatorSettings(apiKeyDoc.createdBy.oid);
   const baseUrl = (typeof settings.baseUrl === "string" && settings.baseUrl)
     ? settings.baseUrl
@@ -97,9 +100,15 @@ async function handleRunScenario(req: HttpRequest, _ctx: InvocationContext): Pro
     ? settings.langCode
     : "en";
 
+  // Resolve versionId: prefer the real GUID from creator's settings,
+  // fall back to apiKeyDoc.versionId (which may be a label).
+  const versionId = (typeof settings.selectedVersionId === "string" && settings.selectedVersionId)
+    ? settings.selectedVersionId
+    : apiKeyDoc.versionId;
+
   const ctx: RunContext = {
     projectId: apiKeyDoc.projectId,
-    versionId: apiKeyDoc.versionId,
+    versionId,
     langCode,
     apiVersion,
     baseUrl,
