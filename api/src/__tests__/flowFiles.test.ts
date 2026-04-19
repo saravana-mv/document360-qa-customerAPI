@@ -25,6 +25,10 @@ jest.mock("../lib/cosmosClient", () => ({
   }),
 }));
 
+jest.mock("../lib/auditLog", () => ({
+  audit: jest.fn(),
+}));
+
 jest.mock("../lib/auth", () => ({
   withAuth: (fn: Function) => fn,
   getUserInfo: () => ({ oid: "test-oid", name: "Test User" }),

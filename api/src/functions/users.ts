@@ -1,6 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { getUsersContainer } from "../lib/cosmosClient";
 import { withAuth, withRole, getUserInfo, lookupUser, type UserDocument, type AppRole } from "../lib/auth";
+import { audit } from "../lib/auditLog";
 
 const TENANT_ID = "kovai";
 
@@ -105,6 +106,7 @@ async function inviteUser(req: HttpRequest): Promise<HttpResponseInit> {
     };
 
     await container.items.create(doc);
+    audit("system", "user.invite", { oid, name: "System" }, email, { role });
     const { _rid, _self, _etag, _attachments, _ts, ...clean } = doc as Record<string, unknown>;
     return { status: 201, headers: { ...CORS_HEADERS, "Content-Type": "application/json" }, body: JSON.stringify(clean) };
   } catch (e) {
@@ -140,11 +142,13 @@ async function changeRole(req: HttpRequest): Promise<HttpResponseInit> {
       }
     }
 
+    const previousRole = resource.role;
     resource.role = role;
     resource.updatedAt = new Date().toISOString();
     resource.updatedBy = oid;
     await container.item(userId, TENANT_ID).replace(resource);
 
+    audit("system", "user.role_change", { oid, name: "System" }, resource.email, { previousRole, newRole: role });
     const { _rid, _self, _etag, _attachments, _ts, ...clean } = resource as Record<string, unknown>;
     return ok(clean);
   } catch (e) {
@@ -178,6 +182,7 @@ async function removeUser(req: HttpRequest): Promise<HttpResponseInit> {
     }
 
     await container.item(userId, TENANT_ID).delete();
+    audit("system", "user.remove", { oid, name: "System" }, userId, resource ? { email: resource.email, role: resource.role } : undefined);
     return { status: 204, headers: CORS_HEADERS };
   } catch (e) {
     return err(500, e instanceof Error ? e.message : String(e));

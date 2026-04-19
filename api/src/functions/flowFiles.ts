@@ -2,6 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import { randomUUID } from "node:crypto";
 import { getFlowsContainer } from "../lib/cosmosClient";
 import { withAuth, getUserInfo, getProjectId, parseClientPrincipal, lookupUser, ProjectIdMissingError } from "../lib/auth";
+import { audit } from "../lib/auditLog";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -166,6 +167,8 @@ async function createFile(req: HttpRequest): Promise<HttpResponseInit> {
     };
 
     await container.items.upsert(doc);
+    const isNew = createdAt === now;
+    audit(projectId, isNew ? "flow.create" : "flow.update", { oid: user.oid, name: user.name }, body.name, { scenarioId });
     return ok({ name: body.name, uploaded: true, scenarioId });
   } catch (e) {
     if (e instanceof ProjectIdMissingError) return err(400, e.message);
@@ -203,6 +206,8 @@ async function deleteFile(req: HttpRequest): Promise<HttpResponseInit> {
     } catch {
       // Ignore if not found — idempotent delete
     }
+    const user = getUserInfo(req);
+    audit(projectId, "flow.delete", { oid: user.oid, name: user.name }, name);
     return ok({ deleted: true, name });
   } catch (e) {
     if (e instanceof ProjectIdMissingError) return err(400, e.message);

@@ -8,6 +8,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import { withRole } from "../lib/auth";
 import { getUserInfo, getProjectId } from "../lib/auth";
 import { createApiKey, listApiKeys, revokeApiKey } from "../lib/apiKeyStore";
+import { audit } from "../lib/auditLog";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -39,6 +40,7 @@ async function handleCreate(req: HttpRequest): Promise<HttpResponseInit> {
     if (!versionId) return err(400, "versionId is required");
 
     const result = await createApiKey(projectId, name, versionId, authMethod, user);
+    audit(projectId, "apikey.create", user, result.doc.id, { name, versionId, authMethod });
 
     return ok({
       key: result.key,
@@ -88,6 +90,8 @@ async function handleRevoke(req: HttpRequest): Promise<HttpResponseInit> {
     const revoked = await revokeApiKey(keyId, projectId);
     if (!revoked) return err(404, "API key not found");
 
+    const user = getUserInfo(req);
+    audit(projectId, "apikey.revoke", user, keyId);
     return ok({ revoked: true });
   } catch (e) {
     return err(500, e instanceof Error ? e.message : String(e));

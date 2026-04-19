@@ -5,7 +5,8 @@
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { getFlowsContainer, getIdeasContainer, getTestRunsContainer } from "../lib/cosmosClient";
-import { withRole, getProjectId, ProjectIdMissingError } from "../lib/auth";
+import { withRole, getProjectId, getUserInfo, ProjectIdMissingError } from "../lib/auth";
+import { audit } from "../lib/auditLog";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -43,6 +44,10 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
 
   try {
     const projectId = getProjectId(req);
+    const user = getUserInfo(req);
+
+    // Audit BEFORE the destructive action
+    audit(projectId, "project.reset", user, projectId);
 
     const [flows, ideas, testRuns] = await Promise.all([
       deleteAllInContainer(getFlowsContainer, projectId),

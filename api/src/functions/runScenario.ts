@@ -10,6 +10,7 @@ import { parseFlowXml, FlowXmlParseError } from "../lib/flowRunner";
 import { executeScenario } from "../lib/flowRunner";
 import type { RunContext } from "../lib/flowRunner";
 import { getSettingsContainer } from "../lib/cosmosClient";
+import { audit } from "../lib/auditLog";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -109,6 +110,7 @@ async function handleRunScenario(req: HttpRequest, _ctx: InvocationContext): Pro
   // Execute the scenario
   const result = await executeScenario(flow, ctx, scenarioId);
 
+  audit(apiKeyDoc.projectId, "scenario.run", apiKeyDoc.createdBy, scenarioId, { status: result.status, durationMs: result.summary.durationMs });
   return ok(result);
 }
 

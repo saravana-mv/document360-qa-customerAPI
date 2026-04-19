@@ -2,6 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import { getFlowsContainer } from "../lib/cosmosClient";
 import { withRole, getUserInfo, getProjectId, parseClientPrincipal, lookupUser, ProjectIdMissingError } from "../lib/auth";
 import type { AppRole } from "../lib/auth";
+import { audit } from "../lib/auditLog";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -55,6 +56,7 @@ async function lockFlow(req: HttpRequest): Promise<HttpResponseInit> {
     doc.lockedAt = now;
     await container.items.upsert(doc);
 
+    audit(projectId, "flow.lock", { oid: user.oid, name: user.name }, body.name);
     return ok({ locked: true, lockedBy: doc.lockedBy, lockedAt: now });
   } catch (e) {
     if (e instanceof ProjectIdMissingError) return err(400, e.message);
@@ -85,10 +87,13 @@ async function unlockFlow(req: HttpRequest): Promise<HttpResponseInit> {
     if (!doc.lockedBy) return ok({ locked: false });
 
     // Clear lock
+    const previousLocker = doc.lockedBy as { oid: string; name: string } | undefined;
     doc.lockedBy = undefined;
     doc.lockedAt = undefined;
     await container.items.upsert(doc);
 
+    const user = getUserInfo(req);
+    audit(projectId, "flow.unlock", { oid: user.oid, name: user.name }, name, previousLocker ? { previousLockedBy: previousLocker.name } : undefined);
     return ok({ locked: false });
   } catch (e) {
     if (e instanceof ProjectIdMissingError) return err(400, e.message);

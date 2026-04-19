@@ -1,6 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { getFlowsContainer } from "../lib/cosmosClient";
 import { withAuth, getUserInfo, getProjectId, ProjectIdMissingError } from "../lib/auth";
+import { audit } from "../lib/auditLog";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -91,6 +92,7 @@ async function activateHandler(req: HttpRequest): Promise<HttpResponseInit> {
     for (const f of body.flows) set.add(f);
 
     const doc = await writeDoc(projectId, [...set], user);
+    for (const f of body.flows) audit(projectId, "scenario.activate", user, f);
     return ok({ flows: doc.flows });
   } catch (e) {
     if (e instanceof ProjectIdMissingError) return err(400, e.message);
@@ -111,6 +113,7 @@ async function deactivateHandler(req: HttpRequest): Promise<HttpResponseInit> {
     for (const f of body.flows) set.delete(f);
 
     const doc = await writeDoc(projectId, [...set], user);
+    for (const f of body.flows) audit(projectId, "scenario.deactivate", user, f);
     return ok({ flows: doc.flows });
   } catch (e) {
     if (e instanceof ProjectIdMissingError) return err(400, e.message);
