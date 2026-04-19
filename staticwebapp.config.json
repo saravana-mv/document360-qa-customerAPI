@@ -12,6 +12,7 @@
   },
   "routes": [
     { "route": "/.auth/*", "allowedRoles": ["anonymous", "authenticated"] },
+    { "route": "/api/run-scenario", "allowedRoles": ["anonymous", "authenticated"] },
     { "route": "/api/*", "allowedRoles": ["authenticated"] }
   ],
   "navigationFallback": { "rewrite": "/index.html", "exclude": ["/assets/*", "/api/*"] },
