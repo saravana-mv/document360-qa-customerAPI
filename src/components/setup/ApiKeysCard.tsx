@@ -45,6 +45,106 @@ function CheckIcon({ className }: { className?: string }) {
   );
 }
 
+// ── Example snippets ─────────────────────────────────────────────────────────
+
+const SCENARIO_ID = "a00c7330-c560-4ba0-b66a-26bd2f72655b";
+const BASE = "https://flowforge.document360.io";
+
+const EXAMPLES: { label: string; lang: string; copy: string; display: string }[] = [
+  {
+    label: "Bash / macOS / Linux",
+    lang: "bash",
+    copy: `curl -X POST ${BASE}/api/run-scenario -H "Content-Type: application/json" -H "X-Api-Key: YOUR_API_KEY" -d '{"scenarioId":"${SCENARIO_ID}"}'`,
+    display: `curl -X POST ${BASE}/api/run-scenario \\
+  -H "Content-Type: application/json" \\
+  -H "X-Api-Key: YOUR_API_KEY" \\
+  -d '{"scenarioId": "${SCENARIO_ID}"}'`,
+  },
+  {
+    label: "PowerShell",
+    lang: "powershell",
+    copy: `Invoke-RestMethod -Uri "${BASE}/api/run-scenario" -Method POST -ContentType "application/json" -Headers @{"X-Api-Key"="YOUR_API_KEY"} -Body '{"scenarioId":"${SCENARIO_ID}"}'`,
+    display: `Invoke-RestMethod \`
+  -Uri "${BASE}/api/run-scenario" \`
+  -Method POST \`
+  -ContentType "application/json" \`
+  -Headers @{ "X-Api-Key" = "YOUR_API_KEY" } \`
+  -Body '{"scenarioId": "${SCENARIO_ID}"}'`,
+  },
+  {
+    label: "cmd (Windows)",
+    lang: "cmd",
+    copy: `curl.exe -X POST ${BASE}/api/run-scenario -H "Content-Type: application/json" -H "X-Api-Key: YOUR_API_KEY" -d "{\\"scenarioId\\":\\"${SCENARIO_ID}\\"}"`,
+    display: `curl.exe -X POST ${BASE}/api/run-scenario ^
+  -H "Content-Type: application/json" ^
+  -H "X-Api-Key: YOUR_API_KEY" ^
+  -d "{\\"scenarioId\\": \\"${SCENARIO_ID}\\"}"`,
+  },
+];
+
+function CurlExamples() {
+  const [tab, setTab] = useState(0);
+  const [copied, setCopied] = useState(false);
+  const ex = EXAMPLES[tab];
+
+  function handleCopy() {
+    navigator.clipboard.writeText(ex.copy);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <details className="mb-4 border border-[#d1d9e0] rounded-lg overflow-hidden group">
+      <summary className="flex items-center gap-2 px-4 py-2.5 bg-[#f6f8fa] cursor-pointer text-sm font-medium text-[#1f2328] select-none hover:bg-[#eef1f4] transition-colors">
+        <svg className="w-4 h-4 text-[#656d76] transition-transform group-open:rotate-90" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+        </svg>
+        Example: Run a scenario from the command line
+      </summary>
+      <div className="bg-[#24292f]">
+        {/* Shell tabs */}
+        <div className="flex items-center border-b border-[#373e47]">
+          {EXAMPLES.map((e, i) => (
+            <button
+              key={e.label}
+              onClick={() => { setTab(i); setCopied(false); }}
+              className={[
+                "px-4 py-2 text-xs font-medium transition-colors",
+                i === tab
+                  ? "text-[#e6edf3] border-b-2 border-[#58a6ff] bg-[#2d333b]"
+                  : "text-[#8b949e] hover:text-[#e6edf3]",
+              ].join(" ")}
+            >
+              {e.label}
+            </button>
+          ))}
+          <div className="flex-1" />
+          <button
+            onClick={handleCopy}
+            className="mr-3 p-1.5 rounded-md hover:bg-white/10 text-[#8b949e] hover:text-white transition-colors"
+            title="Copy to clipboard"
+          >
+            {copied
+              ? <CheckIcon className="w-4 h-4 text-[#3fb950]" />
+              : <CopyIcon className="w-4 h-4" />
+            }
+          </button>
+        </div>
+
+        {/* Code block */}
+        <div className="px-4 py-3">
+          <pre className="text-xs font-mono text-[#e6edf3] leading-relaxed whitespace-pre-wrap break-all">
+            {ex.display}
+          </pre>
+          <p className="text-[11px] text-[#8b949e] mt-2.5 leading-relaxed">
+            Replace <code className="text-[#79c0ff]">YOUR_API_KEY</code> with a key from the table below.
+          </p>
+        </div>
+      </div>
+    </details>
+  );
+}
+
 // ── Component ───────────────────────────────────────────────────────────────
 
 export function ApiKeysCard() {
@@ -156,35 +256,8 @@ export function ApiKeysCard() {
         Authenticate external API calls to run scenarios via <code className="text-xs bg-[#f6f8fa] px-1 py-0.5 rounded border border-[#d1d9e0]">POST /api/run-scenario</code>.
       </p>
 
-      {/* ── Curl example ─────────────────────────────────────── */}
-      <details className="mb-4 border border-[#d1d9e0] rounded-lg overflow-hidden group">
-        <summary className="flex items-center gap-2 px-4 py-2.5 bg-[#f6f8fa] cursor-pointer text-sm font-medium text-[#1f2328] select-none hover:bg-[#eef1f4] transition-colors">
-          <svg className="w-4 h-4 text-[#656d76] transition-transform group-open:rotate-90" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-          </svg>
-          Example: Run a scenario with curl
-        </summary>
-        <div className="px-4 py-3 bg-[#24292f] relative">
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(
-                `curl -X POST https://flowforge.document360.io/api/run-scenario -H "Content-Type: application/json" -H "X-Api-Key: ff_your_api_key_here" -d "{\\"scenarioId\\": \\"a00c7330-c560-4ba0-b66a-26bd2f72655b\\"}"`
-              );
-            }}
-            className="absolute top-2.5 right-3 p-1.5 rounded-md hover:bg-white/10 text-[#8b949e] hover:text-white transition-colors"
-            title="Copy to clipboard"
-          >
-            <CopyIcon className="w-4 h-4" />
-          </button>
-          <pre className="text-xs font-mono text-[#e6edf3] leading-relaxed whitespace-pre-wrap break-all pr-8">
-{`curl -X POST https://flowforge.document360.io/api/run-scenario \\\n  -H "Content-Type: application/json" \\\n  -H "X-Api-Key: ff_your_api_key_here" \\\n  -d "{\\"scenarioId\\": \\"a00c7330-c560-4ba0-b66a-26bd2f72655b\\"}"`}
-          </pre>
-          <p className="text-[11px] text-[#8b949e] mt-2.5 leading-relaxed">
-            Replace <code className="text-[#79c0ff]">ff_your_api_key_here</code> with a key from the table below.
-            The <code className="text-[#79c0ff]">scenarioId</code> is shown in the Scenario Manager context menu.
-          </p>
-        </div>
-      </details>
+      {/* ── API usage examples ────────────────────────────────── */}
+      <CurlExamples />
 
       {/* ── Newly created key banner ───────────────────────────── */}
       {newKey && (
