@@ -12,6 +12,7 @@ import { AccessGate } from "./components/auth/AccessGate";
 
 const SpecFilesPage = lazy(() => import("./pages/SpecFilesPage").then((m) => ({ default: m.SpecFilesPage })));
 const UsersPage = lazy(() => import("./pages/UsersPage").then((m) => ({ default: m.UsersPage })));
+const AuditLogPage = lazy(() => import("./pages/AuditLogPage").then((m) => ({ default: m.AuditLogPage })));
 
 // Register placeholder suites (categories/drive stubs).
 // Articles tests come from .flow.xml files — loaded at runtime via loadFlowsFromQueue.
@@ -61,6 +62,7 @@ function AppRoutes() {
       <Route path="/setup" element={<Navigate to="/settings" replace />} />
       <Route path="/test" element={<TestPage />} />
       <Route path="/spec-files" element={<Suspense fallback={<PageLoader />}><SpecFilesPage /></Suspense>} />
+      <Route path="/audit-log" element={<Suspense fallback={<PageLoader />}><AuditLogPage /></Suspense>} />
       <Route path="/users" element={<Suspense fallback={<PageLoader />}><UsersPage /></Suspense>} />
       <Route path="*" element={<Navigate to="/spec-files" replace />} />
     </Routes>
