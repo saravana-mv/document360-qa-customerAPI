@@ -9,6 +9,7 @@ const mockRead = jest.fn();
 const mockDelete = jest.fn();
 const mockUpsert = jest.fn();
 const mockFetchAll = jest.fn();
+const mockPatch = jest.fn();
 
 jest.mock("../lib/cosmosClient", () => ({
   getFlowsContainer: jest.fn().mockResolvedValue({
@@ -19,6 +20,7 @@ jest.mock("../lib/cosmosClient", () => ({
     item: () => ({
       read: mockRead,
       delete: mockDelete,
+      patch: mockPatch,
     }),
   }),
 }));
@@ -51,6 +53,7 @@ beforeEach(() => {
   mockRead.mockRejectedValue(new Error("not found"));
   mockDelete.mockResolvedValue(undefined);
   mockUpsert.mockResolvedValue(undefined);
+  mockPatch.mockResolvedValue(undefined);
 });
 
 describe("CORS", () => {
