@@ -51,6 +51,7 @@ export function RunHistory() {
     setLoadingRunId(run.id);
     try {
       const full = await getTestRun(run.id);
+      console.log("[RunHistory] full run document keys:", Object.keys(full), "tagResults keys:", Object.keys(full.tagResults ?? {}), "testResults keys:", Object.keys(full.testResults ?? {}), "log length:", (full.log ?? []).length);
       const meta: HistoryRunMeta = {
         runId: run.id,
         startedAt: run.startedAt,
