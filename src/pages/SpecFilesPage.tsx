@@ -1605,6 +1605,7 @@ export function SpecFilesPage() {
                         {chatActive ? (
                           <FlowChatPanel
                             specFiles={contextSpecFiles}
+                            allSpecFiles={files}
                             aiModel={aiModel}
                             onFlowGenerated={handleChatFlowGenerated}
                             onClose={() => setChatActive(false)}
@@ -1636,6 +1637,7 @@ export function SpecFilesPage() {
                 <div className="flex-1 flex overflow-hidden">
                   <FlowChatPanel
                     specFiles={contextSpecFiles}
+                    allSpecFiles={files}
                     aiModel={aiModel}
                     onFlowGenerated={handleChatFlowGenerated}
                     onClose={() => setChatActive(false)}
