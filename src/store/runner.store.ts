@@ -129,6 +129,9 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   },
   loadHistoryRun: (meta, data) => {
     pauseResolver = null;
+    // Derive selections from the loaded results so the tree highlights them
+    const selectedTests = new Set(Object.keys(data.testResults));
+    const selectedTags = new Set(Object.keys(data.tagResults));
     set({
       running: false,
       cancelled: false,
@@ -139,6 +142,8 @@ export const useRunnerStore = create<RunnerState>((set) => ({
       log: data.log,
       summary: data.summary,
       viewingHistory: meta,
+      selectedTests,
+      selectedTags,
       selectedTestId: null,
     });
   },
