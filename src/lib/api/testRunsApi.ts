@@ -3,6 +3,20 @@
 import { getProjectHeaders } from "./projectHeader";
 import type { TestResult, TagResult, RunSummary, LogEntry } from "../../types/test.types";
 
+/** Step result from server-side API runs */
+export interface ApiStepResult {
+  number: number;
+  name: string;
+  status: "pass" | "fail" | "skip" | "error";
+  httpStatus?: number;
+  durationMs: number;
+  failureReason?: string;
+  assertionResults: Array<{ id: string; description: string; passed: boolean }>;
+  requestUrl?: string;
+  requestBody?: unknown;
+  responseBody?: unknown;
+}
+
 export interface SavedTestRun {
   id: string;
   projectId: string;
@@ -10,9 +24,15 @@ export interface SavedTestRun {
   startedAt: string;
   completedAt: string;
   summary: RunSummary;
-  tagResults: Record<string, TagResult>;
-  testResults: Record<string, TestResult>;
-  log: LogEntry[];
+  // UI runs
+  tagResults?: Record<string, TagResult>;
+  testResults?: Record<string, TestResult>;
+  log?: LogEntry[];
+  // API runs
+  source?: "api" | "ui";
+  scenarioId?: string;
+  scenarioName?: string;
+  steps?: ApiStepResult[];
 }
 
 export interface TestRunListItem {

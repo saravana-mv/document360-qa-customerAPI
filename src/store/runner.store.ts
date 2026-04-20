@@ -136,7 +136,6 @@ export const useRunnerStore = create<RunnerState>((set) => ({
     for (const tr of Object.values(data.testResults)) {
       if (tr.tag) selectedTags.add(tr.tag);
     }
-    console.log("[loadHistoryRun]", { tagResultKeys: Object.keys(data.tagResults), testResultKeys: Object.keys(data.testResults), selectedTags: [...selectedTags], selectedTests: [...selectedTests] });
     set({
       running: false,
       cancelled: false,

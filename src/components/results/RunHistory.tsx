@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { listTestRuns, deleteTestRun, getTestRun, type TestRunListItem } from "../../lib/api/testRunsApi";
+import { listTestRuns, deleteTestRun, getTestRun, type TestRunListItem, type SavedTestRun, type ApiStepResult } from "../../lib/api/testRunsApi";
 import { useRunnerStore, type HistoryRunMeta } from "../../store/runner.store";
+import type { TestResult, TagResult, LogEntry, RollupStatus } from "../../types/test.types";
 
 function formatDate(iso: string): string {
   try {
@@ -13,6 +14,77 @@ function formatDate(iso: string): string {
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
+}
+
+/** Convert API run `steps` into the UI's testResults/tagResults/log format. */
+function convertApiRun(run: SavedTestRun): {
+  testResults: Record<string, TestResult>;
+  tagResults: Record<string, TagResult>;
+  log: LogEntry[];
+} {
+  const steps: ApiStepResult[] = run.steps ?? [];
+  const scenarioName = run.scenarioName ?? "API Scenario";
+  const testResults: Record<string, TestResult> = {};
+  const log: LogEntry[] = [];
+  const testRefs: TestResult[] = [];
+  let logId = 0;
+  const baseTime = run.startedAt ? new Date(run.startedAt).getTime() : Date.now();
+
+  // Scenario start log
+  log.push({ id: `log-${++logId}`, timestamp: baseTime, level: "info", message: `▸ ${scenarioName}`, tag: scenarioName });
+
+  let elapsed = 0;
+  for (const step of steps) {
+    const testId = `api-step-${step.number}`;
+    const tr: TestResult = {
+      testId,
+      testName: step.name,
+      tag: scenarioName,
+      path: step.requestUrl ?? "",
+      method: "POST",
+      status: step.status,
+      durationMs: step.durationMs,
+      httpStatus: step.httpStatus,
+      failureReason: step.failureReason,
+      assertionResults: step.assertionResults ?? [],
+      requestUrl: step.requestUrl,
+      requestBody: step.requestBody,
+      responseBody: step.responseBody,
+      startedAt: baseTime + elapsed,
+      completedAt: baseTime + elapsed + step.durationMs,
+    };
+    testResults[testId] = tr;
+    testRefs.push(tr);
+
+    // Log entry per step
+    const icon = step.status === "pass" ? "✓" : step.status === "fail" ? "✗" : step.status === "skip" ? "⊘" : "!";
+    const level = step.status === "pass" ? "success" as const : step.status === "skip" ? "warn" as const : "error" as const;
+    let msg = `${icon} ${step.name}`;
+    if (step.httpStatus) msg += ` [${step.httpStatus}]`;
+    if (step.durationMs) msg += ` (${step.durationMs}ms)`;
+    if (step.failureReason) msg += ` — ${step.failureReason}`;
+    log.push({ id: `log-${++logId}`, timestamp: baseTime + elapsed, level, message: msg, tag: scenarioName, testId, testName: step.name });
+
+    elapsed += step.durationMs;
+  }
+
+  // Determine rollup status
+  const hasFailure = steps.some((s) => s.status === "fail" || s.status === "error");
+  const hasPass = steps.some((s) => s.status === "pass");
+  const rollup: RollupStatus = hasFailure && hasPass ? "partial" : hasFailure ? "fail" : "pass";
+
+  const tagResults: Record<string, TagResult> = {
+    [scenarioName]: {
+      tag: scenarioName,
+      status: rollup,
+      tests: testRefs,
+      durationMs: elapsed,
+      startedAt: baseTime,
+      completedAt: baseTime + elapsed,
+    },
+  };
+
+  return { testResults, tagResults, log };
 }
 
 export function RunHistory() {
@@ -51,7 +123,6 @@ export function RunHistory() {
     setLoadingRunId(run.id);
     try {
       const full = await getTestRun(run.id);
-      console.log("[RunHistory] full run document keys:", Object.keys(full), "tagResults keys:", Object.keys(full.tagResults ?? {}), "testResults keys:", Object.keys(full.testResults ?? {}), "log length:", (full.log ?? []).length);
       const meta: HistoryRunMeta = {
         runId: run.id,
         startedAt: run.startedAt,
@@ -60,10 +131,16 @@ export function RunHistory() {
         source: run.source,
         scenarioName: run.scenarioName,
       };
+
+      // API runs store `steps` instead of testResults/tagResults — convert them
+      const { testResults, tagResults, log } = full.testResults && Object.keys(full.testResults).length > 0
+        ? { testResults: full.testResults, tagResults: full.tagResults ?? {}, log: full.log ?? [] }
+        : convertApiRun(full);
+
       useRunnerStore.getState().loadHistoryRun(meta, {
-        testResults: full.testResults ?? {},
-        tagResults: full.tagResults ?? {},
-        log: full.log ?? [],
+        testResults,
+        tagResults,
+        log,
         summary: full.summary,
       });
       // Switch to Scenarios tab
