@@ -126,6 +126,8 @@ export function RunControls() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, runner.selectedTags, runner.selectedTests]);
 
+  const viewingHistory = runner.viewingHistory;
+
   return (
     <div className="shrink-0">
       {/* Title row — aligns with LHS h-10 title header */}
@@ -133,8 +135,36 @@ export function RunControls() {
         <span className="text-sm font-semibold text-[#1f2328]">Run Console</span>
         <span className="ml-auto text-xs text-[#656d76]">{allTests.length} scenario{allTests.length !== 1 ? "s" : ""}</span>
       </div>
+
+      {/* History view banner */}
+      {viewingHistory && (
+        <div className="flex items-center gap-3 px-4 py-2 border-b border-[#d1d9e0] bg-[#ddf4ff]">
+          <svg className="w-4 h-4 text-[#0969da] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+          </svg>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold text-[#0969da]">
+              Viewing past run
+              {viewingHistory.source === "api" && (
+                <span className="ml-1.5 inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#fbefff] text-[#8250df]">API</span>
+              )}
+            </div>
+            <div className="text-[11px] text-[#656d76] truncate">
+              {new Date(viewingHistory.startedAt).toLocaleString()} by {viewingHistory.triggeredBy}
+              {viewingHistory.scenarioName && ` — ${viewingHistory.scenarioName}`}
+            </div>
+          </div>
+          <button
+            onClick={runner.clearHistoryView}
+            className="px-2.5 py-1 bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-xs font-medium rounded-md transition-colors border border-[#d1d9e0] shrink-0"
+          >
+            Back to live
+          </button>
+        </div>
+      )}
+
       {/* Settings warning */}
-      {settingsMissing && (
+      {!viewingHistory && settingsMissing && (
         <div className="flex items-center gap-2 px-4 py-2 border-b border-[#d1d9e0] bg-[#fff8c5]">
           <svg className="w-4 h-4 text-[#9a6700] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
@@ -149,6 +179,7 @@ export function RunControls() {
         </div>
       )}
       {/* Controls row — aligns with LHS h-9 toolbar */}
+      {!viewingHistory && (
       <div className="flex items-center gap-2 px-4 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa]">
         <button
           onClick={runAll}
@@ -183,6 +214,7 @@ export function RunControls() {
           </button>
         )}
       </div>
+      )}
       {runner.paused && runner.pausedAt && (
         <div className="px-4 py-2 border-b border-[#d1d9e0] bg-[#fff8c5] flex items-center gap-3">
           <span className="text-[#9a6700] shrink-0" title="Paused at breakpoint">

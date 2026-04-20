@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { listTestRuns, deleteTestRun, type TestRunListItem } from "../../lib/api/testRunsApi";
+import { listTestRuns, deleteTestRun, getTestRun, type TestRunListItem } from "../../lib/api/testRunsApi";
+import { useRunnerStore, type HistoryRunMeta } from "../../store/runner.store";
 
 function formatDate(iso: string): string {
   try {
@@ -18,6 +19,7 @@ export function RunHistory() {
   const [runs, setRuns] = useState<TestRunListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadingRunId, setLoadingRunId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -34,13 +36,41 @@ export function RunHistory() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function handleDelete(id: string) {
+  async function handleDelete(e: React.MouseEvent, id: string) {
+    e.stopPropagation();
     if (!window.confirm("Delete this run?")) return;
     try {
       await deleteTestRun(id);
       setRuns((prev) => prev.filter((r) => r.id !== id));
+    } catch (err) {
+      console.error("Failed to delete run:", err);
+    }
+  }
+
+  async function handleViewRun(run: TestRunListItem) {
+    setLoadingRunId(run.id);
+    try {
+      const full = await getTestRun(run.id);
+      const meta: HistoryRunMeta = {
+        runId: run.id,
+        startedAt: run.startedAt,
+        completedAt: run.completedAt,
+        triggeredBy: run.triggeredBy?.name ?? "Unknown",
+        source: run.source,
+        scenarioName: run.scenarioName,
+      };
+      useRunnerStore.getState().loadHistoryRun(meta, {
+        testResults: full.testResults ?? {},
+        tagResults: full.tagResults ?? {},
+        log: full.log ?? [],
+        summary: full.summary,
+      });
+      // Switch to Scenarios tab
+      window.dispatchEvent(new CustomEvent("view-history-run"));
     } catch (e) {
-      console.error("Failed to delete run:", e);
+      console.error("Failed to load run:", e);
+    } finally {
+      setLoadingRunId(null);
     }
   }
 
@@ -75,6 +105,7 @@ export function RunHistory() {
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
         <span className="text-xs font-medium text-[#656d76]">{runs.length} runs</span>
+        <span className="text-[10px] text-[#8b949e]">Click a row to view results</span>
         <div className="flex-1" />
         <RefreshButton loading={loading} onClick={load} />
       </div>
@@ -97,8 +128,22 @@ export function RunHistory() {
           </thead>
           <tbody>
             {runs.map((run) => (
-              <tr key={run.id} className="border-b border-[#d1d9e0] hover:bg-[#f6f8fa]">
-                <td className="px-3 py-2 text-[#1f2328]">{formatDate(run.startedAt)}</td>
+              <tr
+                key={run.id}
+                onClick={() => handleViewRun(run)}
+                className="border-b border-[#d1d9e0] hover:bg-[#ddf4ff]/40 cursor-pointer transition-colors"
+              >
+                <td className="px-3 py-2 text-[#1f2328]">
+                  {loadingRunId === run.id ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5 animate-spin text-[#0969da]" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      {formatDate(run.startedAt)}
+                    </span>
+                  ) : formatDate(run.startedAt)}
+                </td>
                 <td className="px-3 py-2">
                   {run.source === "api" ? (
                     <span
@@ -134,7 +179,7 @@ export function RunHistory() {
                 <td className="px-3 py-2 text-right">{run.summary ? formatDuration(run.summary.durationMs) : "–"}</td>
                 <td className="px-3 py-2 text-right">
                   <button
-                    onClick={() => handleDelete(run.id)}
+                    onClick={(e) => handleDelete(e, run.id)}
                     className="text-[#59636e] hover:text-[#d1242f] p-1"
                     title="Delete run"
                   >

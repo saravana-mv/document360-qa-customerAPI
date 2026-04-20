@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Layout } from "../components/common/Layout";
 import { TestExplorer } from "../components/explorer/TestExplorer";
 import { ResultsPanel } from "../components/results/ResultsPanel";
@@ -14,6 +14,13 @@ export function TestPage() {
   const { selectedTestId, selectTest } = useRunnerStore();
   const parsedTags = useSpecStore((s) => s.parsedTags);
   const [tab, setTab] = useState<Tab>("tests");
+
+  // When a history run is clicked, switch to the Scenarios tab
+  useEffect(() => {
+    const handler = () => setTab("tests");
+    window.addEventListener("view-history-run", handler);
+    return () => window.removeEventListener("view-history-run", handler);
+  }, []);
 
   // No auto-select — user picks a scenario explicitly
 

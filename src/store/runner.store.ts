@@ -8,6 +8,15 @@ export interface PausedAt {
   tag: string;
 }
 
+export interface HistoryRunMeta {
+  runId: string;
+  startedAt: string;
+  completedAt: string;
+  triggeredBy: string;
+  source?: "api" | "ui";
+  scenarioName?: string;
+}
+
 interface RunnerState {
   running: boolean;
   cancelled: boolean;
@@ -20,6 +29,8 @@ interface RunnerState {
   selectedTags: Set<string>;
   selectedTests: Set<string>;
   selectedTestId: string | null;
+  /** Non-null when viewing a past run from Run History */
+  viewingHistory: HistoryRunMeta | null;
 
   startRun: () => void;
   cancelRun: () => void;
@@ -27,6 +38,13 @@ interface RunnerState {
   resume: () => void;
   resetRun: () => void;
   fullReset: () => void;
+  loadHistoryRun: (meta: HistoryRunMeta, data: {
+    testResults: Record<string, TestResult>;
+    tagResults: Record<string, TagResult>;
+    log: LogEntry[];
+    summary: RunSummary;
+  }) => void;
+  clearHistoryView: () => void;
   selectTest: (id: string | null) => void;
   selectSingleTest: (id: string) => void;
   updateTestStatus: (testId: string, update: Partial<TestResult>) => void;
@@ -63,8 +81,9 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   selectedTags: new Set(),
   selectedTests: new Set(),
   selectedTestId: null,
+  viewingHistory: null,
 
-  startRun: () => set({ running: true, cancelled: false, paused: false, pausedAt: null, summary: null }),
+  startRun: () => set({ running: true, cancelled: false, paused: false, pausedAt: null, summary: null, viewingHistory: null }),
   cancelRun: () => {
     // If we're paused waiting on a breakpoint, releasing the resolver lets the
     // runner loop wake up and observe `cancelled` so it can skip cleanly.
@@ -89,7 +108,7 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   },
   resetRun: () => {
     pauseResolver = null;
-    set({ running: false, cancelled: false, paused: false, pausedAt: null, tagResults: {}, testResults: {}, log: [], summary: null });
+    set({ running: false, cancelled: false, paused: false, pausedAt: null, tagResults: {}, testResults: {}, log: [], summary: null, viewingHistory: null });
   },
   fullReset: () => {
     pauseResolver = null;
@@ -104,6 +123,37 @@ export const useRunnerStore = create<RunnerState>((set) => ({
       summary: null,
       selectedTags: new Set(),
       selectedTests: new Set(),
+      selectedTestId: null,
+      viewingHistory: null,
+    });
+  },
+  loadHistoryRun: (meta, data) => {
+    pauseResolver = null;
+    set({
+      running: false,
+      cancelled: false,
+      paused: false,
+      pausedAt: null,
+      testResults: data.testResults,
+      tagResults: data.tagResults,
+      log: data.log,
+      summary: data.summary,
+      viewingHistory: meta,
+      selectedTestId: null,
+    });
+  },
+  clearHistoryView: () => {
+    pauseResolver = null;
+    set({
+      running: false,
+      cancelled: false,
+      paused: false,
+      pausedAt: null,
+      tagResults: {},
+      testResults: {},
+      log: [],
+      summary: null,
+      viewingHistory: null,
       selectedTestId: null,
     });
   },
