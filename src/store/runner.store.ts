@@ -129,9 +129,14 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   },
   loadHistoryRun: (meta, data) => {
     pauseResolver = null;
-    // Derive selections from the loaded results so the tree highlights them
+    // Derive selections from loaded results so the tree highlights them.
+    // Use tagResults keys AND testResults values' .tag field for robustness.
     const selectedTests = new Set(Object.keys(data.testResults));
     const selectedTags = new Set(Object.keys(data.tagResults));
+    for (const tr of Object.values(data.testResults)) {
+      if (tr.tag) selectedTags.add(tr.tag);
+    }
+    console.log("[loadHistoryRun]", { tagResultKeys: Object.keys(data.tagResults), testResultKeys: Object.keys(data.testResults), selectedTags: [...selectedTags], selectedTests: [...selectedTests] });
     set({
       running: false,
       cancelled: false,
