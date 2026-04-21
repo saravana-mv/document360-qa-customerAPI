@@ -218,20 +218,3 @@ Agent tool:
     7. Do NOT commit — the main conversation will handle the commit
 ```
 
----
-
-## Memory Manager
-
-After completing any substantive response (code changes, new findings, decisions, feedback), spawn the Memory Manager agent in the background.
-
-```
-Agent tool:
-  subagent_type: "general-purpose"
-  run_in_background: true
-  description: "Memory manager — detect and save"
-  prompt: [see template in memory system docs]
-```
-
-Memory location: `C:\Users\SaravanaKumar\.claude\projects\C--SK-02-Claude-document360-QA-CustomerAPI\memory\`
-
-Format: Markdown with frontmatter (name, description, type: user|feedback|project|reference). Index in MEMORY.md.
