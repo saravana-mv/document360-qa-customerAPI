@@ -27,7 +27,7 @@ export function TestPage() {
   const hasTests = parsedTags.length > 0;
 
   return (
-    <Layout showTestControls>
+    <Layout>
       <div className="flex flex-col h-full">
         {/* Tab bar */}
         <div className="flex border-b border-[#d1d9e0] bg-[#f6f8fa] px-4 gap-4 shrink-0">

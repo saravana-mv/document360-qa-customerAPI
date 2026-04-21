@@ -9,7 +9,6 @@ import { getAllTests } from "../../lib/tests/registry";
 import { getProjectIdFromToken, fetchProject } from "../../lib/api/projects";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import { VersionAccordion } from "./VersionAccordion";
-import { ProjectSettingsCard } from "../setup/ProjectSettingsCard";
 import { Spinner } from "../common/Spinner";
 import type { ParsedTag } from "../../types/spec.types";
 
@@ -28,45 +27,12 @@ export function TestExplorer() {
   const [autoLoadError, setAutoLoadError] = useState<string | null>(null);
   const [autoLoading, setAutoLoading] = useState(false);
 
-  // Auto-load scenarios once we have a valid token AND the user has already
-  // saved project settings (version selected).
-  useEffect(() => {
-    if (parsedTags.length > 0 && setup.selectedProjectId && setup.selectedVersionId) return;
-    if (status !== "authenticated" || !token) return;
-    if (!setup.settingsConfirmed) return;
-    if (flowsLoading) return;
-    if (getAllTests().length === 0) return;
-    let cancelled = false;
-    (async () => {
-      setAutoLoading(true);
-      setAutoLoadError(null);
-      try {
-        let projectId = setup.selectedProjectId;
-        if (!projectId) {
-          projectId = getProjectIdFromToken(token.access_token);
-          if (!projectId) throw new Error("doc360_project_id not found in token — sign out and back in.");
-          const project = await fetchProject(projectId, token.access_token);
-          if (cancelled) return;
-          setup.setProjects([project]);
-          setup.selectProject(projectId);
-        }
-        const built = buildParsedTagsFromRegistry();
-        if (cancelled) return;
-        setSpec(null as never, built, null as never);
-      } catch (err) {
-        if (!cancelled) setAutoLoadError(err instanceof Error ? err.message : String(err));
-      } finally {
-        if (!cancelled) setAutoLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, token, parsedTags.length, flowsLoading, flowsByName]);
+  const isAuthenticated = status === "authenticated" && !!token;
 
-  // Keep parsedTags in sync with the registry whenever the flow-status store changes
+  // Build parsedTags from registry whenever flows change — no D360 auth required.
+  // This lets the version accordions render even when not signed in.
   useEffect(() => {
     if (flowsLoading) return;
-    if (!setup.selectedProjectId) return;
     const tests = getAllTests();
     if (tests.length === 0) return;
     const built = buildParsedTagsFromRegistry();
@@ -76,7 +42,37 @@ export function TestExplorer() {
       setSpec(null as never, built, null as never);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flowsByName, flowsLoading, setup.selectedProjectId]);
+  }, [flowsByName, flowsLoading]);
+
+  // When authenticated, auto-load project info (project name, versions list)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (!setup.settingsConfirmed) return;
+    if (setup.selectedProjectId && setup.projects.length > 0) return;
+    if (flowsLoading) return;
+    let cancelled = false;
+    (async () => {
+      setAutoLoading(true);
+      setAutoLoadError(null);
+      try {
+        let projectId = setup.selectedProjectId;
+        if (!projectId) {
+          projectId = getProjectIdFromToken(token!.access_token);
+          if (!projectId) throw new Error("doc360_project_id not found in token — sign out and back in.");
+          const project = await fetchProject(projectId, token!.access_token);
+          if (cancelled) return;
+          setup.setProjects([project]);
+          setup.selectProject(projectId);
+        }
+      } catch (err) {
+        if (!cancelled) setAutoLoadError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setAutoLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, flowsLoading]);
 
   // Load scenario org once tests are available
   useEffect(() => {
@@ -119,35 +115,28 @@ export function TestExplorer() {
       tags: [...tags].sort((a, b) => cmp(a.name, b.name)),
     }));
 
-  // Auth gate
-  if (status !== "authenticated" || !token) {
-    return <ProjectSettingsCard />;
+  // Still loading flows from queue
+  if (flowsLoading || autoLoading) {
+    return (
+      <div className="flex items-center justify-center h-full text-xs text-[#656d76] gap-2">
+        <Spinner size="sm" className="text-[#656d76]" />
+        Loading scenarios…
+      </div>
+    );
   }
 
-  // Settings gate
-  if (!setup.settingsConfirmed) {
-    return <ProjectSettingsCard />;
+  if (autoLoadError) {
+    return (
+      <div className="p-4">
+        <div className="px-3 py-2 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-xs text-[#d1242f]">
+          {autoLoadError}
+        </div>
+      </div>
+    );
   }
 
+  // No flows loaded at all
   if (parsedTags.length === 0) {
-    if (autoLoadError) {
-      return (
-        <div className="p-4">
-          <div className="px-3 py-2 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-xs text-[#d1242f]">
-            {autoLoadError}
-          </div>
-        </div>
-      );
-    }
-    const showSpinner = autoLoading || flowsLoading;
-    if (showSpinner) {
-      return (
-        <div className="flex items-center justify-center h-full text-xs text-[#656d76] gap-2">
-          <Spinner size="sm" className="text-[#656d76]" />
-          Loading scenarios…
-        </div>
-      );
-    }
     return (
       <div className="flex flex-col items-center justify-center h-full px-6">
         <div className="w-12 h-12 rounded-full bg-[#f6f8fa] border border-[#d1d9e0] flex items-center justify-center mb-4">
@@ -179,7 +168,60 @@ export function TestExplorer() {
             sortOrder={sortOrder}
           />
         ))}
+
+        {/* Sign-in prompt when not authenticated */}
+        {!isAuthenticated && (
+          <SignInPrompt />
+        )}
       </div>
+    </div>
+  );
+}
+
+/** Compact sign-in prompt shown below version accordions when D360 OAuth is not active */
+function SignInPrompt() {
+  const { setConfig, setStatus } = useAuthStore();
+  const spec = useSpecStore();
+  const [signingIn, setSigningIn] = useState(false);
+
+  async function handleSignIn() {
+    setSigningIn(true);
+    try {
+      const { buildOAuthConfig } = await import("../../config/oauth");
+      const { startAuthFlow, saveOAuthConfig } = await import("../../lib/oauth/flow");
+      const config = buildOAuthConfig();
+      saveOAuthConfig(config);
+      setConfig(config);
+      setStatus("authenticating");
+      await startAuthFlow(config);
+    } catch (err) {
+      spec.setError(err instanceof Error ? err.message : String(err));
+      setStatus("error");
+      setSigningIn(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 mx-1 rounded-md border border-[#d1d9e0] bg-white p-4">
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-[#1f2328] flex items-center justify-center shrink-0">
+          <span className="text-white font-bold text-[10px] tracking-tight">D360</span>
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-[#1f2328]">Sign in to run scenarios</p>
+          <p className="text-xs text-[#656d76] leading-relaxed">
+            Connect to Document360 to execute test scenarios against your project API.
+          </p>
+        </div>
+      </div>
+      <button
+        onClick={handleSignIn}
+        disabled={signingIn}
+        className="mt-3 w-full py-2 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-2 disabled:opacity-60 border border-[#1a7f37]/80"
+      >
+        {signingIn && <Spinner size="sm" className="text-white" />}
+        {signingIn ? "Redirecting…" : "Sign in to Document360"}
+      </button>
     </div>
   );
 }
