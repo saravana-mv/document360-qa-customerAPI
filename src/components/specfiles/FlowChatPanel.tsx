@@ -477,7 +477,7 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
             {referencedSpecs.map((item) => (
               <span
                 key={item.path}
-                className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-md bg-[#ddf4ff] text-[#0969da] border border-[#b6e3ff]"
+                className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-md bg-[#ddf4ff] text-[#0969da] border border-[#b6e3ff]"
               >
                 {item.type === "folder" ? (
                   <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -556,7 +556,7 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
                   )}
                   <span className="truncate">{item.label}</span>
                   {item.type === "folder" && (
-                    <span className="text-[10px] text-[#8b949e] ml-auto shrink-0">folder</span>
+                    <span className="text-xs text-[#8b949e] ml-auto shrink-0">folder</span>
                   )}
                 </button>
               ))}
@@ -564,12 +564,12 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
           )}
           {mentionQuery !== null && filteredMentions.length === 0 && mentionQuery.length > 0 && (
             <div className="absolute bottom-full left-0 mb-1 w-full bg-white border border-[#d1d9e0] rounded-md shadow-lg z-20 px-3 py-2">
-              <p className="text-xs text-[#656d76]">No matching spec files found</p>
+              <p className="text-sm text-[#656d76]">No matching spec files found</p>
             </div>
           )}
         </div>
 
-        <p className="text-[10px] text-[#8b949e] mt-1">
+        <p className="text-xs text-[#8b949e] mt-1">
           Press Enter to send · Shift+Enter for new line · Use <span className="font-semibold text-[#0969da]">@</span> to reference spec files
           {effectiveSpecFiles.length > 0 && ` · ${effectiveSpecFiles.length} spec file${effectiveSpecFiles.length !== 1 ? "s" : ""} in context`}
         </p>
@@ -596,7 +596,7 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
         </svg>
         <span className="text-sm font-semibold text-[#1f2328]">Flow Designer</span>
         {sessionCost > 0 && (
-          <span className="text-[11px] text-[#656d76] ml-1">${sessionCost.toFixed(4)}</span>
+          <span className="text-xs text-[#656d76] ml-1">${sessionCost.toFixed(4)}</span>
         )}
         <div className="flex-1" />
         {/* New chat button */}
@@ -615,7 +615,7 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
             abortRef.current?.abort();
             onClose();
           }}
-          className="text-xs text-[#656d76] hover:text-[#1f2328] px-1.5 py-0.5 rounded hover:bg-[#eef1f6] transition-colors"
+          className="text-sm text-[#656d76] hover:text-[#1f2328] px-1.5 py-0.5 rounded hover:bg-[#eef1f6] transition-colors"
         >
           Close
         </button>
@@ -627,7 +627,7 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
         {sidebarOpen && (
           <div className="w-[220px] shrink-0 border-r border-[#d1d9e0] bg-white flex flex-col overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-2 border-b border-[#d1d9e0]">
-              <span className="text-xs font-semibold text-[#1f2328] flex-1">Chat History</span>
+              <span className="text-sm font-semibold text-[#1f2328] flex-1">Chat History</span>
               <button
                 onClick={startNewSession}
                 className="text-[#656d76] hover:text-[#1f2328] p-0.5 rounded hover:bg-[#eef1f6] transition-colors"
@@ -648,7 +648,7 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
                 </div>
               )}
               {!sessionsLoading && sessions.length === 0 && (
-                <p className="px-3 py-4 text-xs text-[#656d76] text-center">No past conversations</p>
+                <p className="px-3 py-4 text-sm text-[#656d76] text-center">No past conversations</p>
               )}
               {!sessionsLoading && sessions.map((s) => (
                 <div
@@ -661,8 +661,8 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
                     onClick={() => void loadSession(s.id)}
                     className="flex-1 min-w-0 text-left"
                   >
-                    <p className="text-xs font-medium text-[#1f2328] truncate leading-snug">{s.title}</p>
-                    <p className="text-[10px] text-[#656d76] mt-0.5">
+                    <p className="text-sm font-medium text-[#1f2328] truncate leading-snug">{s.title}</p>
+                    <p className="text-xs text-[#656d76] mt-0.5">
                       {new Date(s.updatedAt).toLocaleDateString()} · {s.messageCount} msg{s.messageCount !== 1 ? "s" : ""}
                       {s.totalCost > 0 && ` · $${s.totalCost.toFixed(4)}`}
                     </p>
@@ -671,13 +671,13 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
                     <div className="flex items-center gap-1 shrink-0 mt-0.5">
                       <button
                         onClick={() => void handleDeleteSession(s.id)}
-                        className="text-[10px] text-[#d1242f] hover:underline"
+                        className="text-xs text-[#d1242f] hover:underline"
                       >
                         Delete
                       </button>
                       <button
                         onClick={() => setSessionDeleteId(null)}
-                        className="text-[10px] text-[#656d76] hover:underline"
+                        className="text-xs text-[#656d76] hover:underline"
                       >
                         Cancel
                       </button>
@@ -710,11 +710,11 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
             </svg>
           </div>
-          <p className="text-sm font-medium text-[#1f2328] mb-1">Design a test flow</p>
-          <p className="text-xs text-[#656d76] max-w-[280px] text-center leading-relaxed mb-5">
+          <p className="text-base font-medium text-[#1f2328] mb-1">Design a test flow</p>
+          <p className="text-sm text-[#656d76] max-w-[320px] text-center leading-relaxed mb-5">
             Describe what you want to test. I'll propose a flow plan, ask clarifying questions, and generate the XML when you're ready.
           </p>
-          <div className="space-y-1.5 text-xs text-[#656d76] mb-6">
+          <div className="space-y-1.5 text-sm text-[#656d76] mb-6">
             <p className="font-medium text-[#1f2328] text-center">Try something like:</p>
             <button
               onClick={() => setInput("Create a flow to test creating a category, creating an article, updating the article title, then tear down")}
