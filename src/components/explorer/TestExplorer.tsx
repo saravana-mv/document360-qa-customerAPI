@@ -168,60 +168,7 @@ export function TestExplorer() {
             sortOrder={sortOrder}
           />
         ))}
-
-        {/* Sign-in prompt when not authenticated */}
-        {!isAuthenticated && (
-          <SignInPrompt />
-        )}
       </div>
-    </div>
-  );
-}
-
-/** Compact sign-in prompt shown below version accordions when D360 OAuth is not active */
-function SignInPrompt() {
-  const { setConfig, setStatus } = useAuthStore();
-  const spec = useSpecStore();
-  const [signingIn, setSigningIn] = useState(false);
-
-  async function handleSignIn() {
-    setSigningIn(true);
-    try {
-      const { buildOAuthConfig } = await import("../../config/oauth");
-      const { startAuthFlow, saveOAuthConfig } = await import("../../lib/oauth/flow");
-      const config = buildOAuthConfig();
-      saveOAuthConfig(config);
-      setConfig(config);
-      setStatus("authenticating");
-      await startAuthFlow(config);
-    } catch (err) {
-      spec.setError(err instanceof Error ? err.message : String(err));
-      setStatus("error");
-      setSigningIn(false);
-    }
-  }
-
-  return (
-    <div className="mt-2 mx-1 rounded-md border border-[#d1d9e0] bg-white p-4">
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-[#1f2328] flex items-center justify-center shrink-0">
-          <span className="text-white font-bold text-[10px] tracking-tight">D360</span>
-        </div>
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-[#1f2328]">Sign in to run scenarios</p>
-          <p className="text-xs text-[#656d76] leading-relaxed">
-            Connect to Document360 to execute test scenarios against your project API.
-          </p>
-        </div>
-      </div>
-      <button
-        onClick={handleSignIn}
-        disabled={signingIn}
-        className="mt-3 w-full py-2 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-2 disabled:opacity-60 border border-[#1a7f37]/80"
-      >
-        {signingIn && <Spinner size="sm" className="text-white" />}
-        {signingIn ? "Redirecting…" : "Sign in to Document360"}
-      </button>
     </div>
   );
 }

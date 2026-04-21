@@ -513,6 +513,13 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
         </div>
       )}
 
+      {/* Sign-in + settings when not authenticated */}
+      {open && authStatus !== "authenticated" && (
+        <div className="ml-5 mt-1 mb-1 border border-[#d1d9e0] rounded-md overflow-hidden">
+          <ProjectSettingsCard onDone={() => {}} />
+        </div>
+      )}
+
       {/* Folder tree + inline create — only when authenticated */}
       {open && authStatus === "authenticated" && (
         <div className="mt-0.5">
