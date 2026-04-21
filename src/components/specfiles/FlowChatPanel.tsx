@@ -76,6 +76,17 @@ function resolveMention(item: MentionItem, allFiles: SpecFileItem[]): string[] {
     .map((f) => f.name);
 }
 
+/** Detect if the user is asking for multiple flows in one request */
+function detectMultiFlowRequest(text: string): boolean {
+  const lower = text.toLowerCase();
+  // Patterns like "two flows", "3 flows", "multiple flows", "both flows", "create flows for X and Y"
+  if (/\b(two|three|four|five|six|seven|eight|nine|ten|\d{1,2})\s+(flows?|scenarios?|tests?)\b/.test(lower)) return true;
+  if (/\b(multiple|several|a few|a couple of|both)\s+(flows?|scenarios?|tests?)\b/.test(lower)) return true;
+  // "create a flow for X and a flow for Y"
+  if (/\ba flow\b.*\band\b.*\ba flow\b/.test(lower)) return true;
+  return false;
+}
+
 export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerated, onClose }: FlowChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -130,6 +141,20 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || loading) return;
+
+    // Detect multi-flow requests on the first message (before a plan exists)
+    if (!latestPlan && detectMultiFlowRequest(trimmed)) {
+      setMessages((prev) => [
+        ...prev,
+        { id: nextId(), role: "user", content: trimmed, timestamp: Date.now() },
+        {
+          id: nextId(), role: "assistant", timestamp: Date.now(),
+          content: "The Flow Designer creates **one flow per session**. Please describe a single flow you'd like to create — you can start a new session for additional flows.",
+        },
+      ]);
+      setInput("");
+      return;
+    }
 
     const userMsg: ChatMessage = { id: nextId(), role: "user", content: trimmed, timestamp: Date.now() };
     const updatedMessages = [...messages, userMsg];
