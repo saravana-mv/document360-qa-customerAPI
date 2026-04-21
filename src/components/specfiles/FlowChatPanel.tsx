@@ -468,6 +468,115 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
     }
   }
 
+  function renderInputArea() {
+    return (
+      <div className="px-3 py-2 border-t border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+        {/* Referenced spec chips */}
+        {referencedSpecs.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {referencedSpecs.map((item) => (
+              <span
+                key={item.path}
+                className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-md bg-[#ddf4ff] text-[#0969da] border border-[#b6e3ff]"
+              >
+                {item.type === "folder" ? (
+                  <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+                  </svg>
+                ) : (
+                  <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                  </svg>
+                )}
+                <span className="truncate max-w-[180px]">{item.label}</span>
+                <button
+                  onClick={() => removeMention(item.path)}
+                  className="hover:text-[#d1242f] transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="relative">
+          <div className="flex items-end gap-2">
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              disabled={loading}
+              rows={3}
+              placeholder={messages.length === 0 ? "Describe the test flow you want to create…" : "Type a message… Use @ to reference spec files"}
+              className="flex-1 text-sm border border-[#d1d9e0] rounded-lg px-3 py-2 focus:outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] resize-none leading-relaxed disabled:opacity-50 max-h-[160px]"
+              onInput={(e) => {
+                const el = e.currentTarget;
+                el.style.height = "auto";
+                el.style.height = Math.min(el.scrollHeight, 160) + "px";
+              }}
+            />
+            <button
+              onClick={() => void sendMessage(input)}
+              disabled={!input.trim() || loading}
+              className="shrink-0 text-white bg-[#0969da] hover:bg-[#0860ca] rounded-lg px-3 py-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed self-end"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+              </svg>
+            </button>
+          </div>
+
+          {/* @ mention dropdown */}
+          {mentionQuery !== null && filteredMentions.length > 0 && (
+            <div
+              ref={mentionDropdownRef}
+              className="absolute bottom-full left-0 mb-1 w-full max-h-[200px] overflow-y-auto bg-white border border-[#d1d9e0] rounded-md shadow-lg z-20"
+            >
+              {filteredMentions.map((item, idx) => (
+                <button
+                  key={item.path}
+                  onClick={() => handleSelectMention(item)}
+                  onMouseEnter={() => setMentionIndex(idx)}
+                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-sm transition-colors ${
+                    idx === mentionIndex ? "bg-[#ddf4ff] text-[#0969da]" : "text-[#1f2328] hover:bg-[#f6f8fa]"
+                  }`}
+                >
+                  {item.type === "folder" ? (
+                    <svg className="w-4 h-4 text-[#54aeff] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4 text-[#656d76] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                    </svg>
+                  )}
+                  <span className="truncate">{item.label}</span>
+                  {item.type === "folder" && (
+                    <span className="text-[10px] text-[#8b949e] ml-auto shrink-0">folder</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+          {mentionQuery !== null && filteredMentions.length === 0 && mentionQuery.length > 0 && (
+            <div className="absolute bottom-full left-0 mb-1 w-full bg-white border border-[#d1d9e0] rounded-md shadow-lg z-20 px-3 py-2">
+              <p className="text-xs text-[#656d76]">No matching spec files found</p>
+            </div>
+          )}
+        </div>
+
+        <p className="text-[10px] text-[#8b949e] mt-1">
+          Press Enter to send · Shift+Enter for new line · Use <span className="font-semibold text-[#0969da]">@</span> to reference spec files
+          {effectiveSpecFiles.length > 0 && ` · ${effectiveSpecFiles.length} spec file${effectiveSpecFiles.length !== 1 ? "s" : ""} in context`}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
@@ -592,199 +701,104 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
 
       {/* Messages area */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
-        {messages.length === 0 && !loading && (
-          <div className="text-center py-8">
-            <div className="w-10 h-10 rounded-full bg-[#8250df]/10 flex items-center justify-center mx-auto mb-3">
-              <svg className="w-5 h-5 text-[#8250df]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-              </svg>
-            </div>
-            <p className="text-sm font-medium text-[#1f2328] mb-1">Design a test flow</p>
-            <p className="text-xs text-[#656d76] max-w-[260px] mx-auto leading-relaxed">
-              Describe what you want to test. I'll propose a flow plan, ask clarifying questions, and generate the XML when you're ready.
-            </p>
-            <div className="mt-4 space-y-1.5 text-xs text-[#656d76]">
-              <p className="font-medium text-[#1f2328]">Try something like:</p>
-              <button
-                onClick={() => setInput("Create a flow to test creating a category, creating an article, updating the article title, then tear down")}
-                className="block mx-auto text-[#0969da] hover:underline"
-              >
-                "Create, update, and teardown an article"
-              </button>
-              <button
-                onClick={() => setInput("Test article SEO settings — create article, set SEO metadata, verify it, clean up")}
-                className="block mx-auto text-[#0969da] hover:underline"
-              >
-                "Test article SEO settings lifecycle"
-              </button>
-            </div>
-          </div>
-        )}
 
-        {messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[85%] rounded-lg px-3 py-2 ${
-              msg.role === "user"
-                ? "bg-[#0969da] text-white"
-                : "bg-[#f6f8fa] border border-[#d1d9e0] text-[#1f2328]"
-            }`}>
-              {msg.role === "assistant" ? (
-                <div className="text-sm leading-relaxed">
-                  {renderAssistantContent(msg.content)}
-                  {msg.plan && <FlowPlanTree plan={msg.plan} />}
-                </div>
-              ) : (
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-              )}
-            </div>
+      {/* ── Initial state: centered welcome + input ── */}
+      {messages.length === 0 && !loading ? (
+        <div className="flex-1 flex flex-col items-center justify-center px-6">
+          <div className="w-10 h-10 rounded-full bg-[#8250df]/10 flex items-center justify-center mb-3">
+            <svg className="w-5 h-5 text-[#8250df]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+            </svg>
           </div>
-        ))}
+          <p className="text-sm font-medium text-[#1f2328] mb-1">Design a test flow</p>
+          <p className="text-xs text-[#656d76] max-w-[280px] text-center leading-relaxed mb-5">
+            Describe what you want to test. I'll propose a flow plan, ask clarifying questions, and generate the XML when you're ready.
+          </p>
+          <div className="space-y-1.5 text-xs text-[#656d76] mb-6">
+            <p className="font-medium text-[#1f2328] text-center">Try something like:</p>
+            <button
+              onClick={() => setInput("Create a flow to test creating a category, creating an article, updating the article title, then tear down")}
+              className="block mx-auto text-[#0969da] hover:underline"
+            >
+              "Create, update, and teardown an article"
+            </button>
+            <button
+              onClick={() => setInput("Test article SEO settings — create article, set SEO metadata, verify it, clean up")}
+              className="block mx-auto text-[#0969da] hover:underline"
+            >
+              "Test article SEO settings lifecycle"
+            </button>
+          </div>
 
-        {/* Loading indicator */}
-        {(loading || generatingXml) && (
-          <div className="flex justify-start">
-            <div className="bg-[#f6f8fa] border border-[#d1d9e0] rounded-lg px-3 py-2">
-              <div className="flex items-center gap-2 text-sm text-[#656d76]">
-                <svg className="w-3.5 h-3.5 animate-spin text-[#8250df]" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                {generatingXml ? "Generating flow XML…" : "Thinking…"}
+          {/* Centered input area */}
+          <div className="w-full max-w-[480px]">
+            {renderInputArea()}
+          </div>
+        </div>
+      ) : (
+        <>
+        {/* ── Conversation active: messages + bottom input ── */}
+        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+          {messages.map((msg) => (
+            <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className={`max-w-[85%] rounded-lg px-3 py-2 ${
+                msg.role === "user"
+                  ? "bg-[#0969da] text-white"
+                  : "bg-[#f6f8fa] border border-[#d1d9e0] text-[#1f2328]"
+              }`}>
+                {msg.role === "assistant" ? (
+                  <div className="text-sm leading-relaxed">
+                    {renderAssistantContent(msg.content)}
+                    {msg.plan && <FlowPlanTree plan={msg.plan} />}
+                  </div>
+                ) : (
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                )}
               </div>
             </div>
-          </div>
-        )}
+          ))}
 
-        {/* Confirm plan button — show when we have a plan but haven't confirmed yet */}
-        {latestPlan && !confirmedPlan && !loading && !generatingXml && (
-          <div className="flex justify-center py-2">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleConfirmPlan}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 border border-[#1a7f37]/80 rounded-md px-3 py-1.5 transition-colors"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                </svg>
-                Generate flow XML
-              </button>
-              <span className="text-xs text-[#656d76]">or continue the conversation to refine the plan</span>
-            </div>
-          </div>
-        )}
-
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input area */}
-      {!generatingXml && (
-        <div className="px-3 py-2 border-t border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
-          {/* Referenced spec chips */}
-          {referencedSpecs.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {referencedSpecs.map((item) => (
-                <span
-                  key={item.path}
-                  className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-md bg-[#ddf4ff] text-[#0969da] border border-[#b6e3ff]"
-                >
-                  {item.type === "folder" ? (
-                    <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                    </svg>
-                  )}
-                  <span className="truncate max-w-[180px]">{item.label}</span>
-                  <button
-                    onClick={() => removeMention(item.path)}
-                    className="hover:text-[#d1242f] transition-colors"
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </span>
-              ))}
+          {/* Loading indicator */}
+          {(loading || generatingXml) && (
+            <div className="flex justify-start">
+              <div className="bg-[#f6f8fa] border border-[#d1d9e0] rounded-lg px-3 py-2">
+                <div className="flex items-center gap-2 text-sm text-[#656d76]">
+                  <svg className="w-3.5 h-3.5 animate-spin text-[#8250df]" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  {generatingXml ? "Generating flow XML…" : "Thinking…"}
+                </div>
+              </div>
             </div>
           )}
 
-          <div className="relative">
-            <div className="flex items-end gap-2">
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                disabled={loading}
-                rows={1}
-                placeholder={messages.length === 0 ? "Describe the test flow you want to create…" : "Type a message… Use @ to reference spec files"}
-                className="flex-1 text-sm border border-[#d1d9e0] rounded-md px-2.5 py-1.5 focus:outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] resize-none leading-relaxed disabled:opacity-50 min-h-[36px] max-h-[120px]"
-                style={{ height: "auto", overflow: "hidden" }}
-                onInput={(e) => {
-                  const el = e.currentTarget;
-                  el.style.height = "auto";
-                  el.style.height = Math.min(el.scrollHeight, 120) + "px";
-                }}
-              />
-              <button
-                onClick={() => void sendMessage(input)}
-                disabled={!input.trim() || loading}
-                className="shrink-0 text-white bg-[#0969da] hover:bg-[#0860ca] rounded-md px-2.5 py-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-                </svg>
-              </button>
+          {/* Confirm plan button */}
+          {latestPlan && !confirmedPlan && !loading && !generatingXml && (
+            <div className="flex justify-center py-2">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleConfirmPlan}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 border border-[#1a7f37]/80 rounded-md px-3 py-1.5 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                  Generate flow XML
+                </button>
+                <span className="text-xs text-[#656d76]">or continue the conversation to refine the plan</span>
+              </div>
             </div>
+          )}
 
-            {/* @ mention dropdown */}
-            {mentionQuery !== null && filteredMentions.length > 0 && (
-              <div
-                ref={mentionDropdownRef}
-                className="absolute bottom-full left-0 mb-1 w-full max-h-[200px] overflow-y-auto bg-white border border-[#d1d9e0] rounded-md shadow-lg z-20"
-              >
-                {filteredMentions.map((item, idx) => (
-                  <button
-                    key={item.path}
-                    onClick={() => handleSelectMention(item)}
-                    onMouseEnter={() => setMentionIndex(idx)}
-                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-sm transition-colors ${
-                      idx === mentionIndex ? "bg-[#ddf4ff] text-[#0969da]" : "text-[#1f2328] hover:bg-[#f6f8fa]"
-                    }`}
-                  >
-                    {item.type === "folder" ? (
-                      <svg className="w-4 h-4 text-[#54aeff] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
-                      </svg>
-                    ) : (
-                      <svg className="w-4 h-4 text-[#656d76] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                      </svg>
-                    )}
-                    <span className="truncate">{item.label}</span>
-                    {item.type === "folder" && (
-                      <span className="text-[10px] text-[#8b949e] ml-auto shrink-0">folder</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-            {mentionQuery !== null && filteredMentions.length === 0 && mentionQuery.length > 0 && (
-              <div className="absolute bottom-full left-0 mb-1 w-full bg-white border border-[#d1d9e0] rounded-md shadow-lg z-20 px-3 py-2">
-                <p className="text-xs text-[#656d76]">No matching spec files found</p>
-              </div>
-            )}
-          </div>
-
-          <p className="text-[10px] text-[#8b949e] mt-1">
-            Press Enter to send · Shift+Enter for new line · Use <span className="font-semibold text-[#0969da]">@</span> to reference spec files
-            {effectiveSpecFiles.length > 0 && ` · ${effectiveSpecFiles.length} spec file${effectiveSpecFiles.length !== 1 ? "s" : ""} in context`}
-          </p>
+          <div ref={messagesEndRef} />
         </div>
+
+        {/* Bottom input area */}
+        {!generatingXml && renderInputArea()}
+        </>
       )}
+
       </div>{/* end messages column */}
       </div>{/* end sidebar + messages wrapper */}
     </div>
