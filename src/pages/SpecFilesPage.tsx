@@ -89,6 +89,8 @@ export function SpecFilesPage() {
   // Source URL editing state
   const [editingSourceUrl, setEditingSourceUrl] = useState(false);
   const [sourceUrlDraft, setSourceUrlDraft] = useState("");
+  // Paths currently being synced (for spinner indicators)
+  const [syncingPaths, setSyncingPaths] = useState<Set<string>>(new Set());
 
   // ── Multi-context workshop state ──────────────────────────────────────────
   // Loaded from Cosmos DB on mount, saved back per-folder on mutation.
@@ -548,6 +550,8 @@ export function SpecFilesPage() {
   // ── Sync from URL source ──────────────────────────────────────────────────
 
   async function handleSyncFile(folderPath: string, filename: string) {
+    const syncedPath = folderPath ? `${folderPath}/${filename}` : filename;
+    setSyncingPaths((prev) => new Set([...prev, syncedPath]));
     try {
       const token = useAuthStore.getState().token?.access_token;
       const result = await syncSpecFiles(folderPath, filename, token);
@@ -558,18 +562,22 @@ export function SpecFilesPage() {
       await loadFiles();
       await loadSourcedPaths();
       // Refresh content if the synced file is currently viewed
-      const syncedPath = folderPath ? `${folderPath}/${filename}` : filename;
       if (selectedPath === syncedPath) {
         const fresh = await getSpecFileContent(syncedPath);
         setContent(fresh);
       }
     } catch (e) {
       alert(`Sync failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSyncingPaths((prev) => { const next = new Set(prev); next.delete(syncedPath); return next; });
     }
   }
 
   async function handleSyncFolder(folderPath: string) {
     if (!confirm(`Sync all URL-sourced files under "${folderPath || "/"}"?\n\nPrevious versions will be preserved.`)) return;
+    // Mark all sourced files under this folder as syncing
+    const folderSourced = Object.keys(sourcesManifest).filter((p) => p.startsWith(folderPath ? folderPath + "/" : ""));
+    setSyncingPaths((prev) => new Set([...prev, ...folderSourced]));
     try {
       const token = useAuthStore.getState().token?.access_token;
       const result = await syncSpecFiles(folderPath, undefined, token);
@@ -582,6 +590,8 @@ export function SpecFilesPage() {
       await loadSourcedPaths();
     } catch (e) {
       alert(`Sync failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSyncingPaths((prev) => { const next = new Set(prev); folderSourced.forEach((p) => next.delete(p)); return next; });
     }
   }
 
@@ -1462,6 +1472,7 @@ export function SpecFilesPage() {
             selectedFolderPath={selectedFolderPath}
             pathsWithIdeas={pathsWithIdeas}
             sourcedPaths={sourcedPaths}
+            syncingPaths={syncingPaths}
             onSelectFile={(path) => void selectFile(path)}
             onSelectFolder={selectFolder}
             onCreateFolder={(path) => handleCreateFolder(path)}

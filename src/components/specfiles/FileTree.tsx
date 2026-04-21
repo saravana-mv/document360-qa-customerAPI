@@ -85,6 +85,15 @@ function canDrop(drag: TreeNode, targetFolderPath: string): boolean {
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
+function SyncSpinner() {
+  return (
+    <svg className="w-4 h-4 text-[#0969da] shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  );
+}
+
 function FileIcon({ name, hasIdeas, isSourced }: { name: string; hasIdeas?: boolean; isSourced?: boolean }) {
   const ext = name.split(".").pop()?.toLowerCase();
   if (ext === "xml" || ext === "xsd")
@@ -186,6 +195,8 @@ interface NodeProps {
   pathsWithIdeas?: Set<string>;
   /** Paths that are sourced from URLs */
   sourcedPaths?: Set<string>;
+  /** Paths currently being synced */
+  syncingPaths?: Set<string>;
   // Drag state
   draggingPath: string | null;
   dropTargetPath: string | null; // "" = root, folder path = that folder
@@ -213,7 +224,7 @@ interface NodeProps {
 
 function TreeNodeRow({
   node, depth, selectedPath, selectedFolderPath, expandedFolders, renamingPath,
-  creatingUnder, pathsWithIdeas, sourcedPaths,
+  creatingUnder, pathsWithIdeas, sourcedPaths, syncingPaths,
   draggingPath, dropTargetPath,
   onDragStart, onDragOver, onDrop, onDragEnd,
   onSelect, onSelectFolder, onToggle, onRenameStart, onRenameCommit, onRenameCancel,
@@ -264,7 +275,9 @@ function TreeNodeRow({
         )}
 
         {/* Icon */}
-        {node.type === "folder" ? (
+        {syncingPaths?.has(node.path) ? (
+          <SyncSpinner />
+        ) : node.type === "folder" ? (
           <svg className={`w-4 h-4 shrink-0 ${isSelected && !isDropTarget ? "text-[#8b949e]" : "text-[#656d76]"}`} fill="currentColor" viewBox="0 0 20 20">
             <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
           </svg>
@@ -345,6 +358,7 @@ function TreeNodeRow({
               creatingUnder={creatingUnder}
               pathsWithIdeas={pathsWithIdeas}
               sourcedPaths={sourcedPaths}
+              syncingPaths={syncingPaths}
               draggingPath={draggingPath}
               dropTargetPath={dropTargetPath}
               onDragStart={onDragStart}
@@ -398,6 +412,8 @@ interface FileTreeProps {
   pathsWithIdeas?: Set<string>;
   /** Paths that are sourced from URLs */
   sourcedPaths?: Set<string>;
+  /** Paths currently being synced */
+  syncingPaths?: Set<string>;
   onSelectFile: (path: string) => void;
   onSelectFolder: (path: string) => void;
   onCreateFolder: (path: string) => Promise<void>;
@@ -413,7 +429,7 @@ interface FileTreeProps {
 }
 
 export function FileTree({
-  files, loading, selectedPath, selectedFolderPath, pathsWithIdeas, sourcedPaths,
+  files, loading, selectedPath, selectedFolderPath, pathsWithIdeas, sourcedPaths, syncingPaths,
   onSelectFile, onSelectFolder, onCreateFolder, onDeleteFile, onDeleteFolder, onRenameFile,
   onUploadFiles, onImportFromUrl, onSyncFile, onSyncFolder, onGenerateFlowIdeas, onRefresh,
 }: FileTreeProps) {
@@ -608,6 +624,7 @@ export function FileTree({
     creatingUnder,
     pathsWithIdeas,
     sourcedPaths,
+    syncingPaths,
     draggingPath: draggingNode?.path ?? null,
     dropTargetPath,
     onDragStart: handleDragStart,
