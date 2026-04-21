@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { useBlocker } from "react-router-dom";
 import {
   sendFlowChatMessage,
   parsePlanFromReply,
@@ -152,20 +151,8 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
     return () => { abortRef.current?.abort(); };
   }, []);
 
-  // Navigation guard — block route changes while chat has messages
+  // Navigation / refresh guard
   const hasConversation = messages.length > 0;
-  const blocker = useBlocker(hasConversation);
-
-  useEffect(() => {
-    if (blocker.state === "blocked") {
-      const leave = window.confirm("You have an active Flow Designer conversation. Leave and lose your progress?");
-      if (leave) {
-        blocker.proceed();
-      } else {
-        blocker.reset();
-      }
-    }
-  }, [blocker]);
 
   // Browser refresh/close guard
   useEffect(() => {
