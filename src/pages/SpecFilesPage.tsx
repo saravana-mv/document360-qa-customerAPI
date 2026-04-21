@@ -19,11 +19,13 @@ import {
   importSpecFileFromUrl,
   syncSpecFiles,
   getSourcesManifest,
+  updateSourceUrl,
   type SpecFileItem,
   type FlowIdea,
   type FlowIdeasUsage,
   type FlowUsage,
 } from "../lib/api/specFilesApi";
+import type { SourceEntry } from "../types/spec.types";
 import { generateFlowXml } from "../lib/api/flowApi";
 import { validateFlowXml } from "../lib/tests/flowXml/validate";
 import {
@@ -81,7 +83,12 @@ export function SpecFilesPage() {
   const [error, setError] = useState<string | null>(null);
   const [uploadFolderPath, setUploadFolderPath] = useState<string | null>(null);
   const [importUrlFolderPath, setImportUrlFolderPath] = useState<string | null>(null);
-  const [sourcedPaths, setSourcedPaths] = useState<Set<string>>(new Set());
+  const [sourcesManifest, setSourcesManifest] = useState<Record<string, SourceEntry>>({});
+  const sourcedPaths = useMemo(() => new Set(Object.keys(sourcesManifest)), [sourcesManifest]);
+
+  // Source URL editing state
+  const [editingSourceUrl, setEditingSourceUrl] = useState(false);
+  const [sourceUrlDraft, setSourceUrlDraft] = useState("");
 
   // ── Multi-context workshop state ──────────────────────────────────────────
   // Loaded from Cosmos DB on mount, saved back per-folder on mutation.
@@ -334,7 +341,7 @@ export function SpecFilesPage() {
   const loadSourcedPaths = useCallback(async () => {
     try {
       const manifest = await getSourcesManifest();
-      setSourcedPaths(new Set(Object.keys(manifest)));
+      setSourcesManifest(manifest);
     } catch {
       // Non-critical — sourced indicators just won't show
     }
@@ -421,6 +428,7 @@ export function SpecFilesPage() {
     setSelectedPath(path);
     setSelectedFolderPath(null);
     setViewingContent(false);
+    setEditingSourceUrl(false);
     loadWorkingSet(path);
     // Pre-load content for when user clicks the filename link
     setContent("");
@@ -574,6 +582,18 @@ export function SpecFilesPage() {
       await loadSourcedPaths();
     } catch (e) {
       alert(`Sync failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  // ── Update source URL ──────────────────────────────────────────────────────
+
+  async function handleSaveSourceUrl(filePath: string, newUrl: string) {
+    try {
+      await updateSourceUrl(filePath, newUrl);
+      setEditingSourceUrl(false);
+      await loadSourcedPaths();
+    } catch (e) {
+      alert(`Failed to update source URL: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
@@ -1523,6 +1543,76 @@ export function SpecFilesPage() {
                   );
                 })()}
               </div>
+
+              {/* Source URL info bar — shown for URL-sourced files */}
+              {isFileContext && selectedPath && sourcesManifest[selectedPath] && (
+                <div className="flex items-center gap-2 px-4 h-8 border-b border-[#d1d9e0] bg-[#ddf4ff]/50 shrink-0">
+                  <svg className="w-3.5 h-3.5 text-[#0969da] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+                  </svg>
+                  <span className="text-xs text-[#656d76]">Source:</span>
+                  {editingSourceUrl ? (
+                    <form
+                      className="flex items-center gap-1.5 flex-1 min-w-0"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (sourceUrlDraft.trim() && selectedPath) {
+                          void handleSaveSourceUrl(selectedPath, sourceUrlDraft.trim());
+                        }
+                      }}
+                    >
+                      <input
+                        autoFocus
+                        value={sourceUrlDraft}
+                        onChange={(e) => setSourceUrlDraft(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Escape") setEditingSourceUrl(false); }}
+                        className="flex-1 min-w-0 text-xs border border-[#0969da] rounded px-1.5 py-0.5 outline-none bg-white text-[#1f2328]"
+                        placeholder="https://..."
+                      />
+                      <button type="submit" className="text-xs text-white bg-[#0969da] hover:bg-[#0860ca] rounded px-2 py-0.5 font-medium">Save</button>
+                      <button type="button" onClick={() => setEditingSourceUrl(false)} className="text-xs text-[#656d76] hover:text-[#1f2328]">Cancel</button>
+                    </form>
+                  ) : (
+                    <>
+                      <a
+                        href={sourcesManifest[selectedPath].sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-[#0969da] hover:underline truncate flex-1 min-w-0"
+                        title={sourcesManifest[selectedPath].sourceUrl}
+                      >
+                        {sourcesManifest[selectedPath].sourceUrl}
+                      </a>
+                      <button
+                        onClick={() => {
+                          setSourceUrlDraft(sourcesManifest[selectedPath!]?.sourceUrl ?? "");
+                          setEditingSourceUrl(true);
+                        }}
+                        title="Edit source URL"
+                        className="text-[#656d76] hover:text-[#1f2328] rounded p-0.5 hover:bg-[#b6e3ff]/50 transition-colors shrink-0"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => { if (selectedPath) void handleSyncFile(selectedPath.slice(0, selectedPath.lastIndexOf("/")), selectedPath.slice(selectedPath.lastIndexOf("/") + 1)); }}
+                        title="Sync from source"
+                        className="text-[#656d76] hover:text-[#1f2328] rounded p-0.5 hover:bg-[#b6e3ff]/50 transition-colors shrink-0"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                        </svg>
+                      </button>
+                      {sourcesManifest[selectedPath].lastSyncedAt && (
+                        <span className="text-xs text-[#656d76] shrink-0">
+                          Synced {new Date(sourcesManifest[selectedPath].lastSyncedAt!).toLocaleDateString()}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
 
               {/* Content area — either markdown viewer or workshop */}
               {viewingContent && isFileContext ? (

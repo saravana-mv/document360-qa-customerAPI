@@ -113,6 +113,17 @@ export async function getSourcesManifest(
   return res.json() as Promise<Record<string, SourceEntry>>;
 }
 
+export async function updateSourceUrl(
+  filePath: string,
+  sourceUrl: string,
+): Promise<void> {
+  await apiFetch("/api/spec-files/sources", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filePath, sourceUrl }),
+  });
+}
+
 // ── Flow Ideas (AI) ───────────────────────────────────────────────────────────
 
 export interface FlowIdea {

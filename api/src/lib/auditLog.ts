@@ -27,7 +27,8 @@ export type AuditAction =
   | "spec.rename"
   | "spec.delete"
   | "spec.import_url"
-  | "spec.sync";
+  | "spec.sync"
+  | "spec.update_source";
 
 interface AuditEntry {
   id: string;

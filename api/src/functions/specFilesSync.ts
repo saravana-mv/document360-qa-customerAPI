@@ -2,6 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import { uploadBlob, downloadBlob, listBlobs } from "../lib/blobClient";
 import { withAuth, getUserInfo, getProjectId } from "../lib/auth";
 import { audit } from "../lib/auditLog";
+import { browserFetch } from "../lib/browserFetch";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -24,8 +25,6 @@ interface SourceEntry {
 }
 
 type SourcesManifest = Record<string, SourceEntry>;
-
-const FETCH_TIMEOUT = 15_000;
 
 async function readManifest(folderPath: string): Promise<SourcesManifest> {
   const manifestPath = folderPath ? `${folderPath}/_sources.json` : "_sources.json";
@@ -76,19 +75,8 @@ async function syncOneFile(
     // Preserve current version
     await preserveVersion(folderPath, filename);
 
-    // Fetch fresh content
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-    let response: Response;
-    try {
-      const fetchHeaders: Record<string, string> = {};
-      if (accessToken) fetchHeaders["Authorization"] = `Bearer ${accessToken}`;
-      response = await fetch(entry.sourceUrl, { signal: controller.signal, headers: fetchHeaders });
-    } catch (fetchErr) {
-      clearTimeout(timer);
-      throw new Error(`Fetch failed: ${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}`);
-    }
-    clearTimeout(timer);
+    // Fetch fresh content with browser-mimicking headers and cookie jar
+    const response = await browserFetch(entry.sourceUrl, accessToken);
 
     if (!response.ok) {
       throw new Error(`URL returned HTTP ${response.status}`);

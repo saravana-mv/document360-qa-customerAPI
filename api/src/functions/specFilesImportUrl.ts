@@ -1,7 +1,8 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import { uploadBlob, downloadBlob, blobExists } from "../lib/blobClient";
+import { uploadBlob, downloadBlob } from "../lib/blobClient";
 import { withAuth, getUserInfo, getProjectId } from "../lib/auth";
 import { audit } from "../lib/auditLog";
+import { browserFetch } from "../lib/browserFetch";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -18,72 +19,6 @@ function err(status: number, message: string): HttpResponseInit {
 }
 
 const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
-const FETCH_TIMEOUT = 15_000;
-const MAX_REDIRECTS = 20;
-
-/**
- * Parse a Set-Cookie header value and extract the `name=value` pair only.
- * We intentionally ignore attributes (Domain, Path, Expires, Secure, …) —
- * this is a single-request transient jar, not a full cookie store.
- */
-function extractCookiePair(setCookie: string): string | null {
-  const first = setCookie.split(";")[0]?.trim();
-  if (!first || !first.includes("=")) return null;
-  return first;
-}
-
-/**
- * Manually follow redirects so we can preserve cookies across hops. Cloudflare
- * and similar edge protections often set a session cookie on the first 3xx
- * response and redirect to the same URL — undici's built-in redirect follower
- * drops Set-Cookie, so it loops until MAX_REDIRECTS and throws.
- */
-async function fetchWithCookieJar(
-  startUrl: string,
-  initHeaders: Record<string, string>,
-  signal: AbortSignal,
-): Promise<Response> {
-  let currentUrl = startUrl;
-  const cookieJar: string[] = [];
-
-  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
-    const headers: Record<string, string> = { ...initHeaders };
-    if (cookieJar.length > 0) headers["Cookie"] = cookieJar.join("; ");
-
-    const res = await fetch(currentUrl, {
-      signal,
-      headers,
-      redirect: "manual",
-    });
-
-    // Collect cookies set on this response. Node's Headers exposes combined
-    // set-cookie via getSetCookie() (Node 20+). Fall back to split-on-comma
-    // as a last resort — imperfect but good enough for a one-shot import.
-    const anyHeaders = res.headers as unknown as { getSetCookie?: () => string[] };
-    const setCookies: string[] = typeof anyHeaders.getSetCookie === "function"
-      ? anyHeaders.getSetCookie()
-      : (res.headers.get("set-cookie") ? [res.headers.get("set-cookie") as string] : []);
-    for (const sc of setCookies) {
-      const pair = extractCookiePair(sc);
-      if (!pair) continue;
-      const [name] = pair.split("=");
-      const idx = cookieJar.findIndex((c) => c.split("=")[0] === name);
-      if (idx >= 0) cookieJar[idx] = pair; else cookieJar.push(pair);
-    }
-
-    // 3xx → follow. Otherwise return.
-    if (res.status >= 300 && res.status < 400) {
-      const location = res.headers.get("location");
-      if (!location) return res;
-      currentUrl = new URL(location, currentUrl).toString();
-      // Drain the body so the socket can be reused.
-      await res.arrayBuffer().catch(() => undefined);
-      continue;
-    }
-    return res;
-  }
-  throw new Error(`too many redirects (>${MAX_REDIRECTS})`);
-}
 
 interface SourceEntry {
   sourceUrl: string;
@@ -160,35 +95,14 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
         return err(413, `File too large (max ${MAX_SIZE / 1024 / 1024}MB)`);
       }
     } else {
-      // Fetch content from URL server-side
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+      // Fetch content from URL server-side with browser-mimicking headers
       let response: Response;
       try {
-        // Many origins (Cloudflare, Document360 apidocs, etc.) reject requests
-        // without a real User-Agent or Accept header — Node's default fetch
-        // sends neither and gets a bare "fetch failed" back. Mimic a browser.
-        const fetchHeaders: Record<string, string> = {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-          "Accept": "text/markdown, text/plain, text/html, */*;q=0.8",
-          "Accept-Language": "en-US,en;q=0.9",
-        };
-        if (accessToken) fetchHeaders["Authorization"] = `Bearer ${accessToken}`;
-        // Follow redirects manually so Set-Cookie from edge protections
-        // (Cloudflare __cf_bm, session IDs, etc.) survive the hop chain.
-        response = await fetchWithCookieJar(url, fetchHeaders, controller.signal);
+        response = await browserFetch(url, accessToken);
       } catch (fetchErr) {
-        clearTimeout(timer);
         const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-        // Node's undici swallows the real cause in `err.cause` — surface it
-        // so the user can tell DNS/TLS/connect-refused apart from each other.
-        const cause = fetchErr instanceof Error && (fetchErr as Error & { cause?: unknown }).cause;
-        const causeMsg = cause instanceof Error ? cause.message : cause ? String(cause) : "";
-        return err(502, `Failed to fetch URL: ${msg}${causeMsg ? ` (${causeMsg})` : ""}`);
+        return err(502, `Failed to fetch URL: ${msg}`);
       }
-      clearTimeout(timer);
 
       if (!response.ok) {
         return err(502, `URL returned HTTP ${response.status}`);
