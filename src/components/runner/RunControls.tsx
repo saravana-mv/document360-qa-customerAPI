@@ -197,23 +197,6 @@ export function RunControls() {
         </div>
       )}
 
-      {/* Auth / settings warning */}
-      {!viewingHistory && cannotRun && (
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-[#d1d9e0] bg-[#fff8c5]">
-          <svg className="w-4 h-4 text-[#9a6700] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-          </svg>
-          <span className="text-xs text-[#9a6700]">
-            {!isAuthenticated
-              ? "Sign in to Document360 from the version panel to run scenarios."
-              : !setup.selectedVersionId && !setup.langCode
-                ? "Version and language not set — open Project Settings and save before running."
-                : !setup.selectedVersionId
-                  ? "Version not set — open Project Settings and save before running."
-                  : "Language not set — open Project Settings and save before running."}
-          </span>
-        </div>
-      )}
       {/* Controls row — aligns with LHS h-9 toolbar */}
       {!viewingHistory && (
       <div className="flex items-center gap-2 px-4 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa]">
@@ -250,6 +233,21 @@ export function RunControls() {
           </button>
         )}
       </div>
+      )}
+      {/* Settings warning — shown below controls to avoid header misalignment */}
+      {!viewingHistory && isAuthenticated && settingsMissing && (
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-[#d1d9e0] bg-[#fff8c5]">
+          <svg className="w-4 h-4 text-[#9a6700] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+          </svg>
+          <span className="text-xs text-[#9a6700]">
+            {!setup.selectedVersionId && !setup.langCode
+              ? "Version and language not set — open Project Settings and save before running."
+              : !setup.selectedVersionId
+                ? "Version not set — open Project Settings and save before running."
+                : "Language not set — open Project Settings and save before running."}
+          </span>
+        </div>
       )}
       {runner.paused && runner.pausedAt && (
         <div className="px-4 py-2 border-b border-[#d1d9e0] bg-[#fff8c5] flex items-center gap-3">
