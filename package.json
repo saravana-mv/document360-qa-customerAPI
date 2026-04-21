@@ -2,6 +2,7 @@
   "name": "flowforge",
   "private": true,
   "version": "0.0.0",
+  "appVersion": "1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

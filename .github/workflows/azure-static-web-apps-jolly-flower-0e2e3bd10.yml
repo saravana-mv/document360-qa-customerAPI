@@ -46,9 +46,9 @@ jobs:
           npm ci
           npm run build
           # Write version.json so the running app can detect newer deployments
-          HASH=$(git rev-parse --short HEAD)
-          TS=$(date -u +%Y%m%dT%H%M)
-          echo "{\"version\":\"${HASH}.${TS}\"}" > dist/version.json
+          APP_VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).appVersion || '1.0'")
+          BUILD_NUM=$(git rev-list --count HEAD)
+          echo "{\"version\":\"${APP_VERSION}.${BUILD_NUM}\"}" > dist/version.json
           # app_location: "dist" means SWA looks for staticwebapp.config.json
           # inside dist/. Copy it in from the repo root.
           cp staticwebapp.config.json dist/staticwebapp.config.json
