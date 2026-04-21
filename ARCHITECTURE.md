@@ -226,10 +226,13 @@ External → POST /api/run-scenario (X-API-Key: ff_abc123...)
 
 ## CI/CD Pipeline
 
-```yaml
-# .github/workflows/azure-static-web-apps-jolly-flower-0e2e3bd10.yml
+### Staging (`deploy-staging.yml`) — auto on push to `main`
+### Production (`deploy-production.yml`) — manual `workflow_dispatch`
 
-1. checkout
+Both follow the same build steps:
+
+```
+1. checkout (fetch-depth: 0 for commit count)
 2. cd api && npm ci && npm test        # Unit tests
 3. cd api && npm run build && npm prune --production  # esbuild bundle
 4. npm ci && npm run build              # Frontend build
@@ -238,6 +241,9 @@ External → POST /api/run-scenario (X-API-Key: ff_abc123...)
 7. Azure SWA deploy (skip_app_build: true, app_location: "dist", api_location: "api")
 8. Smoke test deployed endpoints
 ```
+
+GitHub Secrets: `SWA_TOKEN_STAGING`, `SWA_TOKEN_PRODUCTION`
+GitHub Variables: `STAGING_URL`, `PRODUCTION_URL`
 
 ### Build Configuration
 

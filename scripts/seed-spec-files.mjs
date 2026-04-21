@@ -15,7 +15,11 @@ import { dirname } from "path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const SOURCE_DIR = join(ROOT, "customer_api_endpoint_md_files");
-const API_BASE = process.argv[2]?.replace(/\/$/, "") ?? "https://jolly-flower-0e2e3bd10.1.azurestaticapps.net";
+const API_BASE = process.argv[2]?.replace(/\/$/, "");
+if (!API_BASE) {
+  console.error("Usage: seed-spec-files.mjs <base-url>");
+  process.exit(1);
+}
 
 // Files to skip
 const SKIP = new Set(["document360.swagger.v3.json"]);

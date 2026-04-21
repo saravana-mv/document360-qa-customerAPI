@@ -5,7 +5,7 @@
 FlowForge is an AI-assisted API testing platform for Document360. It lets QA teams import API specs, generate test flow ideas and XML definitions using Claude, execute tests against live endpoints, and track results — all from a single web app.
 
 **Stack:** React 19 + Vite 8 + Tailwind v4 + Zustand | Azure Functions v4 (Node.js) + Cosmos DB | Entra ID auth | Anthropic Claude API
-**Deployed:** Azure Static Web Apps at `https://jolly-flower-0e2e3bd10.1.azurestaticapps.net/`
+**Deployed:** Azure Static Web Apps — Staging: `https://purple-mud-0bc0f5203.7.azurestaticapps.net` | Production: `https://delightful-smoke-0a3c52a03.7.azurestaticapps.net`
 
 ---
 
@@ -146,15 +146,26 @@ Ideas strictly scoped to endpoints in provided spec files. Never reference exter
 
 ## Deployment & CI/CD
 
-- `git push` to `main` triggers GitHub Actions → builds frontend + API → deploys to Azure SWA
+### Environments
+- **Staging** (`flowforge-document360-staging`) — auto-deploys on every push to `main`
+- **Production** (`flowforge-document360-production`) — manual promote via GitHub Actions `workflow_dispatch`
+
+### Pipeline
+- `deploy-staging.yml`: push → build → test → deploy → smoke test
+- `deploy-production.yml`: manual trigger (type "deploy" to confirm) → build → test → deploy → smoke test
 - Frontend pre-built in CI (`skip_app_build: true`, `app_location: "dist"`)
 - API bundled with esbuild to stay under 250MB SWA free-tier limit
 - Jest unit tests run before deploy; smoke tests run after
 - Version format: `MAJOR.MINOR.BUILD` where BUILD = git commit count
 - `version.json` written to `dist/` during CI for update detection
 
+### GitHub Secrets & Variables
+- Secrets: `SWA_TOKEN_STAGING`, `SWA_TOKEN_PRODUCTION`
+- Variables: `STAGING_URL`, `PRODUCTION_URL`
+
 ### Environment Variables (Azure Portal → SWA → Settings → Environment variables)
-`ANTHROPIC_API_KEY`, `COSMOS_CONNECTION_STRING`, `AZURE_STORAGE_CONNECTION_STRING`, `AAD_CLIENT_ID`, `AAD_CLIENT_SECRET`, `D360_API_BASE_URL`, `D360_TOKEN_URL`, `D360_CLIENT_ID`, `D360_CLIENT_SECRET`, `SEED_OWNER_OID`, `AUTH_ENABLED`
+Required: `ANTHROPIC_API_KEY`, `COSMOS_CONNECTION_STRING`, `AZURE_STORAGE_CONNECTION_STRING`, `AAD_CLIENT_ID`, `AAD_CLIENT_SECRET`, `SEED_OWNER_OID`, `AUTH_ENABLED`
+Optional (have defaults): `D360_API_BASE_URL`, `D360_TOKEN_URL`, `D360_CLIENT_ID`
 
 ---
 

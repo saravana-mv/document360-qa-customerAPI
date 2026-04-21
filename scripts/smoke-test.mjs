@@ -2,7 +2,7 @@
 /**
  * Post-deployment smoke test.
  *
- * Usage:  node scripts/smoke-test.mjs https://jolly-flower-0e2e3bd10.1.azurestaticapps.net
+ * Usage:  node scripts/smoke-test.mjs <base-url>
  *
  * Exits 0 if all checks pass, 1 if any fail.
  * Run this in CI immediately after the Azure SWA deploy step.

@@ -1,17 +1,9 @@
 name: Promote to Production
 
-# Manual trigger only — select which production environment(s) to deploy to
+# Manual trigger only — build, test, and deploy to production
 on:
   workflow_dispatch:
     inputs:
-      environment:
-        description: "Target environment"
-        required: true
-        type: choice
-        options:
-          - production-a
-          - production-b
-          - both
       confirm:
         description: "Type 'deploy' to confirm"
         required: true
@@ -28,10 +20,10 @@ jobs:
           echo "::error::Confirmation failed. Type 'deploy' to confirm."
           exit 1
 
-  build:
+  build_and_deploy:
     needs: validate
     runs-on: ubuntu-latest
-    name: Build & Test
+    name: Build, Test & Deploy to Production
     steps:
       - uses: actions/checkout@v3
         with:
@@ -60,64 +52,18 @@ jobs:
           echo "{\"version\":\"${APP_VERSION}.${BUILD_NUM}\"}" > dist/version.json
           cp staticwebapp.config.json dist/staticwebapp.config.json
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-output
-          path: |
-            dist/
-            api/
-            scripts/
-          retention-days: 1
-
-  deploy-production-a:
-    needs: build
-    if: inputs.environment == 'production-a' || inputs.environment == 'both'
-    runs-on: ubuntu-latest
-    name: Deploy to Production A
-    environment: production-a
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: build-output
-
-      - name: Deploy to Production A SWA
+      - name: Deploy to Production SWA
         uses: Azure/static-web-apps-deploy@v1
         with:
-          azure_static_web_apps_api_token: ${{ secrets.SWA_TOKEN_PRODUCTION_A }}
+          azure_static_web_apps_api_token: ${{ secrets.SWA_TOKEN_PRODUCTION }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
           skip_app_build: true
           app_location: "dist"
           api_location: "api"
           output_location: ""
 
-      - name: Smoke test Production A
+      - name: Smoke test production
         run: |
           sleep 10
-          node scripts/smoke-test.mjs ${{ vars.PRODUCTION_A_URL }}
-
-  deploy-production-b:
-    needs: build
-    if: inputs.environment == 'production-b' || inputs.environment == 'both'
-    runs-on: ubuntu-latest
-    name: Deploy to Production B
-    environment: production-b
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: build-output
-
-      - name: Deploy to Production B SWA
-        uses: Azure/static-web-apps-deploy@v1
-        with:
-          azure_static_web_apps_api_token: ${{ secrets.SWA_TOKEN_PRODUCTION_B }}
-          action: "upload"
-          skip_app_build: true
-          app_location: "dist"
-          api_location: "api"
-          output_location: ""
-
-      - name: Smoke test Production B
-        run: |
-          sleep 10
-          node scripts/smoke-test.mjs ${{ vars.PRODUCTION_B_URL }}
+          node scripts/smoke-test.mjs ${{ vars.PRODUCTION_URL }}

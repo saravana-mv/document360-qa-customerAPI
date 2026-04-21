@@ -2,7 +2,8 @@
 
 An AI-assisted API testing platform for Document360. Import API specifications, generate test scenarios with Claude AI, execute tests against live endpoints, and track results — all from a single web app.
 
-**Live:** https://jolly-flower-0e2e3bd10.1.azurestaticapps.net
+**Staging:** https://purple-mud-0bc0f5203.7.azurestaticapps.net
+**Production:** https://delightful-smoke-0a3c52a03.7.azurestaticapps.net
 **GitHub:** https://github.com/saravana-mv/document360-qa-customerAPI
 
 ---
@@ -127,7 +128,16 @@ Set `AUTH_ENABLED=false` for local dev to bypass Entra ID.
 
 ## Deployment
 
-Pushes to `main` trigger the GitHub Actions workflow:
+### Environments
+
+| Environment | SWA Resource | Trigger |
+|-------------|-------------|---------|
+| Staging | `flowforge-document360-staging` | Auto on push to `main` |
+| Production | `flowforge-document360-production` | Manual (`workflow_dispatch`, type "deploy" to confirm) |
+
+### CI/CD Pipeline
+
+Both environments follow the same build steps:
 
 1. `npm test` — API unit tests
 2. `npm run build` (API) — esbuild bundle + prune devDependencies
@@ -137,23 +147,31 @@ Pushes to `main` trigger the GitHub Actions workflow:
 6. Deploy to Azure SWA with `skip_app_build: true`
 7. Smoke test deployed endpoints
 
+### GitHub Secrets & Variables
+
+| Name | Type | Purpose |
+|------|------|---------|
+| `SWA_TOKEN_STAGING` | Secret | Staging SWA deployment token |
+| `SWA_TOKEN_PRODUCTION` | Secret | Production SWA deployment token |
+| `STAGING_URL` | Variable | Staging URL for smoke tests |
+| `PRODUCTION_URL` | Variable | Production URL for smoke tests |
+
 ### Azure Portal Configuration
 
 **Static Web App → Settings → Environment variables:**
 
-| Variable | Purpose |
-|----------|---------|
-| `ANTHROPIC_API_KEY` | Claude API access |
-| `COSMOS_CONNECTION_STRING` | Cosmos DB serverless |
-| `AZURE_STORAGE_CONNECTION_STRING` | Blob storage for spec files |
-| `AAD_CLIENT_ID` | Entra ID app registration |
-| `AAD_CLIENT_SECRET` | Entra ID secret |
-| `D360_API_BASE_URL` | Document360 API upstream URL |
-| `D360_TOKEN_URL` | D360 OAuth token endpoint |
-| `D360_CLIENT_ID` | D360 OAuth client ID |
-| `D360_CLIENT_SECRET` | D360 OAuth client secret |
-| `SEED_OWNER_OID` | Entra OID for initial owner account |
-| `AUTH_ENABLED` | `true` in production |
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `ANTHROPIC_API_KEY` | Yes | Claude API access |
+| `COSMOS_CONNECTION_STRING` | Yes | Cosmos DB serverless |
+| `AZURE_STORAGE_CONNECTION_STRING` | Yes | Blob storage for spec files |
+| `AAD_CLIENT_ID` | Yes | Entra ID app registration |
+| `AAD_CLIENT_SECRET` | Yes | Entra ID secret |
+| `SEED_OWNER_OID` | Yes | Entra OID for initial owner account |
+| `AUTH_ENABLED` | Yes | `false` staging, `true` production |
+| `D360_API_BASE_URL` | No | Defaults to `apihub.berlin.document360.net` |
+| `D360_TOKEN_URL` | No | Defaults to `identity.berlin.document360.net/connect/token` |
+| `D360_CLIENT_ID` | No | Defaults to `apiHubWordClient` |
 
 ---
 
