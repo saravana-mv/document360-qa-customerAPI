@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useBlocker } from "react-router-dom";
 import {
   sendFlowChatMessage,
   parsePlanFromReply,
@@ -134,6 +135,29 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
   useEffect(() => {
     return () => { abortRef.current?.abort(); };
   }, []);
+
+  // Navigation guard — block route changes while chat has messages
+  const hasConversation = messages.length > 0;
+  const blocker = useBlocker(hasConversation);
+
+  useEffect(() => {
+    if (blocker.state === "blocked") {
+      const leave = window.confirm("You have an active Flow Designer conversation. Leave and lose your progress?");
+      if (leave) {
+        blocker.proceed();
+      } else {
+        blocker.reset();
+      }
+    }
+  }, [blocker]);
+
+  // Browser refresh/close guard
+  useEffect(() => {
+    if (!hasConversation) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [hasConversation]);
 
   // Find the latest plan from messages
   const latestPlan = [...messages].reverse().find((m) => m.plan)?.plan ?? null;
@@ -354,6 +378,7 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
         <div className="flex-1" />
         <button
           onClick={() => {
+            if (hasConversation && !window.confirm("You have an active conversation. Close and lose your progress?")) return;
             abortRef.current?.abort();
             onClose();
           }}
