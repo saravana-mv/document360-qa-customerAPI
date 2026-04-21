@@ -8,6 +8,14 @@ import {
   type FlowPlan,
 } from "../../lib/api/flowChatApi";
 import { generateFlowXml } from "../../lib/api/flowApi";
+import {
+  listChatSessions,
+  getChatSession,
+  createChatSession,
+  updateChatSession,
+  deleteChatSession,
+  type ChatSessionSummary,
+} from "../../lib/api/flowChatSessionsApi";
 import { FlowPlanTree } from "./FlowPlanTree";
 import { useAiCostStore } from "../../store/aiCost.store";
 import type { FlowUsage, SpecFileItem } from "../../lib/api/specFilesApi";
@@ -99,6 +107,14 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // Chat history state
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<ChatSessionSummary[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionDeleteId, setSessionDeleteId] = useState<string | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // @ mention state
   const [referencedSpecs, setReferencedSpecs] = useState<MentionItem[]>([]);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -158,6 +174,107 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [hasConversation]);
+
+  // ── Chat history helpers ──
+
+  /** Load session list from backend */
+  const loadSessions = useCallback(async () => {
+    setSessionsLoading(true);
+    try {
+      const list = await listChatSessions();
+      setSessions(list);
+    } catch {
+      // silently fail — non-critical
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, []);
+
+  /** Auto-save current session (debounced, fire-and-forget) */
+  const autoSave = useCallback(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      const currentMessages = messages;
+      const currentSessionId = sessionId;
+      const currentCost = sessionCost;
+      if (currentMessages.length === 0) return;
+
+      const title = currentMessages.find((m) => m.role === "user")?.content.slice(0, 80) ?? "Untitled";
+      const payload = {
+        id: currentSessionId ?? crypto.randomUUID(),
+        title,
+        messages: currentMessages.map((m) => ({ id: m.id, role: m.role, content: m.content, timestamp: m.timestamp, plan: m.plan })),
+        confirmedPlan: confirmedPlan,
+        totalCost: currentCost,
+        specFiles: effectiveSpecFiles,
+      };
+
+      if (!currentSessionId) {
+        // Create new session
+        setSessionId(payload.id);
+        createChatSession(payload).catch(() => {});
+      } else {
+        // Update existing
+        updateChatSession(payload).catch(() => {});
+      }
+    }, 1500);
+  }, [messages, sessionId, sessionCost, confirmedPlan, effectiveSpecFiles]);
+
+  // Trigger auto-save when messages change
+  useEffect(() => {
+    if (messages.length > 0) autoSave();
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [messages, autoSave]);
+
+  /** Load a past session */
+  const loadSession = useCallback(async (id: string) => {
+    try {
+      const session = await getChatSession(id);
+      setSessionId(session.id);
+      setMessages(session.messages as ChatMessage[]);
+      setConfirmedPlan(session.confirmedPlan as FlowPlan | null);
+      setSessionCost(session.totalCost);
+      setReferencedSpecs([]);
+      setSidebarOpen(false);
+    } catch {
+      // silently fail
+    }
+  }, []);
+
+  /** Start a new chat session */
+  const startNewSession = useCallback(() => {
+    if (messages.length > 0 && !window.confirm("Start a new conversation? Current progress will be saved.")) return;
+    setSessionId(null);
+    setMessages([]);
+    setConfirmedPlan(null);
+    setSessionCost(0);
+    setReferencedSpecs([]);
+    setMentionQuery(null);
+    setSidebarOpen(false);
+    inputRef.current?.focus();
+  }, [messages.length]);
+
+  /** Delete a session */
+  const handleDeleteSession = useCallback(async (id: string) => {
+    try {
+      await deleteChatSession(id);
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+      if (sessionId === id) {
+        setSessionId(null);
+        setMessages([]);
+        setConfirmedPlan(null);
+        setSessionCost(0);
+      }
+    } catch {
+      // silently fail
+    }
+    setSessionDeleteId(null);
+  }, [sessionId]);
+
+  // Load sessions when sidebar opens
+  useEffect(() => {
+    if (sidebarOpen) void loadSessions();
+  }, [sidebarOpen, loadSessions]);
 
   // Find the latest plan from messages
   const latestPlan = [...messages].reverse().find((m) => m.plan)?.plan ?? null;
@@ -368,6 +485,16 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+        {/* Burger menu button */}
+        <button
+          onClick={() => setSidebarOpen((v) => !v)}
+          className="p-1 rounded hover:bg-[#eef1f6] transition-colors text-[#656d76] hover:text-[#1f2328]"
+          title="Chat history"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+          </svg>
+        </button>
         <svg className="w-4 h-4 text-[#8250df] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
         </svg>
@@ -376,6 +503,16 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
           <span className="text-[11px] text-[#656d76] ml-1">${sessionCost.toFixed(4)}</span>
         )}
         <div className="flex-1" />
+        {/* New chat button */}
+        <button
+          onClick={startNewSession}
+          className="text-xs text-[#656d76] hover:text-[#1f2328] px-1.5 py-0.5 rounded hover:bg-[#eef1f6] transition-colors"
+          title="New conversation"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+          </svg>
+        </button>
         <button
           onClick={() => {
             if (hasConversation && !window.confirm("You have an active conversation. Close and lose your progress?")) return;
@@ -388,7 +525,86 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
         </button>
       </div>
 
+      {/* Session sidebar + messages area wrapper */}
+      <div className="flex flex-1 overflow-hidden min-h-0">
+        {/* Session history sidebar */}
+        {sidebarOpen && (
+          <div className="w-[220px] shrink-0 border-r border-[#d1d9e0] bg-white flex flex-col overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-[#d1d9e0]">
+              <span className="text-xs font-semibold text-[#1f2328] flex-1">Chat History</span>
+              <button
+                onClick={startNewSession}
+                className="text-[#656d76] hover:text-[#1f2328] p-0.5 rounded hover:bg-[#eef1f6] transition-colors"
+                title="New conversation"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {sessionsLoading && (
+                <div className="flex items-center justify-center py-6">
+                  <svg className="w-4 h-4 animate-spin text-[#656d76]" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                </div>
+              )}
+              {!sessionsLoading && sessions.length === 0 && (
+                <p className="px-3 py-4 text-xs text-[#656d76] text-center">No past conversations</p>
+              )}
+              {!sessionsLoading && sessions.map((s) => (
+                <div
+                  key={s.id}
+                  className={`group flex items-start gap-1.5 px-3 py-2 cursor-pointer transition-colors border-b border-[#f0f0f0] ${
+                    s.id === sessionId ? "bg-[#ddf4ff]" : "hover:bg-[#f6f8fa]"
+                  }`}
+                >
+                  <button
+                    onClick={() => void loadSession(s.id)}
+                    className="flex-1 min-w-0 text-left"
+                  >
+                    <p className="text-xs font-medium text-[#1f2328] truncate leading-snug">{s.title}</p>
+                    <p className="text-[10px] text-[#656d76] mt-0.5">
+                      {new Date(s.updatedAt).toLocaleDateString()} · {s.messageCount} msg{s.messageCount !== 1 ? "s" : ""}
+                      {s.totalCost > 0 && ` · $${s.totalCost.toFixed(4)}`}
+                    </p>
+                  </button>
+                  {sessionDeleteId === s.id ? (
+                    <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                      <button
+                        onClick={() => void handleDeleteSession(s.id)}
+                        className="text-[10px] text-[#d1242f] hover:underline"
+                      >
+                        Delete
+                      </button>
+                      <button
+                        onClick={() => setSessionDeleteId(null)}
+                        className="text-[10px] text-[#656d76] hover:underline"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setSessionDeleteId(s.id)}
+                      className="shrink-0 mt-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 text-[#656d76] hover:text-[#d1242f] hover:bg-[#ffebe9] transition-all"
+                      title="Delete"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
       {/* Messages area */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
         {messages.length === 0 && !loading && (
           <div className="text-center py-8">
@@ -582,6 +798,8 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
           </p>
         </div>
       )}
+      </div>{/* end messages column */}
+      </div>{/* end sidebar + messages wrapper */}
     </div>
   );
 }

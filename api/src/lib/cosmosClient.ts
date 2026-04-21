@@ -21,6 +21,7 @@ const CONTAINER_DEFS = [
   { id: "users", partitionKey: "/tenantId" },
   { id: "api-keys", partitionKey: "/projectId" },
   { id: "audit-log", partitionKey: "/projectId" },
+  { id: "flow-chat-sessions", partitionKey: "/projectId" },
 ] as const;
 
 type ContainerName = (typeof CONTAINER_DEFS)[number]["id"];
@@ -90,4 +91,8 @@ export async function getApiKeysContainer(): Promise<Container> {
 
 export async function getAuditLogContainer(): Promise<Container> {
   return ensureContainer("audit-log");
+}
+
+export async function getFlowChatSessionsContainer(): Promise<Container> {
+  return ensureContainer("flow-chat-sessions");
 }
