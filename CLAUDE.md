@@ -169,6 +169,57 @@ Ideas strictly scoped to endpoints in provided spec files. Never reference exter
 
 ---
 
+## Documentation Auto-Maintenance
+
+After completing work that changes the project's structure, conventions, or architecture, spawn the **Docs Updater** agent in the background. This keeps `CLAUDE.md`, `README.md`, and `ARCHITECTURE.md` in sync with the actual codebase.
+
+### When to trigger
+
+Spawn after any of these:
+- New page, store, API endpoint, or Cosmos container added
+- New coding convention or gotcha discovered
+- Existing architecture changed (e.g., store renamed, route moved, auth flow altered)
+- New environment variable or deployment step introduced
+- Domain rule added or changed (flow dependencies, validation, etc.)
+
+Skip for: bug fixes, styling tweaks, or changes that don't affect the documented architecture.
+
+### Docs Updater Agent
+
+```
+Agent tool:
+  subagent_type: "general-purpose"
+  run_in_background: true
+  description: "Docs updater — sync project docs"
+  prompt: |
+    You are the Documentation Updater for FlowForge.
+
+    Your job: review the changes described below and update the project
+    documentation files to reflect them. Only touch sections that are
+    affected — do not rewrite unchanged content.
+
+    ## Files to maintain
+    1. CLAUDE.md — Architecture quick reference, conventions, gotchas, rules
+    2. README.md — Feature list, tech stack, setup, project structure
+    3. ARCHITECTURE.md — Stores, endpoints, schema, data flow, patterns
+
+    ## What changed this turn
+    {{WORK_SUMMARY}}
+
+    ## Instructions
+    1. Read the three doc files
+    2. Identify which sections are outdated or missing info
+    3. Apply minimal, targeted edits (don't rewrite entire files)
+    4. If a new store/endpoint/container/page was added, add it to the
+       relevant table in ARCHITECTURE.md
+    5. If a new convention or gotcha was discovered, add it to CLAUDE.md
+    6. If a user-visible feature was added, update the Features section
+       in README.md
+    7. Do NOT commit — the main conversation will handle the commit
+```
+
+---
+
 ## Memory Manager
 
 After completing any substantive response (code changes, new findings, decisions, feedback), spawn the Memory Manager agent in the background.
