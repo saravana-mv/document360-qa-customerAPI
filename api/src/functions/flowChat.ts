@@ -174,31 +174,25 @@ async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<Http
   const client = new Anthropic({ apiKey });
   const model = resolveModel(body.model, DEFAULT_FLOW_MODEL);
 
-  // Build spec context and prepend to the first user message
-  const specContext = await buildSpecContext(body.specFiles ?? []);
-  const specCount = body.specFiles?.length ?? 0;
+  // Build spec context from referenced files
+  const specFiles = body.specFiles ?? [];
+  const specContext = await buildSpecContext(specFiles);
 
-  // Construct messages for the API — inject spec context into the first user message
-  const apiMessages: ChatMessage[] = body.messages.map((m, i) => {
-    if (i === 0 && m.role === "user" && specContext) {
-      const scopeNote = specCount === 1
-        ? `\n\nYou are working with 1 endpoint specification. Focus the flow on this endpoint, but always include required setup/teardown steps.`
-        : specCount > 1
-          ? `\n\nYou are working with ${specCount} endpoint specifications. Focus the flow on endpoints described in these specs.`
-          : "";
-      return {
-        role: m.role,
-        content: `${m.content}${scopeNote}\n\n# Available API Specifications\n\n${specContext}`,
-      };
-    }
-    return m;
-  });
+  // Inject spec content into the system prompt so the AI always has access,
+  // regardless of conversation length or message position.
+  let systemPrompt = FLOW_CHAT_SYSTEM_PROMPT;
+  if (specContext) {
+    systemPrompt += `\n\n# Available API Specifications (${specFiles.length} file${specFiles.length !== 1 ? "s" : ""})\n\nThe user has provided the following API endpoint specifications. Use ONLY these endpoints when designing flows.\n\n${specContext}`;
+  }
+
+  // Pass messages through as-is — spec context is in the system prompt
+  const apiMessages: ChatMessage[] = [...body.messages];
 
   try {
     const response = await client.messages.create({
       model,
       max_tokens: 4096,
-      system: FLOW_CHAT_SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: apiMessages,
     });
 
