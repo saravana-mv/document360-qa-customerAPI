@@ -26,6 +26,13 @@ export function buildTree(files: SpecFileItem[]): TreeNode[] {
 
   for (const file of files) {
     const parts = file.name.split("/");
+    const filename = parts[parts.length - 1];
+
+    // Skip internal metadata files entirely — before creating folder nodes
+    if (!filename || filename === ".keep" || filename === "_sources.json" || parts.includes("_versions")) {
+      continue;
+    }
+
     let level = root;
     let prefix = "";
 
@@ -39,11 +46,7 @@ export function buildTree(files: SpecFileItem[]): TreeNode[] {
       level = folder.children;
     }
 
-    const filename = parts[parts.length - 1];
-    // Filter out internal metadata files
-    if (filename && filename !== ".keep" && filename !== "_sources.json" && !parts.includes("_versions")) {
-      level.push({ type: "file", name: filename, path: file.name, size: file.size });
-    }
+    level.push({ type: "file", name: filename, path: file.name, size: file.size });
   }
 
   return sortLevel(root);
