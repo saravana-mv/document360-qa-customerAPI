@@ -1160,7 +1160,6 @@ export function SpecFilesPage() {
     setGeneratedFlows((prev) => [...prev, newFlow]);
     setActiveFlowId(chatId);
     setActiveIdeaId(null);
-    setChatActive(false);
 
     // Persist to workshopMap
     if (activePath) {

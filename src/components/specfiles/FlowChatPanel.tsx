@@ -471,6 +471,7 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
   function renderInputArea() {
     return (
       <div className="px-3 py-2 border-t border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+        <div className="max-w-[800px] mx-auto">
         {/* Referenced spec chips */}
         {referencedSpecs.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2">
@@ -573,6 +574,7 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
           Press Enter to send · Shift+Enter for new line · Use <span className="font-semibold text-[#0969da]">@</span> to reference spec files
           {effectiveSpecFiles.length > 0 && ` · ${effectiveSpecFiles.length} spec file${effectiveSpecFiles.length !== 1 ? "s" : ""} in context`}
         </p>
+        </div>{/* end max-w-[800px] */}
       </div>
     );
   }
@@ -599,16 +601,6 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
           <span className="text-xs text-[#656d76] ml-1">${sessionCost.toFixed(4)}</span>
         )}
         <div className="flex-1" />
-        {/* New chat button */}
-        <button
-          onClick={startNewSession}
-          className="text-xs text-[#656d76] hover:text-[#1f2328] px-1.5 py-0.5 rounded hover:bg-[#eef1f6] transition-colors"
-          title="New conversation"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-          </svg>
-        </button>
         <button
           onClick={() => {
             if (hasConversation && !window.confirm("You have an active conversation. Close and lose your progress?")) return;
@@ -731,7 +723,7 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
           </div>
 
           {/* Centered input area */}
-          <div className="w-full max-w-[480px]">
+          <div className="w-full max-w-[800px]">
             {renderInputArea()}
           </div>
         </div>
