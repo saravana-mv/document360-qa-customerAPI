@@ -513,8 +513,8 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
         </div>
       )}
 
-      {/* Folder tree + inline create */}
-      {open && (
+      {/* Folder tree + inline create — only when authenticated */}
+      {open && authStatus === "authenticated" && (
         <div className="mt-0.5">
           <ScenarioFolderTree version={version} tags={tags} sortOrder={sortOrder} />
           {/* Inline folder creation at version root level */}
