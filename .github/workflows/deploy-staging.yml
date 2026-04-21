@@ -1,0 +1,55 @@
+name: Deploy to Staging
+
+# Auto-deploy on every push to main — this is the dev playground
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    name: Build, Test & Deploy to Staging
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+          lfs: false
+          fetch-depth: 0 # Needed for git rev-list --count
+
+      - name: Test API functions
+        working-directory: api
+        run: |
+          npm ci
+          npm test
+
+      - name: Pre-build API
+        working-directory: api
+        run: |
+          npm run build
+          npm prune --production
+
+      - name: Pre-build frontend
+        run: |
+          npm ci
+          npm run build
+          APP_VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).appVersion || '1.0'")
+          BUILD_NUM=$(git rev-list --count HEAD)
+          echo "{\"version\":\"${APP_VERSION}.${BUILD_NUM}\"}" > dist/version.json
+          cp staticwebapp.config.json dist/staticwebapp.config.json
+
+      - name: Deploy to Staging SWA
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.SWA_TOKEN_STAGING }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: "upload"
+          skip_app_build: true
+          app_location: "dist"
+          api_location: "api"
+          output_location: ""
+
+      - name: Smoke test staging
+        run: |
+          sleep 10
+          node scripts/smoke-test.mjs ${{ vars.STAGING_URL }}
