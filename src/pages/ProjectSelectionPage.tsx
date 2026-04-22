@@ -36,6 +36,7 @@ export function ProjectSelectionPage() {
   const principal = useEntraAuthStore((s) => s.principal);
   const entraLogout = useEntraAuthStore((s) => s.logout);
   const isSuperOwner = useUserStore((s) => s.user?.role === "owner");
+  const canCreateProject = useUserStore((s) => s.hasRole("project_owner"));
 
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -134,10 +135,12 @@ export function ProjectSelectionPage() {
               <p className="text-sm text-[#656d76] mt-1">
                 {isSuperOwner
                   ? "You have Super Owner access to all projects."
-                  : "Select a project to get started, or create a new one."}
+                  : canCreateProject
+                    ? "Select a project to get started, or create a new one."
+                    : "Select a project to get started."}
               </p>
             </div>
-            {!creating && (
+            {!creating && canCreateProject && (
               <button
                 onClick={() => setCreating(true)}
                 className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1f883d] rounded-md transition-colors"
@@ -219,13 +222,19 @@ export function ProjectSelectionPage() {
                 </svg>
               </div>
               <h3 className="text-lg font-semibold text-[#1f2328] mb-1">No projects yet</h3>
-              <p className="text-sm text-[#656d76] mb-6">Create your first project to start managing API tests.</p>
-              <button
-                onClick={() => setCreating(true)}
-                className="px-4 py-2 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1f883d] rounded-md transition-colors"
-              >
-                Create a project
-              </button>
+              <p className="text-sm text-[#656d76] mb-6">
+                {canCreateProject
+                  ? "Create your first project to start managing API tests."
+                  : "You don't have access to any projects yet. Ask a project owner to invite you."}
+              </p>
+              {canCreateProject && (
+                <button
+                  onClick={() => setCreating(true)}
+                  className="px-4 py-2 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1f883d] rounded-md transition-colors"
+                >
+                  Create a project
+                </button>
+              )}
             </div>
           )}
 

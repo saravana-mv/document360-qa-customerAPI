@@ -7,8 +7,8 @@
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { withAuth, getUserInfo, parseClientPrincipal, lookupUser, isSuperOwner, lookupProjectMember } from "../lib/auth";
-import type { ProjectMemberDocument, ProjectRole } from "../lib/auth";
-import { getProjectMembersContainer, getProjectsContainer } from "../lib/cosmosClient";
+import type { ProjectMemberDocument, ProjectRole, UserDocument } from "../lib/auth";
+import { getProjectMembersContainer, getProjectsContainer, getUsersContainer } from "../lib/cosmosClient";
 import { audit } from "../lib/auditLog";
 
 const CORS_HEADERS = {
@@ -125,6 +125,38 @@ async function handleAdd(req: HttpRequest): Promise<HttpResponseInit> {
     };
 
     await container.items.create(doc);
+
+    // Auto-create tenant-level user doc with "member" role if they don't exist yet.
+    // This lets project owners invite people without needing a Super Owner to pre-register them.
+    try {
+      const usersContainer = await getUsersContainer();
+      const { resources: existingUsers } = await usersContainer.items.query<UserDocument>({
+        query: "SELECT * FROM c WHERE c.tenantId = @tid AND c.email = @email",
+        parameters: [
+          { name: "@tid", value: "kovai" },
+          { name: "@email", value: email },
+        ],
+      }).fetchAll();
+      if (existingUsers.length === 0) {
+        const userDoc: UserDocument = {
+          id: `invite_${Date.now()}`,
+          tenantId: "kovai",
+          type: "user",
+          email,
+          displayName,
+          role: "member",
+          status: "invited",
+          invitedBy: oid,
+          invitedAt: now,
+          updatedAt: now,
+          updatedBy: oid,
+        };
+        await usersContainer.items.create(userDoc);
+      }
+    } catch (e) {
+      // Best-effort — project membership is already saved
+      console.warn("[projectMembers] auto-create user doc failed:", e instanceof Error ? e.message : String(e));
+    }
 
     // Increment member count on project
     try {

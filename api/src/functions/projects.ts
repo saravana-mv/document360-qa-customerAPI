@@ -132,12 +132,19 @@ async function handleList(req: HttpRequest): Promise<HttpResponseInit> {
 }
 
 // ── POST /api/projects ──────────────────────────────────────────────────────
-// Any registered user can create a project. The creator becomes the project owner.
+// Only project_owner+ can create projects. The creator becomes the project owner.
 async function handleCreate(req: HttpRequest): Promise<HttpResponseInit> {
   try {
     const { oid, name: userName } = getUserInfo(req);
     const principal = parseClientPrincipal(req);
     const email = principal?.userDetails ?? "";
+
+    // Gate: only project_owner, owner can create projects
+    const user = await lookupUser(oid, userName, email);
+    if (!user) return err(403, "Not registered");
+    if (!["owner", "project_owner"].includes(user.role)) {
+      return err(403, "Project Owner role or above is required to create projects");
+    }
 
     const body = (await req.json()) as { name?: string; description?: string };
     const name = body.name?.trim();

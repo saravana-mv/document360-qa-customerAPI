@@ -75,7 +75,7 @@ async function inviteUser(req: HttpRequest): Promise<HttpResponseInit> {
     const role = body.role as AppRole | undefined;
 
     if (!email || !role) return err(400, "email and role are required");
-    if (!["owner", "project_owner", "qa_manager", "qa_engineer"].includes(role)) return err(400, "Invalid role");
+    if (!["owner", "project_owner", "qa_manager", "qa_engineer", "member"].includes(role)) return err(400, "Invalid role");
 
     const container = await getUsersContainer();
 
@@ -125,7 +125,7 @@ async function changeRole(req: HttpRequest): Promise<HttpResponseInit> {
     const { oid } = getUserInfo(req);
     const body = (await req.json()) as { role?: string };
     const role = body.role as AppRole | undefined;
-    if (!role || !["owner", "qa_manager", "qa_engineer"].includes(role)) return err(400, "Invalid role");
+    if (!role || !["owner", "project_owner", "qa_manager", "qa_engineer", "member"].includes(role)) return err(400, "Invalid role");
 
     const container = await getUsersContainer();
     const { resource } = await container.item(userId, TENANT_ID).read<UserDocument>();

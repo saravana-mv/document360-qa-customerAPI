@@ -102,37 +102,22 @@ export function GlobalSettingsPage() {
     }
   }
 
-  // ── Promote to Super Owner ──
-  async function handlePromote(userId: string) {
+  // ── Change user role ──
+  async function handleChangeRole(userId: string, newRole: AppRole) {
     try {
       const res = await fetch(`/api/users/${userId}/role`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: "owner" }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      await loadUsers();
-    } catch (e) {
-      console.error("Failed to promote:", e);
-    }
-  }
-
-  // ── Demote from Super Owner ──
-  async function handleDemote(userId: string) {
-    try {
-      const res = await fetch(`/api/users/${userId}/role`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: "qa_manager" }),
+        body: JSON.stringify({ role: newRole }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: res.statusText }));
-        alert((body as { error?: string }).error ?? "Failed to demote");
+        alert((body as { error?: string }).error ?? "Failed to change role");
         return;
       }
       await loadUsers();
     } catch (e) {
-      console.error("Failed to demote:", e);
+      console.error("Failed to change role:", e);
     }
   }
 
@@ -162,8 +147,27 @@ export function GlobalSettingsPage() {
   }
 
   const superOwners = users.filter((u) => u.role === "owner");
-  const nonOwners = users.filter((u) => u.role !== "owner" && u.status === "active");
+  const nonOwners = users.filter((u) => u.role !== "owner");
   const ownerCount = superOwners.filter((u) => u.status === "active").length;
+
+  const ROLE_LABELS: Record<AppRole, string> = {
+    owner: "Super Owner",
+    project_owner: "Project Owner",
+    qa_manager: "QA Manager",
+    qa_engineer: "QA Engineer",
+    member: "Member",
+  };
+
+  const ROLE_COLORS: Record<AppRole, string> = {
+    owner: "bg-[#ffebe9] text-[#d1242f] border-[#ffcecb]",
+    project_owner: "bg-[#ddf4ff] text-[#0969da] border-[#b6e3ff]",
+    qa_manager: "bg-[#fff8c5] text-[#9a6700] border-[#f5e0a0]",
+    qa_engineer: "bg-[#dafbe1] text-[#1a7f37] border-[#aceebb]",
+    member: "bg-[#f6f8fa] text-[#656d76] border-[#d1d9e0]",
+  };
+
+  /** Roles available for assignment (excluding owner — handled separately) */
+  const ASSIGNABLE_ROLES: AppRole[] = ["project_owner", "qa_manager", "qa_engineer", "member"];
 
   return (
     <div className="min-h-screen bg-[#f6f8fa] flex flex-col">
@@ -331,8 +335,8 @@ export function GlobalSettingsPage() {
                                 <span className="text-xs text-[#8b949e]" title="At least one Super Owner is required">Last owner</span>
                               ) : (
                                 <button
-                                  onClick={() => handleDemote(u.id)}
-                                  title="Demote to QA Manager"
+                                  onClick={() => handleChangeRole(u.id, "project_owner")}
+                                  title="Demote to Project Owner"
                                   className="text-xs text-[#656d76] hover:text-[#d1242f] px-2 py-1 rounded-md hover:bg-[#ffebe9] transition-colors"
                                 >
                                   Remove
@@ -351,14 +355,14 @@ export function GlobalSettingsPage() {
               )}
 
               {/* Promote existing user */}
-              {nonOwners.length > 0 && (
+              {nonOwners.filter(u => u.status === "active").length > 0 && (
                 <div className="mt-4">
                   <p className="text-xs font-medium text-[#1f2328] mb-2">Promote an existing user to Super Owner</p>
                   <div className="flex flex-wrap gap-2">
-                    {nonOwners.map((u) => (
+                    {nonOwners.filter(u => u.status === "active").map((u) => (
                       <button
                         key={u.id}
-                        onClick={() => handlePromote(u.id)}
+                        onClick={() => handleChangeRole(u.id, "owner")}
                         className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-[#656d76] border border-[#d1d9e0] rounded-md hover:border-[#0969da] hover:text-[#0969da] hover:bg-[#ddf4ff] transition-colors"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -368,6 +372,64 @@ export function GlobalSettingsPage() {
                       </button>
                     ))}
                   </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* ── All Tenant Users ── */}
+          <section className="bg-white rounded-lg border border-[#d1d9e0] shadow-sm overflow-hidden">
+            <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-[#d1d9e0] bg-[#f6f8fa]">
+              <svg className="w-5 h-5 text-[#656d76]" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
+              </svg>
+              <span className="text-sm font-semibold text-[#1f2328]">Tenant Users</span>
+              <span className="text-xs text-[#656d76]">({nonOwners.length})</span>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-xs text-[#656d76] mb-3">
+                All registered users. Change their tenant-level role to control what they can do across projects.
+              </p>
+              {loadingUsers ? (
+                <div className="text-sm text-[#656d76]">Loading users...</div>
+              ) : nonOwners.length === 0 ? (
+                <div className="text-sm text-[#656d76] py-4 text-center">No non-owner users registered yet.</div>
+              ) : (
+                <div className="border border-[#d1d9e0] rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-[#f6f8fa] border-b border-[#d1d9e0]">
+                      <tr>
+                        <th className="text-left px-4 py-2 font-medium text-[#1f2328]">Name</th>
+                        <th className="text-left px-4 py-2 font-medium text-[#1f2328]">Email</th>
+                        <th className="text-left px-4 py-2 font-medium text-[#1f2328]">Status</th>
+                        <th className="text-left px-4 py-2 font-medium text-[#1f2328]">Role</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {nonOwners.map((u) => (
+                        <tr key={u.id} className="border-b border-[#d1d9e0] last:border-0 hover:bg-[#f6f8fa]">
+                          <td className="px-4 py-2.5 font-medium text-[#1f2328]">{u.displayName}</td>
+                          <td className="px-4 py-2.5 text-[#656d76]">{u.email}</td>
+                          <td className="px-4 py-2.5">
+                            <span className={`text-xs font-medium capitalize ${u.status === "active" ? "text-[#1a7f37]" : u.status === "invited" ? "text-[#9a6700]" : "text-[#656d76]"}`}>
+                              {u.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <select
+                              value={u.role}
+                              onChange={(e) => handleChangeRole(u.id, e.target.value as AppRole)}
+                              className={`text-xs font-medium rounded-full px-2.5 py-1 border cursor-pointer outline-none ${ROLE_COLORS[u.role]}`}
+                            >
+                              {ASSIGNABLE_ROLES.map((r) => (
+                                <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                              ))}
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type AppRole = "owner" | "project_owner" | "qa_manager" | "qa_engineer";
+export type AppRole = "owner" | "project_owner" | "qa_manager" | "qa_engineer" | "member";
 
 export interface AppUser {
   id: string;
@@ -12,7 +12,7 @@ export interface AppUser {
 
 type UserStatus = "loading" | "active" | "not_registered" | "disabled" | "dev-mode";
 
-const ROLE_LEVEL: Record<AppRole, number> = { owner: 4, project_owner: 3, qa_manager: 2, qa_engineer: 1 };
+const ROLE_LEVEL: Record<AppRole, number> = { owner: 5, project_owner: 4, qa_manager: 3, qa_engineer: 2, member: 1 };
 
 interface UserState {
   user: AppUser | null;

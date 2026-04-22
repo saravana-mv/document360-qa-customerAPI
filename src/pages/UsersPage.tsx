@@ -17,6 +17,7 @@ const ROLE_COLOR: Record<AppRole, string> = {
   project_owner: "bg-[#fff8c5] text-[#9a6700] border-[#9a6700]/30",
   qa_manager: "bg-[#ddf4ff] text-[#0969da] border-[#0969da]/30",
   qa_engineer: "bg-[#dafbe1] text-[#1a7f37] border-[#1a7f37]/30",
+  member: "bg-[#f6f8fa] text-[#656d76] border-[#d1d9e0]",
 };
 const STATUS_COLOR: Record<string, string> = {
   active: "text-[#1a7f37]",
@@ -176,8 +177,10 @@ export function UsersContent() {
                           className={`text-xs font-medium px-2 py-0.5 rounded-full border cursor-pointer ${ROLE_COLOR[u.role]}`}
                         >
                           <option value="owner">Owner</option>
+                          <option value="project_owner">Project Owner</option>
                           <option value="qa_manager">QA Manager</option>
                           <option value="qa_engineer">QA Engineer</option>
+                          <option value="member">Member</option>
                         </select>
                       )}
                     </td>
@@ -246,8 +249,10 @@ export function UsersContent() {
                   onChange={(e) => setInviteRole(e.target.value as AppRole)}
                   className="w-full px-3 py-2 border border-[#d1d9e0] rounded-md text-sm focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] outline-none"
                 >
+                  <option value="member">Member</option>
                   <option value="qa_engineer">QA Engineer</option>
                   <option value="qa_manager">QA Manager</option>
+                  <option value="project_owner">Project Owner</option>
                   <option value="owner">Owner</option>
                 </select>
               </div>

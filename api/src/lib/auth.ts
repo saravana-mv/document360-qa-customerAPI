@@ -12,7 +12,7 @@
 import type { HttpRequest, HttpResponseInit } from "@azure/functions";
 import { getUsersContainer, getProjectMembersContainer } from "./cosmosClient";
 
-export type AppRole = "owner" | "project_owner" | "qa_manager" | "qa_engineer";
+export type AppRole = "owner" | "project_owner" | "qa_manager" | "qa_engineer" | "member";
 const TENANT_ID = "kovai";
 const SEED_OWNER_OID = process.env.SEED_OWNER_OID ?? "";
 
