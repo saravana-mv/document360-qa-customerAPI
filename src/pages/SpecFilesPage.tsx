@@ -704,7 +704,7 @@ export function SpecFilesPage() {
 
   async function handleGenerateFlowIdeas(contextPath: string, maxCount?: number, filePaths?: string[]) {
     // eslint-disable-next-line no-console
-    console.debug("[SpecFiles] handleGenerateFlowIdeas", { contextPath, maxCount, filePaths });
+    console.log("[SpecFiles] handleGenerateFlowIdeas CALLED", { contextPath, maxCount, filePaths, isFolder: !contextPath.endsWith(".md") });
     // contextPath can be a folder path or a file path (.md)
     if (contextPath.endsWith(".md")) {
       setSelectedPath(contextPath);
@@ -746,6 +746,8 @@ export function SpecFilesPage() {
     setActiveIdeaId(null);
     setActiveFlowId(null);
     setIdeasLoading(true);
+    // eslint-disable-next-line no-console
+    console.log("[SpecFiles] calling generateFlowIdeas API", { contextPath, maxCount, aiModel });
     try {
       const result = await generateFlowIdeas(contextPath, [], undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN, filePaths);
       const perIdeaCost = result.usage && result.ideas.length > 0
