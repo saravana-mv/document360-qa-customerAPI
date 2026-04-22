@@ -89,6 +89,25 @@ function canDrop(drag: TreeNode, targetFolderPath: string): boolean {
   return true;
 }
 
+// ── Sorting ──────────────────────────────────────────────────────────────────
+
+type SortOrder = "name" | "method";
+
+const METHOD_RANK: Record<string, number> = { GET: 0, POST: 1, PUT: 2, PATCH: 3, DELETE: 4 };
+
+function sortChildren(nodes: TreeNode[], order: SortOrder): TreeNode[] {
+  return [...nodes].sort((a, b) => {
+    // Folders always come first
+    if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
+    if (order === "method" && a.type === "file" && b.type === "file") {
+      const ma = a.httpMethod ? (METHOD_RANK[a.httpMethod] ?? 99) : 100;
+      const mb = b.httpMethod ? (METHOD_RANK[b.httpMethod] ?? 99) : 100;
+      if (ma !== mb) return ma - mb;
+    }
+    return a.name.localeCompare(b.name);
+  });
+}
+
 // ── HTTP method tag ───────────────────────────────────────────────────────────
 
 const METHOD_COLORS: Record<string, string> = {
@@ -182,6 +201,8 @@ interface FolderMenuProps {
   isSelected: boolean;
   hasSourcedFiles: boolean;
   hasSpecFiles: boolean;
+  currentSort: SortOrder;
+  onSort: (order: SortOrder) => void;
   onNewSubfolder: () => void;
   onUploadFiles: () => void;
   onImportFromUrl: () => void;
@@ -191,13 +212,16 @@ interface FolderMenuProps {
   onDelete: () => void;
 }
 
-function FolderMenu({ isSelected, hasSourcedFiles, hasSpecFiles, onNewSubfolder, onUploadFiles, onImportFromUrl, onSyncFolder, onGenerateFlowIdeas, onRename, onDelete }: FolderMenuProps) {
+function FolderMenu({ isSelected, hasSourcedFiles, hasSpecFiles, currentSort, onSort, onNewSubfolder, onUploadFiles, onImportFromUrl, onSyncFolder, onGenerateFlowIdeas, onRename, onDelete }: FolderMenuProps) {
   const noSpecTip = "Upload spec files (.md) first";
   const items: MenuItem[] = [
     { label: "New subfolder", icon: MenuIcons.folder, onClick: onNewSubfolder },
     { label: "Upload files", icon: MenuIcons.upload, onClick: onUploadFiles },
     { label: "Import from URL", icon: MenuIcons.link, onClick: onImportFromUrl },
     { label: "Sync URL sources", icon: MenuIcons.sync, onClick: onSyncFolder, disabled: !hasSourcedFiles, tooltip: hasSourcedFiles ? undefined : "No URL-sourced files in this folder" },
+    "separator",
+    { label: `Sort by name${currentSort === "name" ? "  ✓" : ""}`, icon: MenuIcons.sortAZ, onClick: () => onSort("name") },
+    { label: `Sort by method${currentSort === "method" ? "  ✓" : ""}`, icon: MenuIcons.sortMethod, onClick: () => onSort("method"), disabled: !hasSpecFiles, tooltip: hasSpecFiles ? undefined : noSpecTip },
     "separator",
     { label: "Generate 1 idea", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(1), disabled: !hasSpecFiles, tooltip: hasSpecFiles ? undefined : noSpecTip },
     { label: "Generate 3 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(3), disabled: !hasSpecFiles, tooltip: hasSpecFiles ? undefined : noSpecTip },
@@ -238,6 +262,8 @@ interface NodeProps {
   sourcedPaths?: Set<string>;
   /** Paths currently being synced */
   syncingPaths?: Set<string>;
+  /** Per-folder sort order */
+  folderSortOrder: Record<string, SortOrder>;
   // Drag state
   draggingPath: string | null;
   dropTargetPath: string | null; // "" = root, folder path = that folder
@@ -249,6 +275,7 @@ interface NodeProps {
   onSelect: (path: string) => void;
   onSelectFolder: (path: string) => void;
   onToggle: (path: string) => void;
+  onSetSort: (folderPath: string, order: SortOrder) => void;
   onRenameStart: (path: string) => void;
   onRenameCommit: (node: TreeNode, newName: string) => void;
   onRenameCancel: () => void;
@@ -265,10 +292,10 @@ interface NodeProps {
 
 function TreeNodeRow({
   node, depth, selectedPath, selectedFolderPath, expandedFolders, renamingPath,
-  creatingUnder, pathsWithIdeas, sourcedPaths, syncingPaths,
+  creatingUnder, pathsWithIdeas, sourcedPaths, syncingPaths, folderSortOrder,
   draggingPath, dropTargetPath,
   onDragStart, onDragOver, onDrop, onDragEnd,
-  onSelect, onSelectFolder, onToggle, onRenameStart, onRenameCommit, onRenameCancel,
+  onSelect, onSelectFolder, onToggle, onSetSort, onRenameStart, onRenameCommit, onRenameCancel,
   onDeleteNode, onStartSubfolder, onUploadFiles, onImportFromUrl, onSyncFile, onSyncFolder,
   onGenerateFlowIdeas, onCreateCommit, onCreateCancel,
 }: NodeProps) {
@@ -351,6 +378,8 @@ function TreeNodeRow({
                 isSelected={isSelected && !isDropTarget}
                 hasSourcedFiles={sourcedPaths ? Array.from(sourcedPaths).some((p) => p.startsWith(node.path + "/")) : false}
                 hasSpecFiles={countMdFiles(node) > 0}
+                currentSort={folderSortOrder[node.path] ?? "name"}
+                onSort={(order) => onSetSort(node.path, order)}
                 onNewSubfolder={() => onStartSubfolder(node.path)}
                 onUploadFiles={() => onUploadFiles(node.path)}
                 onImportFromUrl={() => onImportFromUrl(node.path)}
@@ -393,7 +422,7 @@ function TreeNodeRow({
       {/* Children */}
       {node.type === "folder" && isExpanded && (
         <>
-          {node.children.map((child) => (
+          {sortChildren(node.children, folderSortOrder[node.path] ?? "name").map((child) => (
             <TreeNodeRow
               key={child.path}
               node={child}
@@ -406,6 +435,7 @@ function TreeNodeRow({
               pathsWithIdeas={pathsWithIdeas}
               sourcedPaths={sourcedPaths}
               syncingPaths={syncingPaths}
+              folderSortOrder={folderSortOrder}
               draggingPath={draggingPath}
               dropTargetPath={dropTargetPath}
               onDragStart={onDragStart}
@@ -415,6 +445,7 @@ function TreeNodeRow({
               onSelect={onSelect}
               onSelectFolder={onSelectFolder}
               onToggle={onToggle}
+              onSetSort={onSetSort}
               onRenameStart={onRenameStart}
               onRenameCommit={onRenameCommit}
               onRenameCancel={onRenameCancel}
@@ -524,6 +555,25 @@ export function FileTree({
   }, [files, selectedPath, selectedFolderPath]);
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [creatingUnder, setCreatingUnder] = useState<string | null>(null);
+
+  // Per-folder sort order (persisted)
+  const [folderSortOrder, setFolderSortOrder] = useState<Record<string, SortOrder>>(() => {
+    try {
+      const raw = localStorage.getItem("specfiles_folder_sort");
+      if (raw) return JSON.parse(raw) as Record<string, SortOrder>;
+    } catch { /* ignore */ }
+    return {};
+  });
+
+  function handleSetSort(folderPath: string, order: SortOrder) {
+    setFolderSortOrder((prev) => {
+      const next = { ...prev };
+      if (order === "name") delete next[folderPath]; // "name" is default, no need to store
+      else next[folderPath] = order;
+      localStorage.setItem("specfiles_folder_sort", JSON.stringify(next));
+      return next;
+    });
+  }
 
   // Drag-and-drop state
   const [draggingNode, setDraggingNode] = useState<TreeNode | null>(null);
@@ -672,6 +722,7 @@ export function FileTree({
     pathsWithIdeas,
     sourcedPaths,
     syncingPaths,
+    folderSortOrder,
     draggingPath: draggingNode?.path ?? null,
     dropTargetPath,
     onDragStart: handleDragStart,
@@ -681,6 +732,7 @@ export function FileTree({
     onSelect: onSelectFile,
     onSelectFolder: onSelectFolder,
     onToggle: toggleFolder,
+    onSetSort: handleSetSort,
     onRenameStart: (path: string) => setRenamingPath(path),
     onRenameCommit: (n: TreeNode, name: string) => void handleRenameCommit(n, name),
     onRenameCancel: () => setRenamingPath(null),
