@@ -32,7 +32,8 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 | Project Selection | `src/pages/ProjectSelectionPage.tsx` | Full-screen tile grid — first screen after login, create project, team/personal visibility |
 | Spec Manager | `src/pages/SpecFilesPage.tsx` | Central hub — spec files, AI workshop (ideas + flows), flow chat panel |
 | Scenario Manager | `src/pages/TestPage.tsx` | Version accordions, folder tree, test runner, run history |
-| Settings | `src/pages/SettingsPage.tsx` | Tabs: General, API Keys (qa_manager+), Users (owner), Audit Log (qa_manager+) |
+| Settings | `src/pages/SettingsPage.tsx` | Tabs: General, API Keys (qa_manager+), Members (project_owner+), Users (owner), Audit Log (qa_manager+) |
+| Members | `src/pages/MembersPage.tsx` | Per-project member list, add/remove members, role assignment |
 | Audit Log | `src/pages/AuditLogPage.tsx` | Full audit viewer with filters and pagination |
 | Users | `src/pages/UsersPage.tsx` | Team management, role assignment |
 
@@ -193,14 +194,15 @@ Used by the Public API (`/api/run-scenario`) to execute flows without a browser:
 
 ```
 spec-files/
-├── v3/
-│   ├── articles/
-│   │   ├── create-article.md
-│   │   ├── _sources.json          # Manifest: { "create-article.md": { sourceUrl, importedAt, lastSyncedAt } }
-│   │   └── _versions/             # Hidden from UI — auto-preserved on sync
-│   │       └── create-article.md.2025-02-15T14-30-45-123Z
-│   └── categories/
-│       └── ...
+├── {projectId}/                    # All blobs scoped by project for multi-tenant isolation
+│   ├── v3/
+│   │   ├── articles/
+│   │   │   ├── create-article.md
+│   │   │   ├── _sources.json      # Manifest: { "create-article.md": { sourceUrl, importedAt, lastSyncedAt } }
+│   │   │   └── _versions/         # Hidden from UI — auto-preserved on sync
+│   │   │       └── create-article.md.2025-02-15T14-30-45-123Z
+│   │   └── categories/
+│   │       └── ...
 ```
 
 ---
@@ -274,6 +276,9 @@ All Cosmos queries scope by `projectId` (from Entra claims). Settings use `userI
 
 ### Overwrite-on-Create Pattern
 `saveFlowFile` uses `overwrite: true` to avoid 409 conflicts from orphaned Cosmos docs (e.g., after flow deletion that left stale records).
+
+### Multi-Tenant Blob Scoping
+All spec-file blob operations are scoped with a `{projectId}/` prefix. Azure Functions (`specFiles`, `specFilesImportUrl`, `specFilesSync`, `specFilesSources`, `generateFlowIdeas`, `generateFlow`, `flowChat`) prepend the project ID from auth claims to all blob paths. Migration script at `scripts/migrate-project-scoping.mjs` moves legacy unscoped blobs under the project prefix, creates default project docs, and generates project-member records from existing users.
 
 ### Version Polling
 `useVersionCheck` hook polls `/version.json` every 60s (first check at 10s). Compares against baked-in `__BUILD_VERSION__`. Shows green "Relaunch" banner in TopBar when mismatch detected.

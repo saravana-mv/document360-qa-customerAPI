@@ -15,11 +15,11 @@ FlowForge is an AI-assisted API testing platform for Document360. It lets QA tea
 - **Project Selection** (`src/pages/ProjectSelectionPage.tsx`) — Full-screen project tile grid (first screen after login), create project, visibility toggle
 - **Spec Manager** (`src/pages/SpecFilesPage.tsx`) — Spec files, AI ideas, flow XML authoring, interactive flow chat
 - **Scenario Manager** (`src/pages/TestPage.tsx`) — Version-based test tree, runner, run history, breakpoints
-- **Settings** (`src/pages/SettingsPage.tsx`) — General, API Keys, Users, Audit Log (role-gated tabs)
+- **Settings** (`src/pages/SettingsPage.tsx`) — General, API Keys, Members, Users, Audit Log (role-gated tabs)
 
 ### Data Layer
 - **Cosmos DB** (11 containers, all partitioned by `/projectId`): `flows`, `ideas`, `test-runs`, `settings` (`/userId`), `users` (`/tenantId`), `api-keys`, `audit-log`, `flow-chat-sessions`, `projects` (`/tenantId`), `project-members`
-- **Blob Storage**: Only `spec-files` container remains (reference docs, `_sources.json` manifests)
+- **Blob Storage**: Only `spec-files` container remains (reference docs, `_sources.json` manifests). All blobs scoped under `{projectId}/` prefix for multi-tenant isolation.
 - **localStorage**: Pure UI state only (tree expansion, panel widths, breakpoints)
 
 ### Key Stores (Zustand)

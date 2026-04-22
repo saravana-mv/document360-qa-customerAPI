@@ -66,7 +66,7 @@ An AI-assisted API testing platform for Document360. Import API specifications, 
 - Scenario locking (owner/qa_manager can lock flows)
 - Full audit log with filtering, pagination, and search
 - Multi-project support with full-screen Project Selection page (tile grid, create, team/personal visibility)
-- Per-project membership management (add/remove members, assign roles)
+- Per-project membership management via Settings > Members tab (add/remove members, assign roles)
 - Project reset (owner only — wipes flows, ideas, runs)
 
 ### Deployment Intelligence
@@ -204,7 +204,7 @@ Both environments follow the same build steps:
 │   │   └── modelPricing.ts     # Claude model token costs
 │   └── __tests__/              # Jest unit tests
 │
-├── scripts/                    # smoke-test, seed-spec-files, cleanup
+├── scripts/                    # smoke-test, seed-spec-files, cleanup, migrate-project-scoping
 ├── .github/workflows/          # CI/CD pipeline
 ├── staticwebapp.config.json    # SWA routing + Entra ID auth
 ├── vite.config.ts              # Build config with version injection
