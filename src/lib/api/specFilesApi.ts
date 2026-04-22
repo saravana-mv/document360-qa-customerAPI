@@ -167,12 +167,20 @@ export async function generateFlowIdeas(
   existingIdeas?: string[],
   maxBudgetUsd?: number,
   model?: string,
-  maxCount?: number
+  maxCount?: number,
+  filePaths?: string[],
 ): Promise<GenerateFlowIdeasResponse> {
   const res = await apiFetch("/api/generate-flow-ideas", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ folderPath, existingIdeas, maxBudgetUsd, ...(model ? { model } : {}), ...(maxCount ? { maxCount } : {}) }),
+    body: JSON.stringify({
+      folderPath,
+      existingIdeas,
+      maxBudgetUsd,
+      ...(model ? { model } : {}),
+      ...(maxCount ? { maxCount } : {}),
+      ...(filePaths && filePaths.length > 0 ? { filePaths } : {}),
+    }),
   });
   return res.json() as Promise<GenerateFlowIdeasResponse>;
 }

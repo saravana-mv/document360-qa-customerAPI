@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Layout } from "../components/common/Layout";
 import { ResizeHandle } from "../components/common/ResizeHandle";
-import { FileTree } from "../components/specfiles/FileTree";
+import { FileTree, buildTree, flattenVisiblePaths } from "../components/specfiles/FileTree";
 import { MarkdownViewer } from "../components/specfiles/MarkdownViewer";
 import { FileUploadModal } from "../components/specfiles/FileUploadModal";
 import { ImportFromUrlModal } from "../components/specfiles/ImportFromUrlModal";
@@ -91,6 +91,10 @@ export function SpecFilesPage() {
   const [sourceUrlDraft, setSourceUrlDraft] = useState("");
   // Paths currently being synced (for spinner indicators)
   const [syncingPaths, setSyncingPaths] = useState<Set<string>>(new Set());
+
+  // ── Multi-select state ─────────────────────────────────────────────────────
+  const [multiSelectedPaths, setMultiSelectedPaths] = useState<Set<string>>(new Set());
+  const lastClickedPathRef = useRef<string | null>(null);
 
   // ── Multi-context workshop state ──────────────────────────────────────────
   // Loaded from Cosmos DB on mount, saved back per-folder on mutation.
@@ -433,6 +437,7 @@ export function SpecFilesPage() {
 
   async function selectFile(path: string) {
     if (!confirmLeaveGeneration()) return;
+    setMultiSelectedPaths(new Set());
     setSelectedPath(path);
     setSelectedFolderPath(null);
     setViewingContent(false);
@@ -453,11 +458,85 @@ export function SpecFilesPage() {
 
   function selectFolder(path: string) {
     if (!confirmLeaveGeneration()) return;
+    setMultiSelectedPaths(new Set());
     setSelectedFolderPath(path);
     setSelectedPath(null);
     setViewingContent(false);
     setContent("");
     loadWorkingSet(path);
+  }
+
+  // ── Multi-select handlers ────────────────────────────────────────────────
+
+  function handleMultiSelect(path: string, e: React.MouseEvent) {
+    if (e.shiftKey && lastClickedPathRef.current) {
+      // Shift+click: range select
+      const tree = buildTree(files);
+      const sortState: Record<string, string> = {};
+      try {
+        const raw = localStorage.getItem("specfiles_folder_sort");
+        if (raw) Object.assign(sortState, JSON.parse(raw));
+      } catch { /* ignore */ }
+      const expandedRaw = localStorage.getItem("specfiles_expanded_folders");
+      const expanded = expandedRaw ? new Set(JSON.parse(expandedRaw) as string[]) : new Set<string>();
+      const flat = flattenVisiblePaths(tree, expanded, sortState as Record<string, "name" | "method">);
+      const startIdx = flat.indexOf(lastClickedPathRef.current);
+      const endIdx = flat.indexOf(path);
+      if (startIdx !== -1 && endIdx !== -1) {
+        const lo = Math.min(startIdx, endIdx);
+        const hi = Math.max(startIdx, endIdx);
+        const range = flat.slice(lo, hi + 1);
+        setMultiSelectedPaths(prev => {
+          const next = new Set(prev);
+          for (const p of range) next.add(p);
+          return next;
+        });
+      }
+    } else {
+      // Ctrl/Cmd+click: toggle single item
+      setMultiSelectedPaths(prev => {
+        const next = new Set(prev);
+        if (next.has(path)) next.delete(path);
+        else next.add(path);
+        return next;
+      });
+    }
+    lastClickedPathRef.current = path;
+  }
+
+  function handleClearMultiSelect() {
+    setMultiSelectedPaths(new Set());
+  }
+
+  async function handleBulkDelete() {
+    const count = multiSelectedPaths.size;
+    if (count === 0) return;
+    if (!confirm(`Delete ${count} selected item${count !== 1 ? "s" : ""}?`)) return;
+    setError(null);
+    try {
+      // Expand folder selections to include all child files
+      const allFilesToDelete = new Set<string>();
+      for (const p of multiSelectedPaths) {
+        const isFile = files.some(f => f.name === p);
+        if (isFile) {
+          allFilesToDelete.add(p);
+        } else {
+          // Folder — add all children
+          for (const f of files) {
+            if (f.name.startsWith(p + "/")) allFilesToDelete.add(f.name);
+          }
+        }
+      }
+      await Promise.all([...allFilesToDelete].map(f => deleteSpecFile(f)));
+      if (selectedPath && allFilesToDelete.has(selectedPath)) {
+        setSelectedPath(null);
+        setContent("");
+      }
+      setMultiSelectedPaths(new Set());
+      await loadFiles();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   }
 
   // ── CRUD handlers ─────────────────────────────────────────────────────────
@@ -616,9 +695,9 @@ export function SpecFilesPage() {
 
   // ── Generate flow ideas (AI) ──────────────────────────────────────────────
 
-  async function handleGenerateFlowIdeas(contextPath: string, maxCount?: number) {
+  async function handleGenerateFlowIdeas(contextPath: string, maxCount?: number, filePaths?: string[]) {
     // eslint-disable-next-line no-console
-    console.debug("[SpecFiles] handleGenerateFlowIdeas", { contextPath, maxCount });
+    console.debug("[SpecFiles] handleGenerateFlowIdeas", { contextPath, maxCount, filePaths });
     // contextPath can be a folder path or a file path (.md)
     if (contextPath.endsWith(".md")) {
       setSelectedPath(contextPath);
@@ -661,7 +740,7 @@ export function SpecFilesPage() {
     setActiveFlowId(null);
     setIdeasLoading(true);
     try {
-      const result = await generateFlowIdeas(contextPath, [], undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN);
+      const result = await generateFlowIdeas(contextPath, [], undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN, filePaths);
       const perIdeaCost = result.usage && result.ideas.length > 0
         ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
         : undefined;
@@ -1432,6 +1511,12 @@ export function SpecFilesPage() {
   // True when the active context has no spec files to work with
   const noSpecFiles = isFileContext ? false : folderMdCount === 0;
 
+  // Multi-select: count of selected .md files
+  const multiSelectedMdPaths = useMemo(() =>
+    [...multiSelectedPaths].filter(p => p.endsWith(".md")),
+    [multiSelectedPaths],
+  );
+
   // For file context: split path into parent + filename (without extension)
   const fileDisplayName = isFileContext && selectedPath
     ? selectedPath.replace(/\.md$/i, "").split("/").pop() ?? ""
@@ -1483,8 +1568,12 @@ export function SpecFilesPage() {
             pathsWithIdeas={pathsWithIdeas}
             sourcedPaths={sourcedPaths}
             syncingPaths={syncingPaths}
+            multiSelectedPaths={multiSelectedPaths}
             onSelectFile={(path) => void selectFile(path)}
             onSelectFolder={selectFolder}
+            onMultiSelect={handleMultiSelect}
+            onClearMultiSelect={handleClearMultiSelect}
+            onBulkDelete={() => void handleBulkDelete()}
             onCreateFolder={(path) => handleCreateFolder(path)}
             onDeleteFile={(path) => handleDeleteFile(path)}
             onDeleteFolder={(path) => handleDeleteFolder(path)}
@@ -1768,28 +1857,49 @@ export function SpecFilesPage() {
                     <div>
                       <p className="text-sm font-medium text-[#1f2328] mb-1">Generate test flow ideas</p>
                       <p className="text-sm text-[#656d76]">
-                        {!isFileContext && folderMdCount === 0
-                          ? "No spec files (.md) found in this folder. Upload spec files to generate ideas."
-                          : isFileContext
-                            ? "AI will analyze this spec file and suggest test scenarios."
-                            : `AI will analyze ${folderMdCount} spec file${folderMdCount === 1 ? "" : "s"} in this folder and suggest test scenarios.`}
+                        {multiSelectedMdPaths.length > 0
+                          ? `${multiSelectedMdPaths.length} spec file${multiSelectedMdPaths.length > 1 ? "s" : ""} selected — AI will use them as combined context.`
+                          : !isFileContext && folderMdCount === 0
+                            ? "No spec files (.md) found in this folder. Upload spec files to generate ideas."
+                            : isFileContext
+                              ? "AI will analyze this spec file and suggest test scenarios."
+                              : `AI will analyze ${folderMdCount} spec file${folderMdCount === 1 ? "" : "s"} in this folder and suggest test scenarios.`}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 justify-center">
-                      {[1, 3, 5].map((n) => (
-                        <button
-                          key={n}
-                          onClick={() => void handleGenerateFlowIdeas(activePath!, n)}
-                          disabled={noSpecFiles}
-                          title={noSpecFiles ? "Upload spec files (.md) first" : `Generate ${n} test flow idea${n > 1 ? "s" : ""}`}
-                          className="inline-flex items-center gap-1.5 bg-[#0969da] hover:bg-[#0860ca] text-white text-sm font-medium rounded-md px-3 py-2 transition-colors border border-[#0969da]/80 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-                          </svg>
-                          {n} idea{n > 1 ? "s" : ""}
-                        </button>
-                      ))}
+                      {multiSelectedMdPaths.length > 0 ? (
+                        /* Multi-select: generate from selected files */
+                        [1, 3, 5].map((n) => (
+                          <button
+                            key={n}
+                            onClick={() => {
+                              const folder = activePath ?? multiSelectedMdPaths[0].split("/").slice(0, -1).join("/");
+                              void handleGenerateFlowIdeas(folder, n, multiSelectedMdPaths);
+                            }}
+                            className="inline-flex items-center gap-1.5 bg-[#0969da] hover:bg-[#0860ca] text-white text-sm font-medium rounded-md px-3 py-2 transition-colors border border-[#0969da]/80"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                            </svg>
+                            {n} idea{n > 1 ? "s" : ""} from {multiSelectedMdPaths.length} file{multiSelectedMdPaths.length > 1 ? "s" : ""}
+                          </button>
+                        ))
+                      ) : (
+                        [1, 3, 5].map((n) => (
+                          <button
+                            key={n}
+                            onClick={() => void handleGenerateFlowIdeas(activePath!, n)}
+                            disabled={noSpecFiles}
+                            title={noSpecFiles ? "Upload spec files (.md) first" : `Generate ${n} test flow idea${n > 1 ? "s" : ""}`}
+                            className="inline-flex items-center gap-1.5 bg-[#0969da] hover:bg-[#0860ca] text-white text-sm font-medium rounded-md px-3 py-2 transition-colors border border-[#0969da]/80 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                            </svg>
+                            {n} idea{n > 1 ? "s" : ""}
+                          </button>
+                        ))
+                      )}
                     </div>
                     <div className="flex flex-col items-center gap-2 pt-2">
                       <span className="text-xs text-[#656d76]">or design a flow interactively</span>

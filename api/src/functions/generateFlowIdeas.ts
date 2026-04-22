@@ -106,7 +106,7 @@ export async function generateFlowIdeasHandler(
   }
 
   // ── Parse body ──
-  let body: { folderPath?: string; maxBudgetUsd?: number; existingIdeas?: string[]; model?: string; maxCount?: number };
+  let body: { folderPath?: string; maxBudgetUsd?: number; existingIdeas?: string[]; model?: string; maxCount?: number; filePaths?: string[] };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -122,13 +122,32 @@ export async function generateFlowIdeasHandler(
     : DEFAULT_BUDGET_USD;
 
   const contextPath = body.folderPath;
-  const isSingleFile = contextPath.endsWith(".md");
+  const hasExplicitFiles = Array.isArray(body.filePaths) && body.filePaths.length > 0;
+  const isSingleFile = !hasExplicitFiles && contextPath.endsWith(".md");
 
-  // ── Resolve spec files based on context (single file vs folder) ──
+  // ── Resolve spec files based on context (explicit paths, single file, or folder) ──
   let specContents: { name: string; content: string }[];
   let filesAnalyzed = 0;
 
-  if (isSingleFile) {
+  if (hasExplicitFiles) {
+    // Explicit file paths — read exactly those files (multi-select context)
+    const paths = body.filePaths!.filter(p => p.endsWith(".md")).slice(0, MAX_FILES);
+    if (paths.length === 0) {
+      return ok({
+        ideas: [],
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0, filesAnalyzed: 0, totalSpecCharacters: 0 },
+        message: "No .md files in selection",
+      });
+    }
+    filesAnalyzed = paths.length;
+    try {
+      specContents = await Promise.all(
+        paths.map(async (name) => ({ name, content: await downloadBlob(name) })),
+      );
+    } catch (e) {
+      return err(500, `Failed to read spec files: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  } else if (isSingleFile) {
     // Single file context — read just this one file
     try {
       const content = await downloadBlob(contextPath);
