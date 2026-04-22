@@ -10,6 +10,7 @@ export interface FileNode {
   name: string;
   path: string;
   size: number;
+  httpMethod?: string;
 }
 
 export interface FolderNode {
@@ -51,7 +52,7 @@ export function buildTree(files: SpecFileItem[]): TreeNode[] {
     // Skip metadata leaf nodes — folders are already created above
     if (filename === ".keep" || filename === "_sources.json") continue;
 
-    level.push({ type: "file", name: filename, path: file.name, size: file.size });
+    level.push({ type: "file", name: filename, path: file.name, size: file.size, httpMethod: file.httpMethod });
   }
 
   return sortLevel(root);
@@ -88,29 +89,15 @@ function canDrop(drag: TreeNode, targetFolderPath: string): boolean {
   return true;
 }
 
-// ── HTTP method detection ──────────────────────────────────────────────────────
-
-const METHOD_PATTERNS: [RegExp, string][] = [
-  [/(?:^|[-_])(?:get|list|retrieve|fetch|read|find|search|check|view|show|export|download)(?:[-_]|$)/i, "GET"],
-  [/(?:^|[-_])(?:create|add|post|insert|new|generate|submit|register|upload|import|invite|send|clone|copy|bulk-add)(?:[-_]|$)/i, "POST"],
-  [/(?:^|[-_])(?:update|edit|modify|put|patch|change|set|replace|rename|move|reorder|merge|assign|unassign|publish|unpublish|archive|unarchive|enable|disable|activate|deactivate|lock|unlock|approve|reject|restore|revert|reset|toggle|convert|transfer|promote|demote|suspend|resume|revoke|grant|attach|detach)(?:[-_]|$)/i, "PUT"],
-  [/(?:^|[-_])(?:delete|remove|destroy|purge|clear|wipe|unlink|disconnect|drop)(?:[-_]|$)/i, "DELETE"],
-];
+// ── HTTP method tag ───────────────────────────────────────────────────────────
 
 const METHOD_COLORS: Record<string, string> = {
   GET: "bg-[#ddf4ff] text-[#0969da]",
   POST: "bg-[#dafbe1] text-[#1a7f37]",
   PUT: "bg-[#fff8c5] text-[#9a6700]",
   DELETE: "bg-[#ffebe9] text-[#d1242f]",
+  PATCH: "bg-[#fff8c5] text-[#9a6700]",
 };
-
-function detectHttpMethod(filename: string): string | null {
-  const base = filename.replace(/\.[^.]+$/, ""); // strip extension
-  for (const [pattern, method] of METHOD_PATTERNS) {
-    if (pattern.test(base)) return method;
-  }
-  return null;
-}
 
 function HttpMethodTag({ method }: { method: string }) {
   return (
@@ -167,7 +154,6 @@ function InlineInput({ defaultValue = "", onCommit, onCancel }: {
   const doCommit = (v: string) => {
     if (committed.current) return;
     committed.current = true;
-    console.log("[InlineInput] committing:", v);
     onCommit(v);
   };
   return (
@@ -176,13 +162,11 @@ function InlineInput({ defaultValue = "", onCommit, onCancel }: {
       value={value}
       onChange={(e) => setValue(e.target.value)}
       onKeyDown={(e) => {
-        console.log("[InlineInput] keyDown:", e.key, "value:", value);
         if (e.key === "Enter" && value.trim()) doCommit(value.trim());
         if (e.key === "Escape") onCancel();
         e.stopPropagation();
       }}
       onBlur={() => {
-        console.log("[InlineInput] blur, value:", value, "committed:", committed.current);
         if (committed.current) return;
         if (value.trim()) doCommit(value.trim()); else onCancel();
       }}
@@ -351,10 +335,9 @@ function TreeNodeRow({
           />
         ) : (
           <span className="flex-1 flex items-center gap-1.5 min-w-0">
-            {node.type === "file" && (() => {
-              const method = detectHttpMethod(node.name);
-              return method ? <HttpMethodTag method={method} /> : null;
-            })()}
+            {node.type === "file" && node.httpMethod && (
+              <HttpMethodTag method={node.httpMethod} />
+            )}
             <span className="truncate">{node.name}</span>
           </span>
         )}
@@ -574,7 +557,6 @@ export function FileTree({
   }
 
   async function handleCreateCommit(parentPath: string, name: string) {
-    console.log("[FileTree] handleCreateCommit parent=%s name=%s", parentPath, name);
     const fullPath = parentPath && parentPath !== "__root__"
       ? `${parentPath}/${name}`
       : name;

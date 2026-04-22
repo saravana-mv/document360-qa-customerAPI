@@ -3,6 +3,7 @@ export interface SpecFileItem {
   size: number;
   lastModified: string;
   contentType: string;
+  httpMethod?: string;
 }
 
 async function apiFetch(url: string, init?: RequestInit): Promise<Response> {

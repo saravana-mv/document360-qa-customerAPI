@@ -21,13 +21,14 @@ export interface BlobItem {
   size: number;
   lastModified: Date;
   contentType: string;
+  httpMethod?: string;
 }
 
 /** List all blobs in the container, optionally filtered by prefix (folder path). */
 export async function listBlobs(prefix?: string, container?: string): Promise<BlobItem[]> {
   const c = getContainerClient(container);
   const items: BlobItem[] = [];
-  const options = prefix ? { prefix } : undefined;
+  const options = prefix ? { prefix, includeMetadata: true } : { includeMetadata: true };
   try {
     for await (const blob of c.listBlobsFlat(options)) {
       items.push({
@@ -35,6 +36,7 @@ export async function listBlobs(prefix?: string, container?: string): Promise<Bl
         size: blob.properties.contentLength ?? 0,
         lastModified: blob.properties.lastModified ?? new Date(),
         contentType: blob.properties.contentType ?? "text/plain",
+        httpMethod: blob.metadata?.httpmethod || undefined,
       });
     }
   } catch (e) {
@@ -68,6 +70,30 @@ export async function blobExists(name: string, container?: string): Promise<bool
   }
 }
 
+/**
+ * Detect HTTP method from spec file content.
+ * Looks for patterns like: ```json POST /v3/... or ## POST or **POST** `/api/...`
+ */
+function detectHttpMethod(content: string): string | undefined {
+  // Pattern 1: fenced code block with method — ```json POST /path
+  const fencedMatch = content.match(/```\w*\s+(GET|POST|PUT|PATCH|DELETE)\s+\//i);
+  if (fencedMatch) return fencedMatch[1].toUpperCase();
+
+  // Pattern 2: markdown heading with method — ## GET /path or # POST
+  const headingMatch = content.match(/^#{1,3}\s+(GET|POST|PUT|PATCH|DELETE)\b/im);
+  if (headingMatch) return headingMatch[1].toUpperCase();
+
+  // Pattern 3: bold method — **POST** or **GET**
+  const boldMatch = content.match(/\*\*(GET|POST|PUT|PATCH|DELETE)\*\*/i);
+  if (boldMatch) return boldMatch[1].toUpperCase();
+
+  // Pattern 4: "method": "POST" in JSON
+  const jsonMatch = content.match(/"method"\s*:\s*"(GET|POST|PUT|PATCH|DELETE)"/i);
+  if (jsonMatch) return jsonMatch[1].toUpperCase();
+
+  return undefined;
+}
+
 /** Upload or overwrite a blob with text content. */
 export async function uploadBlob(
   name: string,
@@ -79,8 +105,17 @@ export async function uploadBlob(
   await c.createIfNotExists();
   const blockBlobClient = c.getBlockBlobClient(name);
   const buffer = Buffer.from(content, "utf-8");
+
+  // Detect HTTP method from content for .md spec files
+  const metadata: Record<string, string> = {};
+  if (name.endsWith(".md") && content.length > 0) {
+    const method = detectHttpMethod(content.slice(0, 2000));
+    if (method) metadata.httpmethod = method;
+  }
+
   await blockBlobClient.upload(buffer, buffer.length, {
     blobHTTPHeaders: { blobContentType: contentType },
+    metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
   });
 }
 
