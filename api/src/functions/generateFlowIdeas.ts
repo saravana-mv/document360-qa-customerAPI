@@ -140,13 +140,17 @@ export async function generateFlowIdeasHandler(
   const principal = parseClientPrincipal(req);
   const displayName = principal?.userDetails ?? userName;
   if (projectId !== "unknown") {
-    const creditCheck = await checkCredits(projectId, oid, displayName);
-    if (!creditCheck.allowed) {
-      return err(402, {
-        error: creditCheck.reason,
-        projectCredits: creditCheck.projectCredits,
-        userCredits: creditCheck.userCredits,
-      });
+    try {
+      const creditCheck = await checkCredits(projectId, oid, displayName);
+      if (!creditCheck.allowed) {
+        return err(402, {
+          error: creditCheck.reason,
+          projectCredits: creditCheck.projectCredits,
+          userCredits: creditCheck.userCredits,
+        });
+      }
+    } catch (e) {
+      console.warn("[generateFlowIdeas] credit check failed, proceeding anyway:", e);
     }
   }
 

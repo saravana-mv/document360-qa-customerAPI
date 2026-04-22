@@ -197,17 +197,21 @@ async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<Http
   const principal = parseClientPrincipal(req);
   const displayName = principal?.userDetails ?? userName;
   if (projectId !== "unknown") {
-    const creditCheck = await checkCredits(projectId, oid, displayName);
-    if (!creditCheck.allowed) {
-      return {
-        status: 402,
-        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          error: creditCheck.reason,
-          projectCredits: creditCheck.projectCredits,
-          userCredits: creditCheck.userCredits,
-        }),
-      };
+    try {
+      const creditCheck = await checkCredits(projectId, oid, displayName);
+      if (!creditCheck.allowed) {
+        return {
+          status: 402,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            error: creditCheck.reason,
+            projectCredits: creditCheck.projectCredits,
+            userCredits: creditCheck.userCredits,
+          }),
+        };
+      }
+    } catch (e) {
+      console.warn("[flowChat] credit check failed, proceeding anyway:", e);
     }
   }
   const specFiles = body.specFiles ?? [];
