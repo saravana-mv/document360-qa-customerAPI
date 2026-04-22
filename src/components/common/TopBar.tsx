@@ -7,14 +7,14 @@ export function TopBar() {
   const entraPrincipal = useEntraAuthStore((s) => s.principal);
   const entraLogout = useEntraAuthStore((s) => s.logout);
   const totalCostUsd = useAiCostStore((s) => s.totalCostUsd);
-  const { updateAvailable, newVersion, relaunch, dismiss } = useVersionCheck();
+  const { currentVersion, updateAvailable, newVersion, relaunch, dismiss } = useVersionCheck();
 
   return (
     <header className="h-12 bg-[#1f2328] text-[#e6edf3] flex items-center px-4 gap-3 shrink-0 border-b border-[#31363b]">
       {/* App title */}
       <span className="flex items-baseline gap-1.5 shrink-0">
         <span className="text-[13px] font-bold tracking-[-0.01em]">FLOW FORGE</span>
-        <span className="text-xs font-medium text-[#8b949e] tracking-wide">(Document360 API Chaining and Composite Testing Engine)</span>
+        <span className="text-[10px] font-mono text-[#656d76]">v{currentVersion}</span>
       </span>
 
       <div className="flex-1" />
