@@ -23,8 +23,6 @@ function timeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString();
 }
 
-const VISIBILITY_LABEL = { team: "Team", personal: "Personal" } as const;
-
 export function ProjectSelectionPage() {
   const navigate = useNavigate();
   const projects = useProjectStore((s) => s.projects);
@@ -42,7 +40,6 @@ export function ProjectSelectionPage() {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
-  const [newVisibility, setNewVisibility] = useState<"team" | "personal">("team");
   const [createError, setCreateError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectDoc | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -69,7 +66,7 @@ export function ProjectSelectionPage() {
     if (!name) return;
     setCreateError(null);
     try {
-      const doc = await createProject(name, newDesc.trim() || undefined, newVisibility);
+      const doc = await createProject(name, newDesc.trim() || undefined);
       setNewName("");
       setNewDesc("");
       setCreating(false);
@@ -166,27 +163,6 @@ export function ProjectSelectionPage() {
                     className="w-full text-sm bg-white text-[#1f2328] border border-[#d1d9e0] rounded-md px-3 py-2 outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da]"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-[#656d76] mb-1">Visibility</label>
-                  <div className="flex gap-3">
-                    <label className="flex items-center gap-1.5 text-sm text-[#1f2328] cursor-pointer">
-                      <input
-                        type="radio" name="visibility" checked={newVisibility === "team"}
-                        onChange={() => setNewVisibility("team")}
-                        className="accent-[#0969da]"
-                      />
-                      Team — members you invite can access
-                    </label>
-                    <label className="flex items-center gap-1.5 text-sm text-[#1f2328] cursor-pointer">
-                      <input
-                        type="radio" name="visibility" checked={newVisibility === "personal"}
-                        onChange={() => setNewVisibility("personal")}
-                        className="accent-[#0969da]"
-                      />
-                      Personal — only you
-                    </label>
-                  </div>
-                </div>
                 {createError && <p className="text-xs text-[#d1242f]">{createError}</p>}
                 <div className="flex items-center gap-2 pt-1">
                   <button
@@ -258,14 +234,6 @@ export function ProjectSelectionPage() {
                       </svg>
                     </div>
                     <div className="flex items-center gap-2">
-                      {/* Visibility badge */}
-                      <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded-full border ${
-                        project.visibility === "personal"
-                          ? "bg-[#fff8c5] text-[#9a6700] border-[#9a6700]/20"
-                          : "bg-[#ddf4ff] text-[#0969da] border-[#0969da]/20"
-                      }`}>
-                        {VISIBILITY_LABEL[project.visibility ?? "team"]}
-                      </span>
                       {/* Delete button — Super Owner only */}
                       {isSuperOwner && (
                         <button

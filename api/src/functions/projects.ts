@@ -139,11 +139,9 @@ async function handleCreate(req: HttpRequest): Promise<HttpResponseInit> {
     const principal = parseClientPrincipal(req);
     const email = principal?.userDetails ?? "";
 
-    const body = (await req.json()) as { name?: string; description?: string; visibility?: string };
+    const body = (await req.json()) as { name?: string; description?: string };
     const name = body.name?.trim();
     if (!name) return err(400, "name is required");
-
-    const visibility = body.visibility === "personal" ? "personal" as const : "team" as const;
 
     const now = new Date().toISOString();
     const projectId = randomUUID();
@@ -153,7 +151,7 @@ async function handleCreate(req: HttpRequest): Promise<HttpResponseInit> {
       type: "project",
       name,
       description: body.description?.trim() ?? "",
-      visibility,
+      visibility: "team",
       memberCount: 1,
       status: "active",
       createdBy: oid,
@@ -181,7 +179,7 @@ async function handleCreate(req: HttpRequest): Promise<HttpResponseInit> {
     };
     await membersContainer.items.create(memberDoc);
 
-    audit(projectId, "project.create", { oid, name: userName }, doc.name, { visibility });
+    audit(projectId, "project.create", { oid, name: userName }, doc.name);
 
     const { _rid, _self, _etag, _attachments, _ts, ...clean } = doc as unknown as Record<string, unknown>;
     return ok(clean, 201);

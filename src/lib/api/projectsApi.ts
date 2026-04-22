@@ -35,13 +35,11 @@ export async function listProjects(): Promise<ProjectDoc[]> {
   return res.json() as Promise<ProjectDoc[]>;
 }
 
-export async function createProject(
-  name: string, description?: string, visibility: "team" | "personal" = "team",
-): Promise<ProjectDoc> {
+export async function createProject(name: string, description?: string): Promise<ProjectDoc> {
   const res = await apiFetch(BASE, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, description, visibility }),
+    body: JSON.stringify({ name, description }),
   });
   return res.json() as Promise<ProjectDoc>;
 }
