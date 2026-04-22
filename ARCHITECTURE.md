@@ -43,7 +43,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 |-------|-----------|-------|
 | `auth.store` | `status`, `token`, `projectId` | OAuth session. Synchronous init from sessionStorage. |
 | `setup.store` | `selectedProjectId`, `selectedVersionId`, `aiModel`, `baseUrl`, `apiVersion` | Persisted to Cosmos `/settings`. `apiVersion` rewrites all request paths. |
-| `user.store` | `user`, `role`, `status` | Roles: owner / project_owner / qa_manager / qa_engineer. `AccessGate` enforces. |
+| `user.store` | `user`, `role`, `status` | Roles: owner / project_owner / qa_manager / qa_engineer / member. `AccessGate` enforces. |
 | `flowStatus.store` | `byName: Record<string, FlowStatusEntry>` | Flow activation state. Must finish loading before TestExplorer builds tags. |
 | `runner.store` | `running`, `paused`, `pausedAt`, `tagResults`, `log[]` | Test execution. Breakpoints stored separately. |
 | `scenarioOrg.store` | `versionConfigs`, `folders`, `placements` | Single `__scenario_org__` doc in Cosmos. NEWLY-ADDED pinned folder per version. |
@@ -144,8 +144,8 @@ tests/
 | `scenarioOrg` | `/api/scenario-org` | GET/POST | Folder organization |
 | `auditLog` | `/api/audit-log` | GET | Query audit entries |
 | `ideas` | `/api/ideas` | GET/POST/DELETE | Flow ideas CRUD |
-| `projects` | `/api/projects` | GET/POST/PUT/DELETE | Project CRUD (GET filtered by membership, POST any registered user, PUT/DELETE project_owner+) |
-| `projectMembers` | `/api/project-members` | GET/POST/PUT/DELETE | Project membership CRUD (project_owner+) |
+| `projects` | `/api/projects` | GET/POST/PUT/DELETE | Project CRUD (GET filtered by membership, POST project_owner+, PUT/DELETE project_owner+) |
+| `projectMembers` | `/api/project-members` | GET/POST/PUT/DELETE | Project membership CRUD (project_owner+). POST auto-creates tenant `users` doc with role `member` if invitee doesn't exist. |
 | `resetProject` | `/api/reset-project` | POST | Owner-only project wipe |
 
 ### Shared Libraries (`api/src/lib/`)
@@ -188,7 +188,7 @@ Used by the Public API (`/api/run-scenario`) to execute flows without a browser:
 | `audit-log` | `/projectId` | `{ id, projectId, action, actor, target, details, timestamp }` |
 | `flow-chat-sessions` | `/projectId` | `{ id, projectId, userId, title, messages[], confirmedPlan?, totalCost, ... }` |
 | `projects` | `/tenantId` | `{ id, tenantId, name, description?, visibility (team/personal), memberCount, createdBy, createdAt, status, ... }` |
-| `project-members` | `/projectId` | `{ id, projectId, userId, role (project_owner/qa_manager/qa_engineer), addedBy, addedAt, ... }` |
+| `project-members` | `/projectId` | `{ id, projectId, userId, role (project_owner/qa_manager/qa_engineer/member), addedBy, addedAt, ... }` |
 
 ### Blob Storage Layout
 

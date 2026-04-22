@@ -50,7 +50,7 @@ An AI-assisted API testing platform for Document360. Import API specifications, 
 
 ### Authentication & Access Control
 - Entra ID SSO (single-tenant) with role-based access
-- Four roles: Owner (Super) > Project Owner > QA Manager > QA Engineer
+- Five roles: Owner (Super) > Project Owner > QA Manager > QA Engineer > Member
 - Per-project membership with `ProjectGate` route guard
 - Per-version D360 auth (OAuth or API Key) — tokens stored server-side
 - Server-side proxy injects bearer tokens (browser never holds D360 credentials)

@@ -32,7 +32,7 @@ FlowForge is an AI-assisted API testing platform for Document360. It lets QA tea
 Entra ID SSO → `EntraGate` auto-login → `ProjectGate` redirects to `/projects` if no project selected → `withAuth()` extracts OID/project from claims → `withProjectRole()` enforces per-project membership → D360 tokens in Azure Table Storage → proxy injects bearer at `/api/d360/*` → browser never holds real D360 token
 
 ### Role Hierarchy
-`owner` (Super Owner, bypass all) > `project_owner` (per-project admin) > `qa_manager` > `qa_engineer`. Super Owners see all projects; other users see only projects they are members of.
+5-tier hierarchy: `owner`(5) > `project_owner`(4) > `qa_manager`(3) > `qa_engineer`(2) > `member`(1). Super Owners bypass all checks and see all projects; other users see only projects they are members of. Project creation requires `project_owner`+. When a project owner invites someone who doesn't have a tenant-level `users` doc, one is auto-created with role `member`.
 
 ---
 
