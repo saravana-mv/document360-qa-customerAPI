@@ -91,10 +91,10 @@ function canDrop(drag: TreeNode, targetFolderPath: string): boolean {
 // ── HTTP method detection ──────────────────────────────────────────────────────
 
 const METHOD_PATTERNS: [RegExp, string][] = [
-  [/\bget[-_]|get[-_]a(n|ll)\b|list[-_]|retrieve[-_]|fetch[-_]|read[-_]/i, "GET"],
-  [/\bcreate[-_]|add[-_]|post[-_]|insert[-_]|new[-_]/i, "POST"],
-  [/\bupdate[-_]|edit[-_]|modify[-_]|put[-_]|patch[-_]|change[-_]/i, "PUT"],
-  [/\bdelete[-_]|remove[-_]|destroy[-_]|del[-_]/i, "DELETE"],
+  [/(?:^|[-_])(?:get|list|retrieve|fetch|read|find|search|check|view|show|export|download)(?:[-_]|$)/i, "GET"],
+  [/(?:^|[-_])(?:create|add|post|insert|new|generate|submit|register|upload|import|invite|send|clone|copy|bulk-add)(?:[-_]|$)/i, "POST"],
+  [/(?:^|[-_])(?:update|edit|modify|put|patch|change|set|replace|rename|move|reorder|merge|assign|unassign|publish|unpublish|archive|unarchive|enable|disable|activate|deactivate|lock|unlock|approve|reject|restore|revert|reset|toggle|convert|transfer|promote|demote|suspend|resume|revoke|grant|attach|detach)(?:[-_]|$)/i, "PUT"],
+  [/(?:^|[-_])(?:delete|remove|destroy|purge|clear|wipe|unlink|disconnect|drop)(?:[-_]|$)/i, "DELETE"],
 ];
 
 const METHOD_COLORS: Record<string, string> = {
