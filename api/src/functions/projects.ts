@@ -12,9 +12,11 @@ import {
   getProjectsContainer, getProjectMembersContainer, getFlowsContainer,
   getIdeasContainer, getTestRunsContainer, getAuditLogContainer,
   getFlowChatSessionsContainer, getApiKeysContainer, getSettingsContainer,
+  getAiUsageContainer,
 } from "../lib/cosmosClient";
 import { listBlobs, deleteBlob } from "../lib/blobClient";
 import { audit } from "../lib/auditLog";
+import { seedProjectCredits } from "../lib/aiCredits";
 import { randomUUID } from "node:crypto";
 
 const TENANT_ID = "kovai";
@@ -186,6 +188,11 @@ async function handleCreate(req: HttpRequest): Promise<HttpResponseInit> {
     };
     await membersContainer.items.create(memberDoc);
 
+    // Seed AI credits for the new project
+    try { await seedProjectCredits(projectId, oid); } catch (e) {
+      console.warn("[projects] failed to seed AI credits:", e);
+    }
+
     audit(projectId, "project.create", { oid, name: userName }, doc.name);
 
     const { _rid, _self, _etag, _attachments, _ts, ...clean } = doc as unknown as Record<string, unknown>;
@@ -272,6 +279,7 @@ async function handleDelete(req: HttpRequest): Promise<HttpResponseInit> {
       { name: "flow-chat-sessions", getter: getFlowChatSessionsContainer },
       { name: "api-keys", getter: getApiKeysContainer },
       { name: "project-members", getter: getProjectMembersContainer },
+      { name: "ai-usage", getter: getAiUsageContainer },
     ];
 
     for (const { name, getter } of cosmosCleanups) {

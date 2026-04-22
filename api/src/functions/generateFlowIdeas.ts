@@ -2,7 +2,8 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import Anthropic from "@anthropic-ai/sdk";
 import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { DEFAULT_IDEAS_MODEL, resolveModel, priceFor, computeCost } from "../lib/modelPricing";
-import { withAuth, getProjectId } from "../lib/auth";
+import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
+import { checkCredits, recordUsage } from "../lib/aiCredits";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -133,6 +134,21 @@ export async function generateFlowIdeasHandler(
 
   let projectId: string;
   try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
+
+  // ── Credit check ──
+  const { oid, name: userName } = getUserInfo(req);
+  const principal = parseClientPrincipal(req);
+  const displayName = principal?.userDetails ?? userName;
+  if (projectId !== "unknown") {
+    const creditCheck = await checkCredits(projectId, oid, displayName);
+    if (!creditCheck.allowed) {
+      return err(402, {
+        error: creditCheck.reason,
+        projectCredits: creditCheck.projectCredits,
+        userCredits: creditCheck.userCredits,
+      });
+    }
+  }
 
   // ── Resolve spec files based on context (explicit paths, single file, or folder) ──
   let specContents: { name: string; content: string }[];
@@ -270,6 +286,13 @@ export async function generateFlowIdeasHandler(
   const inputTokens = response.usage.input_tokens;
   const outputTokens = response.usage.output_tokens;
   const costUsd = computeCost(model, inputTokens, outputTokens);
+
+  // Record AI credit usage
+  if (projectId !== "unknown") {
+    try { await recordUsage(projectId, oid, displayName, costUsd); } catch (e) {
+      console.warn("[generateFlowIdeas] credit recording failed:", e);
+    }
+  }
 
   const usage = {
     inputTokens,

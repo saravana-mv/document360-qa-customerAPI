@@ -1,5 +1,6 @@
 import { useEntraAuthStore } from "../../store/entraAuth.store";
 import { useAiCostStore } from "../../store/aiCost.store";
+import { useAiCreditsStore } from "../../store/aiCredits.store";
 import { useVersionCheck } from "../../hooks/useVersionCheck";
 import { ProjectPicker } from "./ProjectPicker";
 
@@ -8,6 +9,8 @@ export function TopBar() {
   const entraPrincipal = useEntraAuthStore((s) => s.principal);
   const entraLogout = useEntraAuthStore((s) => s.logout);
   const totalCostUsd = useAiCostStore((s) => s.totalCostUsd);
+  const projectCredits = useAiCreditsStore((s) => s.projectCredits);
+  const exhausted = useAiCreditsStore((s) => s.exhausted);
   const { currentVersion, updateAvailable, newVersion, relaunch, dismiss } = useVersionCheck();
 
   return (
@@ -52,12 +55,27 @@ export function TopBar() {
         </div>
       )}
 
-      {totalCostUsd > 0 && (
+      {/* AI credit usage pill */}
+      {projectCredits && (
+        <span
+          title={`Project AI budget: $${projectCredits.usedUsd.toFixed(2)} of $${projectCredits.totalBudgetUsd.toFixed(2)} used (${projectCredits.callCount} calls)${totalCostUsd > 0 ? `\nThis session: $${totalCostUsd.toFixed(4)}` : ""}`}
+          className={`text-[11px] font-medium px-2 py-0.5 rounded-full border shrink-0 ${
+            exhausted
+              ? "text-[#f85149] bg-[#3d1f20] border-[#f8514933]"
+              : "text-[#8b949e] bg-[#2d333b] border-[#31363b]"
+          }`}
+        >
+          AI: <span className="text-[#e6edf3]">${projectCredits.usedUsd.toFixed(2)}</span>
+          <span className="text-[#656d76]"> / ${projectCredits.totalBudgetUsd.toFixed(2)}</span>
+          {exhausted && <span className="text-[#f85149] ml-1">exhausted</span>}
+        </span>
+      )}
+      {!projectCredits && totalCostUsd > 0 && (
         <span
           title="Cumulative AI cost this session (ideas + flows + edits)"
           className="text-[11px] font-medium text-[#8b949e] px-2 py-0.5 rounded-full bg-[#2d333b] border border-[#31363b] shrink-0"
         >
-          Total AI cost: <span className="text-[#e6edf3]">${totalCostUsd.toFixed(4)}</span>
+          AI cost: <span className="text-[#e6edf3]">${totalCostUsd.toFixed(4)}</span>
         </span>
       )}
 

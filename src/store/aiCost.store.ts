@@ -1,4 +1,14 @@
 import { create } from "zustand";
+import { useAiCreditsStore } from "./aiCredits.store";
+import { useSetupStore } from "./setup.store";
+
+/** Trigger a background credit refresh after any AI cost is recorded. */
+function refreshCredits() {
+  const projectId = useSetupStore.getState().selectedProjectId;
+  if (projectId) {
+    useAiCreditsStore.getState().refresh(projectId);
+  }
+}
 
 interface AiCostState {
   /** Persistent cost from workshopMap (ideas + batch flows) */
@@ -19,15 +29,19 @@ export const useAiCostStore = create<AiCostState>((set) => ({
   adhocCostUsd: 0,
   totalCostUsd: 0,
 
-  setWorkshopCost: (cost) =>
+  setWorkshopCost: (cost) => {
     set((s) => ({
       workshopCostUsd: cost,
       totalCostUsd: parseFloat((cost + s.adhocCostUsd).toFixed(6)),
-    })),
+    }));
+    refreshCredits();
+  },
 
-  addAdhocCost: (cost) =>
+  addAdhocCost: (cost) => {
     set((s) => ({
       adhocCostUsd: parseFloat((s.adhocCostUsd + cost).toFixed(6)),
       totalCostUsd: parseFloat((s.workshopCostUsd + s.adhocCostUsd + cost).toFixed(6)),
-    })),
+    }));
+    refreshCredits();
+  },
 }));

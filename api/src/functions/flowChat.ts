@@ -2,7 +2,8 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import Anthropic from "@anthropic-ai/sdk";
 import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
-import { withAuth, getProjectId } from "../lib/auth";
+import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
+import { checkCredits, recordUsage } from "../lib/aiCredits";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -190,6 +191,25 @@ async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<Http
   // Build spec context from referenced files
   let projectId: string;
   try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
+
+  // ── Credit check ──
+  const { oid, name: userName } = getUserInfo(req);
+  const principal = parseClientPrincipal(req);
+  const displayName = principal?.userDetails ?? userName;
+  if (projectId !== "unknown") {
+    const creditCheck = await checkCredits(projectId, oid, displayName);
+    if (!creditCheck.allowed) {
+      return {
+        status: 402,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          error: creditCheck.reason,
+          projectCredits: creditCheck.projectCredits,
+          userCredits: creditCheck.userCredits,
+        }),
+      };
+    }
+  }
   const specFiles = body.specFiles ?? [];
   const specContext = await buildSpecContext(specFiles, projectId);
 
@@ -217,6 +237,13 @@ async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<Http
     const inputTokens = response.usage.input_tokens;
     const outputTokens = response.usage.output_tokens;
     const costUsd = computeCost(model, inputTokens, outputTokens);
+
+    // Record AI credit usage
+    if (projectId !== "unknown") {
+      try { await recordUsage(projectId, oid, displayName, costUsd); } catch (e) {
+        console.warn("[flowChat] credit recording failed:", e);
+      }
+    }
 
     return {
       status: 200,

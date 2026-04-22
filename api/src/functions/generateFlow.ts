@@ -2,7 +2,8 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import Anthropic from "@anthropic-ai/sdk";
 import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
-import { withAuth, getProjectId } from "../lib/auth";
+import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
+import { checkCredits, recordUsage } from "../lib/aiCredits";
 
 function scopedPath(projectId: string, name: string): string {
   if (!projectId || projectId === "unknown") return name;
@@ -308,6 +309,25 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   // Build spec context from selected files
   let projectId: string;
   try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
+
+  // ── Credit check ──
+  const { oid, name: userName } = getUserInfo(req);
+  const principal = parseClientPrincipal(req);
+  const displayName = principal?.userDetails ?? userName;
+  if (projectId !== "unknown") {
+    const creditCheck = await checkCredits(projectId, oid, displayName);
+    if (!creditCheck.allowed) {
+      return {
+        status: 402,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          error: creditCheck.reason,
+          projectCredits: creditCheck.projectCredits,
+          userCredits: creditCheck.userCredits,
+        }),
+      };
+    }
+  }
   const specContext = await buildSpecContext(body.specFiles ?? [], projectId);
   const specCount = body.specFiles?.length ?? 0;
   const scopeNote = specCount === 1
@@ -350,6 +370,14 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
           const inTok = finalMsg.usage.input_tokens;
           const outTok = finalMsg.usage.output_tokens;
           const cost = computeCost(model, inTok, outTok);
+
+          // Record AI credit usage
+          if (projectId !== "unknown") {
+            try { await recordUsage(projectId, oid, displayName, cost); } catch (e) {
+              console.warn("[generateFlow] credit recording failed:", e);
+            }
+          }
+
           const usageData = `data: ${JSON.stringify({ usage: { inputTokens: inTok, outputTokens: outTok, totalTokens: inTok + outTok, costUsd: cost } })}\n\n`;
           controller.enqueue(encoder.encode(usageData));
 
@@ -391,6 +419,13 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       const inputTokens = finalMessage.usage.input_tokens;
       const outputTokens = finalMessage.usage.output_tokens;
       const costUsd = computeCost(model, inputTokens, outputTokens);
+
+      // Record AI credit usage
+      if (projectId !== "unknown") {
+        try { await recordUsage(projectId, oid, displayName, costUsd); } catch (e) {
+          console.warn("[generateFlow] credit recording failed:", e);
+        }
+      }
 
       return {
         status: 200,
