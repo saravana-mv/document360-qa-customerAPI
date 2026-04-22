@@ -717,18 +717,27 @@ export function SpecFilesPage() {
     const existing = aggregateForPath(workshopMap, contextPath);
     const existingTitles = existing.ideas.map(i => i.title);
 
-    setIdeas(existing.ideas);
-    setIdeasUsage(existing.usage);
-    setFlowsUsage(existing.flowsUsage);
-    setGeneratedFlows(existing.generatedFlows.filter(f => f.status === "done" || f.status === "error"));
-    setSelectedIdeaIds(new Set());
     setIdeasError(null);
     setIdeasRawText(undefined);
     setIdeasMessage(null);
     setIdeasExhausted(false);
-    setActiveIdeaId(null);
-    setActiveFlowId(null);
-    setIdeasLoading(true);
+    if (existing.ideas.length > 0) {
+      // Keep existing ideas visible while generating new ones
+      setIdeas(existing.ideas);
+      setIdeasUsage(existing.usage);
+      setFlowsUsage(existing.flowsUsage);
+      setGeneratedFlows(existing.generatedFlows.filter(f => f.status === "done" || f.status === "error"));
+      setIdeasAppending(true);
+    } else {
+      setIdeas([]);
+      setIdeasUsage(null);
+      setFlowsUsage(null);
+      setGeneratedFlows([]);
+      setSelectedIdeaIds(new Set());
+      setActiveIdeaId(null);
+      setActiveFlowId(null);
+      setIdeasLoading(true);
+    }
     try {
       const result = await generateFlowIdeas(contextPath, existingTitles, undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN, filePaths);
       const perIdeaCost = result.usage && result.ideas.length > 0
@@ -800,6 +809,7 @@ export function SpecFilesPage() {
       setIdeasError(e instanceof Error ? e.message : String(e));
     } finally {
       setIdeasLoading(false);
+      setIdeasAppending(false);
     }
   }
 
