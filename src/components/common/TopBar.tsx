@@ -1,6 +1,7 @@
 import { useEntraAuthStore } from "../../store/entraAuth.store";
 import { useAiCostStore } from "../../store/aiCost.store";
 import { useVersionCheck } from "../../hooks/useVersionCheck";
+import { ProjectPicker } from "./ProjectPicker";
 
 export function TopBar() {
   const entraStatus = useEntraAuthStore((s) => s.status);
@@ -16,6 +17,9 @@ export function TopBar() {
         <span className="text-[13px] font-bold tracking-[-0.01em]">FLOW FORGE</span>
         <span className="text-[10px] font-mono text-[#656d76]">v{currentVersion}</span>
       </span>
+
+      {/* Project picker — after app title */}
+      {entraStatus === "authenticated" && <ProjectPicker />}
 
       <div className="flex-1" />
 
