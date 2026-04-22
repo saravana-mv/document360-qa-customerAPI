@@ -368,8 +368,15 @@ export function SpecFilesPage() {
   const didRehydrateRef = useRef(false);
   useEffect(() => {
     if (didRehydrateRef.current) return;
-    if (loadingFiles || files.length === 0) return;
+    if (loadingFiles) return;
     didRehydrateRef.current = true;
+
+    // Empty project — clear any stale paths from localStorage
+    if (files.length === 0) {
+      if (selectedPath) setSelectedPath(null);
+      if (selectedFolderPath) setSelectedFolderPath(null);
+      return;
+    }
 
     if (selectedPath) {
       const stillExists = files.some(f => f.name === selectedPath);
@@ -1500,6 +1507,9 @@ export function SpecFilesPage() {
   const isFileContext = !!selectedPath;
   const hasSelection = !!activePath;
 
+  // Project-wide: any .md spec files at all?
+  const projectHasSpecFiles = files.some(f => f.name.endsWith(".md"));
+
   // Count .md spec files under the active folder (recursive)
   const folderMdCount = (!isFileContext && activePath)
     ? (() => {
@@ -1509,7 +1519,11 @@ export function SpecFilesPage() {
     : 0;
 
   // True when the active context has no spec files to work with
-  const noSpecFiles = isFileContext ? false : folderMdCount === 0;
+  const noSpecFiles = !projectHasSpecFiles
+    || (isFileContext ? !files.some(f => f.name === selectedPath) : folderMdCount === 0);
+  const noSpecFilesTooltip = !projectHasSpecFiles
+    ? "Upload spec files (.md) to your project first"
+    : "No spec files (.md) in this folder";
 
   // Multi-select: count of selected .md files
   const multiSelectedMdPaths = useMemo(() =>
@@ -1624,7 +1638,7 @@ export function SpecFilesPage() {
                 <button
                   onClick={() => setChatActive(true)}
                   disabled={chatActive || noSpecFiles}
-                  title={noSpecFiles ? "Upload spec files first" : chatActive ? "Flow chat is already open" : "Design a new flow interactively"}
+                  title={noSpecFiles ? noSpecFilesTooltip : chatActive ? "Flow chat is already open" : "Design a new flow interactively"}
                   className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-[#0969da] hover:text-[#0860ca] px-2 py-1 rounded-md hover:bg-[#ddf4ff] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -1859,8 +1873,10 @@ export function SpecFilesPage() {
                       <p className="text-sm text-[#656d76]">
                         {multiSelectedMdPaths.length > 0
                           ? `${multiSelectedMdPaths.length} spec file${multiSelectedMdPaths.length > 1 ? "s" : ""} selected — AI will use them as combined context.`
-                          : !isFileContext && folderMdCount === 0
-                            ? "No spec files (.md) found in this folder. Upload spec files to generate ideas."
+                          : noSpecFiles
+                            ? (!projectHasSpecFiles
+                                ? "Upload spec files (.md) to your project to get started with AI-powered test flow generation."
+                                : "No spec files (.md) found in this folder. Upload spec files to generate ideas.")
                             : isFileContext
                               ? "AI will analyze this spec file and suggest test scenarios."
                               : `AI will analyze ${folderMdCount} spec file${folderMdCount === 1 ? "" : "s"} in this folder and suggest test scenarios.`}
@@ -1890,7 +1906,7 @@ export function SpecFilesPage() {
                             key={n}
                             onClick={() => void handleGenerateFlowIdeas(activePath!, n)}
                             disabled={noSpecFiles}
-                            title={noSpecFiles ? "Upload spec files (.md) first" : `Generate ${n} test flow idea${n > 1 ? "s" : ""}`}
+                            title={noSpecFiles ? noSpecFilesTooltip : `Generate ${n} test flow idea${n > 1 ? "s" : ""}`}
                             className="inline-flex items-center gap-1.5 bg-[#0969da] hover:bg-[#0860ca] text-white text-sm font-medium rounded-md px-3 py-2 transition-colors border border-[#0969da]/80 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -1906,7 +1922,7 @@ export function SpecFilesPage() {
                       <button
                         onClick={() => setChatActive(true)}
                         disabled={noSpecFiles}
-                        title={noSpecFiles ? "Upload spec files (.md) first" : "Design a new flow interactively"}
+                        title={noSpecFiles ? noSpecFilesTooltip : "Design a new flow interactively"}
                         className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md px-3 py-2 transition-colors border border-[#1a7f37]/80 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
