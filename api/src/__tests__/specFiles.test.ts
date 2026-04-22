@@ -24,7 +24,7 @@ jest.mock("../lib/auth", () => ({
 // Mock blobClient before importing the router
 jest.mock("../lib/blobClient", () => ({
   listBlobs: jest.fn().mockResolvedValue([
-    { name: "articles/get-article.md", size: 1024, lastModified: new Date(), contentType: "text/markdown" },
+    { name: "test-project/articles/get-article.md", size: 1024, lastModified: new Date(), contentType: "text/markdown" },
   ]),
   downloadBlob: jest.fn().mockResolvedValue("# Article content"),
   uploadBlob: jest.fn().mockResolvedValue(undefined),
@@ -95,14 +95,14 @@ describe("GET /api/spec-files", () => {
   test("calls listBlobs with prefix when query param is set", async () => {
     const req = mockRequest("GET", { prefix: "articles/" });
     await specFilesRouter(req as any, ctx);
-    expect(blobClient.listBlobs).toHaveBeenCalledWith("articles/");
+    expect(blobClient.listBlobs).toHaveBeenCalledWith("test-project/articles/");
   });
 
-  test("calls listBlobs with no prefix when query param is absent", async () => {
+  test("calls listBlobs with project prefix when query param is absent", async () => {
     jest.clearAllMocks();
     (blobClient.listBlobs as jest.Mock).mockResolvedValue([]);
     await specFilesRouter(mockRequest("GET") as any, ctx);
-    expect(blobClient.listBlobs).toHaveBeenCalledWith(undefined);
+    expect(blobClient.listBlobs).toHaveBeenCalledWith("test-project/");
   });
 
   test("returns 500 when listBlobs throws", async () => {
@@ -122,7 +122,7 @@ describe("POST /api/spec-files", () => {
     const req = mockRequest("POST", {}, { name: "test.md", content: "# Hello" });
     const res = await specFilesRouter(req as any, ctx);
     expect(res.status).toBe(200);
-    expect(blobClient.uploadBlob).toHaveBeenCalledWith("test.md", "# Hello", undefined);
+    expect(blobClient.uploadBlob).toHaveBeenCalledWith("test-project/test.md", "# Hello", undefined);
   });
 
   test("returns 400 when name is missing", async () => {
@@ -147,14 +147,14 @@ describe("PUT /api/spec-files", () => {
     const req = mockRequest("PUT", {}, { name: "test.md", content: "updated" });
     const res = await specFilesRouter(req as any, ctx);
     expect(res.status).toBe(200);
-    expect(blobClient.uploadBlob).toHaveBeenCalledWith("test.md", "updated");
+    expect(blobClient.uploadBlob).toHaveBeenCalledWith("test-project/test.md", "updated");
   });
 
   test("returns 200 when renaming", async () => {
     const req = mockRequest("PUT", {}, { name: "old.md", newName: "new.md" });
     const res = await specFilesRouter(req as any, ctx);
     expect(res.status).toBe(200);
-    expect(blobClient.renameBlob).toHaveBeenCalledWith("old.md", "new.md");
+    expect(blobClient.renameBlob).toHaveBeenCalledWith("test-project/old.md", "test-project/new.md");
   });
 
   test("returns 400 when name is missing", async () => {
@@ -179,7 +179,7 @@ describe("DELETE /api/spec-files", () => {
     const req = mockRequest("DELETE", { name: "test.md" });
     const res = await specFilesRouter(req as any, ctx);
     expect(res.status).toBe(200);
-    expect(blobClient.deleteBlob).toHaveBeenCalledWith("test.md");
+    expect(blobClient.deleteBlob).toHaveBeenCalledWith("test-project/test.md");
   });
 
   test("returns 400 when name query param is missing", async () => {
