@@ -6,7 +6,7 @@
 // DELETE /api/projects/{id}     — archive a project (soft-delete)
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import { withRole, getUserInfo } from "../lib/auth";
+import { withAuth, withRole, getUserInfo, lookupUser, parseClientPrincipal } from "../lib/auth";
 import { getProjectsContainer } from "../lib/cosmosClient";
 import { audit } from "../lib/auditLog";
 import { randomUUID } from "node:crypto";
@@ -41,13 +41,39 @@ interface ProjectDocument {
 }
 
 // ── GET /api/projects ───────────────────────────────────────────────────────
-async function handleList(): Promise<HttpResponseInit> {
+// Auto-seeds a default project on first access if there's an existing projectId
+// in the request header (from settings). This migrates existing data seamlessly.
+async function handleList(req: HttpRequest): Promise<HttpResponseInit> {
   try {
     const container = await getProjectsContainer();
     const { resources } = await container.items.query<ProjectDocument>({
       query: "SELECT * FROM c WHERE c.tenantId = @tid AND c.status = 'active' ORDER BY c.name",
       parameters: [{ name: "@tid", value: TENANT_ID }],
     }).fetchAll();
+
+    // Auto-backfill: if no projects exist but an existing projectId is in use,
+    // create a default project doc using that ID so existing data stays linked.
+    if (resources.length === 0) {
+      const existingPid = req.headers.get("x-flowforge-projectid");
+      if (existingPid) {
+        const { oid } = getUserInfo(req);
+        const now = new Date().toISOString();
+        const seedDoc: ProjectDocument = {
+          id: existingPid,
+          tenantId: TENANT_ID,
+          type: "project",
+          name: "Default Project",
+          description: "Auto-created from existing data",
+          status: "active",
+          createdBy: oid,
+          createdAt: now,
+          updatedBy: oid,
+          updatedAt: now,
+        };
+        await container.items.upsert(seedDoc);
+        resources.push(seedDoc);
+      }
+    }
 
     const clean = resources.map((u) => {
       const { _rid, _self, _etag, _attachments, _ts, ...rest } = u as unknown as Record<string, unknown>;
@@ -161,8 +187,18 @@ function extractIdFromPath(req: HttpRequest): string | null {
 
 async function projectsRouter(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
-  if (req.method === "GET") return handleList();
-  if (req.method === "POST") return handleCreate(req);
+  if (req.method === "GET") return handleList(req);
+  if (req.method === "POST") {
+    // Owner-only for creating projects
+    const principal = parseClientPrincipal(req);
+    if (principal) {
+      const user = await lookupUser(principal.userId, principal.userDetails ?? "Unknown", principal.userDetails ?? "");
+      if (!user || user.role !== "owner") {
+        return err(403, "Only owners can create projects");
+      }
+    }
+    return handleCreate(req);
+  }
   return err(405, "Method Not Allowed");
 }
 
@@ -175,13 +211,15 @@ async function projectsItemRouter(req: HttpRequest, _ctx: InvocationContext): Pr
 
 // ── Registration ────────────────────────────────────────────────────────────
 
+// Single router for /api/projects — GET open to all auth'd users, POST owner-only
 app.http("projects", {
   methods: ["GET", "POST", "OPTIONS"],
   authLevel: "anonymous",
   route: "projects",
-  handler: withRole(["owner"], projectsRouter),
+  handler: withAuth(projectsRouter),
 });
 
+// PUT/DELETE /api/projects/{id} — owner only
 app.http("projectsItem", {
   methods: ["PUT", "DELETE", "OPTIONS"],
   authLevel: "anonymous",

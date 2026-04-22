@@ -1,5 +1,7 @@
 // API client for FlowForge project management.
 
+import { tryGetProjectHeaders } from "./projectHeader";
+
 export interface ProjectDoc {
   id: string;
   tenantId: string;
@@ -16,7 +18,9 @@ export interface ProjectDoc {
 const BASE = "/api/projects";
 
 async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
-  const res = await fetch(url, init);
+  const projectHeaders = tryGetProjectHeaders();
+  const merged: RequestInit = { ...init, headers: { ...projectHeaders, ...init?.headers } };
+  const res = await fetch(url, merged);
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);
