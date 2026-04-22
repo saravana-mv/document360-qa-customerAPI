@@ -15,7 +15,6 @@ import { GlobalSettingsPage } from "./pages/GlobalSettingsPage";
 const SpecFilesPage = lazy(() => import("./pages/SpecFilesPage").then((m) => ({ default: m.SpecFilesPage })));
 const SettingsPage = lazy(() => import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
 const SetupPanel = lazy(() => import("./components/setup/SetupPanel").then((m) => ({ default: m.SetupPanel })));
-const UsersContent = lazy(() => import("./pages/UsersPage").then((m) => ({ default: m.UsersContent })));
 const AuditLogContent = lazy(() => import("./pages/AuditLogPage").then((m) => ({ default: m.AuditLogContent })));
 const ApiKeysCard = lazy(() => import("./components/setup/ApiKeysCard").then((m) => ({ default: m.ApiKeysCard })));
 const MembersContent = lazy(() => import("./pages/MembersPage").then((m) => ({ default: m.MembersContent })));
@@ -73,12 +72,11 @@ function AppRoutes() {
           <Route index element={<Suspense fallback={<PageLoader />}><SetupPanel /></Suspense>} />
           <Route path="members" element={<Suspense fallback={<PageLoader />}><MembersContent /></Suspense>} />
           <Route path="api-keys" element={<Suspense fallback={<PageLoader />}><ApiKeysCard /></Suspense>} />
-          <Route path="users" element={<Suspense fallback={<PageLoader />}><UsersContent /></Suspense>} />
           <Route path="audit-log" element={<Suspense fallback={<PageLoader />}><AuditLogContent /></Suspense>} />
         </Route>
         {/* Backwards compat redirects */}
         <Route path="/setup" element={<Navigate to="/settings" replace />} />
-        <Route path="/users" element={<Navigate to="/settings/users" replace />} />
+        <Route path="/users" element={<Navigate to="/settings/members" replace />} />
         <Route path="/audit-log" element={<Navigate to="/settings/audit-log" replace />} />
         <Route path="/test" element={<TestPage />} />
         <Route path="/spec-files" element={<Suspense fallback={<PageLoader />}><SpecFilesPage /></Suspense>} />
