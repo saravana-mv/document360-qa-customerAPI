@@ -13,3 +13,9 @@ export function getProjectHeaders(): Record<string, string> {
 export function hasProject(): boolean {
   return !!useSetupStore.getState().selectedProjectId;
 }
+
+/** Returns project headers if available, empty object otherwise. Never throws. */
+export function tryGetProjectHeaders(): Record<string, string> {
+  const pid = useSetupStore.getState().selectedProjectId;
+  return pid ? { "X-FlowForge-ProjectId": pid } : {};
+}

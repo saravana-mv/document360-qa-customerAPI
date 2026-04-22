@@ -1,3 +1,5 @@
+import { tryGetProjectHeaders } from "./projectHeader";
+
 export interface SpecFileItem {
   name: string;
   size: number;
@@ -7,7 +9,13 @@ export interface SpecFileItem {
 }
 
 async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
-  const res = await fetch(url, init);
+  // Inject project header so audit log entries are tagged with the correct projectId
+  const projectHeaders = tryGetProjectHeaders();
+  const merged: RequestInit = {
+    ...init,
+    headers: { ...projectHeaders, ...init?.headers },
+  };
+  const res = await fetch(url, merged);
   if (!res.ok) {
     let msg = res.statusText;
     try {

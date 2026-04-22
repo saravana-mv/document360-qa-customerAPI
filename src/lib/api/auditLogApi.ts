@@ -1,6 +1,6 @@
 // Frontend client for the audit log API.
 
-import { getProjectHeaders } from "./projectHeader";
+import { getProjectHeaders, hasProject } from "./projectHeader";
 
 export interface AuditEntry {
   id: string;
@@ -30,6 +30,10 @@ export interface AuditLogFilters {
 }
 
 export async function fetchAuditLog(filters: AuditLogFilters = {}): Promise<AuditLogResponse> {
+  if (!hasProject()) {
+    return { entries: [], total: 0, limit: 100, offset: 0 };
+  }
+
   const params = new URLSearchParams();
   if (filters.action) params.set("action", filters.action);
   if (filters.actor) params.set("actor", filters.actor);

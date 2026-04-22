@@ -6,7 +6,7 @@ import { audit } from "../lib/auditLog";
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, PUT, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-FlowForge-ProjectId",
 };
 
 function ok(body: unknown): HttpResponseInit {
