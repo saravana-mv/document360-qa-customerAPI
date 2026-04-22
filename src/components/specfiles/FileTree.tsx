@@ -88,6 +88,38 @@ function canDrop(drag: TreeNode, targetFolderPath: string): boolean {
   return true;
 }
 
+// ── HTTP method detection ──────────────────────────────────────────────────────
+
+const METHOD_PATTERNS: [RegExp, string][] = [
+  [/\bget[-_]|get[-_]a(n|ll)\b|list[-_]|retrieve[-_]|fetch[-_]|read[-_]/i, "GET"],
+  [/\bcreate[-_]|add[-_]|post[-_]|insert[-_]|new[-_]/i, "POST"],
+  [/\bupdate[-_]|edit[-_]|modify[-_]|put[-_]|patch[-_]|change[-_]/i, "PUT"],
+  [/\bdelete[-_]|remove[-_]|destroy[-_]|del[-_]/i, "DELETE"],
+];
+
+const METHOD_COLORS: Record<string, string> = {
+  GET: "bg-[#ddf4ff] text-[#0969da]",
+  POST: "bg-[#dafbe1] text-[#1a7f37]",
+  PUT: "bg-[#fff8c5] text-[#9a6700]",
+  DELETE: "bg-[#ffebe9] text-[#d1242f]",
+};
+
+function detectHttpMethod(filename: string): string | null {
+  const base = filename.replace(/\.[^.]+$/, ""); // strip extension
+  for (const [pattern, method] of METHOD_PATTERNS) {
+    if (pattern.test(base)) return method;
+  }
+  return null;
+}
+
+function HttpMethodTag({ method }: { method: string }) {
+  return (
+    <span className={`text-[9px] font-bold leading-none px-1 py-[1px] rounded ${METHOD_COLORS[method] ?? ""} shrink-0`}>
+      {method}
+    </span>
+  );
+}
+
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
 function SyncSpinner() {
@@ -318,7 +350,13 @@ function TreeNodeRow({
             onCancel={onRenameCancel}
           />
         ) : (
-          <span className="flex-1 truncate">{node.name}</span>
+          <span className="flex-1 flex items-center gap-1.5 min-w-0">
+            {node.type === "file" && (() => {
+              const method = detectHttpMethod(node.name);
+              return method ? <HttpMethodTag method={method} /> : null;
+            })()}
+            <span className="truncate">{node.name}</span>
+          </span>
         )}
 
         {/* Actions */}
