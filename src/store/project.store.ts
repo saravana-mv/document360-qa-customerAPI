@@ -16,7 +16,7 @@ interface ProjectState {
   /** Load projects from server */
   load: () => Promise<void>;
   /** Create a new project and select it */
-  create: (name: string, description?: string) => Promise<ProjectDoc>;
+  create: (name: string, description?: string, visibility?: "team" | "personal") => Promise<ProjectDoc>;
   /** Update a project */
   update: (id: string, data: { name?: string; description?: string }) => Promise<void>;
   /** Archive (soft-delete) a project */
@@ -46,8 +46,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
   },
 
-  create: async (name, description) => {
-    const doc = await createProject(name, description);
+  create: async (name, description, visibility) => {
+    const doc = await createProject(name, description, visibility);
     set({ projects: [...get().projects, doc] });
     // Auto-select the newly created project
     useSetupStore.getState().selectProject(doc.id);

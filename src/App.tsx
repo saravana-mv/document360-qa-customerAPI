@@ -8,6 +8,8 @@ import { Spinner } from "./components/common/Spinner";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { EntraGate } from "./components/auth/EntraGate";
 import { AccessGate } from "./components/auth/AccessGate";
+import { ProjectGate } from "./components/auth/ProjectGate";
+import { ProjectSelectionPage } from "./pages/ProjectSelectionPage";
 
 const SpecFilesPage = lazy(() => import("./pages/SpecFilesPage").then((m) => ({ default: m.SpecFilesPage })));
 const SettingsPage = lazy(() => import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
@@ -57,26 +59,28 @@ function AppRoutes() {
   }, []);
 
   return (
-    <Routes>
-      {/* Entra gate (outer) admits the user to the app. Spec Manager is the
-          default landing page — D360 OAuth is only needed to run tests. */}
-      <Route path="/" element={<Navigate to="/spec-files" replace />} />
-      <Route path="/callback" element={<OAuthCallback />} />
-      {/* Settings — nested layout with secondary LHS nav */}
-      <Route path="/settings" element={<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>}>
-        <Route index element={<Suspense fallback={<PageLoader />}><SetupPanel /></Suspense>} />
-        <Route path="api-keys" element={<Suspense fallback={<PageLoader />}><ApiKeysCard /></Suspense>} />
-        <Route path="users" element={<Suspense fallback={<PageLoader />}><UsersContent /></Suspense>} />
-        <Route path="audit-log" element={<Suspense fallback={<PageLoader />}><AuditLogContent /></Suspense>} />
-      </Route>
-      {/* Backwards compat redirects */}
-      <Route path="/setup" element={<Navigate to="/settings" replace />} />
-      <Route path="/users" element={<Navigate to="/settings/users" replace />} />
-      <Route path="/audit-log" element={<Navigate to="/settings/audit-log" replace />} />
-      <Route path="/test" element={<TestPage />} />
-      <Route path="/spec-files" element={<Suspense fallback={<PageLoader />}><SpecFilesPage /></Suspense>} />
-      <Route path="*" element={<Navigate to="/spec-files" replace />} />
-    </Routes>
+    <ProjectGate>
+      <Routes>
+        {/* Project selection — first screen after login */}
+        <Route path="/projects" element={<ProjectSelectionPage />} />
+        <Route path="/" element={<Navigate to="/projects" replace />} />
+        <Route path="/callback" element={<OAuthCallback />} />
+        {/* Settings — nested layout with secondary LHS nav */}
+        <Route path="/settings" element={<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>}>
+          <Route index element={<Suspense fallback={<PageLoader />}><SetupPanel /></Suspense>} />
+          <Route path="api-keys" element={<Suspense fallback={<PageLoader />}><ApiKeysCard /></Suspense>} />
+          <Route path="users" element={<Suspense fallback={<PageLoader />}><UsersContent /></Suspense>} />
+          <Route path="audit-log" element={<Suspense fallback={<PageLoader />}><AuditLogContent /></Suspense>} />
+        </Route>
+        {/* Backwards compat redirects */}
+        <Route path="/setup" element={<Navigate to="/settings" replace />} />
+        <Route path="/users" element={<Navigate to="/settings/users" replace />} />
+        <Route path="/audit-log" element={<Navigate to="/settings/audit-log" replace />} />
+        <Route path="/test" element={<TestPage />} />
+        <Route path="/spec-files" element={<Suspense fallback={<PageLoader />}><SpecFilesPage /></Suspense>} />
+        <Route path="*" element={<Navigate to="/projects" replace />} />
+      </Routes>
+    </ProjectGate>
   );
 }
 
