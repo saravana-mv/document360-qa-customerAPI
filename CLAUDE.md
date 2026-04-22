@@ -17,15 +17,15 @@ FlowForge is an AI-assisted API testing platform for Document360. It lets QA tea
 - **Settings** (`src/pages/SettingsPage.tsx`) — General, API Keys, Users, Audit Log (role-gated tabs)
 
 ### Data Layer
-- **Cosmos DB** (8 containers, all partitioned by `/projectId`): `flows`, `ideas`, `test-runs`, `settings` (`/userId`), `users` (`/tenantId`), `api-keys`, `audit-log`, `flow-chat-sessions`
+- **Cosmos DB** (9 containers, all partitioned by `/projectId`): `flows`, `ideas`, `test-runs`, `settings` (`/userId`), `users` (`/tenantId`), `api-keys`, `audit-log`, `flow-chat-sessions`, `projects` (`/tenantId`)
 - **Blob Storage**: Only `spec-files` container remains (reference docs, `_sources.json` manifests)
 - **localStorage**: Pure UI state only (tree expansion, panel widths, breakpoints)
 
 ### Key Stores (Zustand)
-`auth.store` (OAuth session), `setup.store` (project/version/AI model), `user.store` (role), `flowStatus.store` (flow activation), `runner.store` (test execution), `scenarioOrg.store` (folder tree), `aiCost.store` (spend tracking), `breakpoints.store` (step pause/resume)
+`auth.store` (OAuth session), `setup.store` (project/version/AI model), `user.store` (role), `project.store` (project list/selection), `flowStatus.store` (flow activation), `runner.store` (test execution), `scenarioOrg.store` (folder tree), `aiCost.store` (spend tracking), `breakpoints.store` (step pause/resume)
 
 ### API Functions (`api/src/functions/`)
-25+ Azure Functions. All wrapped with `withAuth()`. Key routes: `/api/spec-files/*`, `/api/flow-files`, `/api/flow-chat`, `/api/generate-flow-ideas`, `/api/generate-flow`, `/api/run-scenario`, `/api/d360/*` (proxy), `/api/active-tests`, `/api/test-runs`, `/api/users`, `/api/api-keys`, `/api/audit-log`
+25+ Azure Functions. All wrapped with `withAuth()`. Key routes: `/api/spec-files/*`, `/api/flow-files`, `/api/flow-chat`, `/api/generate-flow-ideas`, `/api/generate-flow`, `/api/run-scenario`, `/api/d360/*` (proxy), `/api/active-tests`, `/api/test-runs`, `/api/users`, `/api/api-keys`, `/api/audit-log`, `/api/projects`
 
 ### Auth Flow
 Entra ID SSO → `EntraGate` auto-login → `withAuth()` extracts OID/project from claims → D360 tokens in Azure Table Storage → proxy injects bearer at `/api/d360/*` → browser never holds real D360 token

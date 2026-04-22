@@ -48,6 +48,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 | `explorerUI.store` | `expandedVersions`, `expandedFolders`, `rearrangeMode` | UI-only state for tree expansion and drag-drop mode. |
 | `aiCost.store` | `workshopCostUsd`, `adhocCostUsd` | Every AI call must report here. TopBar shows total. |
 | `breakpoints.store` | `ids: Set<testId>` | Per-step pause/resume. Persisted in localStorage. |
+| `project.store` | `projects`, `selectedProject`, `loading` | Project list, selection, CRUD. ProjectPicker in TopBar. |
 | `entraAuth.store` | `tenant`, `clientId`, `redirectUri` | Entra ID configuration. |
 
 ### Component Organization
@@ -55,7 +56,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 ```
 src/components/
 ├── auth/           # EntraGate (SSO wrapper), AccessGate (role check), LoginScreen, OAuthCallback
-├── common/         # Layout, TopBar, SideNav, Modal, ContextMenu, XmlCodeBlock, XmlEditor, ResizeHandle
+├── common/         # Layout, TopBar, SideNav, Modal, ContextMenu, XmlCodeBlock, XmlEditor, ResizeHandle, ProjectPicker
 ├── specfiles/      # FileTree, FlowChatPanel, FlowIdeasPanel, FlowsPanel, DetailPanel, ImportFromUrlModal
 ├── explorer/       # TestExplorer, VersionAccordion, ScenarioFolderTree, TagNode
 ├── runner/         # RunControls, LiveLog, ProgressBar, RunHistory
@@ -80,6 +81,7 @@ All API calls go through `client.ts` which adds auth headers and rewrites `/vN/`
 | `versionAuthApi.ts` | `getVersionAuth`, `saveVersionAuth` |
 | `apiKeysApi.ts` | `listApiKeys`, `createApiKey`, `revokeApiKey` |
 | `auditLogApi.ts` | `queryAuditLog` |
+| `projectsApi.ts` | `listProjects`, `createProject`, `updateProject`, `archiveProject` |
 
 ### Test Execution Engine (`src/lib/tests/`)
 
@@ -139,6 +141,7 @@ tests/
 | `scenarioOrg` | `/api/scenario-org` | GET/POST | Folder organization |
 | `auditLog` | `/api/audit-log` | GET | Query audit entries |
 | `ideas` | `/api/ideas` | GET/POST/DELETE | Flow ideas CRUD |
+| `projects` | `/api/projects` | GET/POST/PUT/DELETE | Project CRUD (GET all auth'd, POST/PUT/DELETE owner-only) |
 | `resetProject` | `/api/reset-project` | POST | Owner-only project wipe |
 
 ### Shared Libraries (`api/src/lib/`)
@@ -147,7 +150,7 @@ tests/
 |--------|---------|
 | `auth.ts` | `withAuth()` wrapper, `getUserInfo(req)`, `getProjectId(req)` — extracts Entra ID claims |
 | `apiKeyAuth.ts` | `validateApiKey()` for public API endpoints |
-| `cosmosClient.ts` | Lazy-init Cosmos client + `ensureContainer()` for all 8 containers |
+| `cosmosClient.ts` | Lazy-init Cosmos client + `ensureContainer()` for all 9 containers |
 | `blobClient.ts` | Azure Blob Storage (upload, download, list, delete, exists) |
 | `browserFetch.ts` | `fetchWithCookieJar()` + browser User-Agent headers for Cloudflare-fronted URLs |
 | `tokenStore.ts` | Azure Table Storage for D360 OAuth tokens |
@@ -180,6 +183,7 @@ Used by the Public API (`/api/run-scenario`) to execute flows without a browser:
 | `api-keys` | `/projectId` | `{ id, projectId, name, keyHash, prefix, createdBy, ... }` |
 | `audit-log` | `/projectId` | `{ id, projectId, action, actor, target, details, timestamp }` |
 | `flow-chat-sessions` | `/projectId` | `{ id, projectId, userId, title, messages[], confirmedPlan?, totalCost, ... }` |
+| `projects` | `/tenantId` | `{ id, tenantId, name, description?, createdBy, createdAt, status, ... }` |
 
 ### Blob Storage Layout
 
