@@ -8,7 +8,7 @@ import { useSetupStore } from "../../store/setup.store";
 import { useEntraAuthStore } from "../../store/entraAuth.store";
 
 /** Paths that do NOT require a selected project. */
-const EXEMPT_PATHS = new Set(["/projects", "/callback", "/logged-out"]);
+const EXEMPT_PATHS = new Set(["/projects", "/global-settings", "/callback", "/logged-out"]);
 
 export function ProjectGate({ children }: { children: ReactNode }) {
   const selectedProjectId = useSetupStore((s) => s.selectedProjectId);

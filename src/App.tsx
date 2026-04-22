@@ -10,6 +10,7 @@ import { EntraGate } from "./components/auth/EntraGate";
 import { AccessGate } from "./components/auth/AccessGate";
 import { ProjectGate } from "./components/auth/ProjectGate";
 import { ProjectSelectionPage } from "./pages/ProjectSelectionPage";
+import { GlobalSettingsPage } from "./pages/GlobalSettingsPage";
 
 const SpecFilesPage = lazy(() => import("./pages/SpecFilesPage").then((m) => ({ default: m.SpecFilesPage })));
 const SettingsPage = lazy(() => import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
@@ -64,6 +65,7 @@ function AppRoutes() {
       <Routes>
         {/* Project selection — first screen after login */}
         <Route path="/projects" element={<ProjectSelectionPage />} />
+        <Route path="/global-settings" element={<GlobalSettingsPage />} />
         <Route path="/" element={<Navigate to="/projects" replace />} />
         <Route path="/callback" element={<OAuthCallback />} />
         {/* Settings — nested layout with secondary LHS nav */}
