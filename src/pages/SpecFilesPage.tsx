@@ -703,8 +703,6 @@ export function SpecFilesPage() {
   // ── Generate flow ideas (AI) ──────────────────────────────────────────────
 
   async function handleGenerateFlowIdeas(contextPath: string, maxCount?: number, filePaths?: string[]) {
-    // eslint-disable-next-line no-console
-    console.log("[SpecFiles] handleGenerateFlowIdeas CALLED", { contextPath, maxCount, filePaths, isFolder: !contextPath.endsWith(".md") });
     // contextPath can be a folder path or a file path (.md)
     if (contextPath.endsWith(".md")) {
       setSelectedPath(contextPath);
@@ -715,41 +713,24 @@ export function SpecFilesPage() {
     }
     setViewingContent(false);
 
-    // ── Guard: skip API call if ideas already exist for this context ──
+    // Collect existing idea titles so the AI generates different ones
     const existing = aggregateForPath(workshopMap, contextPath);
-    if (existing.ideas.length > 0) {
-      // eslint-disable-next-line no-console
-      console.debug("[SpecFiles] Using cached ideas", { count: existing.ideas.length, contextPath });
-      // Just load existing ideas — no API call, no cost
-      setIdeas(existing.ideas);
-      setIdeasUsage(existing.usage);
-      setFlowsUsage(existing.flowsUsage);
-      setGeneratedFlows(existing.generatedFlows.filter(f => f.status === "done" || f.status === "error"));
-      setSelectedIdeaIds(new Set());
-      setIdeasError(null);
-      setIdeasRawText(undefined);
-      setIdeasMessage(null);
-      setActiveIdeaId(null);
-      setActiveFlowId(null);
-      return;
-    }
+    const existingTitles = existing.ideas.map(i => i.title);
 
-    setIdeas([]);
-    setIdeasUsage(null);
-    setFlowsUsage(null);
+    setIdeas(existing.ideas);
+    setIdeasUsage(existing.usage);
+    setFlowsUsage(existing.flowsUsage);
+    setGeneratedFlows(existing.generatedFlows.filter(f => f.status === "done" || f.status === "error"));
+    setSelectedIdeaIds(new Set());
     setIdeasError(null);
     setIdeasRawText(undefined);
     setIdeasMessage(null);
     setIdeasExhausted(false);
-    setSelectedIdeaIds(new Set());
-    setGeneratedFlows([]);
     setActiveIdeaId(null);
     setActiveFlowId(null);
     setIdeasLoading(true);
-    // eslint-disable-next-line no-console
-    console.log("[SpecFiles] calling generateFlowIdeas API", { contextPath, maxCount, aiModel });
     try {
-      const result = await generateFlowIdeas(contextPath, [], undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN, filePaths);
+      const result = await generateFlowIdeas(contextPath, existingTitles, undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN, filePaths);
       const perIdeaCost = result.usage && result.ideas.length > 0
         ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
         : undefined;
@@ -763,19 +744,44 @@ export function SpecFilesPage() {
       }));
       // Save to workshopMap under this context
       if (newIdeas.length > 0) {
-        setWorkshopMap(prev => ({
-          ...prev,
-          [contextPath]: {
-            ideas: newIdeas,
-            usage: result.usage,
-            flowsUsage: null,
-            generatedFlows: [],
-          },
-        }));
+        setWorkshopMap(prev => {
+          const prevCtx = prev[contextPath];
+          const mergedIdeas = [...(prevCtx?.ideas ?? []), ...newIdeas];
+          const mergedUsage = result.usage && prevCtx?.usage
+            ? {
+                inputTokens: prevCtx.usage.inputTokens + result.usage.inputTokens,
+                outputTokens: prevCtx.usage.outputTokens + result.usage.outputTokens,
+                totalTokens: prevCtx.usage.totalTokens + result.usage.totalTokens,
+                costUsd: parseFloat((prevCtx.usage.costUsd + result.usage.costUsd).toFixed(6)),
+                filesAnalyzed: result.usage.filesAnalyzed,
+                totalSpecCharacters: result.usage.totalSpecCharacters,
+              }
+            : result.usage;
+          return {
+            ...prev,
+            [contextPath]: {
+              ideas: mergedIdeas,
+              usage: mergedUsage,
+              flowsUsage: prevCtx?.flowsUsage ?? null,
+              generatedFlows: prevCtx?.generatedFlows ?? [],
+            },
+          };
+        });
       }
-      // Update flat working set
-      setIdeas(newIdeas);
-      setIdeasUsage(result.usage);
+      // Update flat working set — merge with existing ideas from aggregate
+      const allIdeas = [...existing.ideas, ...newIdeas];
+      setIdeas(allIdeas);
+      const mergedUsage = result.usage && existing.usage
+        ? {
+            inputTokens: existing.usage.inputTokens + result.usage.inputTokens,
+            outputTokens: existing.usage.outputTokens + result.usage.outputTokens,
+            totalTokens: existing.usage.totalTokens + result.usage.totalTokens,
+            costUsd: parseFloat((existing.usage.costUsd + result.usage.costUsd).toFixed(6)),
+            filesAnalyzed: result.usage.filesAnalyzed,
+            totalSpecCharacters: result.usage.totalSpecCharacters,
+          }
+        : result.usage;
+      setIdeasUsage(mergedUsage);
       // Mark exhausted if AI returned fewer than requested
       const requested = maxCount ?? MAX_IDEAS_PER_RUN;
       if (newIdeas.length < requested) {
