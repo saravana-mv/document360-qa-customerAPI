@@ -8,6 +8,8 @@ export interface ProjectDoc {
   type: "project";
   name: string;
   description: string;
+  visibility: "team" | "personal";
+  memberCount: number;
   status: "active" | "archived";
   createdBy: string;
   createdAt: string;
@@ -33,11 +35,13 @@ export async function listProjects(): Promise<ProjectDoc[]> {
   return res.json() as Promise<ProjectDoc[]>;
 }
 
-export async function createProject(name: string, description?: string): Promise<ProjectDoc> {
+export async function createProject(
+  name: string, description?: string, visibility: "team" | "personal" = "team",
+): Promise<ProjectDoc> {
   const res = await apiFetch(BASE, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, description }),
+    body: JSON.stringify({ name, description, visibility }),
   });
   return res.json() as Promise<ProjectDoc>;
 }

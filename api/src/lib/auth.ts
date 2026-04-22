@@ -10,9 +10,9 @@
 // Production: AUTH_ENABLED must be "true" (or unset — defaults to enabled).
 
 import type { HttpRequest, HttpResponseInit } from "@azure/functions";
-import { getUsersContainer } from "./cosmosClient";
+import { getUsersContainer, getProjectMembersContainer } from "./cosmosClient";
 
-export type AppRole = "owner" | "qa_manager" | "qa_engineer";
+export type AppRole = "owner" | "project_owner" | "qa_manager" | "qa_engineer";
 const TENANT_ID = "kovai";
 const SEED_OWNER_OID = process.env.SEED_OWNER_OID ?? "";
 
@@ -218,8 +218,9 @@ export async function lookupUser(oid: string, displayName: string, email: string
 }
 
 /**
- * Wraps a handler with role-based access control.
+ * Wraps a handler with tenant-level role-based access control.
  * Must be used INSIDE withAuth (Entra is already validated).
+ * Use for tenant-wide operations (user management, etc.).
  */
 export function withRole<T extends unknown[]>(
   allowedRoles: AppRole[],
@@ -241,6 +242,114 @@ export function withRole<T extends unknown[]>(
     if (!allowedRoles.includes(user.role)) {
       return { status: 403, headers: CORS_HEADERS_JSON, body: JSON.stringify({ error: "insufficient_role", role: user.role, required: allowedRoles }) };
     }
+    return handler(req, ...rest);
+  });
+}
+
+// ── Per-project membership ─────────────────────────────────────────────────
+
+export type ProjectRole = "owner" | "qa_manager" | "qa_engineer";
+
+export interface ProjectMemberDocument {
+  id: string;                      // `${userId}_${projectId}`
+  projectId: string;               // partition key
+  userId: string;                  // Entra OID
+  email: string;
+  displayName: string;
+  role: ProjectRole;               // per-project role
+  status: "active" | "invited";
+  addedBy: string;
+  addedAt: string;
+  updatedAt: string;
+}
+
+/** Role hierarchy levels — higher number = more privilege. */
+const PROJECT_ROLE_LEVEL: Record<ProjectRole, number> = { owner: 3, qa_manager: 2, qa_engineer: 1 };
+
+/** In-memory cache for project membership lookups within a single function invocation. */
+const _memberCache = new Map<string, ProjectMemberDocument | null>();
+
+/**
+ * Look up a user's membership in a project.
+ * Returns null if no active membership exists.
+ */
+export async function lookupProjectMember(userId: string, projectId: string): Promise<ProjectMemberDocument | null> {
+  const cacheKey = `${userId}_${projectId}`;
+  if (_memberCache.has(cacheKey)) return _memberCache.get(cacheKey) ?? null;
+
+  const container = await getProjectMembersContainer();
+  try {
+    const { resource } = await container.item(cacheKey, projectId).read<ProjectMemberDocument>();
+    if (resource && resource.status === "active") {
+      _memberCache.set(cacheKey, resource);
+      return resource;
+    }
+  } catch {
+    // Not found
+  }
+  _memberCache.set(cacheKey, null);
+  return null;
+}
+
+/**
+ * Check if a user is a Super Owner (tenant-level owner).
+ * Super Owners bypass all project membership checks.
+ */
+export async function isSuperOwner(userId: string, displayName: string, email: string): Promise<boolean> {
+  const user = await lookupUser(userId, displayName, email);
+  return user?.role === "owner";
+}
+
+/**
+ * Wraps a handler with project-level role-based access control.
+ * Reads X-FlowForge-ProjectId header, checks membership.
+ * Super Owners (tenant role = "owner") bypass the membership check.
+ *
+ * @param minRoles - minimum project roles required (checked hierarchically)
+ */
+export function withProjectRole<T extends unknown[]>(
+  minRoles: ProjectRole[],
+  handler: (req: HttpRequest, ...rest: T) => Promise<HttpResponseInit>,
+): (req: HttpRequest, ...rest: T) => Promise<HttpResponseInit> {
+  return withAuth(async (req: HttpRequest, ...rest: T): Promise<HttpResponseInit> => {
+    if (!isAuthEnabled()) {
+      return handler(req, ...rest);
+    }
+
+    const principal = parseClientPrincipal(req);
+    if (!principal) {
+      return { status: 401, headers: CORS_HEADERS_JSON, body: JSON.stringify({ error: "Unauthorized" }) };
+    }
+
+    const email = principal.userDetails ?? "";
+    const user = await lookupUser(principal.userId, principal.userDetails ?? "Unknown", email);
+    if (!user) {
+      return { status: 403, headers: CORS_HEADERS_JSON, body: JSON.stringify({ error: "not_registered" }) };
+    }
+
+    // Super Owner bypass — tenant-level "owner" has access to everything
+    if (user.role === "owner") {
+      return handler(req, ...rest);
+    }
+
+    // Read project ID from header
+    const projectId = req.headers.get("x-flowforge-projectid");
+    if (!projectId) {
+      return { status: 400, headers: CORS_HEADERS_JSON, body: JSON.stringify({ error: "X-FlowForge-ProjectId header is required" }) };
+    }
+
+    // Check project membership
+    const member = await lookupProjectMember(principal.userId, projectId);
+    if (!member) {
+      return { status: 403, headers: CORS_HEADERS_JSON, body: JSON.stringify({ error: "no_project_access", projectId }) };
+    }
+
+    // Check minimum role level
+    const minLevel = Math.min(...minRoles.map((r) => PROJECT_ROLE_LEVEL[r]));
+    if (PROJECT_ROLE_LEVEL[member.role] < minLevel) {
+      return { status: 403, headers: CORS_HEADERS_JSON, body: JSON.stringify({ error: "insufficient_project_role", role: member.role, required: minRoles }) };
+    }
+
     return handler(req, ...rest);
   });
 }

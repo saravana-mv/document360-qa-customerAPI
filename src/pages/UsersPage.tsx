@@ -14,6 +14,7 @@ interface UserRow {
 
 const ROLE_COLOR: Record<AppRole, string> = {
   owner: "bg-[#fbefff] text-[#8250df] border-[#8250df]/30",
+  project_owner: "bg-[#fff8c5] text-[#9a6700] border-[#9a6700]/30",
   qa_manager: "bg-[#ddf4ff] text-[#0969da] border-[#0969da]/30",
   qa_engineer: "bg-[#dafbe1] text-[#1a7f37] border-[#1a7f37]/30",
 };

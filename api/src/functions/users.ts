@@ -75,7 +75,7 @@ async function inviteUser(req: HttpRequest): Promise<HttpResponseInit> {
     const role = body.role as AppRole | undefined;
 
     if (!email || !role) return err(400, "email and role are required");
-    if (!["owner", "qa_manager", "qa_engineer"].includes(role)) return err(400, "Invalid role");
+    if (!["owner", "project_owner", "qa_manager", "qa_engineer"].includes(role)) return err(400, "Invalid role");
 
     const container = await getUsersContainer();
 

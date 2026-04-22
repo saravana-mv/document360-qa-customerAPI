@@ -6,8 +6,9 @@
 // DELETE /api/projects/{id}     — archive a project (soft-delete)
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import { withAuth, withRole, getUserInfo, lookupUser, parseClientPrincipal } from "../lib/auth";
-import { getProjectsContainer } from "../lib/cosmosClient";
+import { withAuth, withRole, getUserInfo, lookupUser, parseClientPrincipal, isSuperOwner, lookupProjectMember } from "../lib/auth";
+import type { ProjectMemberDocument } from "../lib/auth";
+import { getProjectsContainer, getProjectMembersContainer } from "../lib/cosmosClient";
 import { audit } from "../lib/auditLog";
 import { randomUUID } from "node:crypto";
 
@@ -33,6 +34,8 @@ interface ProjectDocument {
   type: "project";
   name: string;
   description: string;
+  visibility: "team" | "personal";
+  memberCount: number;
   status: "active" | "archived";
   createdBy: string;
   createdAt: string;
@@ -41,22 +44,26 @@ interface ProjectDocument {
 }
 
 // ── GET /api/projects ───────────────────────────────────────────────────────
-// Auto-seeds a default project on first access if there's an existing projectId
-// in the request header (from settings). This migrates existing data seamlessly.
+// Super Owners see all active projects. Others see only projects they are members of.
+// Auto-seeds a default project on first access if there's an existing projectId.
 async function handleList(req: HttpRequest): Promise<HttpResponseInit> {
   try {
+    const { oid, name: userName } = getUserInfo(req);
+    const principal = parseClientPrincipal(req);
+    const email = principal?.userDetails ?? "";
+    const superOwner = await isSuperOwner(oid, userName, email);
+
     const container = await getProjectsContainer();
-    const { resources } = await container.items.query<ProjectDocument>({
+    const { resources: allProjects } = await container.items.query<ProjectDocument>({
       query: "SELECT * FROM c WHERE c.tenantId = @tid AND c.status = 'active' ORDER BY c.name",
       parameters: [{ name: "@tid", value: TENANT_ID }],
     }).fetchAll();
 
     // Auto-backfill: if no projects exist but an existing projectId is in use,
     // create a default project doc using that ID so existing data stays linked.
-    if (resources.length === 0) {
+    if (allProjects.length === 0) {
       const existingPid = req.headers.get("x-flowforge-projectid");
       if (existingPid) {
-        const { oid } = getUserInfo(req);
         const now = new Date().toISOString();
         const seedDoc: ProjectDocument = {
           id: existingPid,
@@ -64,6 +71,8 @@ async function handleList(req: HttpRequest): Promise<HttpResponseInit> {
           type: "project",
           name: "Default Project",
           description: "Auto-created from existing data",
+          visibility: "team",
+          memberCount: 1,
           status: "active",
           createdBy: oid,
           createdAt: now,
@@ -71,11 +80,43 @@ async function handleList(req: HttpRequest): Promise<HttpResponseInit> {
           updatedAt: now,
         };
         await container.items.upsert(seedDoc);
-        resources.push(seedDoc);
+        allProjects.push(seedDoc);
+
+        // Also create membership for the creator
+        const membersContainer = await getProjectMembersContainer();
+        const memberDoc: ProjectMemberDocument = {
+          id: `${oid}_${existingPid}`,
+          projectId: existingPid,
+          userId: oid,
+          email,
+          displayName: userName,
+          role: "owner",
+          status: "active",
+          addedBy: "system",
+          addedAt: now,
+          updatedAt: now,
+        };
+        await membersContainer.items.upsert(memberDoc);
       }
     }
 
-    const clean = resources.map((u) => {
+    let projects: ProjectDocument[];
+
+    if (superOwner) {
+      // Super Owner sees everything
+      projects = allProjects;
+    } else {
+      // Non-super-owners: find their memberships and filter
+      const membersContainer = await getProjectMembersContainer();
+      const { resources: memberships } = await membersContainer.items.query<ProjectMemberDocument>({
+        query: "SELECT c.projectId FROM c WHERE c.userId = @uid AND c.status = 'active'",
+        parameters: [{ name: "@uid", value: oid }],
+      }).fetchAll();
+      const memberProjectIds = new Set(memberships.map((m) => m.projectId));
+      projects = allProjects.filter((p) => memberProjectIds.has(p.id));
+    }
+
+    const clean = projects.map((u) => {
       const { _rid, _self, _etag, _attachments, _ts, ...rest } = u as unknown as Record<string, unknown>;
       return rest;
     });
@@ -86,20 +127,29 @@ async function handleList(req: HttpRequest): Promise<HttpResponseInit> {
 }
 
 // ── POST /api/projects ──────────────────────────────────────────────────────
+// Any registered user can create a project. The creator becomes the project owner.
 async function handleCreate(req: HttpRequest): Promise<HttpResponseInit> {
   try {
-    const { oid } = getUserInfo(req);
-    const body = (await req.json()) as { name?: string; description?: string };
+    const { oid, name: userName } = getUserInfo(req);
+    const principal = parseClientPrincipal(req);
+    const email = principal?.userDetails ?? "";
+
+    const body = (await req.json()) as { name?: string; description?: string; visibility?: string };
     const name = body.name?.trim();
     if (!name) return err(400, "name is required");
 
+    const visibility = body.visibility === "personal" ? "personal" as const : "team" as const;
+
     const now = new Date().toISOString();
+    const projectId = randomUUID();
     const doc: ProjectDocument = {
-      id: randomUUID(),
+      id: projectId,
       tenantId: TENANT_ID,
       type: "project",
       name,
       description: body.description?.trim() ?? "",
+      visibility,
+      memberCount: 1,
       status: "active",
       createdBy: oid,
       createdAt: now,
@@ -110,7 +160,23 @@ async function handleCreate(req: HttpRequest): Promise<HttpResponseInit> {
     const container = await getProjectsContainer();
     await container.items.create(doc);
 
-    audit(doc.id, "project.create", { oid, name: "System" }, doc.name, { projectId: doc.id });
+    // Auto-add creator as project owner
+    const membersContainer = await getProjectMembersContainer();
+    const memberDoc: ProjectMemberDocument = {
+      id: `${oid}_${projectId}`,
+      projectId,
+      userId: oid,
+      email,
+      displayName: userName,
+      role: "owner",
+      status: "active",
+      addedBy: "system",
+      addedAt: now,
+      updatedAt: now,
+    };
+    await membersContainer.items.create(memberDoc);
+
+    audit(projectId, "project.create", { oid, name: userName }, doc.name, { visibility });
 
     const { _rid, _self, _etag, _attachments, _ts, ...clean } = doc as unknown as Record<string, unknown>;
     return ok(clean, 201);
@@ -120,12 +186,25 @@ async function handleCreate(req: HttpRequest): Promise<HttpResponseInit> {
 }
 
 // ── PUT /api/projects/{id} ──────────────────────────────────────────────────
+// Requires Super Owner or project-level owner.
 async function handleUpdate(req: HttpRequest): Promise<HttpResponseInit> {
   try {
     const projectId = extractIdFromPath(req);
     if (!projectId) return err(400, "Project ID is required");
 
-    const { oid } = getUserInfo(req);
+    const { oid, name: userName } = getUserInfo(req);
+    const principal = parseClientPrincipal(req);
+    const email = principal?.userDetails ?? "";
+
+    // Access check: Super Owner or project owner
+    const superOwnerFlag = await isSuperOwner(oid, userName, email);
+    if (!superOwnerFlag) {
+      const member = await lookupProjectMember(oid, projectId);
+      if (!member || member.role !== "owner") {
+        return err(403, "Only project owners can update projects");
+      }
+    }
+
     const body = (await req.json()) as { name?: string; description?: string };
 
     const container = await getProjectsContainer();
@@ -150,12 +229,25 @@ async function handleUpdate(req: HttpRequest): Promise<HttpResponseInit> {
 }
 
 // ── DELETE /api/projects/{id} — soft-delete (archive) ───────────────────────
+// Requires Super Owner or project-level owner.
 async function handleArchive(req: HttpRequest): Promise<HttpResponseInit> {
   try {
     const projectId = extractIdFromPath(req);
     if (!projectId) return err(400, "Project ID is required");
 
-    const { oid } = getUserInfo(req);
+    const { oid, name: userName } = getUserInfo(req);
+    const principal = parseClientPrincipal(req);
+    const email = principal?.userDetails ?? "";
+
+    // Access check: Super Owner or project owner
+    const superOwnerFlag = await isSuperOwner(oid, userName, email);
+    if (!superOwnerFlag) {
+      const member = await lookupProjectMember(oid, projectId);
+      if (!member || member.role !== "owner") {
+        return err(403, "Only project owners can archive projects");
+      }
+    }
+
     const container = await getProjectsContainer();
     const { resource } = await container.item(projectId, TENANT_ID).read<ProjectDocument>();
     if (!resource) return err(404, "Project not found");
@@ -188,17 +280,7 @@ function extractIdFromPath(req: HttpRequest): string | null {
 async function projectsRouter(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
   if (req.method === "GET") return handleList(req);
-  if (req.method === "POST") {
-    // Owner-only for creating projects
-    const principal = parseClientPrincipal(req);
-    if (principal) {
-      const user = await lookupUser(principal.userId, principal.userDetails ?? "Unknown", principal.userDetails ?? "");
-      if (!user || user.role !== "owner") {
-        return err(403, "Only owners can create projects");
-      }
-    }
-    return handleCreate(req);
-  }
+  if (req.method === "POST") return handleCreate(req);
   return err(405, "Method Not Allowed");
 }
 
@@ -219,10 +301,10 @@ app.http("projects", {
   handler: withAuth(projectsRouter),
 });
 
-// PUT/DELETE /api/projects/{id} — owner only
+// PUT/DELETE /api/projects/{id} — access checked inside handlers (Super Owner or project owner)
 app.http("projectsItem", {
   methods: ["PUT", "DELETE", "OPTIONS"],
   authLevel: "anonymous",
   route: "projects/{id}",
-  handler: withRole(["owner"], projectsItemRouter),
+  handler: withAuth(projectsItemRouter),
 });
