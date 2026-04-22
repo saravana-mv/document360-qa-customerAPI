@@ -18,15 +18,15 @@ FlowForge is an AI-assisted API testing platform for Document360. It lets QA tea
 - **Settings** (`src/pages/SettingsPage.tsx`) — General, API Keys, Members, Users, Audit Log (role-gated tabs)
 
 ### Data Layer
-- **Cosmos DB** (11 containers, all partitioned by `/projectId`): `flows`, `ideas`, `test-runs`, `settings` (`/userId`), `users` (`/tenantId`), `api-keys`, `audit-log`, `flow-chat-sessions`, `projects` (`/tenantId`), `project-members`
+- **Cosmos DB** (12 containers, all partitioned by `/projectId`): `flows`, `ideas`, `test-runs`, `settings` (`/userId`), `users` (`/tenantId`), `api-keys`, `audit-log`, `flow-chat-sessions`, `projects` (`/tenantId`), `project-members`, `ai-usage`
 - **Blob Storage**: Only `spec-files` container remains (reference docs, `_sources.json` manifests). All blobs scoped under `{projectId}/` prefix for multi-tenant isolation.
 - **localStorage**: Pure UI state only (tree expansion, panel widths, breakpoints)
 
 ### Key Stores (Zustand)
-`auth.store` (OAuth session), `setup.store` (project/version/AI model), `user.store` (role), `project.store` (project list/selection), `flowStatus.store` (flow activation), `runner.store` (test execution), `scenarioOrg.store` (folder tree), `aiCost.store` (spend tracking), `breakpoints.store` (step pause/resume)
+`auth.store` (OAuth session), `setup.store` (project/version/AI model), `user.store` (role), `project.store` (project list/selection), `flowStatus.store` (flow activation), `runner.store` (test execution), `scenarioOrg.store` (folder tree), `aiCost.store` (spend tracking), `aiCredits.store` (credit budgets/usage), `breakpoints.store` (step pause/resume)
 
 ### API Functions (`api/src/functions/`)
-25+ Azure Functions. All wrapped with `withAuth()`. Key routes: `/api/spec-files/*`, `/api/flow-files`, `/api/flow-chat`, `/api/generate-flow-ideas`, `/api/generate-flow`, `/api/run-scenario`, `/api/d360/*` (proxy), `/api/active-tests`, `/api/test-runs`, `/api/users`, `/api/api-keys`, `/api/audit-log`, `/api/projects`, `/api/project-members`
+25+ Azure Functions. All wrapped with `withAuth()`. Key routes: `/api/spec-files/*`, `/api/flow-files`, `/api/flow-chat`, `/api/generate-flow-ideas`, `/api/generate-flow`, `/api/run-scenario`, `/api/d360/*` (proxy), `/api/active-tests`, `/api/test-runs`, `/api/users`, `/api/api-keys`, `/api/audit-log`, `/api/projects`, `/api/project-members`, `/api/ai-credits`
 
 ### Auth Flow
 Entra ID SSO → `EntraGate` auto-login → `ProjectGate` redirects to `/projects` if no project selected → `withAuth()` extracts OID/project from claims → `withProjectRole()` enforces per-project membership → D360 tokens in Azure Table Storage → proxy injects bearer at `/api/d360/*` → browser never holds real D360 token
@@ -133,6 +133,9 @@ For Azure Functions 500 with empty body: enable **Application Insights first** b
 
 ### Cost Tracking (MANDATORY)
 Every AI API call must report cost to `useAiCostStore`. Never add AI calls without wiring cost tracking. TopBar shows cumulative spend.
+
+### Credit Enforcement
+AI endpoints (`generateFlowIdeas`, `generateFlow`, `flowChat`) check project/user credit budgets before calling Claude (returns 402 if exhausted) and record usage after. Credits are seeded on project creation. Super Owners manage budgets via `/api/ai-credits`. TopBar shows project credit usage pill with red "exhausted" state.
 
 ### Model Selection
 Shared registry at `api/src/lib/modelPricing.ts`. Default: Sonnet 4.6 ($3/$15 per Mtok). Opus overkill for structured output.

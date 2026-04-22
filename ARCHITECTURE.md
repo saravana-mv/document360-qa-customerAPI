@@ -50,6 +50,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 | `explorerUI.store` | `expandedVersions`, `expandedFolders`, `rearrangeMode` | UI-only state for tree expansion and drag-drop mode. |
 | `aiCost.store` | `workshopCostUsd`, `adhocCostUsd` | Every AI call must report here. TopBar shows total. |
 | `breakpoints.store` | `ids: Set<testId>` | Per-step pause/resume. Persisted in localStorage. |
+| `aiCredits.store` | `projectCredits`, `userCredits`, `loading` | Loads project + user credit budgets/usage from `/api/ai-credits`. Refreshed after cost events. |
 | `project.store` | `projects`, `selectedProject`, `loading` | Project list, selection, CRUD. ProjectPicker in TopBar. |
 | `entraAuth.store` | `tenant`, `clientId`, `redirectUri` | Entra ID configuration. |
 
@@ -85,6 +86,7 @@ All API calls go through `client.ts` which adds auth headers and rewrites `/vN/`
 | `auditLogApi.ts` | `queryAuditLog` |
 | `projectsApi.ts` | `listProjects`, `createProject`, `updateProject`, `archiveProject` |
 | `projectMembersApi.ts` | `listProjectMembers`, `addProjectMember`, `updateProjectMember`, `removeProjectMember` |
+| `aiCreditsApi.ts` | `getCredits`, `updateProjectBudget`, `updateUserBudget`, `listUserCredits` |
 
 ### Test Execution Engine (`src/lib/tests/`)
 
@@ -147,6 +149,7 @@ tests/
 | `projects` | `/api/projects` | GET/POST/PUT/DELETE | Project CRUD (GET filtered by membership, POST project_owner+, PUT/DELETE project_owner+) |
 | `projectMembers` | `/api/project-members` | GET/POST/PUT/DELETE | Project membership CRUD (project_owner+). POST auto-creates tenant `users` doc with role `member` if invitee doesn't exist. |
 | `resetProject` | `/api/reset-project` | POST | Owner-only project wipe |
+| `aiCredits` | `/api/ai-credits` | GET/PUT | Credit status (GET), update project budget (PUT `/project`), update user budget (PUT `/user/{userId}`), list user credits (GET `/users`) — Super Owner only for writes |
 
 ### Shared Libraries (`api/src/lib/`)
 
@@ -154,13 +157,14 @@ tests/
 |--------|---------|
 | `auth.ts` | `withAuth()` wrapper, `withProjectRole()` per-project access control, `getUserInfo(req)`, `getProjectId(req)`, `lookupProjectMember()`, `isSuperOwner()` — extracts Entra ID claims |
 | `apiKeyAuth.ts` | `validateApiKey()` for public API endpoints |
-| `cosmosClient.ts` | Lazy-init Cosmos client + `ensureContainer()` for all 11 containers |
+| `cosmosClient.ts` | Lazy-init Cosmos client + `ensureContainer()` for all 12 containers |
 | `blobClient.ts` | Azure Blob Storage (upload, download, list, delete, exists) |
 | `browserFetch.ts` | `fetchWithCookieJar()` + browser User-Agent headers for Cloudflare-fronted URLs |
 | `tokenStore.ts` | Azure Table Storage for D360 OAuth tokens |
 | `versionApiKeyStore.ts` | Table Storage for per-version API keys |
 | `d360Token.ts` | Fetch/cache D360 tokens from Table Storage |
 | `modelPricing.ts` | `resolveModel()`, `computeCost()`, pricing for Opus/Sonnet/Haiku |
+| `aiCredits.ts` | `checkCredits()`, `recordUsage()`, `seedProjectCredits()`, `seedUserCredits()`, `updateProjectBudget()`, `updateUserBudget()` — credit enforcement for AI endpoints |
 | `auditLog.ts` | Fire-and-forget `audit()` function, writes to Cosmos `audit-log` container. Actions include `project.member_add`, `project.member_remove`, `project.member_role_change`. |
 
 ### Server-Side Flow Runner (`api/src/lib/flowRunner/`)
@@ -189,6 +193,7 @@ Used by the Public API (`/api/run-scenario`) to execute flows without a browser:
 | `flow-chat-sessions` | `/projectId` | `{ id, projectId, userId, title, messages[], confirmedPlan?, totalCost, ... }` |
 | `projects` | `/tenantId` | `{ id, tenantId, name, description?, visibility (team/personal), memberCount, createdBy, createdAt, status, ... }` |
 | `project-members` | `/projectId` | `{ id, projectId, userId, role (project_owner/qa_manager/qa_engineer/member), addedBy, addedAt, ... }` |
+| `ai-usage` | `/projectId` | `project_credits`: `{ id, projectId, type, budgetUsd, usedUsd, ... }` / `user_credits`: `{ id, projectId, type, userId, budgetUsd, usedUsd, ... }` |
 
 ### Blob Storage Layout
 

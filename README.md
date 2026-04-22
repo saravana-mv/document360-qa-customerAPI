@@ -14,10 +14,10 @@ An AI-assisted API testing platform for Document360. Import API specifications, 
 |---------|--------|
 | Frontend | React 19 + Vite 8 + TypeScript 5.9 |
 | Styling | Tailwind CSS v4 (GitHub Primer design language) |
-| State | Zustand (12 stores) |
+| State | Zustand (13 stores) |
 | Routing | React Router v7 (BrowserRouter) |
 | Backend | Azure Functions v4 (Node.js, esbuild bundled) |
-| Database | Azure Cosmos DB (serverless, 11 containers) |
+| Database | Azure Cosmos DB (serverless, 12 containers) |
 | File Storage | Azure Blob Storage (spec files only) |
 | Auth | Entra ID (Azure AD) SSO + D360 OAuth proxy |
 | AI | Anthropic Claude API (Sonnet 4.6 default, Opus 4.6, Haiku 4.5) |
@@ -40,6 +40,7 @@ An AI-assisted API testing platform for Document360. Import API specifications, 
 - **XML Generation** — Convert plans into validated `.flow.xml` definitions
 - **AI Edit Mode** — Modify existing flows with natural language instructions + diff review
 - Cost tracking with per-call and cumulative spend display
+- AI credit budgets per project/user with enforcement (402 when exhausted) and Super Owner management
 
 ### Scenario Manager
 - Version-based accordion layout with folder trees
@@ -184,7 +185,7 @@ Both environments follow the same build steps:
 ├── src/                        # React frontend
 │   ├── pages/                  # ProjectSelectionPage, SpecFilesPage, TestPage, SettingsPage, etc.
 │   ├── components/             # auth/, common/, specfiles/, explorer/, runner/, results/, setup/
-│   ├── store/                  # 12 Zustand stores
+│   ├── store/                  # 13 Zustand stores
 │   ├── lib/
 │   │   ├── api/                # 21 API client modules
 │   │   ├── tests/              # Test execution engine + flow XML system
@@ -198,7 +199,7 @@ Both environments follow the same build steps:
 │   ├── functions/              # 25+ HTTP endpoint handlers
 │   ├── lib/
 │   │   ├── flowRunner/         # Server-side XML→test execution engine
-│   │   ├── cosmosClient.ts     # 11 Cosmos containers
+│   │   ├── cosmosClient.ts     # 12 Cosmos containers
 │   │   ├── auth.ts             # Entra ID claim extraction
 │   │   ├── browserFetch.ts     # Cookie jar + browser headers for URL fetching
 │   │   └── modelPricing.ts     # Claude model token costs
