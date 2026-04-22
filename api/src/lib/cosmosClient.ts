@@ -11,7 +11,7 @@
 import { CosmosClient, Container, Database } from "@azure/cosmos";
 
 const CONNECTION_STRING = process.env.COSMOS_CONNECTION_STRING ?? "";
-const DATABASE_NAME = "flowforge";
+const DATABASE_NAME = process.env.COSMOS_DATABASE_NAME ?? "flowforge";
 
 const CONTAINER_DEFS = [
   { id: "flows", partitionKey: "/projectId" },
