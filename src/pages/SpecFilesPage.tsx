@@ -1429,6 +1429,9 @@ export function SpecFilesPage() {
       })()
     : 0;
 
+  // True when the active context has no spec files to work with
+  const noSpecFiles = isFileContext ? false : folderMdCount === 0;
+
   // For file context: split path into parent + filename (without extension)
   const fileDisplayName = isFileContext && selectedPath
     ? selectedPath.replace(/\.md$/i, "").split("/").pop() ?? ""
@@ -1531,7 +1534,8 @@ export function SpecFilesPage() {
                 {/* New Flow button */}
                 <button
                   onClick={() => setChatActive(true)}
-                  disabled={chatActive}
+                  disabled={chatActive || noSpecFiles}
+                  title={noSpecFiles ? "Upload spec files first" : chatActive ? "Flow chat is already open" : "Design a new flow interactively"}
                   className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-[#0969da] hover:text-[#0860ca] px-2 py-1 rounded-md hover:bg-[#ddf4ff] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -1776,7 +1780,8 @@ export function SpecFilesPage() {
                         <button
                           key={n}
                           onClick={() => void handleGenerateFlowIdeas(activePath!, n)}
-                          disabled={!isFileContext && folderMdCount === 0}
+                          disabled={noSpecFiles}
+                          title={noSpecFiles ? "Upload spec files (.md) first" : `Generate ${n} test flow idea${n > 1 ? "s" : ""}`}
                           className="inline-flex items-center gap-1.5 bg-[#0969da] hover:bg-[#0860ca] text-white text-sm font-medium rounded-md px-3 py-2 transition-colors border border-[#0969da]/80 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -1790,7 +1795,9 @@ export function SpecFilesPage() {
                       <span className="text-xs text-[#656d76]">or design a flow interactively</span>
                       <button
                         onClick={() => setChatActive(true)}
-                        className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md px-3 py-2 transition-colors border border-[#1a7f37]/80"
+                        disabled={noSpecFiles}
+                        title={noSpecFiles ? "Upload spec files (.md) first" : "Design a new flow interactively"}
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md px-3 py-2 transition-colors border border-[#1a7f37]/80 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />

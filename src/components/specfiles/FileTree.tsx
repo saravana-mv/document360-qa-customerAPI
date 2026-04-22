@@ -165,6 +165,7 @@ interface FolderMenuProps {
   folderPath: string;
   isSelected: boolean;
   hasSourcedFiles: boolean;
+  hasSpecFiles: boolean;
   onNewSubfolder: () => void;
   onUploadFiles: () => void;
   onImportFromUrl: () => void;
@@ -174,16 +175,17 @@ interface FolderMenuProps {
   onDelete: () => void;
 }
 
-function FolderMenu({ isSelected, hasSourcedFiles, onNewSubfolder, onUploadFiles, onImportFromUrl, onSyncFolder, onGenerateFlowIdeas, onRename, onDelete }: FolderMenuProps) {
+function FolderMenu({ isSelected, hasSourcedFiles, hasSpecFiles, onNewSubfolder, onUploadFiles, onImportFromUrl, onSyncFolder, onGenerateFlowIdeas, onRename, onDelete }: FolderMenuProps) {
+  const noSpecTip = "Upload spec files (.md) first";
   const items: MenuItem[] = [
     { label: "New subfolder", icon: MenuIcons.folder, onClick: onNewSubfolder },
     { label: "Upload files", icon: MenuIcons.upload, onClick: onUploadFiles },
     { label: "Import from URL", icon: MenuIcons.link, onClick: onImportFromUrl },
     { label: "Sync URL sources", icon: MenuIcons.sync, onClick: onSyncFolder, disabled: !hasSourcedFiles, tooltip: hasSourcedFiles ? undefined : "No URL-sourced files in this folder" },
     "separator",
-    { label: "Generate 1 idea", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(1) },
-    { label: "Generate 3 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(3) },
-    { label: "Generate 5 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(5) },
+    { label: "Generate 1 idea", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(1), disabled: !hasSpecFiles, tooltip: hasSpecFiles ? undefined : noSpecTip },
+    { label: "Generate 3 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(3), disabled: !hasSpecFiles, tooltip: hasSpecFiles ? undefined : noSpecTip },
+    { label: "Generate 5 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(5), disabled: !hasSpecFiles, tooltip: hasSpecFiles ? undefined : noSpecTip },
     "separator",
     { label: "Rename", icon: MenuIcons.rename, onClick: onRename },
     { label: "Delete folder", icon: MenuIcons.trash, onClick: onDelete, danger: true },
@@ -196,6 +198,12 @@ function FolderMenu({ isSelected, hasSourcedFiles, onNewSubfolder, onUploadFiles
       }`}
     />
   );
+}
+
+/** Recursively count .md files under a folder node */
+function countMdFiles(node: TreeNode): number {
+  if (node.type === "file") return node.name.endsWith(".md") ? 1 : 0;
+  return node.children.reduce((sum, child) => sum + countMdFiles(child), 0);
 }
 
 // ── Tree node row ─────────────────────────────────────────────────────────────
@@ -321,6 +329,7 @@ function TreeNodeRow({
                 folderPath={node.path}
                 isSelected={isSelected && !isDropTarget}
                 hasSourcedFiles={sourcedPaths ? Array.from(sourcedPaths).some((p) => p.startsWith(node.path + "/")) : false}
+                hasSpecFiles={countMdFiles(node) > 0}
                 onNewSubfolder={() => onStartSubfolder(node.path)}
                 onUploadFiles={() => onUploadFiles(node.path)}
                 onImportFromUrl={() => onImportFromUrl(node.path)}
