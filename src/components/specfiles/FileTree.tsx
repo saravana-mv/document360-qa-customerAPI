@@ -114,7 +114,7 @@ function detectHttpMethod(filename: string): string | null {
 
 function HttpMethodTag({ method }: { method: string }) {
   return (
-    <span className={`text-[9px] font-bold leading-none px-1 py-[1px] rounded ${METHOD_COLORS[method] ?? ""} shrink-0`}>
+    <span className={`text-[9px] font-bold leading-none w-[34px] text-center py-[2px] rounded ${METHOD_COLORS[method] ?? ""} shrink-0 inline-block`}>
       {method}
     </span>
   );
