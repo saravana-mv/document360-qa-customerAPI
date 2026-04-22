@@ -246,13 +246,10 @@ async function handleDelete(req: HttpRequest): Promise<HttpResponseInit> {
     const principal = parseClientPrincipal(req);
     const email = principal?.userDetails ?? "";
 
-    // Access check: Super Owner or project owner
+    // Only Super Owner (tenant-level owner) can delete projects
     const superOwnerFlag = await isSuperOwner(oid, userName, email);
     if (!superOwnerFlag) {
-      const member = await lookupProjectMember(oid, projectId);
-      if (!member || member.role !== "owner") {
-        return err(403, "Only project owners can delete projects");
-      }
+      return err(403, "Only Super Owners can delete projects");
     }
 
     const projContainer = await getProjectsContainer();
