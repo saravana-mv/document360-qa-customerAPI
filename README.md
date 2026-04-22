@@ -14,7 +14,7 @@ An AI-assisted API testing platform for Document360. Import API specifications, 
 |---------|--------|
 | Frontend | React 19 + Vite 8 + TypeScript 5.9 |
 | Styling | Tailwind CSS v4 (GitHub Primer design language) |
-| State | Zustand (13 stores) |
+| State | Zustand (14 stores) |
 | Routing | React Router v7 (BrowserRouter) |
 | Backend | Azure Functions v4 (Node.js, esbuild bundled) |
 | Database | Azure Cosmos DB (serverless, 12 containers) |
@@ -68,6 +68,7 @@ An AI-assisted API testing platform for Document360. Import API specifications, 
 - Full audit log with filtering, pagination, and search
 - Multi-project support with full-screen Project Selection page (tile grid, create, team/personal visibility)
 - Per-project membership management via Settings > Members tab (add/remove members, assign roles)
+- Project-level variables (`proj.varName`) — shared key/value pairs interpolated at runtime in both browser and server runners
 - Project reset (owner only — wipes flows, ideas, runs)
 
 ### Deployment Intelligence
@@ -185,7 +186,7 @@ Both environments follow the same build steps:
 ├── src/                        # React frontend
 │   ├── pages/                  # ProjectSelectionPage, SpecFilesPage, TestPage, SettingsPage, etc.
 │   ├── components/             # auth/, common/, specfiles/, explorer/, runner/, results/, setup/
-│   ├── store/                  # 13 Zustand stores
+│   ├── store/                  # 14 Zustand stores
 │   ├── lib/
 │   │   ├── api/                # 21 API client modules
 │   │   ├── tests/              # Test execution engine + flow XML system

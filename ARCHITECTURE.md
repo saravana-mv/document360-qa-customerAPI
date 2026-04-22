@@ -32,7 +32,8 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 | Project Selection | `src/pages/ProjectSelectionPage.tsx` | Full-screen tile grid — first screen after login, create project, team/personal visibility |
 | Spec Manager | `src/pages/SpecFilesPage.tsx` | Central hub — spec files, AI workshop (ideas + flows), flow chat panel |
 | Scenario Manager | `src/pages/TestPage.tsx` | Version accordions, folder tree, test runner, run history |
-| Settings | `src/pages/SettingsPage.tsx` | Tabs: General, API Keys (qa_manager+), Members (project_owner+), Users (owner), Audit Log (qa_manager+) |
+| Settings | `src/pages/SettingsPage.tsx` | Tabs: General, API Keys (qa_manager+), Variables (qa_manager+), Members (project_owner+), Users (owner), Audit Log (qa_manager+) |
+| Variables | `src/pages/ProjectVariablesPage.tsx` | Project-level key/value variables (qa_manager+), `proj.varName` interpolation |
 | Members | `src/pages/MembersPage.tsx` | Per-project member list, add/remove members, role assignment |
 | Audit Log | `src/pages/AuditLogPage.tsx` | Full audit viewer with filters and pagination |
 | Users | `src/pages/UsersPage.tsx` | Team management, role assignment |
@@ -53,6 +54,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 | `aiCredits.store` | `projectCredits`, `userCredits`, `loading` | Loads project + user credit budgets/usage from `/api/ai-credits`. Refreshed after cost events. |
 | `project.store` | `projects`, `selectedProject`, `loading` | Project list, selection, CRUD. ProjectPicker in TopBar. |
 | `entraAuth.store` | `tenant`, `clientId`, `redirectUri` | Entra ID configuration. |
+| `projectVariables.store` | `variables`, `loading` | Project-level key/value pairs. Loaded from `/api/project-variables`. Used as `proj.varName` in flow interpolation. |
 
 ### Component Organization
 
@@ -87,6 +89,7 @@ All API calls go through `client.ts` which adds auth headers and rewrites `/vN/`
 | `projectsApi.ts` | `listProjects`, `createProject`, `updateProject`, `archiveProject` |
 | `projectMembersApi.ts` | `listProjectMembers`, `addProjectMember`, `updateProjectMember`, `removeProjectMember` |
 | `aiCreditsApi.ts` | `getCredits`, `updateProjectBudget`, `updateUserBudget`, `listUserCredits` |
+| `projectVariablesApi.ts` | `getProjectVariables`, `saveProjectVariables` |
 
 ### Test Execution Engine (`src/lib/tests/`)
 
@@ -112,7 +115,7 @@ tests/
 2. `parser.ts` parses XML into `FlowElement` tree
 3. `builder.ts` converts to `TestDef` with assertions, captures, flags
 4. `registry.ts` stores definitions
-5. `runner.ts` executes: resolves `{{state.*}}` interpolation, runs HTTP calls, evaluates assertions
+5. `runner.ts` executes: resolves `{{state.*}}`, `{{proj.*}}` (project variables) interpolation, runs HTTP calls, evaluates assertions
 6. Teardown steps run even if prior steps fail
 
 ---
@@ -150,6 +153,7 @@ tests/
 | `projectMembers` | `/api/project-members` | GET/POST/PUT/DELETE | Project membership CRUD (project_owner+). POST auto-creates tenant `users` doc with role `member` if invitee doesn't exist. |
 | `resetProject` | `/api/reset-project` | POST | Owner-only project wipe |
 | `aiCredits` | `/api/ai-credits` | GET/PUT | Credit status (GET), update project budget (PUT `/project`), update user budget (PUT `/user/{userId}`), list user credits (GET `/users`) — Super Owner only for writes |
+| `projectVariables` | `/api/project-variables` | GET/PUT | Project-level key/value variables stored in `settings` container. GET returns all variables; PUT saves (qa_manager+). Audit action: `project.variables.update`. |
 
 ### Shared Libraries (`api/src/lib/`)
 
@@ -165,7 +169,7 @@ tests/
 | `d360Token.ts` | Fetch/cache D360 tokens from Table Storage |
 | `modelPricing.ts` | `resolveModel()`, `computeCost()`, pricing for Opus/Sonnet/Haiku |
 | `aiCredits.ts` | `checkCredits()`, `recordUsage()`, `seedProjectCredits()`, `seedUserCredits()`, `updateProjectBudget()`, `updateUserBudget()` — credit enforcement for AI endpoints |
-| `auditLog.ts` | Fire-and-forget `audit()` function, writes to Cosmos `audit-log` container. Actions include `project.member_add`, `project.member_remove`, `project.member_role_change`. |
+| `auditLog.ts` | Fire-and-forget `audit()` function, writes to Cosmos `audit-log` container. Actions include `project.member_add`, `project.member_remove`, `project.member_role_change`, `project.variables.update`. |
 
 ### Server-Side Flow Runner (`api/src/lib/flowRunner/`)
 
@@ -175,7 +179,7 @@ Used by the Public API (`/api/run-scenario`) to execute flows without a browser:
 |--------|---------|
 | `parser.ts` | Parse flow XML into step instructions |
 | `executor.ts` | Execute steps (HTTP calls, assertions, captures) |
-| `interpolation.ts` | Replace `{{state.key}}` and `{{ctx.*}}` placeholders |
+| `interpolation.ts` | Replace `{{state.key}}`, `{{ctx.*}}`, and `{{proj.*}}` placeholders |
 | `scenarioResolver.ts` | Resolve scenario GUID → flow XML from Cosmos |
 | `types.ts` | `RunContext`, `ScenarioResult`, step types |
 
