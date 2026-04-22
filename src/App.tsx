@@ -17,6 +17,7 @@ const SetupPanel = lazy(() => import("./components/setup/SetupPanel").then((m) =
 const UsersContent = lazy(() => import("./pages/UsersPage").then((m) => ({ default: m.UsersContent })));
 const AuditLogContent = lazy(() => import("./pages/AuditLogPage").then((m) => ({ default: m.AuditLogContent })));
 const ApiKeysCard = lazy(() => import("./components/setup/ApiKeysCard").then((m) => ({ default: m.ApiKeysCard })));
+const MembersContent = lazy(() => import("./pages/MembersPage").then((m) => ({ default: m.MembersContent })));
 
 // Register placeholder suites (categories/drive stubs).
 // Articles tests come from .flow.xml files — loaded at runtime via loadFlowsFromQueue.
@@ -68,6 +69,7 @@ function AppRoutes() {
         {/* Settings — nested layout with secondary LHS nav */}
         <Route path="/settings" element={<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>}>
           <Route index element={<Suspense fallback={<PageLoader />}><SetupPanel /></Suspense>} />
+          <Route path="members" element={<Suspense fallback={<PageLoader />}><MembersContent /></Suspense>} />
           <Route path="api-keys" element={<Suspense fallback={<PageLoader />}><ApiKeysCard /></Suspense>} />
           <Route path="users" element={<Suspense fallback={<PageLoader />}><UsersContent /></Suspense>} />
           <Route path="audit-log" element={<Suspense fallback={<PageLoader />}><AuditLogContent /></Suspense>} />
