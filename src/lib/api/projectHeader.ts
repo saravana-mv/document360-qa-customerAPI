@@ -8,3 +8,8 @@ export function getProjectHeaders(): Record<string, string> {
   if (!pid) throw new Error("No project selected — cannot make API call");
   return { "X-FlowForge-ProjectId": pid };
 }
+
+/** Returns true if a project is selected, false otherwise. */
+export function hasProject(): boolean {
+  return !!useSetupStore.getState().selectedProjectId;
+}

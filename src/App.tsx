@@ -40,7 +40,10 @@ function AppRoutes() {
     void useSetupStore.getState().loadFromServer();
     // Pull every queued .flow.xml, register parsed steps as runnable tests,
     // and populate the flow-status store. Idempotent.
-    void loadFlowsFromQueue();
+    // Skip if no project is selected yet (fresh Cosmos — no settings saved).
+    if (useSetupStore.getState().selectedProjectId) {
+      void loadFlowsFromQueue();
+    }
 
     // Global handler: any 401 from the API client means the session is stale.
     // Clear auth + loaded tests so TestExplorer falls back to the settings card.

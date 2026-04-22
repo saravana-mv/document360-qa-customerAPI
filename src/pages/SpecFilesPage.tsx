@@ -178,6 +178,12 @@ export function SpecFilesPage() {
     workshopLoadedRef.current = true;
     (async () => {
       try {
+        // Skip Cosmos-backed ideas loading if no project is selected yet
+        const { hasProject } = await import("../lib/api/projectHeader");
+        if (!hasProject()) {
+          setWorkshopLoaded(true);
+          return;
+        }
         await migrateIdeasFromLocalStorage();
         const map = await getAllIdeas();
         // Clean up orphaned flows — flows whose ideaId doesn't match any idea
