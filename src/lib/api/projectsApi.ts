@@ -55,6 +55,7 @@ export async function updateProject(id: string, data: { name?: string; descripti
   return res.json() as Promise<ProjectDoc>;
 }
 
-export async function archiveProject(id: string): Promise<void> {
-  await apiFetch(`${BASE}/${id}`, { method: "DELETE" });
+export async function deleteProject(id: string): Promise<{ deleted: boolean; cleanup: Record<string, number> }> {
+  const res = await apiFetch(`${BASE}/${id}`, { method: "DELETE" });
+  return res.json() as Promise<{ deleted: boolean; cleanup: Record<string, number> }>;
 }

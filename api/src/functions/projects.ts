@@ -3,12 +3,17 @@
 // GET    /api/projects          — list all projects for the tenant
 // POST   /api/projects          — create a new project
 // PUT    /api/projects/{id}     — update project name/description
-// DELETE /api/projects/{id}     — archive a project (soft-delete)
+// DELETE /api/projects/{id}     — permanently delete project + all resources
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { withAuth, withRole, getUserInfo, lookupUser, parseClientPrincipal, isSuperOwner, lookupProjectMember } from "../lib/auth";
 import type { ProjectMemberDocument } from "../lib/auth";
-import { getProjectsContainer, getProjectMembersContainer } from "../lib/cosmosClient";
+import {
+  getProjectsContainer, getProjectMembersContainer, getFlowsContainer,
+  getIdeasContainer, getTestRunsContainer, getAuditLogContainer,
+  getFlowChatSessionsContainer, getApiKeysContainer, getSettingsContainer,
+} from "../lib/cosmosClient";
+import { listBlobs, deleteBlob } from "../lib/blobClient";
 import { audit } from "../lib/auditLog";
 import { randomUUID } from "node:crypto";
 
@@ -228,9 +233,11 @@ async function handleUpdate(req: HttpRequest): Promise<HttpResponseInit> {
   }
 }
 
-// ── DELETE /api/projects/{id} — soft-delete (archive) ───────────────────────
+// ── DELETE /api/projects/{id} — hard-delete with full cleanup ────────────────
+// Deletes the project and ALL related resources: blobs, flows, ideas, test-runs,
+// audit-log, chat sessions, api-keys, and project-members.
 // Requires Super Owner or project-level owner.
-async function handleArchive(req: HttpRequest): Promise<HttpResponseInit> {
+async function handleDelete(req: HttpRequest): Promise<HttpResponseInit> {
   try {
     const projectId = extractIdFromPath(req);
     if (!projectId) return err(400, "Project ID is required");
@@ -244,24 +251,64 @@ async function handleArchive(req: HttpRequest): Promise<HttpResponseInit> {
     if (!superOwnerFlag) {
       const member = await lookupProjectMember(oid, projectId);
       if (!member || member.role !== "owner") {
-        return err(403, "Only project owners can archive projects");
+        return err(403, "Only project owners can delete projects");
       }
     }
 
-    const container = await getProjectsContainer();
-    const { resource } = await container.item(projectId, TENANT_ID).read<ProjectDocument>();
+    const projContainer = await getProjectsContainer();
+    const { resource } = await projContainer.item(projectId, TENANT_ID).read<ProjectDocument>();
     if (!resource) return err(404, "Project not found");
-    if (resource.status === "archived") return err(400, "Project is already archived");
 
-    resource.status = "archived";
-    resource.updatedBy = oid;
-    resource.updatedAt = new Date().toISOString();
-    await container.item(projectId, TENANT_ID).replace(resource);
+    const deleted: Record<string, number> = {};
 
-    audit(projectId, "project.archive", { oid, name: "System" }, resource.name);
+    // ── Clean up Cosmos containers (all project-partitioned data) ──
+    const cosmosCleanups: Array<{ name: string; getter: () => Promise<import("@azure/cosmos").Container> }> = [
+      { name: "flows", getter: getFlowsContainer },
+      { name: "ideas", getter: getIdeasContainer },
+      { name: "test-runs", getter: getTestRunsContainer },
+      { name: "audit-log", getter: getAuditLogContainer },
+      { name: "flow-chat-sessions", getter: getFlowChatSessionsContainer },
+      { name: "api-keys", getter: getApiKeysContainer },
+      { name: "project-members", getter: getProjectMembersContainer },
+    ];
+
+    for (const { name, getter } of cosmosCleanups) {
+      try {
+        const container = await getter();
+        const { resources: docs } = await container.items.query<{ id: string }>({
+          query: "SELECT c.id FROM c WHERE c.projectId = @pid",
+          parameters: [{ name: "@pid", value: projectId }],
+        }).fetchAll();
+        let count = 0;
+        for (const doc of docs) {
+          try {
+            await container.item(doc.id, projectId).delete();
+            count++;
+          } catch { /* skip individual failures */ }
+        }
+        deleted[name] = count;
+      } catch { deleted[name] = 0; }
+    }
+
+    // ── Clean up blob storage (spec-files under projectId/ prefix) ──
+    try {
+      const blobs = await listBlobs(`${projectId}/`);
+      let blobCount = 0;
+      for (const blob of blobs) {
+        try {
+          await deleteBlob(blob.name);
+          blobCount++;
+        } catch { /* skip */ }
+      }
+      deleted["spec-files"] = blobCount;
+    } catch { deleted["spec-files"] = 0; }
+
+    // ── Delete the project document itself ──
+    await projContainer.item(projectId, TENANT_ID).delete();
+    deleted["project"] = 1;
 
     // Return 200 with body (not 204 — Azure Functions 204 body bug)
-    return ok({ archived: true, id: projectId });
+    return ok({ deleted: true, id: projectId, cleanup: deleted });
   } catch (e) {
     return err(500, e instanceof Error ? e.message : String(e));
   }
@@ -287,7 +334,7 @@ async function projectsRouter(req: HttpRequest, _ctx: InvocationContext): Promis
 async function projectsItemRouter(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
   if (req.method === "PUT") return handleUpdate(req);
-  if (req.method === "DELETE") return handleArchive(req);
+  if (req.method === "DELETE") return handleDelete(req);
   return err(405, "Method Not Allowed");
 }
 

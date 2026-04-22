@@ -2,7 +2,7 @@
 // Shows a tile grid of projects the user has access to.
 // No TopBar, no SideNav — standalone page.
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useProjectStore } from "../store/project.store";
 import { useSetupStore } from "../store/setup.store";
@@ -32,6 +32,7 @@ export function ProjectSelectionPage() {
   const error = useProjectStore((s) => s.error);
   const loadProjects = useProjectStore((s) => s.load);
   const createProject = useProjectStore((s) => s.create);
+  const removeProject = useProjectStore((s) => s.remove);
   const selectProject = useProjectStore((s) => s.select);
   const entraStatus = useEntraAuthStore((s) => s.status);
   const principal = useEntraAuthStore((s) => s.principal);
@@ -43,6 +44,10 @@ export function ProjectSelectionPage() {
   const [newDesc, setNewDesc] = useState("");
   const [newVisibility, setNewVisibility] = useState<"team" | "personal">("team");
   const [createError, setCreateError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ProjectDoc | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [confirmName, setConfirmName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -75,6 +80,21 @@ export function ProjectSelectionPage() {
       setCreateError(e instanceof Error ? e.message : String(e));
     }
   }
+
+  const handleDelete = useCallback(async () => {
+    if (!deleteTarget || confirmName !== deleteTarget.name) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await removeProject(deleteTarget.id);
+      setDeleteTarget(null);
+      setConfirmName("");
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleting(false);
+    }
+  }, [deleteTarget, confirmName, removeProject]);
 
   return (
     <div className="min-h-screen bg-[#f6f8fa] flex flex-col">
@@ -225,10 +245,10 @@ export function ProjectSelectionPage() {
           {projects.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {projects.map((project) => (
-                <button
+                <div
                   key={project.id}
+                  className="bg-white rounded-lg border border-[#d1d9e0] shadow-sm p-5 text-left hover:border-[#0969da] hover:shadow-md transition-all group relative cursor-pointer"
                   onClick={() => handleSelectProject(project)}
-                  className="bg-white rounded-lg border border-[#d1d9e0] shadow-sm p-5 text-left hover:border-[#0969da] hover:shadow-md transition-all group"
                 >
                   <div className="flex items-start justify-between mb-3">
                     {/* Folder icon */}
@@ -237,14 +257,26 @@ export function ProjectSelectionPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
                       </svg>
                     </div>
-                    {/* Visibility badge */}
-                    <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded-full border ${
-                      project.visibility === "personal"
-                        ? "bg-[#fff8c5] text-[#9a6700] border-[#9a6700]/20"
-                        : "bg-[#ddf4ff] text-[#0969da] border-[#0969da]/20"
-                    }`}>
-                      {VISIBILITY_LABEL[project.visibility ?? "team"]}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {/* Visibility badge */}
+                      <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded-full border ${
+                        project.visibility === "personal"
+                          ? "bg-[#fff8c5] text-[#9a6700] border-[#9a6700]/20"
+                          : "bg-[#ddf4ff] text-[#0969da] border-[#0969da]/20"
+                      }`}>
+                        {VISIBILITY_LABEL[project.visibility ?? "team"]}
+                      </span>
+                      {/* Delete button */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(project); setDeleteError(null); setConfirmName(""); }}
+                        title="Delete project"
+                        className="p-1 rounded-md text-[#8b949e] hover:text-[#d1242f] hover:bg-[#ffebe9] transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                   <h3 className="text-sm font-semibold text-[#1f2328] mb-1 truncate group-hover:text-[#0969da] transition-colors">
                     {project.name}
@@ -264,12 +296,75 @@ export function ProjectSelectionPage() {
                     {/* Updated */}
                     <span>Updated {timeAgo(project.updatedAt)}</span>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           )}
         </div>
       </div>
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDeleteTarget(null)}>
+          <div className="bg-white rounded-lg shadow-xl border border-[#d1d9e0] w-[480px] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 px-5 py-4 border-b border-[#d1d9e0]">
+              <div className="w-8 h-8 rounded-full bg-[#ffebe9] flex items-center justify-center shrink-0">
+                <svg className="w-4 h-4 text-[#d1242f]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                </svg>
+              </div>
+              <span className="text-base font-semibold text-[#d1242f]">Delete project</span>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-[#1f2328]">
+                This will <strong>permanently delete</strong> the project <strong>{deleteTarget.name}</strong> and all its resources:
+              </p>
+              <ul className="text-xs text-[#656d76] list-disc ml-4 space-y-1">
+                <li>All spec files and imported documents</li>
+                <li>All flow definitions and chat sessions</li>
+                <li>All test ideas and generated content</li>
+                <li>All test runs and execution history</li>
+                <li>All API keys and audit logs</li>
+                <li>All project member assignments</li>
+              </ul>
+              <p className="text-sm text-[#d1242f] font-medium">This action cannot be undone.</p>
+              <div>
+                <label className="block text-xs font-medium text-[#1f2328] mb-1">
+                  Type <strong>{deleteTarget.name}</strong> to confirm
+                </label>
+                <input
+                  type="text"
+                  value={confirmName}
+                  onChange={(e) => setConfirmName(e.target.value)}
+                  placeholder={deleteTarget.name}
+                  className="w-full px-3 py-2 border border-[#d1d9e0] rounded-md text-sm focus:border-[#d1242f] focus:ring-1 focus:ring-[#d1242f] outline-none"
+                  autoFocus
+                />
+              </div>
+              {deleteError && (
+                <div className="px-3 py-2 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-sm text-[#d1242f]">
+                  {deleteError}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-4 border-t border-[#d1d9e0] bg-[#f6f8fa] rounded-b-lg">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="text-sm font-medium text-[#1f2328] border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] rounded-md px-3 py-1.5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void handleDelete()}
+                disabled={deleting || confirmName !== deleteTarget.name}
+                className="text-sm font-medium text-white bg-[#d1242f] hover:bg-[#cf222e] disabled:opacity-40 disabled:cursor-not-allowed rounded-md px-3 py-1.5 transition-colors"
+              >
+                {deleting ? "Deleting..." : "Delete this project"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

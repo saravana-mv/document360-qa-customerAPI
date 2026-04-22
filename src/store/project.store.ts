@@ -5,7 +5,7 @@
 // (which provides it via the X-FlowForge-ProjectId header).
 
 import { create } from "zustand";
-import { listProjects, createProject, updateProject, archiveProject } from "../lib/api/projectsApi";
+import { listProjects, createProject, updateProject, deleteProject } from "../lib/api/projectsApi";
 import type { ProjectDoc } from "../lib/api/projectsApi";
 import { useSetupStore } from "./setup.store";
 
@@ -19,8 +19,8 @@ interface ProjectState {
   create: (name: string, description?: string, visibility?: "team" | "personal") => Promise<ProjectDoc>;
   /** Update a project */
   update: (id: string, data: { name?: string; description?: string }) => Promise<void>;
-  /** Archive (soft-delete) a project */
-  archive: (id: string) => Promise<void>;
+  /** Permanently delete a project and all its resources */
+  remove: (id: string) => Promise<void>;
   /** Select a project — updates setup.store's selectedProjectId */
   select: (id: string) => void;
 }
@@ -63,15 +63,19 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     });
   },
 
-  archive: async (id) => {
-    await archiveProject(id);
+  remove: async (id) => {
+    await deleteProject(id);
     const remaining = get().projects.filter((p) => p.id !== id);
     set({ projects: remaining });
 
-    // If we archived the selected project, switch to first available
+    // If we deleted the selected project, switch to first available or clear
     const currentId = useSetupStore.getState().selectedProjectId;
-    if (currentId === id && remaining.length > 0) {
-      useSetupStore.getState().selectProject(remaining[0].id);
+    if (currentId === id) {
+      if (remaining.length > 0) {
+        useSetupStore.getState().selectProject(remaining[0].id);
+      } else {
+        useSetupStore.getState().selectProject("");
+      }
     }
   },
 
