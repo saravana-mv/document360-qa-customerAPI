@@ -126,17 +126,29 @@ function InlineInput({ defaultValue = "", onCommit, onCancel }: {
   onCancel: () => void;
 }) {
   const [value, setValue] = useState(defaultValue);
+  const committed = { current: false };
+  const doCommit = (v: string) => {
+    if (committed.current) return;
+    committed.current = true;
+    console.log("[InlineInput] committing:", v);
+    onCommit(v);
+  };
   return (
     <input
       autoFocus
       value={value}
       onChange={(e) => setValue(e.target.value)}
       onKeyDown={(e) => {
-        if (e.key === "Enter" && value.trim()) onCommit(value.trim());
+        console.log("[InlineInput] keyDown:", e.key, "value:", value);
+        if (e.key === "Enter" && value.trim()) doCommit(value.trim());
         if (e.key === "Escape") onCancel();
         e.stopPropagation();
       }}
-      onBlur={() => { if (value.trim()) onCommit(value.trim()); else onCancel(); }}
+      onBlur={() => {
+        console.log("[InlineInput] blur, value:", value, "committed:", committed.current);
+        if (committed.current) return;
+        if (value.trim()) doCommit(value.trim()); else onCancel();
+      }}
       className="flex-1 min-w-0 text-sm border border-[#0969da] rounded px-1 py-0.5 outline-none bg-white text-[#1f2328]"
     />
   );
@@ -510,6 +522,7 @@ export function FileTree({
   }
 
   async function handleCreateCommit(parentPath: string, name: string) {
+    console.log("[FileTree] handleCreateCommit parent=%s name=%s", parentPath, name);
     const fullPath = parentPath && parentPath !== "__root__"
       ? `${parentPath}/${name}`
       : name;

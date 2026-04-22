@@ -463,6 +463,7 @@ export function SpecFilesPage() {
   // ── CRUD handlers ─────────────────────────────────────────────────────────
 
   async function handleCreateFolder(folderPath: string) {
+    console.log("[SpecFilesPage] handleCreateFolder:", folderPath);
     setError(null);
     try {
       await uploadSpecFile(`${folderPath}/.keep`, "");
