@@ -3,9 +3,22 @@ import { listBlobs, downloadBlob, uploadBlob, deleteBlob, renameBlob } from "../
 import { withAuth, getUserInfo, getProjectId } from "../lib/auth";
 import { audit } from "../lib/auditLog";
 
-/** Safe project ID extraction — returns "unknown" if header missing (spec files are blob-based). */
+/** Safe project ID extraction — returns "unknown" if header missing. */
 function safeProjectId(req: HttpRequest): string {
   try { return getProjectId(req); } catch { return "unknown"; }
+}
+
+/** Prepend project ID to a blob path for project-scoped storage. */
+function scopedPath(projectId: string, name: string): string {
+  // Already scoped — don't double-prefix
+  if (name.startsWith(projectId + "/")) return name;
+  return `${projectId}/${name}`;
+}
+
+/** Strip project prefix from a blob name for clean frontend paths. */
+function unscopedName(projectId: string, name: string): string {
+  const prefix = projectId + "/";
+  return name.startsWith(prefix) ? name.slice(prefix.length) : name;
 }
 
 const CORS_HEADERS = {
@@ -25,8 +38,20 @@ function err(status: number, message: string): HttpResponseInit {
 /** GET /api/spec-files?prefix=<folder>  — list blobs */
 async function listFiles(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
   try {
-    const prefix = req.query.get("prefix") ?? undefined;
-    const blobs = await listBlobs(prefix);
+    const projectId = safeProjectId(req);
+    const userPrefix = req.query.get("prefix") ?? undefined;
+    // Scope to project — all blobs live under {projectId}/
+    const blobPrefix = projectId !== "unknown"
+      ? (userPrefix ? `${projectId}/${userPrefix}` : `${projectId}/`)
+      : userPrefix;
+    const blobs = await listBlobs(blobPrefix);
+    // Strip project prefix from names so frontend sees clean paths
+    if (projectId !== "unknown") {
+      const prefix = projectId + "/";
+      for (const b of blobs) {
+        if (b.name.startsWith(prefix)) b.name = b.name.slice(prefix.length);
+      }
+    }
     return ok(blobs);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -40,7 +65,9 @@ async function getFileContent(req: HttpRequest, _ctx: InvocationContext): Promis
   try {
     const name = req.query.get("name");
     if (!name) return err(400, "name query param is required");
-    const content = await downloadBlob(name);
+    const projectId = safeProjectId(req);
+    const blobName = projectId !== "unknown" ? scopedPath(projectId, name) : name;
+    const content = await downloadBlob(blobName);
     return { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "text/plain" }, body: content };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -55,9 +82,10 @@ async function createFile(req: HttpRequest, _ctx: InvocationContext): Promise<Ht
   try {
     const body = (await req.json()) as { name: string; content: string; contentType?: string };
     if (!body.name || body.content === undefined) return err(400, "name and content are required");
-    await uploadBlob(body.name, body.content, body.contentType);
-    const user = getUserInfo(req);
     const projectId = safeProjectId(req);
+    const blobName = projectId !== "unknown" ? scopedPath(projectId, body.name) : body.name;
+    await uploadBlob(blobName, body.content, body.contentType);
+    const user = getUserInfo(req);
     audit(projectId, "spec.upload", user, body.name, { size: body.content.length });
     return ok({ name: body.name, uploaded: true });
   } catch (e) {
@@ -75,16 +103,18 @@ async function updateFile(req: HttpRequest, _ctx: InvocationContext): Promise<Ht
     if (!body.name) return err(400, "name is required");
     const user = getUserInfo(req);
     const projectId = safeProjectId(req);
+    const blobName = projectId !== "unknown" ? scopedPath(projectId, body.name) : body.name;
     if (body.newName && body.newName !== body.name) {
-      await renameBlob(body.name, body.newName);
+      const newBlobName = projectId !== "unknown" ? scopedPath(projectId, body.newName) : body.newName;
+      await renameBlob(blobName, newBlobName);
       if (body.content !== undefined) {
-        await uploadBlob(body.newName, body.content);
+        await uploadBlob(newBlobName, body.content);
       }
       audit(projectId, "spec.rename", user, body.name, { newName: body.newName });
       return ok({ renamed: true, name: body.newName });
     }
     if (body.content !== undefined) {
-      await uploadBlob(body.name, body.content);
+      await uploadBlob(blobName, body.content);
       audit(projectId, "spec.update", user, body.name);
       return ok({ updated: true, name: body.name });
     }
@@ -100,9 +130,10 @@ async function deleteFile(req: HttpRequest, _ctx: InvocationContext): Promise<Ht
   try {
     const name = req.query.get("name");
     if (!name) return err(400, "name query param is required");
-    await deleteBlob(name);
-    const user = getUserInfo(req);
     const projectId = safeProjectId(req);
+    const blobName = projectId !== "unknown" ? scopedPath(projectId, name) : name;
+    await deleteBlob(blobName);
+    const user = getUserInfo(req);
     audit(projectId, "spec.delete", user, name);
     return ok({ deleted: true, name });
   } catch (e) {

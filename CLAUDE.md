@@ -12,12 +12,13 @@ FlowForge is an AI-assisted API testing platform for Document360. It lets QA tea
 ## Architecture Quick Reference
 
 ### Pages
+- **Project Selection** (`src/pages/ProjectSelectionPage.tsx`) — Full-screen project tile grid (first screen after login), create project, visibility toggle
 - **Spec Manager** (`src/pages/SpecFilesPage.tsx`) — Spec files, AI ideas, flow XML authoring, interactive flow chat
 - **Scenario Manager** (`src/pages/TestPage.tsx`) — Version-based test tree, runner, run history, breakpoints
 - **Settings** (`src/pages/SettingsPage.tsx`) — General, API Keys, Users, Audit Log (role-gated tabs)
 
 ### Data Layer
-- **Cosmos DB** (9 containers, all partitioned by `/projectId`): `flows`, `ideas`, `test-runs`, `settings` (`/userId`), `users` (`/tenantId`), `api-keys`, `audit-log`, `flow-chat-sessions`, `projects` (`/tenantId`)
+- **Cosmos DB** (11 containers, all partitioned by `/projectId`): `flows`, `ideas`, `test-runs`, `settings` (`/userId`), `users` (`/tenantId`), `api-keys`, `audit-log`, `flow-chat-sessions`, `projects` (`/tenantId`), `project-members`
 - **Blob Storage**: Only `spec-files` container remains (reference docs, `_sources.json` manifests)
 - **localStorage**: Pure UI state only (tree expansion, panel widths, breakpoints)
 
@@ -25,10 +26,13 @@ FlowForge is an AI-assisted API testing platform for Document360. It lets QA tea
 `auth.store` (OAuth session), `setup.store` (project/version/AI model), `user.store` (role), `project.store` (project list/selection), `flowStatus.store` (flow activation), `runner.store` (test execution), `scenarioOrg.store` (folder tree), `aiCost.store` (spend tracking), `breakpoints.store` (step pause/resume)
 
 ### API Functions (`api/src/functions/`)
-25+ Azure Functions. All wrapped with `withAuth()`. Key routes: `/api/spec-files/*`, `/api/flow-files`, `/api/flow-chat`, `/api/generate-flow-ideas`, `/api/generate-flow`, `/api/run-scenario`, `/api/d360/*` (proxy), `/api/active-tests`, `/api/test-runs`, `/api/users`, `/api/api-keys`, `/api/audit-log`, `/api/projects`
+25+ Azure Functions. All wrapped with `withAuth()`. Key routes: `/api/spec-files/*`, `/api/flow-files`, `/api/flow-chat`, `/api/generate-flow-ideas`, `/api/generate-flow`, `/api/run-scenario`, `/api/d360/*` (proxy), `/api/active-tests`, `/api/test-runs`, `/api/users`, `/api/api-keys`, `/api/audit-log`, `/api/projects`, `/api/project-members`
 
 ### Auth Flow
-Entra ID SSO → `EntraGate` auto-login → `withAuth()` extracts OID/project from claims → D360 tokens in Azure Table Storage → proxy injects bearer at `/api/d360/*` → browser never holds real D360 token
+Entra ID SSO → `EntraGate` auto-login → `ProjectGate` redirects to `/projects` if no project selected → `withAuth()` extracts OID/project from claims → `withProjectRole()` enforces per-project membership → D360 tokens in Azure Table Storage → proxy injects bearer at `/api/d360/*` → browser never holds real D360 token
+
+### Role Hierarchy
+`owner` (Super Owner, bypass all) > `project_owner` (per-project admin) > `qa_manager` > `qa_engineer`. Super Owners see all projects; other users see only projects they are members of.
 
 ---
 

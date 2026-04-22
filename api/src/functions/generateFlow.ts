@@ -2,7 +2,13 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import Anthropic from "@anthropic-ai/sdk";
 import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
-import { withAuth } from "../lib/auth";
+import { withAuth, getProjectId } from "../lib/auth";
+
+function scopedPath(projectId: string, name: string): string {
+  if (!projectId || projectId === "unknown") return name;
+  if (name.startsWith(projectId + "/")) return name;
+  return `${projectId}/${name}`;
+}
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -210,28 +216,34 @@ Output ONLY the raw XML starting with \`<?xml\`. No markdown code fences. No com
 const MAX_SPEC_CONTEXT_CHARS = 50_000;
 const MAX_SPEC_FILES = 5;
 
-async function buildSpecContext(specFiles: string[]): Promise<string> {
+async function buildSpecContext(specFiles: string[], projectId: string): Promise<string> {
   if (!specFiles || specFiles.length === 0) {
     // Load a default set of available spec files
     try {
-      const blobs = await listBlobs();
+      const prefix = projectId !== "unknown" ? `${projectId}/` : undefined;
+      const blobs = await listBlobs(prefix);
       const mdFiles = blobs.filter((b) => b.name.endsWith(".md")).slice(0, MAX_SPEC_FILES);
       if (mdFiles.length === 0) return "";
       const contents = await Promise.all(mdFiles.map((b) => downloadBlob(b.name)));
+      const projPrefix = projectId !== "unknown" ? projectId + "/" : "";
       return truncateContext(
-        contents.map((c, i) => `## ${mdFiles[i].name}\n\n${c}`),
+        contents.map((c, i) => {
+          const displayName = projPrefix && mdFiles[i].name.startsWith(projPrefix)
+            ? mdFiles[i].name.slice(projPrefix.length) : mdFiles[i].name;
+          return `## ${displayName}\n\n${c}`;
+        }),
       );
     } catch {
       return "";
     }
   }
 
-  // Only process up to MAX_SPEC_FILES
+  // Only process up to MAX_SPEC_FILES — scope paths with project prefix
   const capped = specFiles.slice(0, MAX_SPEC_FILES);
   const contents = await Promise.all(
     capped.map(async (name) => {
       try {
-        const content = await downloadBlob(name);
+        const content = await downloadBlob(scopedPath(projectId, name));
         return `## ${name}\n\n${content}`;
       } catch {
         return `## ${name}\n\n(File not found)`;
@@ -294,7 +306,9 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   const client = new Anthropic({ apiKey });
 
   // Build spec context from selected files
-  const specContext = await buildSpecContext(body.specFiles ?? []);
+  let projectId: string;
+  try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
+  const specContext = await buildSpecContext(body.specFiles ?? [], projectId);
   const specCount = body.specFiles?.length ?? 0;
   const scopeNote = specCount === 1
     ? `\n\nIMPORTANT: You are working with a SINGLE endpoint specification. The primary test steps of the flow MUST focus on this endpoint. However, you MUST still add prerequisite setup steps (Create Category, Create Article) and teardown steps (Delete Article, Delete Category) as required by the hard rules — these are ALWAYS allowed regardless of scope.`

@@ -2,13 +2,19 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import Anthropic from "@anthropic-ai/sdk";
 import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { DEFAULT_IDEAS_MODEL, resolveModel, priceFor, computeCost } from "../lib/modelPricing";
-import { withAuth } from "../lib/auth";
+import { withAuth, getProjectId } from "../lib/auth";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
+
+function scopedPath(projectId: string, name: string): string {
+  if (!projectId || projectId === "unknown") return name;
+  if (name.startsWith(projectId + "/")) return name;
+  return `${projectId}/${name}`;
+}
 
 const CHARS_PER_TOKEN = 3.5;  // conservative estimate
 const MAX_OUTPUT_TOKENS = 4096;
@@ -125,6 +131,9 @@ export async function generateFlowIdeasHandler(
   const hasExplicitFiles = Array.isArray(body.filePaths) && body.filePaths.length > 0;
   const isSingleFile = !hasExplicitFiles && contextPath.endsWith(".md");
 
+  let projectId: string;
+  try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
+
   // ── Resolve spec files based on context (explicit paths, single file, or folder) ──
   let specContents: { name: string; content: string }[];
   let filesAnalyzed = 0;
@@ -142,7 +151,7 @@ export async function generateFlowIdeasHandler(
     filesAnalyzed = paths.length;
     try {
       specContents = await Promise.all(
-        paths.map(async (name) => ({ name, content: await downloadBlob(name) })),
+        paths.map(async (name) => ({ name, content: await downloadBlob(scopedPath(projectId, name)) })),
       );
     } catch (e) {
       return err(500, `Failed to read spec files: ${e instanceof Error ? e.message : String(e)}`);
@@ -150,7 +159,7 @@ export async function generateFlowIdeasHandler(
   } else if (isSingleFile) {
     // Single file context — read just this one file
     try {
-      const content = await downloadBlob(contextPath);
+      const content = await downloadBlob(scopedPath(projectId, contextPath));
       specContents = [{ name: contextPath, content }];
       filesAnalyzed = 1;
     } catch (e) {
@@ -158,7 +167,8 @@ export async function generateFlowIdeasHandler(
     }
   } else {
     // Folder context — read all .md files in the folder
-    const prefix = contextPath.endsWith("/") ? contextPath : `${contextPath}/`;
+    const localPrefix = contextPath.endsWith("/") ? contextPath : `${contextPath}/`;
+    const prefix = scopedPath(projectId, localPrefix);
     let allBlobs;
     try {
       allBlobs = await listBlobs(prefix);
@@ -190,9 +200,10 @@ export async function generateFlowIdeasHandler(
     }
 
     try {
+      const projPrefix = projectId !== "unknown" ? projectId + "/" : "";
       specContents = await Promise.all(
         mdBlobs.map(async (b) => ({
-          name: b.name,
+          name: projPrefix && b.name.startsWith(projPrefix) ? b.name.slice(projPrefix.length) : b.name,
           content: await downloadBlob(b.name),
         }))
       );

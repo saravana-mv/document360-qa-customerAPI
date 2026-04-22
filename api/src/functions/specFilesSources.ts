@@ -25,26 +25,28 @@ interface SourceEntry {
 
 type SourcesManifest = Record<string, SourceEntry>;
 
-/**
- * GET /api/spec-files/sources?prefix=v3
- * Returns a merged map: { "v3/articles/file.md": { sourceUrl, importedAt, lastSyncedAt } }
- *
- * PUT /api/spec-files/sources
- * Body: { filePath: string, sourceUrl: string }
- * Updates the source URL for a file in its folder's _sources.json manifest.
- */
+function scopedPath(projectId: string, name: string): string {
+  if (name.startsWith(projectId + "/")) return name;
+  return `${projectId}/${name}`;
+}
+
 async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
 
+  let projectId: string;
+  try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
+
   if (req.method === "PUT") {
-    return handleUpdateSource(req);
+    return handleUpdateSource(req, projectId);
   }
 
   try {
     const prefix = req.query.get("prefix") ?? undefined;
-    const blobs = await listBlobs(prefix);
+    const blobPrefix = projectId !== "unknown"
+      ? (prefix ? `${projectId}/${prefix}` : `${projectId}/`)
+      : prefix;
+    const blobs = await listBlobs(blobPrefix);
 
-    // Find all _sources.json manifests
     const manifestBlobs = blobs.filter((b) => b.name.endsWith("/_sources.json") || b.name === "_sources.json");
 
     const merged: Record<string, SourceEntry> = {};
@@ -53,8 +55,12 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
       try {
         const raw = await downloadBlob(mb.name);
         const manifest = JSON.parse(raw) as SourcesManifest;
-        // Derive folder path from manifest blob name
-        const folderPath = mb.name.replace(/\/?_sources\.json$/, "");
+        // Derive local folder path (strip project prefix from blob name)
+        let folderBlobName = mb.name;
+        if (projectId !== "unknown" && folderBlobName.startsWith(projectId + "/")) {
+          folderBlobName = folderBlobName.slice(projectId.length + 1);
+        }
+        const folderPath = folderBlobName.replace(/\/?_sources\.json$/, "");
         for (const [filename, entry] of Object.entries(manifest)) {
           const fullPath = folderPath ? `${folderPath}/${filename}` : filename;
           merged[fullPath] = entry;
@@ -71,8 +77,7 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
   }
 }
 
-/** Update the source URL for a specific file in its manifest. */
-async function handleUpdateSource(req: HttpRequest): Promise<HttpResponseInit> {
+async function handleUpdateSource(req: HttpRequest, projectId: string): Promise<HttpResponseInit> {
   try {
     const body = (await req.json()) as { filePath?: string; sourceUrl?: string };
     const filePath = body.filePath?.trim();
@@ -81,16 +86,14 @@ async function handleUpdateSource(req: HttpRequest): Promise<HttpResponseInit> {
     if (!filePath) return err(400, "filePath is required");
     if (!sourceUrl) return err(400, "sourceUrl is required");
 
-    // Validate URL
     try { new URL(sourceUrl); } catch { return err(400, "Invalid sourceUrl"); }
 
-    // Derive folder and filename
     const lastSlash = filePath.lastIndexOf("/");
     const folderPath = lastSlash === -1 ? "" : filePath.slice(0, lastSlash);
     const filename = lastSlash === -1 ? filePath : filePath.slice(lastSlash + 1);
-    const manifestPath = folderPath ? `${folderPath}/_sources.json` : "_sources.json";
+    const localManifestPath = folderPath ? `${folderPath}/_sources.json` : "_sources.json";
+    const manifestPath = projectId !== "unknown" ? scopedPath(projectId, localManifestPath) : localManifestPath;
 
-    // Read existing manifest
     let manifest: SourcesManifest;
     try {
       const raw = await downloadBlob(manifestPath);
@@ -102,13 +105,10 @@ async function handleUpdateSource(req: HttpRequest): Promise<HttpResponseInit> {
     const existing = manifest[filename];
     if (!existing) return err(404, `"${filename}" not found in _sources.json`);
 
-    // Update the source URL
     manifest[filename] = { ...existing, sourceUrl };
     await uploadBlob(manifestPath, JSON.stringify(manifest, null, 2), "application/json");
 
     const user = getUserInfo(req);
-    let projectId: string;
-    try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
     audit(projectId, "spec.update_source", user, filePath, { oldUrl: existing.sourceUrl, newUrl: sourceUrl });
 
     return ok({ filePath, sourceUrl, updated: true });

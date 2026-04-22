@@ -2,7 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import Anthropic from "@anthropic-ai/sdk";
 import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
-import { withAuth } from "../lib/auth";
+import { withAuth, getProjectId } from "../lib/auth";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -82,15 +82,28 @@ When the system tells you to generate XML, you switch to XML generation mode. Yo
 
 Remember: keep responses concise. Propose plans proactively when you have enough information. Ask at most 1-2 clarifying questions before showing a plan.`;
 
-async function buildSpecContext(specFiles: string[]): Promise<string> {
+function scopedPath(projectId: string, name: string): string {
+  if (!projectId || projectId === "unknown") return name;
+  if (name.startsWith(projectId + "/")) return name;
+  return `${projectId}/${name}`;
+}
+
+async function buildSpecContext(specFiles: string[], projectId: string): Promise<string> {
   if (!specFiles || specFiles.length === 0) {
     try {
-      const blobs = await listBlobs();
+      const prefix = projectId !== "unknown" ? `${projectId}/` : undefined;
+      const blobs = await listBlobs(prefix);
       const mdFiles = blobs.filter((b) => b.name.endsWith(".md")).slice(0, MAX_SPEC_FILES);
       if (mdFiles.length === 0) return "";
       const contents = await Promise.all(mdFiles.map((b) => downloadBlob(b.name)));
+      const projPrefix = projectId !== "unknown" ? projectId + "/" : "";
       return truncateContext(
-        contents.map((c, i) => `## ${mdFiles[i].name}\n\n${c}`),
+        contents.map((c, i) => {
+          const displayName = projPrefix && mdFiles[i].name.startsWith(projPrefix)
+            ? mdFiles[i].name.slice(projPrefix.length)
+            : mdFiles[i].name;
+          return `## ${displayName}\n\n${c}`;
+        }),
       );
     } catch {
       return "";
@@ -101,7 +114,7 @@ async function buildSpecContext(specFiles: string[]): Promise<string> {
   const contents = await Promise.all(
     capped.map(async (name) => {
       try {
-        const content = await downloadBlob(name);
+        const content = await downloadBlob(scopedPath(projectId, name));
         return `## ${name}\n\n${content}`;
       } catch {
         return `## ${name}\n\n(File not found)`;
@@ -175,8 +188,10 @@ async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<Http
   const model = resolveModel(body.model, DEFAULT_FLOW_MODEL);
 
   // Build spec context from referenced files
+  let projectId: string;
+  try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
   const specFiles = body.specFiles ?? [];
-  const specContext = await buildSpecContext(specFiles);
+  const specContext = await buildSpecContext(specFiles, projectId);
 
   // Inject spec content into the system prompt so the AI always has access,
   // regardless of conversation length or message position.

@@ -29,6 +29,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 
 | Page | File | Purpose |
 |------|------|---------|
+| Project Selection | `src/pages/ProjectSelectionPage.tsx` | Full-screen tile grid — first screen after login, create project, team/personal visibility |
 | Spec Manager | `src/pages/SpecFilesPage.tsx` | Central hub — spec files, AI workshop (ideas + flows), flow chat panel |
 | Scenario Manager | `src/pages/TestPage.tsx` | Version accordions, folder tree, test runner, run history |
 | Settings | `src/pages/SettingsPage.tsx` | Tabs: General, API Keys (qa_manager+), Users (owner), Audit Log (qa_manager+) |
@@ -41,7 +42,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 |-------|-----------|-------|
 | `auth.store` | `status`, `token`, `projectId` | OAuth session. Synchronous init from sessionStorage. |
 | `setup.store` | `selectedProjectId`, `selectedVersionId`, `aiModel`, `baseUrl`, `apiVersion` | Persisted to Cosmos `/settings`. `apiVersion` rewrites all request paths. |
-| `user.store` | `user`, `role`, `status` | Roles: owner / qa_manager / qa_engineer. `AccessGate` enforces. |
+| `user.store` | `user`, `role`, `status` | Roles: owner / project_owner / qa_manager / qa_engineer. `AccessGate` enforces. |
 | `flowStatus.store` | `byName: Record<string, FlowStatusEntry>` | Flow activation state. Must finish loading before TestExplorer builds tags. |
 | `runner.store` | `running`, `paused`, `pausedAt`, `tagResults`, `log[]` | Test execution. Breakpoints stored separately. |
 | `scenarioOrg.store` | `versionConfigs`, `folders`, `placements` | Single `__scenario_org__` doc in Cosmos. NEWLY-ADDED pinned folder per version. |
@@ -55,7 +56,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 
 ```
 src/components/
-├── auth/           # EntraGate (SSO wrapper), AccessGate (role check), LoginScreen, OAuthCallback
+├── auth/           # EntraGate (SSO wrapper), ProjectGate (project selection guard), AccessGate (role check), LoginScreen, OAuthCallback
 ├── common/         # Layout, TopBar, SideNav, Modal, ContextMenu, XmlCodeBlock, XmlEditor, ResizeHandle, ProjectPicker
 ├── specfiles/      # FileTree, FlowChatPanel, FlowIdeasPanel, FlowsPanel, DetailPanel, ImportFromUrlModal
 ├── explorer/       # TestExplorer, VersionAccordion, ScenarioFolderTree, TagNode
@@ -82,6 +83,7 @@ All API calls go through `client.ts` which adds auth headers and rewrites `/vN/`
 | `apiKeysApi.ts` | `listApiKeys`, `createApiKey`, `revokeApiKey` |
 | `auditLogApi.ts` | `queryAuditLog` |
 | `projectsApi.ts` | `listProjects`, `createProject`, `updateProject`, `archiveProject` |
+| `projectMembersApi.ts` | `listProjectMembers`, `addProjectMember`, `updateProjectMember`, `removeProjectMember` |
 
 ### Test Execution Engine (`src/lib/tests/`)
 
@@ -141,23 +143,24 @@ tests/
 | `scenarioOrg` | `/api/scenario-org` | GET/POST | Folder organization |
 | `auditLog` | `/api/audit-log` | GET | Query audit entries |
 | `ideas` | `/api/ideas` | GET/POST/DELETE | Flow ideas CRUD |
-| `projects` | `/api/projects` | GET/POST/PUT/DELETE | Project CRUD (GET all auth'd, POST/PUT/DELETE owner-only) |
+| `projects` | `/api/projects` | GET/POST/PUT/DELETE | Project CRUD (GET filtered by membership, POST any registered user, PUT/DELETE project_owner+) |
+| `projectMembers` | `/api/project-members` | GET/POST/PUT/DELETE | Project membership CRUD (project_owner+) |
 | `resetProject` | `/api/reset-project` | POST | Owner-only project wipe |
 
 ### Shared Libraries (`api/src/lib/`)
 
 | Module | Purpose |
 |--------|---------|
-| `auth.ts` | `withAuth()` wrapper, `getUserInfo(req)`, `getProjectId(req)` — extracts Entra ID claims |
+| `auth.ts` | `withAuth()` wrapper, `withProjectRole()` per-project access control, `getUserInfo(req)`, `getProjectId(req)`, `lookupProjectMember()`, `isSuperOwner()` — extracts Entra ID claims |
 | `apiKeyAuth.ts` | `validateApiKey()` for public API endpoints |
-| `cosmosClient.ts` | Lazy-init Cosmos client + `ensureContainer()` for all 9 containers |
+| `cosmosClient.ts` | Lazy-init Cosmos client + `ensureContainer()` for all 11 containers |
 | `blobClient.ts` | Azure Blob Storage (upload, download, list, delete, exists) |
 | `browserFetch.ts` | `fetchWithCookieJar()` + browser User-Agent headers for Cloudflare-fronted URLs |
 | `tokenStore.ts` | Azure Table Storage for D360 OAuth tokens |
 | `versionApiKeyStore.ts` | Table Storage for per-version API keys |
 | `d360Token.ts` | Fetch/cache D360 tokens from Table Storage |
 | `modelPricing.ts` | `resolveModel()`, `computeCost()`, pricing for Opus/Sonnet/Haiku |
-| `auditLog.ts` | Fire-and-forget `audit()` function, writes to Cosmos `audit-log` container |
+| `auditLog.ts` | Fire-and-forget `audit()` function, writes to Cosmos `audit-log` container. Actions include `project.member_add`, `project.member_remove`, `project.member_role_change`. |
 
 ### Server-Side Flow Runner (`api/src/lib/flowRunner/`)
 
@@ -183,7 +186,8 @@ Used by the Public API (`/api/run-scenario`) to execute flows without a browser:
 | `api-keys` | `/projectId` | `{ id, projectId, name, keyHash, prefix, createdBy, ... }` |
 | `audit-log` | `/projectId` | `{ id, projectId, action, actor, target, details, timestamp }` |
 | `flow-chat-sessions` | `/projectId` | `{ id, projectId, userId, title, messages[], confirmedPlan?, totalCost, ... }` |
-| `projects` | `/tenantId` | `{ id, tenantId, name, description?, createdBy, createdAt, status, ... }` |
+| `projects` | `/tenantId` | `{ id, tenantId, name, description?, visibility (team/personal), memberCount, createdBy, createdAt, status, ... }` |
+| `project-members` | `/projectId` | `{ id, projectId, userId, role (project_owner/qa_manager/qa_engineer), addedBy, addedAt, ... }` |
 
 ### Blob Storage Layout
 

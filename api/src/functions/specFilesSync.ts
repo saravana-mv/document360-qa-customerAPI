@@ -26,33 +26,41 @@ interface SourceEntry {
 
 type SourcesManifest = Record<string, SourceEntry>;
 
-async function readManifest(folderPath: string): Promise<SourcesManifest> {
-  const manifestPath = folderPath ? `${folderPath}/_sources.json` : "_sources.json";
+function scopedPath(projectId: string, name: string): string {
+  if (name.startsWith(projectId + "/")) return name;
+  return `${projectId}/${name}`;
+}
+
+async function readManifest(projectId: string, folderPath: string): Promise<SourcesManifest> {
+  const localPath = folderPath ? `${folderPath}/_sources.json` : "_sources.json";
+  const blobPath = projectId !== "unknown" ? scopedPath(projectId, localPath) : localPath;
   try {
-    const raw = await downloadBlob(manifestPath);
+    const raw = await downloadBlob(blobPath);
     return JSON.parse(raw) as SourcesManifest;
   } catch {
     return {};
   }
 }
 
-async function writeManifest(folderPath: string, manifest: SourcesManifest): Promise<void> {
-  const manifestPath = folderPath ? `${folderPath}/_sources.json` : "_sources.json";
-  await uploadBlob(manifestPath, JSON.stringify(manifest, null, 2), "application/json");
+async function writeManifest(projectId: string, folderPath: string, manifest: SourcesManifest): Promise<void> {
+  const localPath = folderPath ? `${folderPath}/_sources.json` : "_sources.json";
+  const blobPath = projectId !== "unknown" ? scopedPath(projectId, localPath) : localPath;
+  await uploadBlob(blobPath, JSON.stringify(manifest, null, 2), "application/json");
 }
 
-/** Save current version to _versions/ before overwriting. */
-async function preserveVersion(folderPath: string, filename: string): Promise<void> {
-  const blobPath = folderPath ? `${folderPath}/${filename}` : filename;
+async function preserveVersion(projectId: string, folderPath: string, filename: string): Promise<void> {
+  const localPath = folderPath ? `${folderPath}/${filename}` : filename;
+  const blobPath = projectId !== "unknown" ? scopedPath(projectId, localPath) : localPath;
   try {
     const currentContent = await downloadBlob(blobPath);
     const ts = new Date().toISOString().replace(/[:.]/g, "-");
-    const versionPath = folderPath
+    const versionLocal = folderPath
       ? `${folderPath}/_versions/${filename}.${ts}`
       : `_versions/${filename}.${ts}`;
+    const versionPath = projectId !== "unknown" ? scopedPath(projectId, versionLocal) : versionLocal;
     await uploadBlob(versionPath, currentContent, "text/markdown");
   } catch {
-    // File may not exist yet — nothing to preserve
+    // File may not exist yet
   }
 }
 
@@ -62,47 +70,30 @@ interface SyncResult {
   error?: string;
 }
 
-/** Sync a single file: preserve old version, fetch new content, upload, update manifest. */
 async function syncOneFile(
+  projectId: string,
   folderPath: string,
   filename: string,
   entry: SourceEntry,
   manifest: SourcesManifest,
   accessToken?: string,
 ): Promise<SyncResult> {
-  const blobPath = folderPath ? `${folderPath}/${filename}` : filename;
+  const localPath = folderPath ? `${folderPath}/${filename}` : filename;
+  const blobPath = projectId !== "unknown" ? scopedPath(projectId, localPath) : localPath;
   try {
-    // Preserve current version
-    await preserveVersion(folderPath, filename);
-
-    // Fetch fresh content with browser-mimicking headers and cookie jar
+    await preserveVersion(projectId, folderPath, filename);
     const response = await browserFetch(entry.sourceUrl, accessToken);
-
-    if (!response.ok) {
-      throw new Error(`URL returned HTTP ${response.status}`);
-    }
-
+    if (!response.ok) throw new Error(`URL returned HTTP ${response.status}`);
     const content = await response.text();
-
-    // Upload new content
     await uploadBlob(blobPath, content, "text/markdown");
-
-    // Update lastSyncedAt
     manifest[filename] = { ...entry, lastSyncedAt: new Date().toISOString() };
-
-    return { name: blobPath, updated: true };
+    return { name: localPath, updated: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return { name: blobPath, updated: false, error: msg };
+    return { name: localPath, updated: false, error: msg };
   }
 }
 
-/**
- * POST /api/spec-files/sync
- * Body: { folderPath: string; filename?: string }
- * If filename is provided, syncs just that file.
- * If omitted, syncs all URL-sourced files under folderPath (recursively).
- */
 async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
 
@@ -117,20 +108,22 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
     try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
 
     if (filename) {
-      // Single file sync
-      const manifest = await readManifest(folderPath);
+      const manifest = await readManifest(projectId, folderPath);
       const entry = manifest[filename];
       if (!entry) return err(404, `No source URL found for "${filename}" in _sources.json`);
 
-      const result = await syncOneFile(folderPath, filename, entry, manifest, accessToken);
-      await writeManifest(folderPath, manifest);
-      audit(projectId, "spec.sync", user, folderPath ? `${folderPath}/${filename}` : filename, { updated: result.updated });
+      const result = await syncOneFile(projectId, folderPath, filename, entry, manifest, accessToken);
+      await writeManifest(projectId, folderPath, manifest);
+      const target = folderPath ? `${folderPath}/${filename}` : filename;
+      audit(projectId, "spec.sync", user, target, { updated: result.updated });
       return ok({ synced: [result] });
     }
 
-    // Folder-level sync: find all _sources.json manifests under folderPath
-    const prefix = folderPath || undefined;
-    const blobs = await listBlobs(prefix);
+    // Folder-level sync: find all _sources.json manifests under the project-scoped path
+    const blobPrefix = projectId !== "unknown"
+      ? (folderPath ? `${projectId}/${folderPath}` : `${projectId}/`)
+      : (folderPath || undefined);
+    const blobs = await listBlobs(blobPrefix);
     const manifestBlobs = blobs.filter(
       (b) => b.name.endsWith("/_sources.json") || b.name === "_sources.json",
     );
@@ -138,10 +131,16 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
     const results: SyncResult[] = [];
 
     for (const mb of manifestBlobs) {
-      const mFolder = mb.name.replace(/\/?_sources\.json$/, "");
+      // Derive local folder from manifest blob name (strip project prefix)
+      let manifestBlobName = mb.name;
+      if (projectId !== "unknown" && manifestBlobName.startsWith(projectId + "/")) {
+        manifestBlobName = manifestBlobName.slice(projectId.length + 1);
+      }
+      const mFolder = manifestBlobName.replace(/\/?_sources\.json$/, "");
       let manifest: SourcesManifest;
       try {
-        const raw = await downloadBlob(mb.name);
+        const rawBlobName = projectId !== "unknown" ? scopedPath(projectId, manifestBlobName) : manifestBlobName;
+        const raw = await downloadBlob(rawBlobName);
         manifest = JSON.parse(raw) as SourcesManifest;
       } catch {
         continue;
@@ -149,13 +148,13 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
 
       let changed = false;
       for (const [fname, entry] of Object.entries(manifest)) {
-        const result = await syncOneFile(mFolder, fname, entry, manifest, accessToken);
+        const result = await syncOneFile(projectId, mFolder, fname, entry, manifest, accessToken);
         results.push(result);
         if (result.updated) changed = true;
       }
 
       if (changed) {
-        await writeManifest(mFolder, manifest);
+        await writeManifest(projectId, mFolder, manifest);
       }
     }
 
