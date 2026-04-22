@@ -9,6 +9,7 @@ import { listProjects, createProject, updateProject, deleteProject } from "../li
 import type { ProjectDoc } from "../lib/api/projectsApi";
 import { useSetupStore } from "./setup.store";
 import { useAiCreditsStore } from "./aiCredits.store";
+import { useProjectVariablesStore } from "./projectVariables.store";
 
 interface ProjectState {
   projects: ProjectDoc[];
@@ -42,8 +43,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       if (projects.length > 0 && (!currentId || !projects.some((p) => p.id === currentId))) {
         useSetupStore.getState().selectProject(projects[0].id);
         useAiCreditsStore.getState().loadCredits(projects[0].id);
+        useProjectVariablesStore.getState().load();
       } else if (currentId) {
         useAiCreditsStore.getState().loadCredits(currentId);
+        useProjectVariablesStore.getState().load();
       }
     } catch (e) {
       set({ loading: false, error: e instanceof Error ? e.message : String(e) });
@@ -56,6 +59,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     // Auto-select the newly created project
     useSetupStore.getState().selectProject(doc.id);
     useAiCreditsStore.getState().loadCredits(doc.id);
+    useProjectVariablesStore.getState().load();
     return doc;
   },
 
@@ -88,8 +92,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     useSetupStore.getState().selectProject(id);
     if (id) {
       useAiCreditsStore.getState().loadCredits(id);
+      useProjectVariablesStore.getState().load();
     } else {
       useAiCreditsStore.getState().clear();
+      useProjectVariablesStore.getState().clear();
     }
   },
 }));

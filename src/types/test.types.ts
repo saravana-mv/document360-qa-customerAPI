@@ -11,6 +11,8 @@ export interface TestContext {
   apiVersion: string; // e.g. "v3"
   authMethod?: "oauth" | "apikey";
   authVersion?: string; // version hint for proxy (e.g. "v2")
+  /** Project-level variables (proj.varName). */
+  projectVariables?: Record<string, string>;
 }
 
 export interface RunState {

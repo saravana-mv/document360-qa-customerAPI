@@ -106,6 +106,17 @@ async function handleRunScenario(req: HttpRequest, _ctx: InvocationContext): Pro
     ? settings.selectedVersionId
     : apiKeyDoc.versionId;
 
+  // Load project variables
+  let projectVariables: Record<string, string> | undefined;
+  try {
+    const settingsContainer = await getSettingsContainer();
+    const { resource: varsDoc } = await settingsContainer.item("project_variables", apiKeyDoc.projectId).read<{ variables?: Array<{ name: string; value: string }> }>();
+    if (varsDoc?.variables && varsDoc.variables.length > 0) {
+      projectVariables = {};
+      for (const v of varsDoc.variables) projectVariables[v.name] = v.value;
+    }
+  } catch { /* proceed without project variables */ }
+
   const ctx: RunContext = {
     projectId: apiKeyDoc.projectId,
     versionId,
@@ -114,6 +125,7 @@ async function handleRunScenario(req: HttpRequest, _ctx: InvocationContext): Pro
     baseUrl,
     authMethod: apiKeyDoc.authMethod,
     ...d360Creds,
+    projectVariables,
   };
 
   // Execute the scenario

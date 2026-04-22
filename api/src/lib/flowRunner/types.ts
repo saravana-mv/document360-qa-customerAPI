@@ -55,6 +55,8 @@ export interface RunContext {
   /** D360 API key (alternative to OAuth). */
   d360ApiKey?: string;
   authMethod: "oauth" | "apikey";
+  /** Project-level variables (proj.varName). */
+  projectVariables?: Record<string, string>;
 }
 
 // ── Execution results ───────────────────────────────────────────────────────

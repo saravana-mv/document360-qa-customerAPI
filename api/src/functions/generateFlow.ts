@@ -130,6 +130,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 
 - \`{{ctx.projectId}}\`, \`{{ctx.versionId}}\`, \`{{ctx.langCode}}\`, \`{{ctx.token}}\`, \`{{ctx.baseUrl}}\`
 - \`{{state.variableName}}\` — value captured from a previous step
+- \`{{proj.variableName}}\` — project-level variable defined in Settings → Variables
 - \`{{timestamp}}\` — Unix ms timestamp at execution time
 - \`{{!state.boolVar}}\` — logical NOT of a boolean state variable
 

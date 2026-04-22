@@ -353,6 +353,7 @@ function resolveParam(raw: string, ctx: TestContext, state: RunState): unknown {
   const trimmed = raw.trim();
   if (trimmed.startsWith("ctx.")) return resolveCtx(trimmed.slice("ctx.".length), ctx);
   if (trimmed.startsWith("state.")) return state[trimmed.slice("state.".length)];
+  if (trimmed.startsWith("proj.")) return ctx.projectVariables?.[trimmed.slice("proj.".length)];
   if (trimmed.includes("{{")) {
     const out = substitute(trimmed, ctx, state);
     return tryParseJson(out);
@@ -406,6 +407,10 @@ function resolveExpr(expr: string, ctx: TestContext, state: RunState): unknown {
     // support nested state path (rare but cheap to allow)
     if (key.includes(".")) return readDotPath(state, key);
     return state[key];
+  }
+  if (expr.startsWith("proj.")) {
+    const key = expr.slice("proj.".length);
+    return ctx.projectVariables?.[key];
   }
   return undefined;
 }
