@@ -1902,11 +1902,11 @@ export function SpecFilesPage() {
                     </span>
                   </>
                 )}
-                {/* Rules button — shown for top-level version folders */}
-                {!isFileContext && selectedFolderPath && !selectedFolderPath.includes("/") && (
+                {/* Rules button — shown when any folder is selected (rules scoped to version root) */}
+                {!isFileContext && selectedFolderPath && (
                   <button
                     onClick={() => setShowRulesPanel((v) => !v)}
-                    title={showRulesPanel ? "Hide API rules" : "Configure API rules for this version folder"}
+                    title={showRulesPanel ? "Hide API rules" : `Configure API rules for ${selectedFolderPath.split("/")[0]}`}
                     className={`ml-auto inline-flex items-center gap-1 text-sm font-medium px-2 py-1 rounded-md transition-colors shrink-0 ${
                       showRulesPanel
                         ? "text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0]"
@@ -1926,7 +1926,7 @@ export function SpecFilesPage() {
                   onClick={() => setChatActive(true)}
                   disabled={chatActive || noSpecFiles}
                   title={noSpecFiles ? noSpecFilesTooltip : chatActive ? "Flow chat is already open" : "Design a new flow interactively"}
-                  className={`${!isFileContext && selectedFolderPath && !selectedFolderPath.includes("/") ? "" : "ml-auto "}inline-flex items-center gap-1 text-sm font-medium text-[#0969da] hover:text-[#0860ca] px-2 py-1 rounded-md hover:bg-[#ddf4ff] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0`}
+                  className={`${!isFileContext && selectedFolderPath ? "" : "ml-auto "}inline-flex items-center gap-1 text-sm font-medium text-[#0969da] hover:text-[#0860ca] px-2 py-1 rounded-md hover:bg-[#ddf4ff] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0`}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
@@ -1956,9 +1956,9 @@ export function SpecFilesPage() {
                 })()}
               </div>
 
-              {/* Folder-level API Rules panel */}
-              {showRulesPanel && !isFileContext && selectedFolderPath && !selectedFolderPath.includes("/") && (
-                <FolderRulesPanel folder={selectedFolderPath} />
+              {/* Folder-level API Rules panel — scoped to version root folder */}
+              {showRulesPanel && !isFileContext && selectedFolderPath && (
+                <FolderRulesPanel folder={selectedFolderPath.split("/")[0]} />
               )}
 
               {/* Source URL info bar — shown for URL-sourced files */}
