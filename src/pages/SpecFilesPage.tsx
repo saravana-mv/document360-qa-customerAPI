@@ -5,6 +5,7 @@ import { FileTree, buildTree, flattenVisiblePaths, type TreeNode, type FolderNod
 import { MarkdownViewer } from "../components/specfiles/MarkdownViewer";
 import { FileUploadModal } from "../components/specfiles/FileUploadModal";
 import { ImportFromUrlModal } from "../components/specfiles/ImportFromUrlModal";
+import { SyncFolderModal } from "../components/specfiles/SyncFolderModal";
 import { FlowIdeasPanel } from "../components/specfiles/FlowIdeasPanel";
 import { FlowsPanel, type GeneratedFlow } from "../components/specfiles/FlowsPanel";
 import { DetailPanel } from "../components/specfiles/DetailPanel";
@@ -162,6 +163,7 @@ export function SpecFilesPage() {
     message: string;
     onRetry: (token: string) => void;
   } | null>(null);
+  const [syncFolderPath, setSyncFolderPath] = useState<string | null>(null);
 
   // ── Multi-select state ─────────────────────────────────────────────────────
   const [multiSelectedPaths, setMultiSelectedPaths] = useState<Set<string>>(new Set());
@@ -844,38 +846,19 @@ export function SpecFilesPage() {
     }
   }
 
-  async function handleSyncFolder(folderPath: string, overrideToken?: string) {
-    if (!overrideToken && !confirm(`Sync all URL-sourced files under "${folderPath || "/"}"?\n\nPrevious versions will be preserved.`)) return;
-    const folderSourced = Object.keys(sourcesManifest).filter((p) => p.startsWith(folderPath ? folderPath + "/" : ""));
-    setSyncingPaths((prev) => new Set([...prev, ...folderSourced]));
-    try {
-      const token = overrideToken || sourceAccessToken.trim() || useAuthStore.getState().token?.access_token;
-      const result = await syncSpecFiles(folderPath, undefined, token);
-      const updated = result.synced.filter((r) => r.updated).length;
-      const failed = result.synced.filter((r) => !r.updated);
-      if (failed.length > 0) {
-        const hasAuthFail = failed.some((f) => f.error && isAuthError(f.error));
-        if (hasAuthFail) {
-          const authFailed = failed.filter((f) => f.error && isAuthError(f.error));
-          setTokenPrompt({
-            message: `${authFailed.length} file${authFailed.length !== 1 ? "s" : ""} failed due to authentication.\nProvide a fresh access token to retry.`,
-            onRetry: (newToken) => {
-              setSourceAccessToken(newToken);
-              setTokenPrompt(null);
-              void handleSyncFolder(folderPath, newToken);
-            },
-          });
-        } else {
-          alert(`Synced ${updated} file(s). Failed:\n${failed.map((f) => `${f.name}: ${f.error}`).join("\n")}`);
-        }
-      }
-      await loadFiles();
-      await loadSourcedPaths();
-    } catch (e) {
-      alert(`Sync failed: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setSyncingPaths((prev) => { const next = new Set(prev); folderSourced.forEach((p) => next.delete(p)); return next; });
-    }
+  function handleSyncFolder(folderPath: string) {
+    // Open the sync modal — it handles progress, auth, and retry
+    setSyncFolderPath(folderPath);
+  }
+
+  /** Called by SyncFolderModal for individual file sync. */
+  async function handleSyncForModal(
+    folderPath: string,
+    filename?: string,
+    accessToken?: string,
+  ): Promise<{ synced: Array<{ name: string; updated: boolean; error?: string }> }> {
+    const token = accessToken || sourceAccessToken.trim() || useAuthStore.getState().token?.access_token;
+    return syncSpecFiles(folderPath, filename, token);
   }
 
   // ── Update source URL ──────────────────────────────────────────────────────
@@ -2177,7 +2160,24 @@ export function SpecFilesPage() {
         />
       )}
 
-      {/* Access token prompt (shown when sync fails with auth error) */}
+      {/* Sync folder modal */}
+      {syncFolderPath !== null && (
+        <SyncFolderModal
+          folderPath={syncFolderPath}
+          filesToSync={Object.fromEntries(
+            Object.entries(sourcesManifest)
+              .filter(([p]) => p.startsWith(syncFolderPath ? syncFolderPath + "/" : ""))
+              .map(([p, entry]) => [p, entry.sourceUrl]),
+          )}
+          initialAccessToken={sourceAccessToken}
+          onSync={handleSyncForModal}
+          onTokenChange={setSourceAccessToken}
+          onComplete={async () => { await loadFiles(); await loadSourcedPaths(); }}
+          onClose={() => setSyncFolderPath(null)}
+        />
+      )}
+
+      {/* Access token prompt (shown when single-file sync fails with auth error) */}
       {tokenPrompt && (
         <AccessTokenPrompt
           message={tokenPrompt.message}
