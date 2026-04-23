@@ -58,7 +58,8 @@ export function RunControls() {
   const [connectVersion, setConnectVersion] = useState<string | null>(null);
   const cannotRun = !isAuthenticated || settingsMissing;
 
-  /** Build per-tag context overrides from version configs */
+  /** Build per-tag context overrides from version configs + scenario overrides.
+   *  Priority: scenario override > version config > global defaults */
   function buildContextByTag(tests: TestDef[]): Record<string, TestContext> {
     if (!token) return {};
     const scenarioOrg = useScenarioOrgStore.getState();
@@ -74,17 +75,20 @@ export function RunControls() {
       if (!version) continue;
       const vc = scenarioOrg.versionConfigs[version];
       if (!vc?.baseUrl && !vc?.apiVersion && !vc?.authType) continue;
+
+      // Merge scenario-level overrides on top of version config
+      const sc = scenarioOrg.scenarioConfigs[flowPath];
       byTag[t.tag] = buildTestContext({
         token,
         projectId: setup.selectedProjectId,
         versionId: setup.selectedVersionId,
         langCode: setup.langCode,
-        apiVersion: vc.apiVersion || setup.apiVersion,
-        baseUrl: vc.baseUrl || undefined,
-        authType: vc.authType || "none",
+        apiVersion: sc?.apiVersion || vc.apiVersion || setup.apiVersion,
+        baseUrl: sc?.baseUrl || vc.baseUrl || undefined,
+        authType: sc?.authType || vc.authType || "none",
         authVersion: version,
-        authHeaderName: vc.authHeaderName,
-        authQueryParam: vc.authQueryParam,
+        authHeaderName: sc?.authHeaderName || vc.authHeaderName,
+        authQueryParam: sc?.authQueryParam || vc.authQueryParam,
       });
     }
     return byTag;

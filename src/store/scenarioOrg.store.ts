@@ -25,6 +25,16 @@ export interface VersionConfig {
   apiKeyConfigured?: boolean;
 }
 
+/** Per-scenario environment override — partial fields that override VersionConfig. */
+export interface ScenarioEnvOverride {
+  baseUrl?: string;
+  apiVersion?: string;
+  authType?: AuthType;
+  authHeaderName?: string;
+  authQueryParam?: string;
+  endpointLabel?: string;
+}
+
 /** Migrate old VersionConfig shape to new generic format. */
 function migrateVersionConfig(vc: VersionConfig): VersionConfig {
   if (vc.authType) return vc; // already migrated
@@ -58,6 +68,7 @@ interface ScenarioOrgState {
   loaded: boolean;
   loading: boolean;
   versionConfigs: Record<string, VersionConfig>;
+  scenarioConfigs: Record<string, ScenarioEnvOverride>;
   folders: Record<string, string[]>;
   placements: Record<string, string>;
 
@@ -67,6 +78,10 @@ interface ScenarioOrgState {
 
   // Version config
   setVersionConfig: (version: string, config: VersionConfig) => void;
+
+  // Per-scenario environment overrides
+  setScenarioConfig: (flowPath: string, config: ScenarioEnvOverride) => void;
+  clearScenarioConfig: (flowPath: string) => void;
 
   // Folder CRUD
   createFolder: (version: string, folderPath: string) => void;
@@ -111,6 +126,7 @@ export const useScenarioOrgStore = create<ScenarioOrgState>((set, get) => ({
   loaded: false,
   loading: false,
   versionConfigs: {},
+  scenarioConfigs: {},
   folders: {},
   placements: {},
   detectedEndpoint: null,
@@ -128,6 +144,7 @@ export const useScenarioOrgStore = create<ScenarioOrgState>((set, get) => ({
       if (hasData) {
         set({
           versionConfigs: migrateVersionConfigs(data.versionConfigs),
+          scenarioConfigs: data.scenarioConfigs ?? {},
           folders: data.folders,
           placements: data.placements,
           loaded: true,
@@ -170,7 +187,7 @@ export const useScenarioOrgStore = create<ScenarioOrgState>((set, get) => ({
       });
 
       // Persist the seeded data
-      await saveScenarioOrg({ versionConfigs, folders, placements });
+      await saveScenarioOrg({ versionConfigs, scenarioConfigs: {}, folders, placements });
     } catch (e) {
       console.warn("[scenarioOrg] Failed to load:", e);
       set({ loading: false, loaded: true });
@@ -180,9 +197,9 @@ export const useScenarioOrgStore = create<ScenarioOrgState>((set, get) => ({
   save: async () => {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(async () => {
-      const { versionConfigs, folders, placements } = get();
+      const { versionConfigs, scenarioConfigs, folders, placements } = get();
       try {
-        await saveScenarioOrg({ versionConfigs, folders, placements });
+        await saveScenarioOrg({ versionConfigs, scenarioConfigs, folders, placements });
       } catch (e) {
         console.warn("[scenarioOrg] Failed to save:", e);
       }
@@ -193,6 +210,22 @@ export const useScenarioOrgStore = create<ScenarioOrgState>((set, get) => ({
     set((s) => ({
       versionConfigs: { ...s.versionConfigs, [version]: config },
     }));
+    get().save();
+  },
+
+  setScenarioConfig: (flowPath, config) => {
+    set((s) => ({
+      scenarioConfigs: { ...s.scenarioConfigs, [flowPath]: config },
+    }));
+    get().save();
+  },
+
+  clearScenarioConfig: (flowPath) => {
+    set((s) => {
+      const next = { ...s.scenarioConfigs };
+      delete next[flowPath];
+      return { scenarioConfigs: next };
+    });
     get().save();
   },
 
@@ -319,7 +352,7 @@ export const useScenarioOrgStore = create<ScenarioOrgState>((set, get) => ({
 
   reset: () => {
     loadStarted = false;
-    set({ loaded: false, loading: false, versionConfigs: {}, folders: {}, placements: {} });
+    set({ loaded: false, loading: false, versionConfigs: {}, scenarioConfigs: {}, folders: {}, placements: {} });
   },
 
   getVersionForFlow: (flowPath) => extractVersion(flowPath),

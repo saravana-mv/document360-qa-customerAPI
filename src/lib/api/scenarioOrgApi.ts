@@ -3,6 +3,8 @@ import { getProjectHeaders } from "./projectHeader";
 interface ScenarioOrgPayload {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   versionConfigs: Record<string, any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  scenarioConfigs?: Record<string, any>;
   folders: Record<string, string[]>;
   placements: Record<string, string>;
 }

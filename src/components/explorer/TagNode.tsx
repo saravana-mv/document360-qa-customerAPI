@@ -5,8 +5,10 @@ import { useSpecStore } from "../../store/spec.store";
 import { useFlowStatusStore } from "../../store/flowStatus.store";
 import { useExplorerUIStore } from "../../store/explorerUI.store";
 import { useUserStore } from "../../store/user.store";
+import { useScenarioOrgStore } from "../../store/scenarioOrg.store";
 import { StatusIcon } from "./StatusIcon";
 import { OperationNode } from "./OperationNode";
+import { ScenarioEnvOverrideModal } from "./ScenarioEnvOverrideModal";
 import { unregisterWhere } from "../../lib/tests/registry";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import { deactivateFlow } from "../../lib/tests/flowXml/activeTests";
@@ -24,6 +26,8 @@ export function TagNode({ tag, tests }: TagNodeProps) {
   const toggleTag = useExplorerUIStore((s) => s.toggleTag);
   const [deleting, setDeleting] = useState(false);
   const [locking, setLocking] = useState(false);
+  const [showEnvOverride, setShowEnvOverride] = useState(false);
+  const hasEnvOverride = useScenarioOrgStore((s) => !!flowFileName && !!s.scenarioConfigs[flowFileName]);
   const { tagResults, selectedTags, selectFlow, toggleFlowSelection } = useRunnerStore();
   const selectMode = useExplorerUIStore((s) => s.selectMode);
   const { setSpec } = useSpecStore();
@@ -104,7 +108,7 @@ export function TagNode({ tag, tests }: TagNodeProps) {
   }
 
   // Build context menu items
-  const menuItems: Array<{ label: string; icon: React.ReactNode; onClick: () => void; danger?: boolean; disabled?: boolean; separator?: boolean }> = [];
+  const menuItems: Array<{ label: string; icon: React.ReactNode; onClick: () => void; danger?: boolean; disabled?: boolean } | "separator"> = [];
 
   if (scenarioId) {
     menuItems.push({
@@ -132,7 +136,17 @@ export function TagNode({ tag, tests }: TagNodeProps) {
     }
   }
 
+  // Environment override
+  if (flowFileName) {
+    menuItems.push({
+      label: hasEnvOverride ? "Edit env override" : "Override environment",
+      icon: <EnvOverrideIcon />,
+      onClick: () => setShowEnvOverride(true),
+    });
+  }
+
   // Delete: disabled if locked and user is qa_engineer
+  menuItems.push("separator");
   const deleteDisabled = deleting || (isLocked && isQaEngineer);
   menuItems.push({
     label: "Delete scenario",
@@ -190,6 +204,13 @@ export function TagNode({ tag, tests }: TagNodeProps) {
           )}
           <StatusIcon status={status} />
           <span className="font-medium text-sm text-[#1f2328] truncate">{tag.name}</span>
+          {hasEnvOverride && (
+            <span title="Environment override active" className="shrink-0 text-[#0969da]">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
+              </svg>
+            </span>
+          )}
           {isLocked && (
             <span title={lockTooltip} className="shrink-0 text-[#bf8700]">
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
@@ -222,6 +243,14 @@ export function TagNode({ tag, tests }: TagNodeProps) {
       {open && tests.length === 0 && (
         <div className="ml-7 px-2 py-1 text-xs text-[#656d76] italic">No steps</div>
       )}
+
+      {showEnvOverride && flowFileName && (
+        <ScenarioEnvOverrideModal
+          flowPath={flowFileName}
+          scenarioName={tag.name}
+          onClose={() => setShowEnvOverride(false)}
+        />
+      )}
     </div>
   );
 }
@@ -246,6 +275,14 @@ function ClipboardIcon() {
   return (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
+    </svg>
+  );
+}
+
+function EnvOverrideIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
     </svg>
   );
 }

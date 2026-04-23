@@ -23,6 +23,7 @@ interface ScenarioOrgDoc {
   projectId: string;
   type: "scenario_org";
   versionConfigs: Record<string, { baseUrl: string; apiVersion: string }>;
+  scenarioConfigs?: Record<string, Record<string, unknown>>;
   folders: Record<string, string[]>;
   placements: Record<string, string>;
   updatedAt: string;
@@ -50,10 +51,11 @@ async function getScenarioOrg(req: HttpRequest): Promise<HttpResponseInit> {
     const projectId = getProjectId(req);
     const doc = await readDoc(projectId);
     if (!doc) {
-      return ok({ versionConfigs: {}, folders: {}, placements: {} });
+      return ok({ versionConfigs: {}, scenarioConfigs: {}, folders: {}, placements: {} });
     }
     return ok({
       versionConfigs: doc.versionConfigs,
+      scenarioConfigs: doc.scenarioConfigs ?? {},
       folders: doc.folders,
       placements: doc.placements,
     });
@@ -69,6 +71,7 @@ async function putScenarioOrg(req: HttpRequest): Promise<HttpResponseInit> {
     const user = getUserInfo(req);
     const body = (await req.json()) as {
       versionConfigs: Record<string, { baseUrl: string; apiVersion: string }>;
+      scenarioConfigs?: Record<string, Record<string, unknown>>;
       folders: Record<string, string[]>;
       placements: Record<string, string>;
     };
@@ -82,6 +85,7 @@ async function putScenarioOrg(req: HttpRequest): Promise<HttpResponseInit> {
       projectId,
       type: "scenario_org",
       versionConfigs: body.versionConfigs,
+      scenarioConfigs: body.scenarioConfigs ?? {},
       folders: body.folders,
       placements: body.placements,
       updatedAt: new Date().toISOString(),
@@ -91,6 +95,7 @@ async function putScenarioOrg(req: HttpRequest): Promise<HttpResponseInit> {
     const saved = await writeDoc(projectId, doc);
     return ok({
       versionConfigs: saved.versionConfigs,
+      scenarioConfigs: saved.scenarioConfigs ?? {},
       folders: saved.folders,
       placements: saved.placements,
     });
