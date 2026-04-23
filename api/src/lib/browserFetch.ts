@@ -29,6 +29,17 @@ export function browserHeaders(accessToken?: string): Record<string, string> {
   return headers;
 }
 
+/** Result of fetchWithCookieJar — includes redirect metadata. */
+export interface FetchResult {
+  response: Response;
+  /** True if at least one 3xx redirect was followed. */
+  redirected: boolean;
+  /** The final URL after following redirects. */
+  finalUrl: string;
+  /** Number of redirect hops taken. */
+  redirectCount: number;
+}
+
 /**
  * Manually follow redirects preserving cookies across hops.
  * Cloudflare and similar edge protections set a session cookie on the first
@@ -38,9 +49,10 @@ export async function fetchWithCookieJar(
   startUrl: string,
   initHeaders: Record<string, string>,
   signal: AbortSignal,
-): Promise<Response> {
+): Promise<FetchResult> {
   let currentUrl = startUrl;
   const cookieJar: string[] = [];
+  let redirectCount = 0;
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
     const headers: Record<string, string> = { ...initHeaders };
@@ -68,31 +80,31 @@ export async function fetchWithCookieJar(
     // 3xx → follow. Otherwise return.
     if (res.status >= 300 && res.status < 400) {
       const location = res.headers.get("location");
-      if (!location) return res;
+      if (!location) return { response: res, redirected: redirectCount > 0, finalUrl: currentUrl, redirectCount };
       currentUrl = new URL(location, currentUrl).toString();
+      redirectCount += 1;
       await res.arrayBuffer().catch(() => undefined);
       continue;
     }
-    return res;
+    return { response: res, redirected: redirectCount > 0, finalUrl: currentUrl, redirectCount };
   }
   throw new Error(`too many redirects (>${MAX_REDIRECTS})`);
 }
 
 /**
  * Fetch a URL with browser headers and cookie jar support.
- * Returns the Response object. Throws on network/redirect errors.
+ * Returns a FetchResult with redirect metadata. Throws on network errors.
  */
 export async function browserFetch(
   url: string,
   accessToken?: string,
   timeoutMs = 15_000,
-): Promise<Response> {
+): Promise<FetchResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const headers = browserHeaders(accessToken);
-    const response = await fetchWithCookieJar(url, headers, controller.signal);
-    return response;
+    return await fetchWithCookieJar(url, headers, controller.signal);
   } catch (fetchErr) {
     const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
     const cause = fetchErr instanceof Error && (fetchErr as Error & { cause?: unknown }).cause;

@@ -98,11 +98,23 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
         return err(413, `File too large (max ${MAX_SIZE / 1024 / 1024}MB)`);
       }
     } else {
-      let response: Response;
-      try { response = await browserFetch(url, accessToken); } catch (fetchErr) {
+      let fetchResult: import("../lib/browserFetch").FetchResult;
+      try { fetchResult = await browserFetch(url, accessToken); } catch (fetchErr) {
         const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
         return err(502, `Failed to fetch URL: ${msg}`);
       }
+      const { response, redirected, finalUrl } = fetchResult;
+
+      // Detect redirect (likely auth wall)
+      if (redirected) {
+        return { status: 409, headers: { ...CORS_HEADERS, "Content-Type": "application/json" }, body: JSON.stringify({
+          error: "Redirection detected — authentication may be required to access this URL.",
+          code: "REDIRECT_DETECTED",
+          originalUrl: url,
+          finalUrl,
+        })};
+      }
+
       if (!response.ok) return err(502, `URL returned HTTP ${response.status}`);
       const contentLength = response.headers.get("content-length");
       if (contentLength && parseInt(contentLength, 10) > MAX_SIZE) {
@@ -112,6 +124,15 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
       if (content.length > MAX_SIZE) {
         return err(413, `File too large (max ${MAX_SIZE / 1024 / 1024}MB)`);
       }
+    }
+
+    // Final safety check: reject HTML content (login pages, error pages, etc.)
+    const trimmed = content.trimStart().toLowerCase();
+    if (trimmed.startsWith("<!doctype") || trimmed.startsWith("<html")) {
+      return { status: 409, headers: { ...CORS_HEADERS, "Content-Type": "application/json" }, body: JSON.stringify({
+        error: "The URL returned an HTML page instead of markdown — authentication may be required.",
+        code: "HTML_CONTENT_DETECTED",
+      })};
     }
 
     await uploadBlob(blobPath, content, "text/markdown");

@@ -30,7 +30,7 @@ function isValidUrl(s: string): boolean {
 interface UrlEntry {
   url: string;
   filename: string;
-  status: "pending" | "importing" | "done" | "error";
+  status: "pending" | "importing" | "done" | "error" | "warning";
   error?: string;
 }
 
@@ -68,7 +68,9 @@ export function ImportFromUrlModal({ folderPath, onImport, onClose }: Props) {
         await onImport(entry.url, folderPath);
         setEntries((prev) => prev.map((e, idx) => idx === i ? { ...e, status: "done" } : e));
       } catch (err) {
-        setEntries((prev) => prev.map((e, idx) => idx === i ? { ...e, status: "error", error: err instanceof Error ? err.message : String(err) } : e));
+        const msg = err instanceof Error ? err.message : String(err);
+        const isAuthWarning = msg.includes("authentication may be required") || msg.includes("Redirection detected") || msg.includes("HTML");
+        setEntries((prev) => prev.map((e, idx) => idx === i ? { ...e, status: isAuthWarning ? "warning" : "error", error: msg } : e));
       }
     }
     setImporting(false);
@@ -77,6 +79,7 @@ export function ImportFromUrlModal({ folderPath, onImport, onClose }: Props) {
 
   const doneCount = entries.filter((e) => e.status === "done").length;
   const errorCount = entries.filter((e) => e.status === "error").length;
+  const warningCount = entries.filter((e) => e.status === "warning").length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -90,7 +93,7 @@ export function ImportFromUrlModal({ folderPath, onImport, onClose }: Props) {
                 ? "Paste one URL per line"
                 : phase === "review"
                   ? `${entries.length} file${entries.length !== 1 ? "s" : ""} to import into ${folderPath || "/"}`
-                  : `Import complete — ${doneCount} succeeded${errorCount > 0 ? `, ${errorCount} failed` : ""}`}
+                  : `Import complete — ${doneCount} succeeded${warningCount > 0 ? `, ${warningCount} skipped (auth required)` : ""}${errorCount > 0 ? `, ${errorCount} failed` : ""}`}
             </p>
           </div>
           <button
@@ -153,17 +156,24 @@ export function ImportFromUrlModal({ folderPath, onImport, onClose }: Props) {
                   className={`flex items-center gap-2 px-2.5 py-2 rounded-md border text-sm ${
                     entry.status === "done"
                       ? "bg-[#dafbe1] border-[#aceebb]"
-                      : entry.status === "error"
-                        ? "bg-[#ffebe9] border-[#ffcecb]"
-                        : entry.status === "importing"
-                          ? "bg-[#ddf4ff] border-[#54aeff]"
-                          : "bg-white border-[#d1d9e0]"
+                      : entry.status === "warning"
+                        ? "bg-[#fff8c5] border-[#d4a72c]"
+                        : entry.status === "error"
+                          ? "bg-[#ffebe9] border-[#ffcecb]"
+                          : entry.status === "importing"
+                            ? "bg-[#ddf4ff] border-[#54aeff]"
+                            : "bg-white border-[#d1d9e0]"
                   }`}
                 >
                   {/* Status icon */}
                   {entry.status === "done" && (
                     <svg className="w-4 h-4 text-[#1a7f37] shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    </svg>
+                  )}
+                  {entry.status === "warning" && (
+                    <svg className="w-4 h-4 text-[#9a6700] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
                     </svg>
                   )}
                   {entry.status === "error" && (
@@ -186,7 +196,7 @@ export function ImportFromUrlModal({ folderPath, onImport, onClose }: Props) {
                     <p className="text-sm text-[#1f2328] font-medium truncate">{entry.filename}</p>
                     <p className="text-xs text-[#656d76] truncate">{entry.url}</p>
                     {entry.error && (
-                      <p className="text-xs text-[#d1242f] mt-0.5">{entry.error}</p>
+                      <p className={`text-xs mt-0.5 ${entry.status === "warning" ? "text-[#9a6700]" : "text-[#d1242f]"}`}>{entry.error}</p>
                     )}
                   </div>
                 </div>

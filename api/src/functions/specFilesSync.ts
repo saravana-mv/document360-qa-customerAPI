@@ -82,9 +82,14 @@ async function syncOneFile(
   const blobPath = projectId !== "unknown" ? scopedPath(projectId, localPath) : localPath;
   try {
     await preserveVersion(projectId, folderPath, filename);
-    const response = await browserFetch(entry.sourceUrl, accessToken);
-    if (!response.ok) throw new Error(`URL returned HTTP ${response.status}`);
-    const content = await response.text();
+    const fetchResult = await browserFetch(entry.sourceUrl, accessToken);
+    if (fetchResult.redirected) throw new Error("Redirection detected — authentication may be required");
+    if (!fetchResult.response.ok) throw new Error(`URL returned HTTP ${fetchResult.response.status}`);
+    const content = await fetchResult.response.text();
+    const trimmedContent = content.trimStart().toLowerCase();
+    if (trimmedContent.startsWith("<!doctype") || trimmedContent.startsWith("<html")) {
+      throw new Error("URL returned HTML instead of markdown — authentication may be required");
+    }
     await uploadBlob(blobPath, content, "text/markdown");
     manifest[filename] = { ...entry, lastSyncedAt: new Date().toISOString() };
     return { name: localPath, updated: true };
