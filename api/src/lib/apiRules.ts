@@ -20,12 +20,37 @@ export function extractVersionFolder(pathOrPaths: string | string[]): string | n
   return null;
 }
 
-/** Load API rules. Tries version-folder blob first, falls back to project-level Cosmos. */
+/** Parse enum aliases from a Skills.md code block under "## Enum Aliases". */
+function parseEnumAliasesFromMarkdown(md: string): string {
+  // Look for a code block after "## Enum Aliases"
+  const aliasSection = md.match(/##\s*Enum\s*Aliases[\s\S]*?```\n?([\s\S]*?)```/i);
+  if (!aliasSection) return "";
+  // Filter out HTML comments and blank lines
+  return aliasSection[1]
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("<!--") && !l.startsWith("-->") && l.includes("="))
+    .join("\n");
+}
+
+/** Load API rules. Tries Skills.md → _rules.json → project-level Cosmos. */
 export async function loadApiRules(projectId: string, versionFolder?: string): Promise<{ rules: string; enumAliases: string }> {
   if (!projectId || projectId === "unknown") return { rules: "", enumAliases: "" };
 
-  // Try version-folder blob first
   if (versionFolder) {
+    // Try Skills.md first (preferred)
+    try {
+      const skillsPath = `${projectId}/${versionFolder}/Skills.md`;
+      const md = await downloadBlob(skillsPath);
+      if (md.trim()) {
+        const enumAliases = parseEnumAliasesFromMarkdown(md);
+        return { rules: md, enumAliases };
+      }
+    } catch {
+      // Skills.md doesn't exist — try _rules.json
+    }
+
+    // Try legacy _rules.json
     try {
       const blobPath = `${projectId}/${versionFolder}/_rules.json`;
       const content = await downloadBlob(blobPath);

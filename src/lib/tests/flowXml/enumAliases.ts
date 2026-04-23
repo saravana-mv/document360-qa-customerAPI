@@ -46,3 +46,14 @@ export function enumMatches(name: string, value: number): boolean {
   const matches = byName.get(name.toLowerCase());
   return matches ? matches.includes(value) : false;
 }
+
+/** Extract enum aliases from a Skills.md markdown file's code block under "## Enum Aliases". */
+export function parseEnumAliasesFromMarkdown(md: string): string {
+  const aliasSection = md.match(/##\s*Enum\s*Aliases[\s\S]*?```\n?([\s\S]*?)```/i);
+  if (!aliasSection) return "";
+  return aliasSection[1]
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("<!--") && !l.startsWith("-->") && l.includes("="))
+    .join("\n");
+}
