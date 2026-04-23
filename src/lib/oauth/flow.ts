@@ -52,9 +52,6 @@ export async function startConnectionAuthFlow(connection: {
   }
 
   const authUrl = `${connection.authorizationUrl}?${params.toString()}`;
-  console.log("[OAuth] redirect_uri:", redirectUri);
-  console.log("[OAuth] client_id:", connection.clientId);
-  console.log("[OAuth] full auth URL:", authUrl);
   window.location.href = authUrl;
 }
 

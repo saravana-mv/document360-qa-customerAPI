@@ -8,7 +8,7 @@
  * - Auth header/query param names for API key auth
  */
 
-import type { AuthType } from "../../store/scenarioOrg.store";
+import type { AuthType } from "../../types/test.types";
 
 export interface DetectedEndpoint {
   baseUrl: string;

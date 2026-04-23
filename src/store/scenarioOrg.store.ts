@@ -4,8 +4,9 @@ import { getActiveFlows } from "../lib/api/activeTestsApi";
 import { useSetupStore } from "./setup.store";
 import { NEWLY_ADDED, depthOf } from "../lib/treeUtils";
 import type { DetectedEndpoint } from "../lib/spec/autoDetectEndpoint";
+import type { AuthType } from "../types/test.types";
 
-export type AuthType = "bearer" | "apikey_header" | "apikey_query" | "basic" | "cookie" | "oauth" | "none";
+export type { AuthType };
 
 export interface VersionConfig {
   baseUrl: string;
