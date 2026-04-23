@@ -356,6 +356,9 @@ function TreeNodeRow({
         onClick={(e) => {
           if (e.ctrlKey || e.metaKey || e.shiftKey) {
             onMultiSelect(node.path, e);
+          } else if (multiSelectActive) {
+            // In select mode, clicking the row toggles selection
+            onMultiSelect(node.path, e);
           } else if (node.type === "folder") {
             onSelectFolder(node.path);
           } else {

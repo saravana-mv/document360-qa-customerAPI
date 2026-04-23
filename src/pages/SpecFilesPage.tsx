@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Layout } from "../components/common/Layout";
 import { ResizeHandle } from "../components/common/ResizeHandle";
-import { FileTree, buildTree, flattenVisiblePaths } from "../components/specfiles/FileTree";
+import { FileTree, buildTree, flattenVisiblePaths, type TreeNode, type FolderNode } from "../components/specfiles/FileTree";
 import { MarkdownViewer } from "../components/specfiles/MarkdownViewer";
 import { FileUploadModal } from "../components/specfiles/FileUploadModal";
 import { ImportFromUrlModal } from "../components/specfiles/ImportFromUrlModal";
@@ -475,10 +475,41 @@ export function SpecFilesPage() {
 
   // ── Multi-select handlers ────────────────────────────────────────────────
 
+  /** Collect all descendant paths (files + subfolders) under a folder path from the tree. */
+  function collectDescendants(folderPath: string, tree: TreeNode[]): string[] {
+    const results: string[] = [];
+    function walk(nodes: TreeNode[]) {
+      for (const n of nodes) {
+        results.push(n.path);
+        if (n.type === "folder") walk(n.children);
+      }
+    }
+    // Find the target folder node in the tree
+    function findFolder(nodes: TreeNode[]): FolderNode | undefined {
+      for (const n of nodes) {
+        if (n.type === "folder" && n.path === folderPath) return n;
+        if (n.type === "folder") {
+          const found = findFolder(n.children);
+          if (found) return found;
+        }
+      }
+      return undefined;
+    }
+    const folder = findFolder(tree);
+    if (folder) walk(folder.children);
+    return results;
+  }
+
+  /** Check if all descendants of a folder are currently selected. */
+  function allDescendantsSelected(folderPath: string, tree: TreeNode[]): boolean {
+    const descendants = collectDescendants(folderPath, tree);
+    return descendants.length > 0 && descendants.every(p => multiSelectedPaths.has(p));
+  }
+
   function handleMultiSelect(path: string, e: React.MouseEvent) {
+    const tree = buildTree(files);
     if (e.shiftKey && lastClickedPathRef.current) {
       // Shift+click: range select
-      const tree = buildTree(files);
       const sortState: Record<string, string> = {};
       try {
         const raw = localStorage.getItem("specfiles_folder_sort");
@@ -495,16 +526,52 @@ export function SpecFilesPage() {
         const range = flat.slice(lo, hi + 1);
         setMultiSelectedPaths(prev => {
           const next = new Set(prev);
-          for (const p of range) next.add(p);
+          for (const p of range) {
+            next.add(p);
+            // If range includes a folder, also select all its descendants
+            const isFolder = !files.some(f => f.name === p);
+            if (isFolder) {
+              for (const d of collectDescendants(p, tree)) next.add(d);
+            }
+          }
           return next;
         });
       }
     } else {
-      // Ctrl/Cmd+click: toggle single item
+      // Toggle single item — if folder, also toggle all descendants
+      const isFolderNode = (() => {
+        function find(nodes: TreeNode[]): TreeNode | undefined {
+          for (const n of nodes) {
+            if (n.path === path) return n;
+            if (n.type === "folder") {
+              const found = find(n.children);
+              if (found) return found;
+            }
+          }
+          return undefined;
+        }
+        const node = find(tree);
+        return node?.type === "folder";
+      })();
+
       setMultiSelectedPaths(prev => {
         const next = new Set(prev);
-        if (next.has(path)) next.delete(path);
-        else next.add(path);
+        if (isFolderNode) {
+          const descendants = collectDescendants(path, tree);
+          const isCurrentlySelected = next.has(path) && allDescendantsSelected(path, tree);
+          if (isCurrentlySelected) {
+            // Deselect folder + all descendants
+            next.delete(path);
+            for (const d of descendants) next.delete(d);
+          } else {
+            // Select folder + all descendants
+            next.add(path);
+            for (const d of descendants) next.add(d);
+          }
+        } else {
+          if (next.has(path)) next.delete(path);
+          else next.add(path);
+        }
         return next;
       });
     }
@@ -516,30 +583,40 @@ export function SpecFilesPage() {
   }
 
   function handleSelectAll() {
-    setMultiSelectedPaths(new Set(files.map(f => f.name)));
+    // Select all visible tree nodes (files + folders) — not raw blob names
+    const tree = buildTree(files);
+    const allPaths: string[] = [];
+    function walk(nodes: TreeNode[]) {
+      for (const n of nodes) {
+        allPaths.push(n.path);
+        if (n.type === "folder") walk(n.children);
+      }
+    }
+    walk(tree);
+    setMultiSelectedPaths(new Set(allPaths));
   }
 
   async function handleBulkDelete() {
+    // Resolve selected paths to actual blob names to delete
+    const allBlobsToDelete = new Set<string>();
+    for (const p of multiSelectedPaths) {
+      // Check if it's an actual file blob
+      if (files.some(f => f.name === p)) {
+        allBlobsToDelete.add(p);
+      }
+      // Also find any blobs under this path (folder expansion)
+      for (const f of files) {
+        if (f.name.startsWith(p + "/")) allBlobsToDelete.add(f.name);
+      }
+    }
+    if (allBlobsToDelete.size === 0) return;
+
     const count = multiSelectedPaths.size;
-    if (count === 0) return;
-    if (!confirm(`Delete ${count} selected item${count !== 1 ? "s" : ""}?`)) return;
+    if (!confirm(`Delete ${count} selected item${count !== 1 ? "s" : ""} (${allBlobsToDelete.size} blob${allBlobsToDelete.size !== 1 ? "s" : ""})?`)) return;
     setError(null);
     try {
-      // Expand folder selections to include all child files
-      const allFilesToDelete = new Set<string>();
-      for (const p of multiSelectedPaths) {
-        const isFile = files.some(f => f.name === p);
-        if (isFile) {
-          allFilesToDelete.add(p);
-        } else {
-          // Folder — add all children
-          for (const f of files) {
-            if (f.name.startsWith(p + "/")) allFilesToDelete.add(f.name);
-          }
-        }
-      }
-      await Promise.all([...allFilesToDelete].map(f => deleteSpecFile(f)));
-      if (selectedPath && allFilesToDelete.has(selectedPath)) {
+      await Promise.all([...allBlobsToDelete].map(f => deleteSpecFile(f)));
+      if (selectedPath && allBlobsToDelete.has(selectedPath)) {
         setSelectedPath(null);
         setContent("");
       }
