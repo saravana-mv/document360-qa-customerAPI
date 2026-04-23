@@ -515,6 +515,10 @@ export function SpecFilesPage() {
     setMultiSelectedPaths(new Set());
   }
 
+  function handleSelectAll() {
+    setMultiSelectedPaths(new Set(files.map(f => f.name)));
+  }
+
   async function handleBulkDelete() {
     const count = multiSelectedPaths.size;
     if (count === 0) return;
@@ -1604,6 +1608,7 @@ export function SpecFilesPage() {
             onSelectFile={(path) => void selectFile(path)}
             onSelectFolder={selectFolder}
             onMultiSelect={handleMultiSelect}
+            onSelectAll={handleSelectAll}
             onClearMultiSelect={handleClearMultiSelect}
             onBulkDelete={() => void handleBulkDelete()}
             onCreateFolder={(path) => handleCreateFolder(path)}

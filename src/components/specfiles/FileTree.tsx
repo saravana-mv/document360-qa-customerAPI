@@ -552,6 +552,7 @@ interface FileTreeProps {
   onSelectFile: (path: string) => void;
   onSelectFolder: (path: string) => void;
   onMultiSelect: (path: string, e: React.MouseEvent) => void;
+  onSelectAll: () => void;
   onClearMultiSelect: () => void;
   onBulkDelete: () => void;
   onCreateFolder: (path: string) => Promise<void>;
@@ -568,7 +569,7 @@ interface FileTreeProps {
 
 export function FileTree({
   files, loading, selectedPath, selectedFolderPath, pathsWithIdeas, sourcedPaths, syncingPaths,
-  multiSelectedPaths, onSelectFile, onSelectFolder, onMultiSelect, onClearMultiSelect, onBulkDelete,
+  multiSelectedPaths, onSelectFile, onSelectFolder, onMultiSelect, onSelectAll, onClearMultiSelect, onBulkDelete,
   onCreateFolder, onDeleteFile, onDeleteFolder, onRenameFile,
   onUploadFiles, onImportFromUrl, onSyncFile, onSyncFolder, onGenerateFlowIdeas, onRefresh,
 }: FileTreeProps) {
@@ -774,7 +775,8 @@ export function FileTree({
     }
   }
 
-  const multiSelectActive = multiSelectedPaths.size > 0;
+  const [selectMode, setSelectMode] = useState(false);
+  const multiSelectActive = selectMode || multiSelectedPaths.size > 0;
 
   const sharedProps = {
     selectedPath,
@@ -825,18 +827,39 @@ export function FileTree({
           <>
             <span className="text-xs font-medium text-[#0969da]">{multiSelectedPaths.size} selected</span>
             <div className="flex-1" />
+            {/* Select All / Deselect All toggle */}
+            <button
+              onClick={() => {
+                if (multiSelectedPaths.size > 0) { onClearMultiSelect(); } else { onSelectAll(); }
+              }}
+              title={multiSelectedPaths.size > 0 ? "Deselect all" : "Select all"}
+              className="text-[#656d76] hover:text-[#1f2328] rounded-md p-1 hover:bg-[#eef1f6] transition-colors"
+            >
+              {multiSelectedPaths.size > 0 ? (
+                /* Deselect all — empty checkbox */
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 7.5A2.25 2.25 0 0 1 7.5 5.25h9a2.25 2.25 0 0 1 2.25 2.25v9a2.25 2.25 0 0 1-2.25 2.25h-9a2.25 2.25 0 0 1-2.25-2.25v-9Z" />
+                </svg>
+              ) : (
+                /* Select all — checkbox with check */
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+              )}
+            </button>
             <button
               onClick={onBulkDelete}
-              title="Delete selected"
-              className="text-[#656d76] hover:text-[#d1242f] rounded-md p-1 hover:bg-[#ffebe9] transition-colors"
+              disabled={multiSelectedPaths.size === 0}
+              title={multiSelectedPaths.size > 0 ? `Delete ${multiSelectedPaths.size} selected` : "Select files to delete"}
+              className="text-[#656d76] hover:text-[#d1242f] disabled:opacity-40 disabled:cursor-not-allowed rounded-md p-1 hover:bg-[#ffebe9] transition-colors"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
               </svg>
             </button>
             <button
-              onClick={onClearMultiSelect}
-              title="Clear selection"
+              onClick={() => { onClearMultiSelect(); setSelectMode(false); }}
+              title="Exit select mode"
               className="text-[#656d76] hover:text-[#1f2328] rounded-md p-1 hover:bg-[#eef1f6] transition-colors"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -851,6 +874,16 @@ export function FileTree({
             </svg>
             <span className="text-sm font-semibold text-[#1f2328]">Spec Files</span>
             <div className="flex-1" />
+            <button
+              onClick={() => setSelectMode(true)}
+              title="Select files"
+              disabled={files.length === 0}
+              className="text-[#656d76] hover:text-[#1f2328] disabled:opacity-40 rounded-md p-1 hover:bg-[#eef1f6] transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+              </svg>
+            </button>
             <button
               onClick={startRootFolder}
               title="New API Version"
