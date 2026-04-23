@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useAuthStore } from "../../store/auth.store";
-import { handleCallback, loadOAuthConfig } from "../../lib/oauth/flow";
+import { handleCallback, loadOAuthConfig, loadConnectionId, handleConnectionCallback } from "../../lib/oauth/flow";
 import { Spinner } from "../common/Spinner";
 
 export function OAuthCallback() {
   const navigate = useNavigate();
+  const { connectionId: routeConnectionId } = useParams<{ connectionId?: string }>();
   const { setToken, setError } = useAuthStore();
   const [message, setMessage] = useState("Completing sign in...");
   const [failed, setFailed] = useState(false);
@@ -19,16 +20,36 @@ export function OAuthCallback() {
     if (errorParam) {
       const msg = params.get("error_description") || errorParam;
       setError(msg);
-      navigate("/spec-files?error=" + encodeURIComponent(msg));
+      navigate("/settings/connections?error=" + encodeURIComponent(msg));
       return;
     }
 
     if (!code || !state) {
       setError("Missing code or state in callback");
-      navigate("/spec-files");
+      navigate("/settings/connections");
       return;
     }
 
+    // Check if this is a generic connection callback
+    const connectionId = routeConnectionId || loadConnectionId();
+    if (connectionId) {
+      try {
+        setMessage("Exchanging authorization code...");
+        const redirectUri = `${window.location.origin}/oauth/callback/${connectionId}`;
+        await handleConnectionCallback(code, state, connectionId, redirectUri);
+        // Redirect back to connections page with success
+        navigate(`/settings/connections?connected=${connectionId}`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("[OAuthCallback] connection exchange failed:", msg);
+        setError(msg);
+        setFailed(true);
+        setMessage(msg);
+      }
+      return;
+    }
+
+    // Legacy D360 OAuth flow
     const config = loadOAuthConfig();
     if (!config) {
       setError("OAuth config not found — please sign in again");
@@ -48,7 +69,7 @@ export function OAuthCallback() {
       setFailed(true);
       setMessage(msg);
     }
-  }, [navigate, setToken, setError]);
+  }, [navigate, setToken, setError, routeConnectionId]);
 
   useEffect(() => { exchange(); }, [exchange]);
 

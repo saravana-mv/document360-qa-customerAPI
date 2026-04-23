@@ -115,7 +115,7 @@ tests/
 2. `parser.ts` parses XML into `FlowElement` tree
 3. `builder.ts` converts to `TestDef` with assertions, captures, flags
 4. `registry.ts` stores definitions
-5. `runner.ts` executes: resolves `{{state.*}}`, `{{proj.*}}` (project variables) interpolation, runs HTTP calls via proxy (with `X-D360-Auth-Type` header), evaluates assertions
+5. `runner.ts` executes: merges scenario env overrides into context, resolves `{{state.*}}`, `{{proj.*}}` (project variables) interpolation, runs HTTP calls via proxy (with `X-D360-Auth-Type` header), evaluates assertions
 6. Teardown steps run even if prior steps fail
 
 ---
