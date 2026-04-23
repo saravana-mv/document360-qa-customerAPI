@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-FlowForge is an AI-assisted API testing platform for Document360. It lets QA teams import API specs, generate test flow ideas and XML definitions using Claude, execute tests against live endpoints, and track results — all from a single web app.
+FlowForge is a generic AI-assisted API testing platform. It lets QA teams import API specs, connect any REST endpoint (with flexible auth), generate test flow ideas and XML definitions using Claude, execute tests against live endpoints, and track results — all from a single web app. Originally built for Document360, it now supports any API via the Connect Endpoint feature.
 
 **Stack:** React 19 + Vite 8 + Tailwind v4 + Zustand | Azure Functions v4 (Node.js) + Cosmos DB | Entra ID auth | Anthropic Claude API
 **Deployed:** Azure Static Web Apps — Staging: `https://purple-mud-0bc0f5203.7.azurestaticapps.net` | Production: `https://delightful-smoke-0a3c52a03.7.azurestaticapps.net`
@@ -26,10 +26,13 @@ FlowForge is an AI-assisted API testing platform for Document360. It lets QA tea
 `auth.store` (OAuth session), `setup.store` (project/version/AI model), `user.store` (role), `project.store` (project list/selection), `flowStatus.store` (flow activation), `runner.store` (test execution), `scenarioOrg.store` (folder tree), `aiCost.store` (spend tracking), `aiCredits.store` (credit budgets/usage), `breakpoints.store` (step pause/resume), `projectVariables.store` (project-level key/value variables)
 
 ### API Functions (`api/src/functions/`)
-25+ Azure Functions. All wrapped with `withAuth()`. Key routes: `/api/spec-files/*`, `/api/flow-files`, `/api/flow-chat`, `/api/generate-flow-ideas`, `/api/generate-flow`, `/api/run-scenario`, `/api/d360/*` (proxy), `/api/active-tests`, `/api/test-runs`, `/api/users`, `/api/api-keys`, `/api/audit-log`, `/api/projects`, `/api/project-members`, `/api/ai-credits`, `/api/project-variables`
+25+ Azure Functions. All wrapped with `withAuth()`. Key routes: `/api/spec-files/*`, `/api/flow-files`, `/api/flow-chat`, `/api/generate-flow-ideas`, `/api/generate-flow`, `/api/run-scenario`, `/api/d360/*` (proxy), `/api/active-tests`, `/api/test-runs`, `/api/users`, `/api/api-keys`, `/api/audit-log`, `/api/projects`, `/api/project-members`, `/api/ai-credits`, `/api/project-variables`, `/api/version-auth/credential`
 
 ### Auth Flow
-Entra ID SSO → `EntraGate` auto-login → `ProjectGate` redirects to `/projects` if no project selected → `withAuth()` extracts OID/project from claims → `withProjectRole()` enforces per-project membership → D360 tokens in Azure Table Storage → proxy injects bearer at `/api/d360/*` → browser never holds real D360 token
+Entra ID SSO → `EntraGate` auto-login → `ProjectGate` redirects to `/projects` if no project selected → `withAuth()` extracts OID/project from claims → `withProjectRole()` enforces per-project membership → credentials in Azure Table Storage → proxy injects auth at `/api/d360/*` based on stored credential type → browser never holds real API credentials
+
+### Connect Endpoint (Generic Auth)
+Versions are connected to any API endpoint via `ConnectEndpointModal` (cURL paste or manual form). Supported `AuthType` values: `"bearer"` | `"apikey_header"` | `"apikey_query"` | `"basic"` | `"cookie"` | `"oauth"` | `"none"`. Credentials stored server-side via `/api/version-auth/credential`. `d360Proxy` injects the appropriate auth header/query param based on stored type. `cURL parser` (`src/lib/curlParser.ts`) auto-detects endpoint config from pasted cURL commands.
 
 ### Role Hierarchy
 5-tier hierarchy: `owner`(5) > `project_owner`(4) > `qa_manager`(3) > `qa_engineer`(2) > `member`(1). Super Owners bypass all checks and see all projects; other users see only projects they are members of. Project creation requires `project_owner`+. When a project owner invites someone who doesn't have a tenant-level `users` doc, one is auto-created with role `member`.

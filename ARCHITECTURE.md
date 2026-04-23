@@ -63,7 +63,7 @@ src/components/
 ├── auth/           # EntraGate (SSO wrapper), ProjectGate (project selection guard), AccessGate (role check), LoginScreen, OAuthCallback
 ├── common/         # Layout, TopBar, SideNav, Modal, ContextMenu, XmlCodeBlock, XmlEditor, ResizeHandle, ProjectPicker
 ├── specfiles/      # FileTree, FlowChatPanel, FlowIdeasPanel, FlowsPanel, DetailPanel, ImportFromUrlModal
-├── explorer/       # TestExplorer, VersionAccordion, ScenarioFolderTree, TagNode
+├── explorer/       # TestExplorer, VersionAccordion, ScenarioFolderTree, TagNode, ConnectEndpointModal
 ├── runner/         # RunControls, LiveLog, ProgressBar, RunHistory
 ├── results/        # ResultsPanel, DetailPane, SummaryDrawer, DiffModal
 └── setup/          # SetupPanel, ProjectSettingsCard, ApiKeysCard
@@ -83,7 +83,7 @@ All API calls go through `client.ts` which adds auth headers and rewrites `/vN/`
 | `activeTestsApi.ts` | `activateFlow`, `deactivateFlow`, `getActiveFlows` |
 | `testRunsApi.ts` | `saveTestRun`, `getTestRuns` |
 | `scenarioOrgApi.ts` | `loadScenarioOrg`, `saveScenarioOrg` |
-| `versionAuthApi.ts` | `getVersionAuth`, `saveVersionAuth` |
+| `versionAuthApi.ts` | `getVersionAuth`, `saveVersionAuth`, `saveCredential`, `deleteCredential` |
 | `apiKeysApi.ts` | `listApiKeys`, `createApiKey`, `revokeApiKey` |
 | `auditLogApi.ts` | `queryAuditLog` |
 | `projectsApi.ts` | `listProjects`, `createProject`, `updateProject`, `archiveProject` |
@@ -97,7 +97,7 @@ All API calls go through `client.ts` which adds auth headers and rewrites `/vN/`
 tests/
 ├── registry.ts         # Global test registry (getAllTests, registerTest)
 ├── runner.ts           # Execution loop: setup → execute → teardown (with pause/resume)
-├── context.ts          # Runtime context (project, version, auth tokens, captures)
+├── context.ts          # Runtime context (project, version, auth type/tokens/headers, captures) — buildTestContext takes options object
 ├── assertions.ts       # status, field-exists, field-equals, field-contains, etc.
 ├── buildParsedTags.ts  # Build tag tree from registry for TestExplorer
 └── flowXml/
@@ -115,7 +115,7 @@ tests/
 2. `parser.ts` parses XML into `FlowElement` tree
 3. `builder.ts` converts to `TestDef` with assertions, captures, flags
 4. `registry.ts` stores definitions
-5. `runner.ts` executes: resolves `{{state.*}}`, `{{proj.*}}` (project variables) interpolation, runs HTTP calls, evaluates assertions
+5. `runner.ts` executes: resolves `{{state.*}}`, `{{proj.*}}` (project variables) interpolation, runs HTTP calls via proxy (with `X-D360-Auth-Type` header), evaluates assertions
 6. Teardown steps run even if prior steps fail
 
 ---
@@ -144,7 +144,7 @@ tests/
 | `d360Proxy` | `/api/d360/*` | All | Proxy to D360 API with injected bearer |
 | `users` | `/api/users` | GET/POST/PUT | User CRUD + `/users/me` |
 | `apiKeys` | `/api/api-keys` | GET/POST/DELETE | API key management |
-| `versionAuth` | `/api/version-auth` | GET/POST | Per-version auth config |
+| `versionAuth` | `/api/version-auth`, `/api/version-auth/credential` | GET/POST/DELETE | Per-version auth config + generic credential storage (any auth type) |
 | `settings` | `/api/settings` | GET/POST | User settings |
 | `scenarioOrg` | `/api/scenario-org` | GET/POST | Folder organization |
 | `auditLog` | `/api/audit-log` | GET | Query audit entries |
@@ -165,7 +165,7 @@ tests/
 | `blobClient.ts` | Azure Blob Storage (upload, download, list, delete, exists) |
 | `browserFetch.ts` | `fetchWithCookieJar()` + browser User-Agent headers for Cloudflare-fronted URLs |
 | `tokenStore.ts` | Azure Table Storage for D360 OAuth tokens |
-| `versionApiKeyStore.ts` | Table Storage for per-version API keys |
+| `versionApiKeyStore.ts` | Table Storage for per-version credentials (any auth type — bearer, API key, basic, cookie, etc.) |
 | `d360Token.ts` | Fetch/cache D360 tokens from Table Storage |
 | `modelPricing.ts` | `resolveModel()`, `computeCost()`, pricing for Opus/Sonnet/Haiku |
 | `aiCredits.ts` | `checkCredits()`, `recordUsage()`, `seedProjectCredits()`, `seedUserCredits()`, `updateProjectBudget()`, `updateUserBudget()` — credit enforcement for AI endpoints |
@@ -226,12 +226,14 @@ Browser → SWA /.auth/login/aad → Microsoft login → SWA sets cookie
        → getUserInfo() returns { oid, name, email }
 ```
 
-### D360 Token Proxy
+### API Proxy (Generic Auth Injection)
 ```
-Browser → POST /api/d360-auth (with OAuth code) → exchange for D360 token
-       → Token stored in Azure Table Storage (keyed by Entra OID + version)
-       → GET /api/d360/proxy/{path} → auth.ts reads token → injects Authorization header
-       → Forwards to D360_API_BASE_URL/{path}
+Browser → ConnectEndpointModal (cURL paste / manual form) → POST /api/version-auth/credential
+       → Credential stored in Azure Table Storage (keyed by OID + version)
+       → Auth types: bearer | apikey_header | apikey_query | basic | cookie | oauth | none
+       → GET /api/d360/{path} → proxy reads stored credential → injects appropriate auth
+       → Forwards to configured endpoint (D360 or any REST API)
+       → builder.ts sends X-D360-Auth-Type header to tell proxy which injection to use
 ```
 
 ### Public API Auth

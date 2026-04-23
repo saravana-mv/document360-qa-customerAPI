@@ -1,6 +1,6 @@
 # FlowForge
 
-An AI-assisted API testing platform for Document360. Import API specifications, generate test scenarios with Claude AI, execute tests against live endpoints, and track results — all from a single web app.
+A generic AI-assisted API testing platform. Import API specifications, connect any REST endpoint, generate test scenarios with Claude AI, execute tests against live endpoints, and track results — all from a single web app. Originally built for Document360, now supports any API.
 
 **Staging:** https://purple-mud-0bc0f5203.7.azurestaticapps.net
 **Production:** https://delightful-smoke-0a3c52a03.7.azurestaticapps.net
@@ -49,12 +49,19 @@ An AI-assisted API testing platform for Document360. Import API specifications, 
 - Live execution console with step-grouped log output
 - Clickable run history with past result replay
 
+### Connect Endpoint (Generic API Support)
+- Connect any REST endpoint via cURL paste (auto-detects config) or manual form
+- Supported auth types: Bearer, API Key (header/query), Basic, Cookie, OAuth, None
+- Credentials stored server-side — browser never holds API secrets
+- Version accordion shows connection status badge ("Not connected" / endpoint label)
+- Run gating — prompts Connect Endpoint modal if version not connected
+
 ### Authentication & Access Control
 - Entra ID SSO (single-tenant) with role-based access
 - Five roles: Owner (Super) > Project Owner > QA Manager > QA Engineer > Member
 - Per-project membership with `ProjectGate` route guard
-- Per-version D360 auth (OAuth or API Key) — tokens stored server-side
-- Server-side proxy injects bearer tokens (browser never holds D360 credentials)
+- Per-version generic auth (any supported auth type) — credentials stored server-side
+- Server-side proxy injects appropriate auth header/query based on stored credential type
 
 ### Public API
 - `POST /api/run-scenario` with `X-API-Key` authentication
@@ -192,7 +199,8 @@ Both environments follow the same build steps:
 │   │   ├── tests/              # Test execution engine + flow XML system
 │   │   ├── oauth/              # OAuth PKCE flow
 │   │   ├── flow/               # AI prompt builder
-│   │   └── spec/               # OpenAPI parser, fingerprinting, diffing
+│   │   ├── spec/               # OpenAPI parser, fingerprinting, diffing
+│   │   └── curlParser.ts       # cURL command parser for Connect Endpoint auto-detection
 │   ├── types/                  # TypeScript interfaces
 │   └── hooks/                  # Auth guard, version check
 │
