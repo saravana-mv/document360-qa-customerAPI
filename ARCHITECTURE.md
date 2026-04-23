@@ -90,6 +90,7 @@ All API calls go through `client.ts` which adds auth headers and rewrites `/vN/`
 | `projectMembersApi.ts` | `listProjectMembers`, `addProjectMember`, `updateProjectMember`, `removeProjectMember` |
 | `aiCreditsApi.ts` | `getCredits`, `updateProjectBudget`, `updateUserBudget`, `listUserCredits` |
 | `projectVariablesApi.ts` | `getProjectVariables`, `saveProjectVariables` |
+| `apiRulesApi.ts` | `getApiRules`, `saveApiRules` |
 
 ### Test Execution Engine (`src/lib/tests/`)
 
@@ -106,7 +107,7 @@ tests/
     ├── loader.ts       # Load flows from Cosmos active queue
     ├── validate.ts     # XSD schema validation
     ├── activeTests.ts  # Cosmos activation/deactivation
-    ├── enumAliases.ts  # Bidirectional enum name ↔ ordinal mapping
+    ├── enumAliases.ts  # Bidirectional enum name ↔ ordinal mapping (configurable per-project via API Rules)
     └── types.ts        # FlowElement, FlowStep, FlowAssertion, etc.
 ```
 
@@ -154,6 +155,7 @@ tests/
 | `resetProject` | `/api/reset-project` | POST | Owner-only project wipe |
 | `aiCredits` | `/api/ai-credits` | GET/PUT | Credit status (GET), update project budget (PUT `/project`), update user budget (PUT `/user/{userId}`), list user credits (GET `/users`) — Super Owner only for writes |
 | `projectVariables` | `/api/project-variables` | GET/PUT | Project-level key/value variables stored in `settings` container. GET returns all variables; PUT saves (qa_manager+). Audit action: `project.variables.update`. |
+| `apiRules` | `/api/api-rules` | GET/PUT | Per-project API rules and enum aliases stored in `settings` container (id: `api_rules`). Injected into all AI system prompts. Enum aliases loaded at runtime by both runners. Audit action: `project.apiRules.update`. |
 
 ### Shared Libraries (`api/src/lib/`)
 
@@ -168,7 +170,8 @@ tests/
 | `versionApiKeyStore.ts` | Table Storage for per-version credentials (any auth type — bearer, API key, basic, cookie, etc.) |
 | `modelPricing.ts` | `resolveModel()`, `computeCost()`, pricing for Opus/Sonnet/Haiku |
 | `aiCredits.ts` | `checkCredits()`, `recordUsage()`, `seedProjectCredits()`, `seedUserCredits()`, `updateProjectBudget()`, `updateUserBudget()` — credit enforcement for AI endpoints |
-| `auditLog.ts` | Fire-and-forget `audit()` function, writes to Cosmos `audit-log` container. Actions include `project.member_add`, `project.member_remove`, `project.member_role_change`, `project.variables.update`. |
+| `auditLog.ts` | Fire-and-forget `audit()` function, writes to Cosmos `audit-log` container. Actions include `project.member_add`, `project.member_remove`, `project.member_role_change`, `project.variables.update`, `project.apiRules.update`. |
+| `apiRules.ts` | `loadApiRules(projectId)` fetches project API rules from Cosmos; `injectApiRules(systemPrompt, projectId)` appends rules to AI system prompts. |
 
 ### Server-Side Flow Runner (`api/src/lib/flowRunner/`)
 

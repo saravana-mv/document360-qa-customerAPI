@@ -26,7 +26,7 @@ FlowForge is a generic AI-assisted API testing platform. It lets QA teams import
 `auth.store` (Entra ID session), `setup.store` (project/version/AI model), `user.store` (role), `project.store` (project list/selection), `flowStatus.store` (flow activation), `runner.store` (test execution), `scenarioOrg.store` (folder tree, versionConfigs, scenarioConfigs, detectedEndpoint), `aiCost.store` (spend tracking), `aiCredits.store` (credit budgets/usage), `breakpoints.store` (step pause/resume), `projectVariables.store` (project-level key/value variables)
 
 ### API Functions (`api/src/functions/`)
-25+ Azure Functions. All wrapped with `withAuth()`. Key routes: `/api/spec-files/*`, `/api/flow-files`, `/api/flow-chat`, `/api/generate-flow-ideas`, `/api/generate-flow`, `/api/run-scenario`, `/api/proxy/*` (generic API proxy), `/api/active-tests`, `/api/test-runs`, `/api/users`, `/api/api-keys`, `/api/audit-log`, `/api/projects`, `/api/project-members`, `/api/ai-credits`, `/api/project-variables`, `/api/version-auth/credential`
+25+ Azure Functions. All wrapped with `withAuth()`. Key routes: `/api/spec-files/*`, `/api/flow-files`, `/api/flow-chat`, `/api/generate-flow-ideas`, `/api/generate-flow`, `/api/run-scenario`, `/api/proxy/*` (generic API proxy), `/api/active-tests`, `/api/test-runs`, `/api/users`, `/api/api-keys`, `/api/audit-log`, `/api/projects`, `/api/project-members`, `/api/ai-credits`, `/api/project-variables`, `/api/version-auth/credential`, `/api/api-rules`
 
 ### Auth Flow
 Entra ID SSO → `EntraGate` auto-login → `ProjectGate` redirects to `/projects` if no project selected → `withAuth()` extracts OID/project from claims → `withProjectRole()` enforces per-project membership → credentials in Azure Table Storage → generic proxy at `/api/proxy/*` injects auth based on stored credential type (reads base URL from `X-FF-Base-Url`, connection from `X-FF-Connection-Id`) → browser never holds real API credentials
@@ -96,7 +96,10 @@ No generic Tailwind colors (`text-blue-600`, `bg-purple-100`). Always use exact 
 - Deleting tests must NOT delete flow XML files (flows are reusable)
 
 ### Flow XML Schema
-Three authoritative sources must stay in sync: `FLOW_SYSTEM_PROMPT` in `generateFlow.ts`, `flow.xsd`, `parser.ts`. Common AI mistakes: wrong element names (`<assert>` vs `<assertion>`), wrong attributes (`value` vs `code` on status), steps not in `<steps>` wrapper.
+Three authoritative sources must stay in sync: `FLOW_SYSTEM_PROMPT` in `generateFlow.ts`, `flow.xsd`, `parser.ts`. Common AI mistakes: wrong element names (`<assert>` vs `<assertion>`), wrong attributes (`value` vs `code` on status), steps not in `<steps>` wrapper. Flow XML namespace: `https://flowforge.io/qa/flow/v1`.
+
+### Project API Rules
+Per-project configurable rules injected into all AI system prompts (flow generation, editing, ideas, chat). Stored in Cosmos DB `settings` container (id: `api_rules`, partitioned by `projectId`). Managed via Settings → General ("API Rules" card, qa_manager+). Includes free-text rules and enum alias definitions. Helper: `api/src/lib/apiRules.ts` (`loadApiRules`, `injectApiRules`).
 
 ### API Version
 `apiVersion` in settings rewrites ALL `/vN/` request paths at runtime. No hardcoded version segments anywhere.
@@ -130,7 +133,7 @@ Must wait for `useFlowStatusStore` to finish loading before building `parsedTags
 Never call `loadFlowsFromQueue` in a loop after parallel saves. Batch all saves, activate all, then load once.
 
 ### Enum Aliases
-Some APIs return enum fields as integers at runtime (spec uses strings). `enumAliases.ts` + bidirectional `jsonEqual` handles name↔ordinal.
+Some APIs return enum fields as integers at runtime (spec uses strings). `enumAliases.ts` + bidirectional `jsonEqual` handles name↔ordinal. Aliases are configurable per-project via API Rules (Settings → General). Both browser and server runners load aliases from project API rules at startup via `setEnumAliases(raw)` which parses `name=value` format.
 
 ### Debugging 500s
 For Azure Functions 500 with empty body: enable **Application Insights first** before theorizing. It reveals runtime exceptions invisible to browser.

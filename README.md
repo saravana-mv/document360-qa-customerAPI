@@ -78,6 +78,7 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 - Multi-project support with full-screen Project Selection page (tile grid, create, team/personal visibility)
 - Per-project membership management via Settings > Members tab (add/remove members, assign roles)
 - Project-level variables (`proj.varName`) — shared key/value pairs interpolated at runtime in both browser and server runners
+- **Project API Rules** — per-project configurable rules and enum aliases injected into AI prompts; enum aliases loaded at runtime by both browser and server runners
 - Project reset (owner only — wipes flows, ideas, runs)
 
 ### Deployment Intelligence
@@ -194,7 +195,7 @@ Both environments follow the same build steps:
 │   ├── components/             # auth/, common/, specfiles/, explorer/, runner/, results/, setup/
 │   ├── store/                  # 14 Zustand stores
 │   ├── lib/
-│   │   ├── api/                # 21 API client modules
+│   │   ├── api/                # 22 API client modules
 │   │   ├── tests/              # Test execution engine + flow XML system
 │   │   ├── oauth/              # OAuth PKCE flow
 │   │   ├── flow/               # AI prompt builder
