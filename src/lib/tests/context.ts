@@ -24,7 +24,7 @@ export function buildTestContext(opts: BuildContextOptions): TestContext {
     versionId: opts.versionId,
     langCode: opts.langCode,
     token: opts.token.access_token,
-    baseUrl: opts.baseUrl ?? useSetupStore.getState().baseUrl,
+    baseUrl: (opts.baseUrl ?? useSetupStore.getState().baseUrl).replace(/\/+$/, ""),
     apiVersion: opts.apiVersion,
     authType: opts.authType,
     authVersion: opts.authVersion,

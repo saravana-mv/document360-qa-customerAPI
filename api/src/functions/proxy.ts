@@ -15,7 +15,7 @@ import { getValidOAuthToken } from "../lib/oauthTokenStore";
 import { getCredentialForVersion, getApiKeyForVersion } from "../lib/versionApiKeyStore";
 
 const DEFAULT_BASE_URL =
-  (process.env.DEFAULT_API_BASE_URL ?? "").replace(/\/$/, "");
+  (process.env.DEFAULT_API_BASE_URL ?? "").replace(/\/+$/, "");
 
 // Allowlist of request headers we forward upstream. Everything else is
 // dropped — browser-added noise (Origin, Referer, sec-ch-*, sec-fetch-*,
@@ -91,7 +91,7 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
   if (!subPath) return errJson(400, "Missing upstream path");
 
   // Resolve base URL: client header > env var > error
-  const baseUrlHeader = (req.headers.get("x-ff-base-url") ?? "").replace(/\/$/, "");
+  const baseUrlHeader = (req.headers.get("x-ff-base-url") ?? "").replace(/\/+$/, "");
   const baseUrl = baseUrlHeader || DEFAULT_BASE_URL;
   if (!baseUrl) return errJson(400, "Missing upstream base URL. Set X-FF-Base-Url header or configure DEFAULT_API_BASE_URL.");
 
@@ -107,7 +107,9 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
 
   // Preserve the query string verbatim.
   const url = new URL(req.url);
-  let upstreamUrl = `${baseUrl}/${subPath}${url.search}`;
+  // Collapse any accidental double slashes in the path portion (but not in https://)
+  let upstreamUrl = `${baseUrl}/${subPath}${url.search}`
+    .replace(/([^:])\/\/+/g, "$1/");
 
   // Opt-out header lets flow tests deliberately call the upstream without auth
   // so they can verify the 401 path. We still require Entra — this is only
