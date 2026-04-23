@@ -23,6 +23,9 @@ const BUILD_VERSION = getBuildVersion();
 export default defineConfig({
   base: "/",
   plugins: [react(), tailwindcss()],
+  build: {
+    sourcemap: true,
+  },
   define: {
     __BUILD_VERSION__: JSON.stringify(BUILD_VERSION),
   },
