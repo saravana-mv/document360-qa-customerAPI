@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useExplorerUIStore } from "../../store/explorerUI.store";
 import { useScenarioOrgStore } from "../../store/scenarioOrg.store";
 import { useRunnerStore } from "../../store/runner.store";
@@ -8,10 +8,10 @@ import { useAuthStore } from "../../store/auth.store";
 import { useUserStore } from "../../store/user.store";
 import { ScenarioFolderTree } from "./ScenarioFolderTree";
 import { ProjectSettingsCard } from "../setup/ProjectSettingsCard";
+import { ConnectEndpointModal } from "./ConnectEndpointModal";
 import { getAllTests, getTestsByTag, unregisterWhere } from "../../lib/tests/registry";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import { deactivateFlow } from "../../lib/tests/flowXml/activeTests";
-import { saveApiKey, deleteApiKey, getVersionAuthStatus } from "../../lib/api/versionAuthApi";
 import { startAuthFlow, loadOAuthConfig } from "../../lib/oauth/flow";
 import type { ParsedTag } from "../../types/spec.types";
 
@@ -31,19 +31,12 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
   const toggleVersion = useExplorerUIStore((s) => s.toggleVersion);
   const toggleFolder = useExplorerUIStore((s) => s.toggleFolder);
   const versionConfig = useScenarioOrgStore((s) => s.versionConfigs[version]);
-  const setVersionConfig = useScenarioOrgStore((s) => s.setVersionConfig);
   const createFolder = useScenarioOrgStore((s) => s.createFolder);
   const { selectedTags } = useRunnerStore();
 
   const authStatus = useAuthStore((s) => s.status);
 
-  const [showConfig, setShowConfig] = useState(false);
-  const [baseUrl, setBaseUrl] = useState(versionConfig?.baseUrl ?? "");
-  const [apiVersion, setApiVersion] = useState(versionConfig?.apiVersion ?? "");
-  const [authMethod, setAuthMethod] = useState<"oauth" | "apikey">(versionConfig?.authMethod ?? "oauth");
-  const [apiKeyInput, setApiKeyInput] = useState("");
-  const [apiKeyConfigured, setApiKeyConfigured] = useState(versionConfig?.apiKeyConfigured ?? false);
-  const [apiKeySaving, setApiKeySaving] = useState(false);
+  const [showConnect, setShowConnect] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [showDeleteAll, setShowDeleteAll] = useState(false);
@@ -58,54 +51,12 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
   const { clearSelection } = useRunnerStore();
   const setSpec = useSpecStore((s) => s.setSpec);
 
-  // Check API key status when config panel opens
-  useEffect(() => {
-    if (!showConfig || authMethod !== "apikey") return;
-    getVersionAuthStatus(version)
-      .then((s) => setApiKeyConfigured(s.configured))
-      .catch(() => { /* ignore */ });
-  }, [showConfig, authMethod, version]);
-
   const isAuthed = authStatus === "authenticated";
   const selectedCount = tags.filter((t) => selectedTags.has(t.name)).length;
   const noScenarios = tags.length === 0;
   const fewScenarios = tags.length <= 1;
 
-  function handleSaveConfig() {
-    setVersionConfig(version, {
-      baseUrl: baseUrl.trim(),
-      apiVersion: apiVersion.trim(),
-      authMethod,
-      apiKeyConfigured,
-    });
-    setShowConfig(false);
-  }
-
-  async function handleSaveApiKey() {
-    if (!apiKeyInput.trim()) return;
-    setApiKeySaving(true);
-    try {
-      await saveApiKey(version, apiKeyInput.trim());
-      setApiKeyConfigured(true);
-      setApiKeyInput("");
-    } catch (err) {
-      alert(`Failed to save API key: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setApiKeySaving(false);
-    }
-  }
-
-  async function handleRemoveApiKey() {
-    setApiKeySaving(true);
-    try {
-      await deleteApiKey(version);
-      setApiKeyConfigured(false);
-    } catch (err) {
-      alert(`Failed to remove API key: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setApiKeySaving(false);
-    }
-  }
+  const isConnected = versionConfig?.credentialConfigured || versionConfig?.authType === "oauth";
 
   // Expand/collapse all folders + tags within this version
   const versionFolders = useScenarioOrgStore((s) => s.folders[version] ?? EMPTY_ARR);
@@ -213,6 +164,24 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
             <span className="text-xs text-[#0969da] font-medium shrink-0 px-1.5 py-px rounded-full bg-[#ddf4ff] border border-[#b6e3ff]">
               {selectedCount}/{tags.length}
             </span>
+          )}
+          {/* Connection badge */}
+          {isConnected ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowConnect(true); }}
+              className="text-xs text-[#1a7f37] font-medium shrink-0 px-1.5 py-px rounded-full bg-[#dafbe1] border border-[#aceebb] hover:bg-[#aceebb] transition-colors truncate max-w-[120px]"
+              title={`Connected: ${versionConfig?.endpointLabel || versionConfig?.baseUrl || "configured"}`}
+            >
+              {versionConfig?.endpointLabel || versionConfig?.baseUrl || "Connected"}
+            </button>
+          ) : (
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowConnect(true); }}
+              className="text-xs text-[#9a6700] font-medium shrink-0 px-1.5 py-px rounded-full bg-[#fff8c5] border border-[#d4a72c]/30 hover:bg-[#d4a72c]/20 transition-colors"
+              title="Click to connect endpoint"
+            >
+              Not connected
+            </button>
           )}
         </button>
         <div className="flex-1" />
@@ -327,24 +296,22 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
           </svg>
         </button>
         <button
-          onClick={() => setShowConfig(!showConfig)}
-          disabled={authStatus !== "authenticated"}
-          title="Version settings"
-          className={`shrink-0 rounded-md p-1 transition-colors ${authStatus !== "authenticated" ? "text-[#656d76] opacity-40 cursor-not-allowed" : showConfig ? "text-[#0969da] bg-[#ddf4ff]" : "text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff]"}`}
+          onClick={() => setShowConnect(true)}
+          title="Connect endpoint"
+          className={`shrink-0 rounded-md p-1 transition-colors ${isConnected ? "text-[#1a7f37] hover:text-[#1a7f37] hover:bg-[#dafbe1]" : "text-[#9a6700] hover:text-[#9a6700] hover:bg-[#fff8c5]"}`}
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m9.86-1.135a4.5 4.5 0 0 0-1.242-7.244l-4.5-4.5a4.5 4.5 0 0 0-6.364 6.364L4.34 8.303" />
           </svg>
         </button>
-        {authMethod === "oauth" && (
+        {versionConfig?.authType === "oauth" && (
           <button
             onClick={() => {
               const config = loadOAuthConfig();
               if (config) void startAuthFlow(config);
             }}
             disabled={authStatus !== "authenticated"}
-            title="Sign in / refresh token"
+            title="Sign in / refresh D360 token"
             className={`shrink-0 rounded-md p-1 transition-colors ${
               authStatus !== "authenticated"
                 ? "text-[#656d76] opacity-40 cursor-not-allowed"
@@ -379,142 +346,9 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
         </div>
       )}
 
-      {/* Config row */}
-      {showConfig && (
-        <div className="ml-5 mt-1 mb-1 p-2 rounded-md border border-[#d1d9e0] bg-white space-y-2">
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-[#656d76] w-16 shrink-0">Base URL</label>
-            <input
-              className="flex-1 text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded px-2 py-1 outline-none focus:border-[#0969da]"
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="https://apihub.document360.io"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-[#656d76] w-16 shrink-0">API Ver.</label>
-            <input
-              className="flex-1 text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded px-2 py-1 outline-none focus:border-[#0969da]"
-              value={apiVersion}
-              onChange={(e) => setApiVersion(e.target.value)}
-              placeholder="v3"
-            />
-          </div>
-          {/* Auth method */}
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-[#656d76] w-16 shrink-0">Auth</label>
-            <div className="flex gap-1">
-              <button
-                onClick={() => setAuthMethod("oauth")}
-                className={`text-xs px-2 py-0.5 rounded border transition-colors ${
-                  authMethod === "oauth"
-                    ? "bg-[#ddf4ff] border-[#b6e3ff] text-[#0969da] font-medium"
-                    : "bg-white border-[#d1d9e0] text-[#656d76] hover:text-[#1f2328]"
-                }`}
-              >
-                D360 OAuth
-              </button>
-              <button
-                onClick={() => setAuthMethod("apikey")}
-                className={`text-xs px-2 py-0.5 rounded border transition-colors ${
-                  authMethod === "apikey"
-                    ? "bg-[#ddf4ff] border-[#b6e3ff] text-[#0969da] font-medium"
-                    : "bg-white border-[#d1d9e0] text-[#656d76] hover:text-[#1f2328]"
-                }`}
-              >
-                API Key
-              </button>
-            </div>
-          </div>
-          {/* Auth status / actions */}
-          {authMethod === "oauth" && (
-            <div className="flex items-center gap-2">
-              <span className="w-16 shrink-0" />
-              <div className="flex items-center gap-2">
-                {authStatus === "authenticated" ? (
-                  <>
-                    <span className="w-2 h-2 rounded-full bg-[#1a7f37] shrink-0" />
-                    <span className="text-xs text-[#1a7f37]">Authenticated</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="w-2 h-2 rounded-full bg-[#d1242f] shrink-0" />
-                    <span className="text-xs text-[#d1242f]">Not signed in</span>
-                  </>
-                )}
-                <button
-                  onClick={() => {
-                    const config = loadOAuthConfig();
-                    if (config) void startAuthFlow(config);
-                  }}
-                  className="text-xs text-[#0969da] hover:underline ml-1"
-                >
-                  {authStatus === "authenticated" ? "Refresh" : "Sign in"}
-                </button>
-              </div>
-            </div>
-          )}
-          {authMethod === "apikey" && (
-            <div className="flex items-center gap-2">
-              <span className="w-16 shrink-0" />
-              <div className="flex-1 space-y-1.5">
-                {apiKeyConfigured ? (
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-[#1a7f37] shrink-0" />
-                    <span className="text-xs text-[#1a7f37]">API key configured</span>
-                    <button
-                      onClick={() => void handleRemoveApiKey()}
-                      disabled={apiKeySaving}
-                      className="text-xs text-[#d1242f] hover:underline ml-1"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-[#9a6700] shrink-0" />
-                    <span className="text-xs text-[#9a6700]">No API key</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="password"
-                    className="flex-1 text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded px-2 py-1 outline-none focus:border-[#0969da]"
-                    value={apiKeyInput}
-                    onChange={(e) => setApiKeyInput(e.target.value)}
-                    placeholder="Paste API key"
-                  />
-                  <button
-                    onClick={() => void handleSaveApiKey()}
-                    disabled={apiKeySaving || !apiKeyInput.trim()}
-                    className="text-xs font-medium text-white bg-[#0969da] hover:bg-[#0969da]/90 rounded px-2 py-1 transition-colors disabled:opacity-50"
-                  >
-                    {apiKeySaving ? "…" : "Save key"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={() => {
-                setBaseUrl(versionConfig?.baseUrl ?? "");
-                setApiVersion(versionConfig?.apiVersion ?? "");
-                setAuthMethod(versionConfig?.authMethod ?? "oauth");
-                setShowConfig(false);
-              }}
-              className="text-xs font-medium text-[#1f2328] border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] rounded-md px-3 py-1 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSaveConfig}
-              className="text-xs font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md px-3 py-1 transition-colors border border-[#1a7f37]/80"
-            >
-              Save
-            </button>
-          </div>
-        </div>
+      {/* Connect Endpoint Modal */}
+      {showConnect && (
+        <ConnectEndpointModal version={version} onClose={() => setShowConnect(false)} />
       )}
 
       {/* Sign-in + settings when not authenticated */}

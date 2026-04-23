@@ -1,7 +1,8 @@
 import { getProjectHeaders } from "./projectHeader";
 
 interface ScenarioOrgPayload {
-  versionConfigs: Record<string, { baseUrl: string; apiVersion: string }>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  versionConfigs: Record<string, any>;
   folders: Record<string, string[]>;
   placements: Record<string, string>;
 }

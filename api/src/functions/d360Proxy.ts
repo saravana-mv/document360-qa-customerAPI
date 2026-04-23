@@ -12,7 +12,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { withAuth, parseClientPrincipal } from "../lib/auth";
 import { getValidAccessToken } from "../lib/d360Token";
-import { getApiKeyForVersion } from "../lib/versionApiKeyStore";
+import { getCredentialForVersion, getApiKeyForVersion } from "../lib/versionApiKeyStore";
 
 const D360_BASE_URL =
   (process.env.D360_API_BASE_URL ?? "https://apihub.berlin.document360.net").replace(/\/$/, "");
@@ -36,7 +36,7 @@ const FORWARDED_RESPONSE_HEADERS = ["content-type", "content-language", "etag"];
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-D360-Method, X-D360-No-Auth, X-D360-Auth-Method, X-D360-Version",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-D360-Method, X-D360-No-Auth, X-D360-Auth-Type, X-D360-Auth-Method, X-D360-Version, X-D360-Auth-Header-Name, X-D360-Auth-Query-Param",
   // Allow the SPA to read our debug headers from cross-origin responses.
   "Access-Control-Expose-Headers": "X-D360-Proxy-Build, X-D360-Proxy-Crash, X-D360-Upstream-Status, X-D360-Upstream-Url, X-D360-Trace-Id, Content-Type",
 };
@@ -110,27 +110,48 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
   // whether we inject the D360 Bearer header.
   const noAuth = (req.headers.get("x-d360-no-auth") ?? "").toLowerCase() === "1";
 
-  // Per-version auth: client may send X-D360-Auth-Method: apikey and
-  // X-D360-Version: v2 to indicate this version uses API key auth.
-  const authMethodHint = (req.headers.get("x-d360-auth-method") ?? "").toLowerCase();
+  // Per-version auth: client sends X-D360-Auth-Type and X-D360-Version to
+  // indicate what auth type to use. The credential is fetched server-side.
+  const authTypeHint = (req.headers.get("x-d360-auth-type") ?? req.headers.get("x-d360-auth-method") ?? "").toLowerCase();
   const versionHint = req.headers.get("x-d360-version") ?? "";
+  const authHeaderNameHint = req.headers.get("x-d360-auth-header-name") ?? "";
+  const authQueryParamHint = req.headers.get("x-d360-auth-query-param") ?? "";
 
   const forwardHeaders: Record<string, string> = {};
   forwardHeaders["Accept"] = "application/json";
 
   if (noAuth) {
     forwardHeaders["Authorization"] = "Bearer __invalid__";
-  } else if (authMethodHint === "apikey" && versionHint) {
-    // API key auth: fetch the stored key for this user+version and inject
-    // as api_token query parameter (D360's API key mechanism).
-    const apiKey = await getApiKeyForVersion(principal.userId, versionHint);
-    if (!apiKey) {
-      return errJson(401, "API key not configured for this version", { code: "APIKEY_NOT_CONFIGURED", version: versionHint });
+  } else if (authTypeHint && authTypeHint !== "none" && authTypeHint !== "oauth" && versionHint) {
+    // Generic credential auth: fetch stored credential and inject based on type
+    const stored = await getCredentialForVersion(principal.userId, versionHint);
+    if (!stored) {
+      return errJson(401, "Credentials not configured for this version", { code: "CREDENTIAL_NOT_CONFIGURED", version: versionHint });
     }
-    // D360 API key goes as api_token query param
-    const separator = upstreamUrl.includes("?") ? "&" : "?";
-    upstreamUrl = `${upstreamUrl}${separator}api_token=${encodeURIComponent(apiKey)}`;
-  } else {
+    const cred = stored.credential;
+    const effectiveAuthType = stored.authType || authTypeHint;
+
+    if (effectiveAuthType === "bearer") {
+      forwardHeaders["Authorization"] = `Bearer ${cred}`;
+    } else if (effectiveAuthType === "apikey_header") {
+      const headerName = stored.authHeaderName || authHeaderNameHint || "api_token";
+      forwardHeaders[headerName] = cred;
+    } else if (effectiveAuthType === "apikey_query") {
+      const paramName = stored.authQueryParam || authQueryParamHint || "api_key";
+      const separator = upstreamUrl.includes("?") ? "&" : "?";
+      upstreamUrl = `${upstreamUrl}${separator}${encodeURIComponent(paramName)}=${encodeURIComponent(cred)}`;
+    } else if (effectiveAuthType === "basic") {
+      forwardHeaders["Authorization"] = `Basic ${cred}`;
+    } else if (effectiveAuthType === "cookie") {
+      forwardHeaders["Cookie"] = cred;
+    } else {
+      // Fallback for any unrecognized auth type (e.g. legacy "apikey" rows)
+      // — inject as api_token query param
+      const separator = upstreamUrl.includes("?") ? "&" : "?";
+      upstreamUrl = `${upstreamUrl}${separator}api_token=${encodeURIComponent(cred)}`;
+    }
+  } else if (authTypeHint === "oauth" || !authTypeHint) {
+    // D360 OAuth: fetch stored OAuth token
     let accessToken = "";
     try {
       ({ accessToken } = await getValidAccessToken(principal.userId));

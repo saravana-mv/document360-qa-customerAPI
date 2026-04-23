@@ -1,10 +1,20 @@
-// Client-side API for per-version auth (API key storage + status)
+// Client-side API for per-version auth (credential storage + status)
 
-export async function saveApiKey(version: string, apiKey: string): Promise<void> {
-  const res = await fetch("/api/version-auth/apikey", {
+import type { AuthType } from "../../types/test.types";
+
+export interface SaveCredentialPayload {
+  version: string;
+  authType: AuthType;
+  credential: string;
+  authHeaderName?: string;
+  authQueryParam?: string;
+}
+
+export async function saveCredential(payload: SaveCredentialPayload): Promise<void> {
+  const res = await fetch("/api/version-auth/credential", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ version, apiKey }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({})) as Record<string, unknown>;
@@ -12,8 +22,8 @@ export async function saveApiKey(version: string, apiKey: string): Promise<void>
   }
 }
 
-export async function deleteApiKey(version: string): Promise<void> {
-  const res = await fetch(`/api/version-auth/apikey?version=${encodeURIComponent(version)}`, {
+export async function deleteCredential(version: string): Promise<void> {
+  const res = await fetch(`/api/version-auth/credential?version=${encodeURIComponent(version)}`, {
     method: "DELETE",
   });
   if (!res.ok) {
@@ -24,7 +34,7 @@ export async function deleteApiKey(version: string): Promise<void> {
 
 export interface VersionAuthStatus {
   configured: boolean;
-  method: "oauth" | "apikey";
+  authType: AuthType;
   version: string;
 }
 
@@ -35,3 +45,8 @@ export async function getVersionAuthStatus(version: string): Promise<VersionAuth
   }
   return (await res.json()) as VersionAuthStatus;
 }
+
+// Legacy aliases for backward compatibility during migration
+export const saveApiKey = (version: string, apiKey: string) =>
+  saveCredential({ version, authType: "apikey_header", credential: apiKey, authHeaderName: "api_token" });
+export const deleteApiKey = (version: string) => deleteCredential(version);

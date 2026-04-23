@@ -4,11 +4,53 @@ import { getActiveFlows } from "../lib/api/activeTestsApi";
 import { useSetupStore } from "./setup.store";
 import { NEWLY_ADDED, depthOf } from "../lib/treeUtils";
 
-interface VersionConfig {
+export type AuthType = "bearer" | "apikey_header" | "apikey_query" | "basic" | "cookie" | "oauth" | "none";
+
+export interface VersionConfig {
   baseUrl: string;
   apiVersion: string;
-  authMethod?: "oauth" | "apikey";  // default "oauth"
-  apiKeyConfigured?: boolean;       // read-only — true when server has a stored key
+  authType: AuthType;
+  /** Header name for apikey_header auth (e.g. "X-Api-Key") */
+  authHeaderName?: string;
+  /** Query param name for apikey_query auth (e.g. "api_key") */
+  authQueryParam?: string;
+  /** True when credentials are stored server-side */
+  credentialConfigured: boolean;
+  /** Short display label (e.g. "Document360 v3") */
+  endpointLabel?: string;
+
+  // Legacy fields — kept for backward compat during migration
+  authMethod?: "oauth" | "apikey";
+  apiKeyConfigured?: boolean;
+}
+
+/** Migrate old VersionConfig shape to new generic format. */
+function migrateVersionConfig(vc: VersionConfig): VersionConfig {
+  if (vc.authType) return vc; // already migrated
+  const authMethod = vc.authMethod ?? "oauth";
+  if (authMethod === "apikey") {
+    return {
+      ...vc,
+      authType: "apikey_header",
+      authHeaderName: "api_token",
+      credentialConfigured: !!vc.apiKeyConfigured,
+    };
+  }
+  // oauth or default
+  return {
+    ...vc,
+    authType: "oauth",
+    credentialConfigured: false,
+  };
+}
+
+/** Migrate all versionConfigs in a payload. */
+function migrateVersionConfigs(configs: Record<string, VersionConfig>): Record<string, VersionConfig> {
+  const result: Record<string, VersionConfig> = {};
+  for (const [version, vc] of Object.entries(configs)) {
+    result[version] = migrateVersionConfig(vc);
+  }
+  return result;
 }
 
 interface ScenarioOrgState {
@@ -78,7 +120,7 @@ export const useScenarioOrgStore = create<ScenarioOrgState>((set, get) => ({
 
       if (hasData) {
         set({
-          versionConfigs: data.versionConfigs,
+          versionConfigs: migrateVersionConfigs(data.versionConfigs),
           folders: data.folders,
           placements: data.placements,
           loaded: true,
@@ -97,6 +139,8 @@ export const useScenarioOrgStore = create<ScenarioOrgState>((set, get) => ({
       const defaultConfig: VersionConfig = {
         baseUrl: setup.baseUrl,
         apiVersion: setup.apiVersion,
+        authType: "none",
+        credentialConfigured: false,
       };
 
       for (const flowPath of activeFlows) {
@@ -245,6 +289,8 @@ export const useScenarioOrgStore = create<ScenarioOrgState>((set, get) => ({
           newConfigs[version] = {
             baseUrl: setup.baseUrl,
             apiVersion: setup.apiVersion,
+            authType: "none",
+            credentialConfigured: false,
           };
         }
         newPlacements[fp] = NEWLY_ADDED;

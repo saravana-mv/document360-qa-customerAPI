@@ -2,6 +2,8 @@ export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 export type TestStatus = "idle" | "running" | "pass" | "fail" | "skip" | "error";
 export type RollupStatus = "idle" | "running" | "pass" | "fail" | "partial";
 
+export type AuthType = "bearer" | "apikey_header" | "apikey_query" | "basic" | "cookie" | "oauth" | "none";
+
 export interface TestContext {
   projectId: string;
   versionId: string;
@@ -9,8 +11,14 @@ export interface TestContext {
   token: string;
   baseUrl: string;
   apiVersion: string; // e.g. "v3"
-  authMethod?: "oauth" | "apikey";
-  authVersion?: string; // version hint for proxy (e.g. "v2")
+  /** Auth type for the target endpoint */
+  authType?: AuthType;
+  /** Version hint for proxy credential lookup (e.g. "v2") */
+  authVersion?: string;
+  /** Header name for apikey_header auth (e.g. "X-Api-Key") */
+  authHeaderName?: string;
+  /** Query param name for apikey_query auth (e.g. "api_key") */
+  authQueryParam?: string;
   /** Project-level variables (proj.varName). */
   projectVariables?: Record<string, string>;
 }

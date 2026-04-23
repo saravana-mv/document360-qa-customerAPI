@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRunnerStore } from "../../store/runner.store";
 import { useAuthStore, isSessionValid } from "../../store/auth.store";
 import { useSetupStore } from "../../store/setup.store";
@@ -9,6 +9,7 @@ import { runTests } from "../../lib/tests/runner";
 import { buildTestContext } from "../../lib/tests/context";
 import { ProgressBar } from "./ProgressBar";
 import { Spinner } from "../common/Spinner";
+import { ConnectEndpointModal } from "../explorer/ConnectEndpointModal";
 import type { TestContext } from "../../types/test.types";
 import type { TestDef } from "../../types/test.types";
 
@@ -37,6 +38,24 @@ export function RunControls() {
 
   const isAuthenticated = !!token;
   const settingsMissing = !setup.selectedVersionId || !setup.langCode;
+
+  // Check for unconnected versions
+  const versionConfigs = useScenarioOrgStore((s) => s.versionConfigs);
+  const unconnectedVersions = useMemo(() => {
+    const versions = new Set<string>();
+    for (const t of allTests) {
+      if (!t.flowFileName) continue;
+      const idx = t.flowFileName.indexOf("/");
+      if (idx > 0) versions.add(t.flowFileName.slice(0, idx));
+    }
+    return Array.from(versions).filter((v) => {
+      const vc = versionConfigs[v];
+      if (!vc) return true;
+      return !vc.credentialConfigured && vc.authType !== "oauth";
+    });
+  }, [allTests, versionConfigs]);
+
+  const [connectVersion, setConnectVersion] = useState<string | null>(null);
   const cannotRun = !isAuthenticated || settingsMissing;
 
   /** Build per-tag context overrides from version configs */
@@ -54,32 +73,38 @@ export function RunControls() {
       const version = scenarioOrg.getVersionForFlow(flowPath);
       if (!version) continue;
       const vc = scenarioOrg.versionConfigs[version];
-      if (!vc?.baseUrl && !vc?.apiVersion && !vc?.authMethod) continue;
-      byTag[t.tag] = buildTestContext(
+      if (!vc?.baseUrl && !vc?.apiVersion && !vc?.authType) continue;
+      byTag[t.tag] = buildTestContext({
         token,
-        setup.selectedProjectId,
-        setup.selectedVersionId,
-        setup.langCode,
-        vc.apiVersion || setup.apiVersion,
-        vc.baseUrl || undefined,
-        vc.authMethod || "oauth",
-        version,
-      );
+        projectId: setup.selectedProjectId,
+        versionId: setup.selectedVersionId,
+        langCode: setup.langCode,
+        apiVersion: vc.apiVersion || setup.apiVersion,
+        baseUrl: vc.baseUrl || undefined,
+        authType: vc.authType || "none",
+        authVersion: version,
+        authHeaderName: vc.authHeaderName,
+        authQueryParam: vc.authQueryParam,
+      });
     }
     return byTag;
   }
 
   async function runAll() {
     if (guardSession() || !token) return;
+    if (unconnectedVersions.length > 0) {
+      setConnectVersion(unconnectedVersions[0]);
+      return;
+    }
     runner.resetRun();
 
-    const ctx = buildTestContext(
+    const ctx = buildTestContext({
       token,
-      setup.selectedProjectId,
-      setup.selectedVersionId,
-      setup.langCode,
-      setup.apiVersion,
-    );
+      projectId: setup.selectedProjectId,
+      versionId: setup.selectedVersionId,
+      langCode: setup.langCode,
+      apiVersion: setup.apiVersion,
+    });
 
     runner.initTests(allTests.map((t) => ({
       id: t.id,
@@ -95,15 +120,19 @@ export function RunControls() {
 
   async function runSelected() {
     if (guardSession() || !token) return;
+    if (unconnectedVersions.length > 0) {
+      setConnectVersion(unconnectedVersions[0]);
+      return;
+    }
     runner.resetRun();
 
-    const ctx = buildTestContext(
+    const ctx = buildTestContext({
       token,
-      setup.selectedProjectId,
-      setup.selectedVersionId,
-      setup.langCode,
-      setup.apiVersion,
-    );
+      projectId: setup.selectedProjectId,
+      versionId: setup.selectedVersionId,
+      langCode: setup.langCode,
+      apiVersion: setup.apiVersion,
+    });
 
     if (runner.selectedTags.size === 0 && runner.selectedTests.size === 0) return;
     const fromTags = Array.from(runner.selectedTags).flatMap((tag) => getTestsByTag(tag));
@@ -271,10 +300,35 @@ export function RunControls() {
           </button>
         </div>
       )}
+      {/* Unconnected versions warning */}
+      {!viewingHistory && !runner.running && unconnectedVersions.length > 0 && (
+        <div className="flex items-start gap-2 px-4 py-2 border-b border-[#d1d9e0] bg-[#fff8c5]">
+          <svg className="w-4 h-4 text-[#9a6700] shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m9.86-1.135a4.5 4.5 0 0 0-1.242-7.244l-4.5-4.5a4.5 4.5 0 0 0-6.364 6.364L4.34 8.303" />
+          </svg>
+          <div className="min-w-0">
+            <p className="text-xs text-[#9a6700]">
+              {unconnectedVersions.length === 1
+                ? `Version ${unconnectedVersions[0]} is not connected to an endpoint.`
+                : `${unconnectedVersions.length} versions not connected: ${unconnectedVersions.join(", ")}`}
+            </p>
+            <button
+              onClick={() => setConnectVersion(unconnectedVersions[0])}
+              className="text-xs text-[#0969da] hover:underline mt-0.5"
+            >
+              Connect now
+            </button>
+          </div>
+        </div>
+      )}
       {runner.running && (
         <div className="px-4 py-2 border-b border-[#d1d9e0] bg-white">
           <ProgressBar total={Object.keys(runner.testResults).length} done={doneCount} />
         </div>
+      )}
+      {/* Connect Endpoint Modal (triggered by run gating) */}
+      {connectVersion && (
+        <ConnectEndpointModal version={connectVersion} onClose={() => setConnectVersion(null)} />
       )}
     </div>
   );
