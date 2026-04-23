@@ -77,7 +77,7 @@ async function createConnection(req: HttpRequest): Promise<HttpResponseInit> {
 
     const id = randomUUID();
     // All connections share a single callback URL — connectionId is tracked in sessionStorage
-    const redirectUri = body.redirectUri?.trim() || `/oauth/callback`;
+    const redirectUri = body.redirectUri?.trim() || `/callback`;
 
     const doc: ConnectionDoc = {
       id,

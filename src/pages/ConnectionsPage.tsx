@@ -240,7 +240,7 @@ export function ConnectionsPage() {
             <p className="text-xs text-[#656d76]">
               <strong className="text-[#1f2328]">Redirect URI:</strong> When registering your OAuth app with the API provider,
               use{" "}
-              <code className="bg-white px-1 rounded text-[#1f2328]">{window.location.origin}/oauth/callback</code>{" "}
+              <code className="bg-white px-1 rounded text-[#1f2328]">{window.location.origin}/callback</code>{" "}
               as the redirect URI. This is the same for all connections.
             </p>
           </div>

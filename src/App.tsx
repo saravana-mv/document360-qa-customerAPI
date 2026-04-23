@@ -91,6 +91,7 @@ function AppRoutes() {
         <Route path="/global-settings" element={<GlobalSettingsPage />} />
         <Route path="/" element={<Navigate to="/projects" replace />} />
         <Route path="/oauth/callback" element={<OAuthCallback />} />
+        <Route path="/callback" element={<OAuthCallback />} />
         {/* Backwards compat redirects */}
         <Route path="/setup" element={<Navigate to="/settings" replace />} />
         <Route path="/users" element={<Navigate to="/settings/members" replace />} />

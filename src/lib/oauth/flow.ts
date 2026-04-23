@@ -37,7 +37,7 @@ export async function startConnectionAuthFlow(connection: {
   saveVerifier(verifier, state);
   saveConnectionId(connection.id);
 
-  const redirectUri = `${window.location.origin}/oauth/callback`;
+  const redirectUri = `${window.location.origin}/callback`;
 
   const params = new URLSearchParams({
     response_type: "code",

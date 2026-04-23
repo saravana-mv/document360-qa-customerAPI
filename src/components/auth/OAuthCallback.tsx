@@ -30,7 +30,7 @@ export function OAuthCallback() {
     if (connectionId) {
       try {
         setMessage("Exchanging authorization code...");
-        const redirectUri = `${window.location.origin}/oauth/callback`;
+        const redirectUri = `${window.location.origin}/callback`;
         await handleConnectionCallback(code, state, connectionId, redirectUri);
         navigate(`/settings/connections?connected=${connectionId}`);
       } catch (err) {

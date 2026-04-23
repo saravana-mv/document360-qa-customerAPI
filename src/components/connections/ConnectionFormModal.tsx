@@ -21,7 +21,7 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
   const [error, setError] = useState<string | null>(null);
 
   // All connections share a single callback URL
-  const redirectUri = "/oauth/callback";
+  const redirectUri = "/callback";
 
   const canSave = name.trim() && authorizationUrl.trim() && tokenUrl.trim() && clientId.trim();
 
