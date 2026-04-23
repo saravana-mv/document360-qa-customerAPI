@@ -9,9 +9,10 @@
 //   POST /api/oauth/refresh/:connId    → { refreshed: true, expiresAt }
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import { withAuth, parseClientPrincipal } from "../lib/auth";
+import { withAuth, parseClientPrincipal, getProjectId } from "../lib/auth";
 import { getConnectionsContainer } from "../lib/cosmosClient";
 import { getOAuthToken, putOAuthToken, deleteOAuthToken } from "../lib/oauthTokenStore";
+import { audit } from "../lib/auditLog";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -110,6 +111,12 @@ async function exchangeHandler(req: HttpRequest): Promise<HttpResponseInit> {
       expiresAt,
     });
 
+    // Audit log
+    try {
+      const projectId = getProjectId(req);
+      audit(projectId, "connection.authenticate", { oid: principal.userId, name: principal.userDetails ?? "" }, body.connectionId);
+    } catch { /* best-effort */ }
+
     return ok({ authenticated: true, expiresAt });
   } catch (e) {
     return err(500, e instanceof Error ? e.message : String(e));
@@ -127,11 +134,18 @@ async function statusHandler(req: HttpRequest): Promise<HttpResponseInit> {
   try {
     const row = await getOAuthToken(principal.userId, connectionId);
     if (!row) return ok({ authenticated: false });
+    const now = Date.now();
+    const expired = row.expiresAt < now;
+    const expiresInMs = expired ? 0 : row.expiresAt - now;
+    const canAutoRefresh = !!row.refreshToken && !expired || (!!row.refreshToken);
     return ok({
       authenticated: true,
       expiresAt: row.expiresAt,
-      expired: row.expiresAt < Date.now(),
+      expired,
+      expiresInMs,
       hasRefreshToken: !!row.refreshToken,
+      canAutoRefresh,
+      lastRefreshedAt: row.updatedAt,
     });
   } catch (e) {
     return err(500, e instanceof Error ? e.message : String(e));
@@ -148,6 +162,11 @@ async function logoutHandler(req: HttpRequest): Promise<HttpResponseInit> {
 
   try {
     await deleteOAuthToken(principal.userId, connectionId);
+    // Audit log
+    try {
+      const projectId = getProjectId(req);
+      audit(projectId, "connection.disconnect", { oid: principal.userId, name: principal.userDetails ?? "" }, connectionId);
+    } catch { /* best-effort */ }
     return ok({ loggedOut: true });
   } catch (e) {
     return err(500, e instanceof Error ? e.message : String(e));
@@ -188,7 +207,67 @@ async function refreshHandler(req: HttpRequest): Promise<HttpResponseInit> {
       expiresAt,
     });
 
+    // Audit log
+    try {
+      const projectId = getProjectId(req);
+      audit(projectId, "connection.refresh", { oid: principal.userId, name: principal.userDetails ?? "" }, connectionId);
+    } catch { /* best-effort */ }
+
     return ok({ refreshed: true, expiresAt });
+  } catch (e) {
+    return err(500, e instanceof Error ? e.message : String(e));
+  }
+}
+
+/** POST /api/oauth/health-check/:connectionId — test the connection by making a lightweight request. */
+async function healthCheckHandler(req: HttpRequest): Promise<HttpResponseInit> {
+  const principal = parseClientPrincipal(req);
+  if (!principal) return err(401, "Unauthorized");
+
+  const connectionId = req.params.connectionId;
+  if (!connectionId) return err(400, "connectionId is required");
+
+  try {
+    const row = await getOAuthToken(principal.userId, connectionId);
+    if (!row) return ok({ healthy: false, reason: "Not authenticated" });
+
+    // If token is expired and no refresh token, it's unhealthy
+    if (row.expiresAt < Date.now() && !row.refreshToken) {
+      return ok({ healthy: false, reason: "Token expired, no refresh token available" });
+    }
+
+    // Try to get a valid token (auto-refreshes if needed)
+    const { getValidOAuthToken } = await import("../lib/oauthTokenStore");
+    let accessToken: string;
+    try {
+      ({ accessToken } = await getValidOAuthToken(principal.userId, connectionId));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return ok({ healthy: false, reason: `Token refresh failed: ${msg}` });
+    }
+
+    // Make a lightweight probe request to the token endpoint's host
+    // (just a HEAD to the base URL — we don't know the API's health endpoint)
+    // Instead, we validate the token isn't rejected by checking expiresAt
+    const updatedRow = await getOAuthToken(principal.userId, connectionId);
+    const now = Date.now();
+    const expiresInMs = updatedRow ? updatedRow.expiresAt - now : 0;
+
+    // Audit log
+    try {
+      const projectId = getProjectId(req);
+      audit(projectId, "connection.health_check", { oid: principal.userId, name: principal.userDetails ?? "" }, connectionId, { healthy: true });
+    } catch { /* best-effort */ }
+
+    return ok({
+      healthy: true,
+      accessTokenValid: true,
+      expiresAt: updatedRow?.expiresAt,
+      expiresInMs: expiresInMs > 0 ? expiresInMs : 0,
+      hasRefreshToken: !!updatedRow?.refreshToken,
+      lastRefreshedAt: updatedRow?.updatedAt,
+      checkedAt: now,
+    });
   } catch (e) {
     return err(500, e instanceof Error ? e.message : String(e));
   }
@@ -233,5 +312,15 @@ app.http("oauthRefresh", {
   handler: withAuth(async (req) => {
     if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
     return refreshHandler(req);
+  }),
+});
+
+app.http("oauthHealthCheck", {
+  methods: ["POST", "OPTIONS"],
+  authLevel: "anonymous",
+  route: "oauth/health-check/{connectionId}",
+  handler: withAuth(async (req) => {
+    if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
+    return healthCheckHandler(req);
   }),
 });

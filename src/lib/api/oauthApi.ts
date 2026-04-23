@@ -4,7 +4,21 @@ export interface OAuthStatus {
   authenticated: boolean;
   expiresAt?: number;
   expired?: boolean;
+  expiresInMs?: number;
   hasRefreshToken?: boolean;
+  canAutoRefresh?: boolean;
+  lastRefreshedAt?: number;
+}
+
+export interface HealthCheckResult {
+  healthy: boolean;
+  reason?: string;
+  accessTokenValid?: boolean;
+  expiresAt?: number;
+  expiresInMs?: number;
+  hasRefreshToken?: boolean;
+  lastRefreshedAt?: number;
+  checkedAt?: number;
 }
 
 export async function exchangeOAuthCode(payload: {
@@ -42,4 +56,13 @@ export async function refreshOAuth(connectionId: string): Promise<{ refreshed: b
     throw new Error(`Refresh failed: ${res.status} ${text}`);
   }
   return res.json() as Promise<{ refreshed: boolean; expiresAt: number }>;
+}
+
+export async function healthCheckOAuth(connectionId: string): Promise<HealthCheckResult> {
+  const res = await fetch(`/api/oauth/health-check/${connectionId}`, { method: "POST" });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Health check failed: ${res.status} ${text}`);
+  }
+  return res.json() as Promise<HealthCheckResult>;
 }

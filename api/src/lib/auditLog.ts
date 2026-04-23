@@ -36,7 +36,14 @@ export type AuditAction =
   | "spec.sync"
   | "spec.update_source"
   | "project.variables.update"
-  | "project.apiRules.update";
+  | "project.apiRules.update"
+  | "connection.create"
+  | "connection.update"
+  | "connection.delete"
+  | "connection.authenticate"
+  | "connection.disconnect"
+  | "connection.refresh"
+  | "connection.health_check";
 
 interface AuditEntry {
   id: string;

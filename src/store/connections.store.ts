@@ -8,12 +8,21 @@ import {
   type CreateConnectionPayload,
   type UpdateConnectionPayload,
 } from "../lib/api/connectionsApi";
-import { getOAuthStatus, logoutOAuth, type OAuthStatus } from "../lib/api/oauthApi";
+import {
+  getOAuthStatus,
+  logoutOAuth,
+  refreshOAuth,
+  healthCheckOAuth,
+  type OAuthStatus,
+  type HealthCheckResult,
+} from "../lib/api/oauthApi";
 
 interface ConnectionsState {
   connections: Connection[];
   /** Per-connection OAuth status: connectionId → status */
   authStatus: Record<string, OAuthStatus>;
+  /** Per-connection health check result */
+  healthChecks: Record<string, HealthCheckResult & { loading?: boolean }>;
   loading: boolean;
   error: string | null;
 
@@ -27,12 +36,17 @@ interface ConnectionsState {
   fetchAllStatuses: () => Promise<void>;
   /** Disconnect (logout) a connection's OAuth tokens */
   disconnect: (connectionId: string) => Promise<void>;
+  /** Force-refresh a connection's OAuth token */
+  refreshToken: (connectionId: string) => Promise<void>;
+  /** Run a health check on a connection */
+  runHealthCheck: (connectionId: string) => Promise<HealthCheckResult>;
   reset: () => void;
 }
 
 export const useConnectionsStore = create<ConnectionsState>((set, get) => ({
   connections: [],
   authStatus: {},
+  healthChecks: {},
   loading: false,
   error: null,
 
@@ -100,5 +114,58 @@ export const useConnectionsStore = create<ConnectionsState>((set, get) => ({
     }));
   },
 
-  reset: () => set({ connections: [], authStatus: {}, loading: false, error: null }),
+  refreshToken: async (connectionId) => {
+    const result = await refreshOAuth(connectionId);
+    // After refresh, update the status with new expiry
+    set((s) => ({
+      authStatus: {
+        ...s.authStatus,
+        [connectionId]: {
+          ...s.authStatus[connectionId],
+          authenticated: true,
+          expired: false,
+          expiresAt: result.expiresAt,
+          expiresInMs: result.expiresAt - Date.now(),
+          lastRefreshedAt: Date.now(),
+        },
+      },
+    }));
+  },
+
+  runHealthCheck: async (connectionId) => {
+    set((s) => ({
+      healthChecks: { ...s.healthChecks, [connectionId]: { ...s.healthChecks[connectionId], healthy: false, loading: true } },
+    }));
+    try {
+      const result = await healthCheckOAuth(connectionId);
+      set((s) => ({
+        healthChecks: { ...s.healthChecks, [connectionId]: { ...result, loading: false } },
+      }));
+      // Also refresh status if health check updated tokens
+      if (result.healthy && result.expiresAt) {
+        set((s) => ({
+          authStatus: {
+            ...s.authStatus,
+            [connectionId]: {
+              ...s.authStatus[connectionId],
+              authenticated: true,
+              expired: false,
+              expiresAt: result.expiresAt,
+              expiresInMs: result.expiresInMs,
+              lastRefreshedAt: result.lastRefreshedAt,
+            },
+          },
+        }));
+      }
+      return result;
+    } catch (e) {
+      const failResult: HealthCheckResult = { healthy: false, reason: e instanceof Error ? e.message : String(e) };
+      set((s) => ({
+        healthChecks: { ...s.healthChecks, [connectionId]: { ...failResult, loading: false } },
+      }));
+      return failResult;
+    }
+  },
+
+  reset: () => set({ connections: [], authStatus: {}, healthChecks: {}, loading: false, error: null }),
 }));

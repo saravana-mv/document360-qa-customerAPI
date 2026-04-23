@@ -8,6 +8,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import { getConnectionsContainer } from "../lib/cosmosClient";
 import { withAuth, getUserInfo, getProjectId, ProjectIdMissingError } from "../lib/auth";
 import { randomUUID } from "crypto";
+import { audit } from "../lib/auditLog";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -99,6 +100,7 @@ async function createConnection(req: HttpRequest): Promise<HttpResponseInit> {
 
     const container = await getConnectionsContainer();
     await container.items.create(doc);
+    audit(projectId, "connection.create", user, doc.name);
     return ok(sanitize(doc));
   } catch (e) {
     if (e instanceof ProjectIdMissingError) return err(400, e.message);
@@ -138,6 +140,7 @@ async function updateConnection(req: HttpRequest): Promise<HttpResponseInit> {
     existing.updatedBy = user;
 
     await container.items.upsert(existing);
+    audit(projectId, "connection.update", user, existing.name);
     return ok(sanitize(existing));
   } catch (e) {
     if (e instanceof ProjectIdMissingError) return err(400, e.message);
@@ -157,6 +160,8 @@ async function deleteConnection(req: HttpRequest): Promise<HttpResponseInit> {
     } catch {
       return err(404, "Connection not found");
     }
+    const user = getUserInfo(req);
+    audit(projectId, "connection.delete", user, connectionId);
     return ok({ deleted: true });
   } catch (e) {
     if (e instanceof ProjectIdMissingError) return err(400, e.message);
