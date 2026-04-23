@@ -621,8 +621,16 @@ export function SpecFilesPage() {
 
   // ── Import from URL ────────────────────────────────────────────────────────
 
-  async function handleImportFromUrl(url: string, folderPath: string, filename?: string) {
+  async function handleImportFromUrl(url: string, folderPath: string, filename?: string, userAccessToken?: string) {
     const token = useAuthStore.getState().token?.access_token;
+
+    // If user provided an explicit access token, use it directly (skip client-side fetch)
+    if (userAccessToken) {
+      await importSpecFileFromUrl(url, folderPath, filename, userAccessToken);
+      await loadFiles();
+      await loadSourcedPaths();
+      return;
+    }
 
     // Try client-side fetch first — the browser may have session cookies for this URL
     let clientContent: string | undefined;

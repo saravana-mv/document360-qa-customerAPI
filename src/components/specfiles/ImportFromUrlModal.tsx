@@ -2,7 +2,7 @@ import { useState } from "react";
 
 interface Props {
   folderPath: string;
-  onImport: (url: string, folderPath: string, filename?: string) => Promise<void>;
+  onImport: (url: string, folderPath: string, filename?: string, accessToken?: string) => Promise<void>;
   onClose: () => void;
 }
 
@@ -39,6 +39,8 @@ export function ImportFromUrlModal({ folderPath, onImport, onClose }: Props) {
   const [entries, setEntries] = useState<UrlEntry[]>([]);
   const [importing, setImporting] = useState(false);
   const [phase, setPhase] = useState<"input" | "review" | "done">("input");
+  const [accessToken, setAccessToken] = useState("");
+  const [tokenExpanded, setTokenExpanded] = useState(false);
 
   // Parse URLs from raw text
   function handleContinue() {
@@ -60,12 +62,41 @@ export function ImportFromUrlModal({ folderPath, onImport, onClose }: Props) {
 
   async function handleImportAll() {
     setImporting(true);
+    const token = accessToken.trim() || undefined;
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i];
       if (entry.status !== "pending") continue;
       setEntries((prev) => prev.map((e, idx) => idx === i ? { ...e, status: "importing" } : e));
       try {
-        await onImport(entry.url, folderPath);
+        await onImport(entry.url, folderPath, undefined, token);
+        setEntries((prev) => prev.map((e, idx) => idx === i ? { ...e, status: "done" } : e));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        const isAuthWarning = msg.includes("authentication may be required") || msg.includes("Redirection detected") || msg.includes("HTML");
+        setEntries((prev) => prev.map((e, idx) => idx === i ? { ...e, status: isAuthWarning ? "warning" : "error", error: msg } : e));
+      }
+    }
+    setImporting(false);
+    setPhase("done");
+  }
+
+  // Retry only failed/warning entries with updated token
+  async function handleRetryFailed() {
+    setImporting(true);
+    setPhase("review");
+    const token = accessToken.trim() || undefined;
+    // Reset warning/error entries back to pending
+    setEntries((prev) => prev.map((e) =>
+      e.status === "warning" || e.status === "error" ? { ...e, status: "pending", error: undefined } : e,
+    ));
+    // Small delay so state updates
+    await new Promise((r) => setTimeout(r, 50));
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      if (entry.status !== "pending" && entry.status !== "warning" && entry.status !== "error") continue;
+      setEntries((prev) => prev.map((e, idx) => idx === i ? { ...e, status: "importing" } : e));
+      try {
+        await onImport(entry.url, folderPath, undefined, token);
         setEntries((prev) => prev.map((e, idx) => idx === i ? { ...e, status: "done" } : e));
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -80,6 +111,7 @@ export function ImportFromUrlModal({ folderPath, onImport, onClose }: Props) {
   const doneCount = entries.filter((e) => e.status === "done").length;
   const errorCount = entries.filter((e) => e.status === "error").length;
   const warningCount = entries.filter((e) => e.status === "warning").length;
+  const failedCount = errorCount + warningCount;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -145,6 +177,53 @@ export function ImportFromUrlModal({ folderPath, onImport, onClose }: Props) {
                   )}
                 </div>
               </div>
+
+              {/* Access Token — expandable */}
+              <div className="border border-[#d1d9e0] rounded-md overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setTokenExpanded(!tokenExpanded)}
+                  className="w-full flex items-center gap-2 px-2.5 py-2 text-sm text-[#656d76] hover:bg-[#f6f8fa] transition-colors"
+                >
+                  <svg
+                    className={`w-3.5 h-3.5 shrink-0 transition-transform ${tokenExpanded ? "rotate-90" : ""}`}
+                    fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                  </svg>
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" />
+                  </svg>
+                  <span className="font-medium">Authentication</span>
+                  {accessToken.trim() && (
+                    <span className="text-xs text-[#1a7f37] ml-auto mr-1">Token provided</span>
+                  )}
+                </button>
+                {tokenExpanded && (
+                  <div className="px-2.5 pb-2.5 space-y-2 border-t border-[#d1d9e0]">
+                    <p className="text-xs text-[#656d76] mt-2 leading-relaxed">
+                      If the URLs require authentication, paste a session cookie or bearer token below.
+                      The token will be sent as a <code className="bg-[#f6f8fa] px-1 rounded text-xs">Cookie</code> header with each request.
+                    </p>
+                    <div className="bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-2 text-xs text-[#656d76] space-y-1.5">
+                      <p className="font-medium text-[#1f2328]">How to get the token:</p>
+                      <ol className="list-decimal list-inside space-y-0.5">
+                        <li>Open the URL in your browser (where you're logged in)</li>
+                        <li>Open DevTools (<code className="bg-white px-1 rounded">F12</code>) → <strong>Network</strong> tab</li>
+                        <li>Reload the page and click the first request</li>
+                        <li>Under <strong>Request Headers</strong>, copy the <code className="bg-white px-1 rounded">Cookie</code> value</li>
+                      </ol>
+                    </div>
+                    <textarea
+                      value={accessToken}
+                      onChange={(e) => setAccessToken(e.target.value)}
+                      placeholder="Paste cookie or bearer token here..."
+                      rows={2}
+                      className="w-full text-sm border border-[#d1d9e0] rounded-md px-2.5 py-2 outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] bg-white text-[#1f2328] placeholder-[#afb8c1] font-mono resize-y"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -201,6 +280,31 @@ export function ImportFromUrlModal({ folderPath, onImport, onClose }: Props) {
                   </div>
                 </div>
               ))}
+
+              {/* Token input on done phase when there are failures */}
+              {phase === "done" && failedCount > 0 && (
+                <div className="mt-3 border border-[#d4a72c] rounded-md bg-[#fff8c5] px-3 py-2.5 space-y-2">
+                  <p className="text-xs text-[#9a6700] font-medium">
+                    {failedCount} file{failedCount !== 1 ? "s" : ""} failed — paste an access token to retry
+                  </p>
+                  <div className="bg-white border border-[#d1d9e0] rounded-md px-2.5 py-2 text-xs text-[#656d76] space-y-1.5">
+                    <p className="font-medium text-[#1f2328]">How to get the token:</p>
+                    <ol className="list-decimal list-inside space-y-0.5">
+                      <li>Open the URL in your browser (where you're logged in)</li>
+                      <li>Open DevTools (<code className="bg-[#f6f8fa] px-1 rounded">F12</code>) → <strong>Network</strong> tab</li>
+                      <li>Reload the page and click the first request</li>
+                      <li>Under <strong>Request Headers</strong>, copy the <code className="bg-[#f6f8fa] px-1 rounded">Cookie</code> value</li>
+                    </ol>
+                  </div>
+                  <textarea
+                    value={accessToken}
+                    onChange={(e) => setAccessToken(e.target.value)}
+                    placeholder="Paste cookie or bearer token here..."
+                    rows={2}
+                    className="w-full text-sm border border-[#d1d9e0] rounded-md px-2.5 py-2 outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] bg-white text-[#1f2328] placeholder-[#afb8c1] font-mono resize-y"
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -246,6 +350,21 @@ export function ImportFromUrlModal({ folderPath, onImport, onClose }: Props) {
                 {importing ? "Importing…" : `Import ${entries.length} file${entries.length !== 1 ? "s" : ""}`}
               </button>
             </>
+          )}
+          {phase === "done" && failedCount > 0 && (
+            <button
+              onClick={() => void handleRetryFailed()}
+              disabled={importing || !accessToken.trim()}
+              className="text-sm font-medium text-white bg-[#0969da] hover:bg-[#0860ca] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-3 py-1.5 transition-colors flex items-center gap-1.5"
+            >
+              {importing && (
+                <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
+                </svg>
+              )}
+              Retry failed ({failedCount})
+            </button>
           )}
         </div>
       </div>

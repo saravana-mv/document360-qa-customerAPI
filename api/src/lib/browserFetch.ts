@@ -25,7 +25,19 @@ export function browserHeaders(accessToken?: string): Record<string, string> {
     "Accept": "text/markdown, text/plain, text/html, */*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
   };
-  if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+  if (accessToken) {
+    const trimmed = accessToken.trim();
+    // Detect format: "Bearer ..." → Authorization header, "name=value" cookie pairs → Cookie header
+    if (trimmed.toLowerCase().startsWith("bearer ")) {
+      headers["Authorization"] = trimmed;
+    } else if (trimmed.includes("=")) {
+      // Looks like a cookie string (name=value pairs)
+      headers["Cookie"] = trimmed;
+    } else {
+      // Default: treat as bearer token
+      headers["Authorization"] = `Bearer ${trimmed}`;
+    }
+  }
   return headers;
 }
 
