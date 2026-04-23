@@ -3,6 +3,8 @@ import { runAssertions } from "./assertions";
 import { useRunnerStore } from "../../store/runner.store";
 import { isBreakpointSet } from "../../store/breakpoints.store";
 import { saveTestRun } from "../api/testRunsApi";
+import { fetchApiRules } from "../api/apiRulesApi";
+import { setEnumAliases } from "./flowXml/enumAliases";
 
 export interface RunOptions {
   tests: TestDef[];
@@ -159,6 +161,12 @@ async function runTag(tag: string, tests: TestDef[], ctx: TestContext): Promise<
 export async function runTests(options: RunOptions): Promise<void> {
   const { tests, context } = options;
   const store = getStore();
+
+  // Load project enum aliases before running
+  try {
+    const { enumAliases } = await fetchApiRules();
+    setEnumAliases(enumAliases);
+  } catch { /* proceed without aliases */ }
 
   store.startRun();
   const startedAt = Date.now();

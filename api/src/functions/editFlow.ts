@@ -1,7 +1,8 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import Anthropic from "@anthropic-ai/sdk";
 import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
-import { withAuth } from "../lib/auth";
+import { withAuth, getProjectId } from "../lib/auth";
+import { loadApiRules, injectApiRules } from "../lib/apiRules";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -10,7 +11,7 @@ const CORS_HEADERS = {
 };
 
 // Reuse the same schema prompt from generateFlow but with an edit-specific wrapper
-const FLOW_EDIT_SYSTEM_PROMPT = `You are an expert at editing API test flow definitions for the Document360 QA Customer API test runner.
+const FLOW_EDIT_SYSTEM_PROMPT = `You are an expert at editing API test flow definitions for the FlowForge API test runner.
 
 You will be given an existing flow XML and a user instruction describing changes to make. Your job is to apply the requested changes and return the FULL updated XML. The output MUST validate against the Flow Definition Schema (flow.xsd v1).
 
@@ -21,9 +22,9 @@ You will be given an existing flow XML and a user instruction describing changes
 \`\`\`xml
 <?xml version="1.0" encoding="UTF-8"?>
 <flow version="1.0"
-      xmlns="https://document360.io/qa/flow/v1">
+      xmlns="https://flowforge.io/qa/flow/v1">
   <name>Human readable flow name</name>        <!-- required, element -->
-  <entity>Articles</entity>                      <!-- required, element -->
+  <entity>ResourceName</entity>                 <!-- required, element -->
   <description>What this flow covers</description>  <!-- required -->
   <stopOnFailure>true</stopOnFailure>           <!-- optional; default true -->
   <steps>                                        <!-- required wrapper -->
@@ -44,7 +45,7 @@ The child elements of \`<step>\` must appear in this order:
 
 1. \`<name>\` — step title shown in logs (required)
 2. \`<endpointRef>\` — relative path to the endpoint MD file (optional)
-3. \`<method>\` — one of \`GET\`, \`POST\`, \`PATCH\`, \`DELETE\` (required). **The D360 API uses PATCH for all updates — NEVER use PUT.**
+3. \`<method>\` — one of \`GET\`, \`POST\`, \`PUT\`, \`PATCH\`, \`DELETE\` (required). Use the method specified in the API spec.
 4. \`<path>\` — URL template with \`{placeholder}\` tokens (required)
 5. \`<pathParams>\` — bindings for \`{placeholders}\` in the path (required if path has placeholders)
 6. \`<queryParams>\` — query-string bindings (optional)
@@ -59,7 +60,7 @@ The child elements of \`<step>\` must appear in this order:
 \`\`\`xml
 <pathParams>
   <param name="project_id">ctx.projectId</param>
-  <param name="article_id">{{state.createdArticleId}}</param>
+  <param name="resource_id">{{state.createdResourceId}}</param>
 </pathParams>
 <queryParams>
   <param name="lang_code">ctx.langCode</param>
@@ -70,24 +71,12 @@ The child elements of \`<step>\` must appear in this order:
 
 Wrap JSON in CDATA. Interpolation tokens (\`{{state.x}}\`, \`{{ctx.y}}\`, \`{{timestamp}}\`) are supported.
 
-\`\`\`xml
-<body><![CDATA[
-{
-  "title": "[TEST] Example - {{timestamp}}",
-  "category_id": "{{state.createdCategoryId}}",
-  "project_version_id": "{{ctx.versionId}}"
-}
-]]></body>
-\`\`\`
-
 ### Captures
 
 \`\`\`xml
 <captures>
-  <capture variable="state.createdArticleId" source="response.data.id"/>
-  <capture variable="state.createdTitle"     source="response.data.title"/>
-  <capture variable="state.deletedVersionNumber"
-           source="pathParam.version_number" from="request"/>
+  <capture variable="state.createdResourceId" source="response.data.id"/>
+  <capture variable="state.createdName"       source="response.data.name"/>
 </captures>
 \`\`\`
 
@@ -99,7 +88,7 @@ Attributes: \`variable\` (required), \`source\` (required), \`from\` (optional: 
 <assertions>
   <assertion type="status"         code="200"/>
   <assertion type="field-exists"   field="data.id"/>
-  <assertion type="field-equals"   field="data.version_number" value="{{state.draftVersionNumber}}"/>
+  <assertion type="field-equals"   field="data.status" value="{{state.expectedStatus}}"/>
   <assertion type="array-not-empty" field="data.items"/>
 </assertions>
 \`\`\`
@@ -122,6 +111,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 
 - \`{{ctx.projectId}}\`, \`{{ctx.versionId}}\`, \`{{ctx.langCode}}\`, \`{{ctx.token}}\`, \`{{ctx.baseUrl}}\`
 - \`{{state.variableName}}\` — value captured from a previous step
+- \`{{proj.variableName}}\` — project-level variable defined in Settings → Variables
 - \`{{timestamp}}\` — Unix ms timestamp at execution time
 - \`{{!state.boolVar}}\` — logical NOT of a boolean state variable
 
@@ -134,10 +124,8 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 5. Teardown steps must keep \`<flags teardown="true"/>\`.
 6. Element order within \`<step>\` must match the schema order listed above.
 7. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status assertions.
-8. **HTTP status codes (CRITICAL)**: GET → 200, POST (create) → 201, PATCH (update) → 200, **DELETE → 204 (No Content)**. DELETE responses have an EMPTY body — NEVER add \`field-equals\`, \`field-exists\`, or \`array-not-empty\` assertions on DELETE steps. The ONLY assertion for a DELETE should be \`<assertion type="status" code="204"/>\`. **NEVER use PUT — the D360 API does not support PUT (returns 405). All updates use PATCH.**
-9. If you see incorrect assertions or methods in the existing XML (e.g. DELETE with status 200, body field checks on DELETE, or PUT instead of PATCH), fix them as part of your edit.
-10. **Article update body**: When PATCHing an article, the body MUST include both \`"title"\` and \`"content"\` with non-null string values. The API returns 400 if \`content\` is missing or null. Use literal test content rather than relying on uncaptured state variables.
-11. **additionalProperties: false**: Article PATCH body only accepts: \`title\`, \`content\`, \`category_id\`, \`hidden\`, \`version_number\`, \`translation_option\`, \`source\`, \`order\`, \`auto_fork\`. Do NOT include \`project_version_id\` — it causes 400. If you see it in existing XML, remove it.
+8. **HTTP status codes**: Use these defaults unless the spec or project API rules state otherwise: GET → 200, POST (create) → 201, PUT/PATCH (update) → 200, DELETE → 204 (No Content). DELETE responses typically have an empty body — do not add body assertions on DELETE unless the spec says otherwise.
+9. If you see incorrect assertions in the existing XML, fix them as part of your edit.
 
 ## Output format
 
@@ -181,13 +169,19 @@ async function editFlow(req: HttpRequest, _ctx: InvocationContext): Promise<Http
   const client = new Anthropic({ apiKey });
   const model = resolveModel(body.model, DEFAULT_FLOW_MODEL);
 
+  // Load project-specific API rules
+  let projectId: string;
+  try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
+  const { rules: apiRules } = await loadApiRules(projectId);
+  const systemPrompt = injectApiRules(FLOW_EDIT_SYSTEM_PROMPT, apiRules);
+
   try {
     const userMessage = `Here is the current flow XML:\n\n\`\`\`xml\n${body.xml}\n\`\`\`\n\nPlease apply the following changes:\n${body.prompt}`;
 
     const response = await client.messages.create({
       model,
       max_tokens: 8192,
-      system: FLOW_EDIT_SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: [{ role: "user", content: userMessage }],
     });
 

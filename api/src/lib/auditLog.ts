@@ -35,7 +35,8 @@ export type AuditAction =
   | "spec.import_url"
   | "spec.sync"
   | "spec.update_source"
-  | "project.variables.update";
+  | "project.variables.update"
+  | "project.apiRules.update";
 
 interface AuditEntry {
   id: string;

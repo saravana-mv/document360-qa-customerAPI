@@ -6,42 +6,54 @@ import type { RunContext } from "./types";
 /** Mutable state bag shared across steps within a single scenario run. */
 export type RunState = Record<string, unknown>;
 
-// ── Enum aliases (D360 returns integers, specs use strings) ─────────────────
+// ── Enum aliases (API may return integers where specs use strings) ──────────
+// Aliases are configurable per project via Settings → API Rules → Enum Aliases.
+// Format: one "name=value" per line, e.g. "draft=0", "published=3"
 
 interface EnumEntry {
   name: string;
   value: number;
 }
 
-const ENUM_ALIASES: EnumEntry[] = [
-  { name: "draft", value: 0 },
-  { name: "new", value: 1 },
-  { name: "updated", value: 2 },
-  { name: "published", value: 3 },
-  { name: "forked", value: 4 },
-  { name: "unpublished", value: 5 },
-  { name: "folder", value: 0 },
-  { name: "page", value: 1 },
-  { name: "index", value: 2 },
-  { name: "markdown", value: 0 },
-  { name: "wysiwyg", value: 1 },
-  { name: "block", value: 2 },
-  { name: "raw", value: 0 },
-  { name: "display", value: 1 },
-  { name: "public", value: 0 },
-  { name: "protected", value: 1 },
-  { name: "mixed", value: 2 },
-];
+/** Parse enum aliases from a multi-line "name=value" string. */
+export function parseEnumAliases(raw: string): EnumEntry[] {
+  if (!raw || !raw.trim()) return [];
+  const entries: EnumEntry[] = [];
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue; // skip comments/blanks
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx < 1) continue;
+    const name = trimmed.slice(0, eqIdx).trim();
+    const val = Number(trimmed.slice(eqIdx + 1).trim());
+    if (name && !Number.isNaN(val)) {
+      entries.push({ name, value: val });
+    }
+  }
+  return entries;
+}
 
-const byName = new Map<string, number[]>();
-for (const { name, value } of ENUM_ALIASES) {
-  const lower = name.toLowerCase();
-  if (!byName.has(lower)) byName.set(lower, []);
-  byName.get(lower)!.push(value);
+/** Build a lookup map from enum entries. */
+export function buildEnumMap(entries: EnumEntry[]): Map<string, number[]> {
+  const map = new Map<string, number[]>();
+  for (const { name, value } of entries) {
+    const lower = name.toLowerCase();
+    if (!map.has(lower)) map.set(lower, []);
+    map.get(lower)!.push(value);
+  }
+  return map;
+}
+
+// Runtime enum map — starts empty; populated per-run via setEnumAliases()
+let activeEnumMap = new Map<string, number[]>();
+
+/** Set the active enum aliases for the current run context. */
+export function setEnumAliases(raw: string): void {
+  activeEnumMap = buildEnumMap(parseEnumAliases(raw));
 }
 
 export function enumMatches(name: string, value: number): boolean {
-  const matches = byName.get(name.toLowerCase());
+  const matches = activeEnumMap.get(name.toLowerCase());
   return matches ? matches.includes(value) : false;
 }
 

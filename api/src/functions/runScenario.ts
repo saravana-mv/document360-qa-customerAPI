@@ -9,7 +9,9 @@ import { resolveScenario, ScenarioNotFoundError } from "../lib/flowRunner";
 import { parseFlowXml, FlowXmlParseError } from "../lib/flowRunner";
 import { executeScenario } from "../lib/flowRunner";
 import type { RunContext } from "../lib/flowRunner";
+import { setEnumAliases } from "../lib/flowRunner/interpolation";
 import { getSettingsContainer, getTestRunsContainer } from "../lib/cosmosClient";
+import { loadApiRules } from "../lib/apiRules";
 import { audit } from "../lib/auditLog";
 
 const CORS_HEADERS = {
@@ -126,6 +128,12 @@ async function handleRunScenario(req: HttpRequest, _ctx: InvocationContext): Pro
     ...creds,
     projectVariables,
   };
+
+  // Load project enum aliases before execution
+  try {
+    const { enumAliases } = await loadApiRules(apiKeyDoc.projectId);
+    setEnumAliases(enumAliases);
+  } catch { /* proceed without enum aliases */ }
 
   // Execute the scenario
   const result = await executeScenario(flow, ctx, scenarioId);

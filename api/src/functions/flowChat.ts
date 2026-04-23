@@ -4,6 +4,7 @@ import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { checkCredits, recordUsage } from "../lib/aiCredits";
+import { loadApiRules, injectApiRules } from "../lib/apiRules";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -15,7 +16,7 @@ const CORS_HEADERS = {
 const MAX_SPEC_CONTEXT_CHARS = 50_000;
 const MAX_SPEC_FILES = 5;
 
-const FLOW_CHAT_SYSTEM_PROMPT = `You are an expert API test flow designer for the Document360 QA Customer API testing platform.
+const FLOW_CHAT_SYSTEM_PROMPT = `You are an expert API test flow designer for the FlowForge API testing platform.
 
 You help users interactively design test flows through conversation. Your role has TWO phases:
 
@@ -34,14 +35,14 @@ When you have enough information to propose a plan, output it inside a JSON bloc
 \`\`\`flowplan
 {
   "name": "Human readable flow name",
-  "entity": "Primary entity (e.g. Articles, Categories)",
+  "entity": "Primary entity (e.g. Users, Orders)",
   "description": "What this flow tests",
   "steps": [
     {
       "number": 1,
       "name": "Step name",
       "method": "POST",
-      "path": "/v3/projects/{project_id}/endpoint",
+      "path": "/v1/resources",
       "captures": ["state.createdId from response.data.id"],
       "assertions": ["status 201", "field-exists data.id"],
       "flags": []
@@ -50,7 +51,7 @@ When you have enough information to propose a plan, output it inside a JSON bloc
       "number": 2,
       "name": "Delete resource (cleanup)",
       "method": "DELETE",
-      "path": "/v3/projects/{project_id}/resource/{resource_id}",
+      "path": "/v1/resources/{resource_id}",
       "captures": [],
       "assertions": ["status 204"],
       "flags": ["teardown"]
@@ -61,13 +62,12 @@ When you have enough information to propose a plan, output it inside a JSON bloc
 
 ### Planning Rules
 
-- **ONE FLOW AT A TIME (CRITICAL)**: Each conversation produces exactly ONE flow. If the user asks for multiple flows (e.g. "create two flows" or "create flows for X and Y"), politely decline and explain that the Flow Designer creates one flow per session. Suggest they pick one to start with, and create the other in a new session.
-- **Article dependency (CRITICAL)**: EVERY flow that operates on an article MUST start with: (a) Create Category (POST /v2/projects/{project_id}/categories), (b) Create Article. End with teardown steps that delete article, then category.
+- **ONE FLOW AT A TIME (CRITICAL)**: Each conversation produces exactly ONE flow. If the user asks for multiple flows, politely decline and explain that the Flow Designer creates one flow per session.
+- **Entity dependencies**: If the API has dependent entities (e.g., child resources that require a parent), create prerequisites first and clean them up last in teardown.
 - **Teardown is MANDATORY**: Every flow MUST end with teardown steps that delete ALL resources created. Mark each with the "teardown" flag.
 - **Scope**: Only use endpoints from the provided spec files. Do not invent endpoints.
-- **HTTP methods**: The D360 API uses PATCH for updates — NEVER use PUT.
-- **DELETE returns 204**: No body assertions on DELETE steps.
-- **Version paths**: Use /v3/... for all endpoints.
+- **HTTP methods**: Use the exact methods documented in the API spec (GET, POST, PUT, PATCH, DELETE).
+- **DELETE typically returns 204**: No body assertions on DELETE steps unless the spec says otherwise.
 
 ### Conversation Guidelines
 
@@ -217,9 +217,12 @@ async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<Http
   const specFiles = body.specFiles ?? [];
   const specContext = await buildSpecContext(specFiles, projectId);
 
+  // Load and inject project-specific API rules
+  const { rules: apiRules } = await loadApiRules(projectId);
+
   // Inject spec content into the system prompt so the AI always has access,
   // regardless of conversation length or message position.
-  let systemPrompt = FLOW_CHAT_SYSTEM_PROMPT;
+  let systemPrompt = injectApiRules(FLOW_CHAT_SYSTEM_PROMPT, apiRules);
   if (specContext) {
     systemPrompt += `\n\n# Available API Specifications (${specFiles.length} file${specFiles.length !== 1 ? "s" : ""})\n\nThe user has provided the following API endpoint specifications. Use ONLY these endpoints when designing flows.\n\n${specContext}`;
   }

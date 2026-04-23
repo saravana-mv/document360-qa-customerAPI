@@ -4,6 +4,7 @@ import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { checkCredits, recordUsage } from "../lib/aiCredits";
+import { loadApiRules, injectApiRules } from "../lib/apiRules";
 
 function scopedPath(projectId: string, name: string): string {
   if (!projectId || projectId === "unknown") return name;
@@ -17,7 +18,7 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-const FLOW_SYSTEM_PROMPT = `You are an expert at creating API test flow definitions for the Document360 QA Customer API test runner.
+const FLOW_SYSTEM_PROMPT = `You are an expert at creating API test flow definitions for the FlowForge API test runner.
 
 You generate structured XML flow files that describe a sequence of API test steps. Each flow tests a specific user journey or lifecycle, and MUST validate against the Flow Definition Schema (flow.xsd) used by the runtime interpreter. If your output does not match the schema EXACTLY, the flow will be rejected as invalid and unusable.
 
@@ -28,9 +29,9 @@ You generate structured XML flow files that describe a sequence of API test step
 \`\`\`xml
 <?xml version="1.0" encoding="UTF-8"?>
 <flow version="1.0"
-      xmlns="https://document360.io/qa/flow/v1">
+      xmlns="https://flowforge.io/qa/flow/v1">
   <name>Human readable flow name</name>        <!-- required, element -->
-  <entity>Articles</entity>                      <!-- required, element -->
+  <entity>ResourceName</entity>                 <!-- required, element -->
   <description>What this flow covers</description>  <!-- required -->
   <stopOnFailure>true</stopOnFailure>           <!-- optional; default true -->
   <steps>                                        <!-- required wrapper -->
@@ -50,9 +51,9 @@ You generate structured XML flow files that describe a sequence of API test step
 The child elements of \`<step>\` must appear in this order:
 
 1. \`<name>\` — step title shown in logs (required)
-2. \`<endpointRef>\` — relative path to the endpoint MD file, e.g. \`articles/get-an-article-by-id.md\` (optional)
-3. \`<method>\` — one of \`GET\`, \`POST\`, \`PATCH\`, \`DELETE\` (required). **The D360 API uses PATCH for all updates — NEVER use PUT.**
-4. \`<path>\` — URL template with \`{placeholder}\` tokens, e.g. \`/v3/projects/{project_id}/articles/{article_id}\` (required)
+2. \`<endpointRef>\` — relative path to the endpoint MD file (optional)
+3. \`<method>\` — one of \`GET\`, \`POST\`, \`PUT\`, \`PATCH\`, \`DELETE\` (required). Use the method specified in the API spec.
+4. \`<path>\` — URL template with \`{placeholder}\` tokens (required)
 5. \`<pathParams>\` — bindings for \`{placeholders}\` in the path (required if path has placeholders)
 6. \`<queryParams>\` — query-string bindings (optional)
 7. \`<body>\` — JSON request body wrapped in CDATA (optional; omit for GET/DELETE with no body)
@@ -66,7 +67,7 @@ The child elements of \`<step>\` must appear in this order:
 \`\`\`xml
 <pathParams>
   <param name="project_id">ctx.projectId</param>          <!-- value is TEXT, not attr -->
-  <param name="article_id">{{state.createdArticleId}}</param>
+  <param name="resource_id">{{state.createdResourceId}}</param>
 </pathParams>
 <queryParams>
   <param name="lang_code">ctx.langCode</param>
@@ -80,9 +81,8 @@ Wrap JSON in CDATA. Interpolation tokens (\`{{state.x}}\`, \`{{ctx.y}}\`, \`{{ti
 \`\`\`xml
 <body><![CDATA[
 {
-  "title": "[TEST] Example - {{timestamp}}",
-  "category_id": "{{state.createdCategoryId}}",
-  "project_version_id": "{{ctx.versionId}}"
+  "name": "[TEST] Example - {{timestamp}}",
+  "parent_id": "{{state.createdParentId}}"
 }
 ]]></body>
 \`\`\`
@@ -91,8 +91,8 @@ Wrap JSON in CDATA. Interpolation tokens (\`{{state.x}}\`, \`{{ctx.y}}\`, \`{{ti
 
 \`\`\`xml
 <captures>
-  <capture variable="state.createdArticleId" source="response.data.id"/>
-  <capture variable="state.createdTitle"     source="response.data.title"/>
+  <capture variable="state.createdResourceId" source="response.data.id"/>
+  <capture variable="state.createdName"       source="response.data.name"/>
   <!-- From the request you sent (useful for path params): -->
   <capture variable="state.deletedVersionNumber"
            source="pathParam.version_number" from="request"/>
@@ -107,7 +107,7 @@ Attributes: \`variable\` (required), \`source\` (required), \`from\` (optional: 
 <assertions>
   <assertion type="status"         code="200"/>                            <!-- use 'code', not 'value' -->
   <assertion type="field-exists"   field="data.id"/>
-  <assertion type="field-equals"   field="data.version_number" value="{{state.draftVersionNumber}}"/>
+  <assertion type="field-equals"   field="data.status" value="{{state.expectedStatus}}"/>
   <assertion type="array-not-empty" field="data.items"/>
 </assertions>
 \`\`\`
@@ -138,28 +138,24 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 
 \`\`\`xml
 <?xml version="1.0" encoding="UTF-8"?>
-<flow version="1.0" xmlns="https://document360.io/qa/flow/v1">
-  <name>Article Version Lifecycle</name>
-  <entity>Articles</entity>
-  <description>Creates category + article, publishes, forks, verifies, cleans up.</description>
+<flow version="1.0" xmlns="https://flowforge.io/qa/flow/v1">
+  <name>Resource CRUD Lifecycle</name>
+  <entity>Resources</entity>
+  <description>Creates a resource, verifies it, updates it, then cleans up.</description>
   <stopOnFailure>true</stopOnFailure>
   <steps>
     <step number="1">
-      <name>Create Category</name>
-      <endpointRef>categories/create-a-category.md</endpointRef>
+      <name>Create Resource</name>
+      <endpointRef>resources/create-resource.md</endpointRef>
       <method>POST</method>
-      <path>/v2/projects/{project_id}/categories</path>
-      <pathParams>
-        <param name="project_id">ctx.projectId</param>
-      </pathParams>
+      <path>/v1/resources</path>
       <body><![CDATA[
 {
-  "name": "[TEST] Version Lifecycle - {{timestamp}}",
-  "project_version_id": "{{ctx.versionId}}"
+  "name": "[TEST] Lifecycle - {{timestamp}}"
 }
       ]]></body>
       <captures>
-        <capture variable="state.createdCategoryId" source="response.data.id"/>
+        <capture variable="state.createdId" source="response.data.id"/>
       </captures>
       <assertions>
         <assertion type="status"       code="201"/>
@@ -168,16 +164,12 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
     </step>
 
     <step number="2">
-      <name>Delete Category (cleanup)</name>
+      <name>Delete Resource (cleanup)</name>
       <method>DELETE</method>
-      <path>/v2/projects/{project_id}/categories/{category_id}</path>
+      <path>/v1/resources/{resource_id}</path>
       <pathParams>
-        <param name="project_id">ctx.projectId</param>
-        <param name="category_id">{{state.createdCategoryId}}</param>
+        <param name="resource_id">{{state.createdId}}</param>
       </pathParams>
-      <queryParams>
-        <param name="project_version_id">ctx.versionId</param>
-      </queryParams>
       <assertions>
         <assertion type="status" code="204"/>
       </assertions>
@@ -191,22 +183,18 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 ## Hard rules (read before writing anything)
 
 1. **STRICT SCOPE**: Only use API endpoints, methods, and paths explicitly described in the provided spec files. Do not invent endpoints.
-2. **Article dependency (CRITICAL — overrides scope rules)**: Flows MUST NEVER assume a pre-existing article or category. EVERY flow that operates on an article MUST start with: (a) Create Category (POST /v2/projects/{project_id}/categories), (b) Create Article (POST /v3/projects/{project_id}/articles with category_id from step a). End with teardown: delete article, then delete category. This applies even for single-endpoint flows like "Delete Article" — you must first create the article you intend to delete. The API requires category_id even though the spec marks it nullable.
-3. **Teardown is MANDATORY for every flow**: Every flow — regardless of complexity — MUST end with teardown steps that delete ALL resources created during the flow. The testing environment must be left exactly as it was before the flow ran. Delete child resources before parent (article before category). Mark every teardown step with \`<flags teardown="true"/>\`.
+2. **Entity dependencies**: If the API has dependent entities (e.g., a child resource that requires a parent), create the prerequisites first and clean them up last. Check the spec for required fields and dependencies.
+3. **Teardown is MANDATORY for every flow**: Every flow — regardless of complexity — MUST end with teardown steps that delete ALL resources created during the flow. The testing environment must be left exactly as it was before the flow ran. Delete child resources before parent. Mark every teardown step with \`<flags teardown="true"/>\`.
 4. **State passing**: Use \`<capture variable="state.X" source="response.data.Y"/>\` then reference \`{{state.X}}\` in later steps.
-5. **Version paths**: Use \`/v3/…\` for every endpoint — the test runner rewrites the version segment at runtime to match the user's selected API version.
-6. **Unique names**: For resource names, use \`[TEST] Something - {{timestamp}}\`.
-7. **Assertions**: Every step needs at least one \`<assertion type="status" code="…"/>\`. Write operations should also assert \`field-exists\` on the created resource id. **Read the spec file carefully** — use the exact status code and response structure documented there. Do NOT guess.
-8. **HTTP status codes (CRITICAL)**: Use these defaults unless the spec file explicitly states otherwise:
+5. **Unique names**: For resource names, use \`[TEST] Something - {{timestamp}}\`.
+6. **Assertions**: Every step needs at least one \`<assertion type="status" code="…"/>\`. Write operations should also assert \`field-exists\` on the created resource id. **Read the spec file carefully** — use the exact status code and response structure documented there. Do NOT guess.
+7. **HTTP status codes**: Use these defaults unless the spec file explicitly states otherwise:
    - GET → \`200\`
    - POST (create) → \`201\`
-   - PATCH (update) → \`200\`
-   - **DELETE → \`204\` (No Content) — the response body is EMPTY. NEVER add \`field-equals\`, \`field-exists\`, or \`array-not-empty\` assertions on DELETE steps. The ONLY assertion for a DELETE step should be \`<assertion type="status" code="204"/>\`.**
-   - **NEVER use PUT — the Document360 API does not support PUT. All update operations use PATCH. Using PUT will result in a 405 Method Not Allowed error.**
-9. **Spec-driven assertions**: When spec files are provided, read the documented response schema and status codes carefully. The spec is the source of truth. If the spec says a DELETE returns 200 with a body, follow the spec. If silent, use the defaults from rule 8.
-10. **Schema exactness**: Elements must appear in the order listed above. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status. Use \`field-exists\` / \`field-equals\` / \`array-not-empty\` — no other assertion types exist.
-11. **Article update body (CRITICAL)**: When PATCHing an article, the request body MUST include both \`"title"\` and \`"content"\` fields with non-null string values. The API returns 400 "The content is required" if \`content\` is missing or null, even though the spec marks it nullable. Use literal test content like \`"<p>Updated test content - {{timestamp}}</p>"\` — do NOT rely on capturing and echoing back the original content unless the flow explicitly reads and captures it first.
-12. **additionalProperties: false (CRITICAL)**: Many D360 request schemas reject unknown fields. In particular, the article PATCH body only accepts: \`title\`, \`content\`, \`category_id\`, \`hidden\`, \`version_number\`, \`translation_option\`, \`source\`, \`order\`, \`auto_fork\`. Do NOT include \`project_version_id\` in PATCH bodies — it is NOT a valid field and causes 400 errors. Always check the spec schema's properties list before adding fields to request bodies.
+   - PUT/PATCH (update) → \`200\`
+   - DELETE → \`204\` (No Content) — the response body is typically EMPTY. Do not add body-level assertions on DELETE steps unless the spec explicitly documents a response body.
+8. **Spec-driven assertions**: When spec files are provided, read the documented response schema and status codes carefully. The spec is the source of truth.
+9. **Schema exactness**: Elements must appear in the order listed above. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status. Use \`field-exists\` / \`field-equals\` / \`array-not-empty\` — no other assertion types exist.
 
 ## Output format
 
@@ -336,10 +324,13 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   const specContext = await buildSpecContext(body.specFiles ?? [], projectId);
   const specCount = body.specFiles?.length ?? 0;
   const scopeNote = specCount === 1
-    ? `\n\nIMPORTANT: You are working with a SINGLE endpoint specification. The primary test steps of the flow MUST focus on this endpoint. However, you MUST still add prerequisite setup steps (Create Category, Create Article) and teardown steps (Delete Article, Delete Category) as required by the hard rules — these are ALWAYS allowed regardless of scope.`
+    ? `\n\nIMPORTANT: You are working with a SINGLE endpoint specification. The primary test steps of the flow MUST focus on this endpoint. However, you MUST still add prerequisite setup and teardown steps as required by the hard rules and project-specific API rules — these are ALWAYS allowed regardless of scope.`
     : specCount > 1
-      ? `\n\nIMPORTANT: You are working with ${specCount} endpoint specifications. The primary test steps MUST focus on endpoints described in the specs above. However, you MUST still add prerequisite setup steps (Create Category, Create Article) and teardown steps (Delete Article, Delete Category) as required by the hard rules — these are ALWAYS allowed regardless of scope.`
+      ? `\n\nIMPORTANT: You are working with ${specCount} endpoint specifications. The primary test steps MUST focus on endpoints described in the specs above. However, you MUST still add prerequisite setup and teardown steps as required by the hard rules and project-specific API rules — these are ALWAYS allowed regardless of scope.`
       : "";
+
+  // Load and inject project-specific API rules
+  const { rules: apiRules } = await loadApiRules(projectId);
   const userMessage = specContext
     ? `${body.prompt}${scopeNote}\n\n# Relevant API Specification\n\n${specContext}`
     : body.prompt;
@@ -353,10 +344,11 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     const readable = new ReadableStream({
       async start(controller) {
         try {
+          const systemPrompt = injectApiRules(FLOW_SYSTEM_PROMPT, apiRules);
           const stream = client.messages.stream({
             model,
             max_tokens: 8192,
-            system: FLOW_SYSTEM_PROMPT,
+            system: systemPrompt,
             messages: [{ role: "user", content: userMessage }],
           });
 
@@ -410,10 +402,11 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   } else {
     // Non-streaming: collect full response
     try {
+      const systemPrompt = injectApiRules(FLOW_SYSTEM_PROMPT, apiRules);
       const stream = client.messages.stream({
         model,
         max_tokens: 8192,
-        system: FLOW_SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: [{ role: "user", content: userMessage }],
       });
 

@@ -4,6 +4,7 @@ import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { DEFAULT_IDEAS_MODEL, resolveModel, priceFor, computeCost } from "../lib/modelPricing";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { checkCredits, recordUsage } from "../lib/aiCredits";
+import { loadApiRules, injectApiRules } from "../lib/apiRules";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -33,9 +34,9 @@ IMPORTANT: Generate exactly up to ${MAX_IDEAS_PER_RUN} NEW ideas per request. If
 ## What to analyze
 - Each spec file describes one API endpoint (method, path, request/response schema, business rules)
 - Look for CRUD lifecycles (create -> read -> update -> delete)
-- Look for state transitions (draft -> published -> unpublished)
+- Look for state transitions and workflows
 - Look for bulk operations and their relationship to single operations
-- Look for dependencies between entities (e.g., articles require categories)
+- Look for dependencies between entities (e.g., child resources requiring parent resources)
 - Look for edge cases: invalid inputs, missing required fields, duplicate creation
 - Look for ordering constraints: what must happen before what
 
@@ -45,8 +46,8 @@ Return a JSON array. Each item:
   "id": "idea-N",
   "title": "Short descriptive name (under 60 chars)",
   "description": "One sentence describing the test scenario",
-  "steps": ["POST /v3/.../resource", "GET /v3/.../resource/{id}", ...],
-  "entities": ["articles", "categories"],
+  "steps": ["POST /v1/resources", "GET /v1/resources/{id}", ...],
+  "entities": ["resources", "sub-resources"],
   "complexity": "simple|moderate|complex"
 }
 
@@ -66,7 +67,7 @@ Generate ideas in this priority order (first ideas should be simplest):
 2. **Simple parameter validation**: Missing required fields, invalid IDs (non-existent, malformed), empty body on POST/PUT
 3. **Authentication / authorization**: Request without auth token returns 401
 4. **CRUD lifecycle**: Full create → read → update → delete in a single flow
-5. **State transitions & business logic**: publish/unpublish, version management, bulk operations
+5. **State transitions & business logic**: workflow state changes, bulk operations
 6. **Complex multi-entity scenarios**: Cross-entity dependencies, ordering constraints, edge cases
 
 Always start with the simplest scenarios before progressing to complex ones. The first 3-4 ideas should be simple or moderate complexity.
@@ -74,7 +75,7 @@ Always start with the simplest scenarios before progressing to complex ones. The
 ## Rules
 1. Generate up to ${MAX_IDEAS_PER_RUN} ideas maximum per request
 2. **STRICT SCOPE**: Only use API endpoints that are explicitly described in the provided spec files. Do NOT reference, invent, or assume endpoints that are not in the provided context — even if you know they exist in the broader API. Every step in a flow must map to an endpoint from the specs given.
-3. Always note entity dependencies (e.g., article flows need category setup/teardown)
+3. Always note entity dependencies (e.g., child resource flows need parent setup/teardown)
 4. Include both happy-path and error-path flows
 5. Group related flows logically
 6. Return ONLY valid JSON — no markdown fences, no explanation text
@@ -249,12 +250,16 @@ export async function generateFlowIdeasHandler(
     : MAX_IDEAS_PER_RUN;
   const userMessage = `Analyze these API specifications and generate up to ${requestedCount} NEW test flow ideas.${scopeNote}${existingList}\n\n## Spec Files\n\n${specText}`;
 
+  // Load and inject project-specific API rules
+  const { rules: apiRules } = await loadApiRules(projectId);
+  const systemPrompt = injectApiRules(SYSTEM_PROMPT, apiRules);
+
   // ── Resolve model ──
   const model = resolveModel(body.model, DEFAULT_IDEAS_MODEL);
   const { inputPrice, outputPrice } = priceFor(model);
 
   // ── Pre-estimate cost and enforce budget ──
-  const totalChars = SYSTEM_PROMPT.length + userMessage.length;
+  const totalChars = systemPrompt.length + userMessage.length;
   const estimatedInputTokens = Math.ceil(totalChars / CHARS_PER_TOKEN);
   const estimatedCostUsd =
     estimatedInputTokens * inputPrice +
@@ -279,7 +284,7 @@ export async function generateFlowIdeasHandler(
     response = await client.messages.create({
       model,
       max_tokens: MAX_OUTPUT_TOKENS,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: [{ role: "user", content: userMessage }],
     });
   } catch (e) {
