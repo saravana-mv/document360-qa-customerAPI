@@ -62,6 +62,70 @@ import {
 const MAX_IDEAS_PER_RUN = 5;   // Default max per generation run
 const MAX_IDEAS_TOTAL = 30;    // Hard cap to prevent over-engineering
 
+/** Modal prompting the user for an access token when sync detects auth failure. */
+function AccessTokenPrompt({ message, initialToken, onSubmit, onClose }: {
+  message: string;
+  initialToken?: string;
+  onSubmit: (token: string) => void;
+  onClose: () => void;
+}) {
+  const [token, setToken] = useState(initialToken ?? "");
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 flex flex-col">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[#d1d9e0]">
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4 text-[#9a6700]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+            </svg>
+            <h2 className="text-sm font-semibold text-[#1f2328]">Authentication Required</h2>
+          </div>
+          <button onClick={onClose} className="text-[#656d76] hover:text-[#1f2328] rounded p-1">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="px-4 py-4 space-y-3">
+          <p className="text-sm text-[#656d76] whitespace-pre-line">{message}</p>
+          <div className="bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-2 text-xs text-[#656d76] space-y-1.5">
+            <p className="font-medium text-[#1f2328]">How to get the token:</p>
+            <ol className="list-decimal list-inside space-y-0.5">
+              <li>Open the URL in your browser (where you're logged in)</li>
+              <li>Open DevTools (<code className="bg-white px-1 rounded">F12</code>) → <strong>Network</strong> tab</li>
+              <li>Reload the page and click the first request</li>
+              <li>Under <strong>Request Headers</strong>, copy the <code className="bg-white px-1 rounded">Cookie</code> value</li>
+            </ol>
+          </div>
+          <textarea
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="Paste cookie or bearer token here..."
+            rows={2}
+            className="w-full text-sm border border-[#d1d9e0] rounded-md px-2.5 py-2 outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] bg-white text-[#1f2328] placeholder-[#afb8c1] font-mono resize-y"
+            autoFocus
+          />
+        </div>
+        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-[#d1d9e0]">
+          <button
+            onClick={onClose}
+            className="text-sm text-[#656d76] hover:text-[#1f2328] border border-[#d1d9e0] rounded-md px-3 py-1.5 hover:bg-[#f6f8fa]"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSubmit(token.trim())}
+            disabled={!token.trim()}
+            className="text-sm font-medium text-white bg-[#0969da] hover:bg-[#0860ca] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-3 py-1.5 transition-colors"
+          >
+            Retry with token
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function SpecFilesPage() {
   const aiModel = useSetupStore((s) => s.aiModel);
   const setSpec = useSpecStore((s) => s.setSpec);
@@ -91,6 +155,13 @@ export function SpecFilesPage() {
   const [sourceUrlDraft, setSourceUrlDraft] = useState("");
   // Paths currently being synced (for spinner indicators)
   const [syncingPaths, setSyncingPaths] = useState<Set<string>>(new Set());
+
+  // ── Source access token (persisted in-memory for sync/import) ──────────────
+  const [sourceAccessToken, setSourceAccessToken] = useState("");
+  const [tokenPrompt, setTokenPrompt] = useState<{
+    message: string;
+    onRetry: (token: string) => void;
+  } | null>(null);
 
   // ── Multi-select state ─────────────────────────────────────────────────────
   const [multiSelectedPaths, setMultiSelectedPaths] = useState<Set<string>>(new Set());
@@ -699,51 +770,69 @@ export function SpecFilesPage() {
   // ── Import from URL ────────────────────────────────────────────────────────
 
   async function handleImportFromUrl(url: string, folderPath: string, filename?: string, userAccessToken?: string) {
-    const token = useAuthStore.getState().token?.access_token;
-
-    // If user provided an explicit access token, use it directly (skip client-side fetch)
+    // If user provided an explicit access token, persist it for future sync/import
     if (userAccessToken) {
+      setSourceAccessToken(userAccessToken);
       await importSpecFileFromUrl(url, folderPath, filename, userAccessToken);
       await loadFiles();
       await loadSourcedPaths();
       return;
     }
 
+    // Use stored token if available
+    const effectiveToken = sourceAccessToken.trim() || useAuthStore.getState().token?.access_token;
+
     // Try client-side fetch first — the browser may have session cookies for this URL
     let clientContent: string | undefined;
-    try {
-      const resp = await fetch(url, { credentials: "include" });
-      if (resp.ok) {
-        const text = await resp.text();
-        // Sanity check: HTML login pages are not valid markdown imports
-        if (!text.trimStart().startsWith("<!DOCTYPE") && !text.trimStart().startsWith("<html")) {
-          clientContent = text;
+    if (!effectiveToken) {
+      try {
+        const resp = await fetch(url, { credentials: "include" });
+        if (resp.ok) {
+          const text = await resp.text();
+          if (!text.trimStart().startsWith("<!DOCTYPE") && !text.trimStart().startsWith("<html")) {
+            clientContent = text;
+          }
         }
+      } catch {
+        // CORS or network error — will fall back to server-side fetch
       }
-    } catch {
-      // CORS or network error — will fall back to server-side fetch
     }
 
-    await importSpecFileFromUrl(url, folderPath, filename, token, clientContent);
+    await importSpecFileFromUrl(url, folderPath, filename, effectiveToken, clientContent);
     await loadFiles();
     await loadSourcedPaths();
   }
 
   // ── Sync from URL source ──────────────────────────────────────────────────
 
-  async function handleSyncFile(folderPath: string, filename: string) {
+  function isAuthError(msg: string): boolean {
+    return msg.includes("authentication may be required") || msg.includes("Redirection detected") || msg.includes("HTML");
+  }
+
+  async function handleSyncFile(folderPath: string, filename: string, overrideToken?: string) {
     const syncedPath = folderPath ? `${folderPath}/${filename}` : filename;
     setSyncingPaths((prev) => new Set([...prev, syncedPath]));
     try {
-      const token = useAuthStore.getState().token?.access_token;
+      const token = overrideToken || sourceAccessToken.trim() || useAuthStore.getState().token?.access_token;
       const result = await syncSpecFiles(folderPath, filename, token);
       const failed = result.synced.filter((r) => !r.updated);
       if (failed.length > 0) {
-        alert(`Sync failed for: ${failed.map((f) => `${f.name}: ${f.error}`).join("\n")}`);
+        const hasAuthFail = failed.some((f) => f.error && isAuthError(f.error));
+        if (hasAuthFail) {
+          setTokenPrompt({
+            message: `Sync failed for "${filename}" — authentication may be required.\nProvide a fresh access token to retry.`,
+            onRetry: (newToken) => {
+              setSourceAccessToken(newToken);
+              setTokenPrompt(null);
+              void handleSyncFile(folderPath, filename, newToken);
+            },
+          });
+        } else {
+          alert(`Sync failed for: ${failed.map((f) => `${f.name}: ${f.error}`).join("\n")}`);
+        }
       }
       await loadFiles();
       await loadSourcedPaths();
-      // Refresh content if the synced file is currently viewed
       if (selectedPath === syncedPath) {
         const fresh = await getSpecFileContent(syncedPath);
         setContent(fresh);
@@ -755,18 +844,30 @@ export function SpecFilesPage() {
     }
   }
 
-  async function handleSyncFolder(folderPath: string) {
-    if (!confirm(`Sync all URL-sourced files under "${folderPath || "/"}"?\n\nPrevious versions will be preserved.`)) return;
-    // Mark all sourced files under this folder as syncing
+  async function handleSyncFolder(folderPath: string, overrideToken?: string) {
+    if (!overrideToken && !confirm(`Sync all URL-sourced files under "${folderPath || "/"}"?\n\nPrevious versions will be preserved.`)) return;
     const folderSourced = Object.keys(sourcesManifest).filter((p) => p.startsWith(folderPath ? folderPath + "/" : ""));
     setSyncingPaths((prev) => new Set([...prev, ...folderSourced]));
     try {
-      const token = useAuthStore.getState().token?.access_token;
+      const token = overrideToken || sourceAccessToken.trim() || useAuthStore.getState().token?.access_token;
       const result = await syncSpecFiles(folderPath, undefined, token);
       const updated = result.synced.filter((r) => r.updated).length;
       const failed = result.synced.filter((r) => !r.updated);
       if (failed.length > 0) {
-        alert(`Synced ${updated} file(s). Failed:\n${failed.map((f) => `${f.name}: ${f.error}`).join("\n")}`);
+        const hasAuthFail = failed.some((f) => f.error && isAuthError(f.error));
+        if (hasAuthFail) {
+          const authFailed = failed.filter((f) => f.error && isAuthError(f.error));
+          setTokenPrompt({
+            message: `${authFailed.length} file${authFailed.length !== 1 ? "s" : ""} failed due to authentication.\nProvide a fresh access token to retry.`,
+            onRetry: (newToken) => {
+              setSourceAccessToken(newToken);
+              setTokenPrompt(null);
+              void handleSyncFolder(folderPath, newToken);
+            },
+          });
+        } else {
+          alert(`Synced ${updated} file(s). Failed:\n${failed.map((f) => `${f.name}: ${f.error}`).join("\n")}`);
+        }
       }
       await loadFiles();
       await loadSourcedPaths();
@@ -2070,8 +2171,19 @@ export function SpecFilesPage() {
       {importUrlFolderPath !== null && (
         <ImportFromUrlModal
           folderPath={importUrlFolderPath}
+          initialAccessToken={sourceAccessToken}
           onImport={handleImportFromUrl}
           onClose={() => setImportUrlFolderPath(null)}
+        />
+      )}
+
+      {/* Access token prompt (shown when sync fails with auth error) */}
+      {tokenPrompt && (
+        <AccessTokenPrompt
+          message={tokenPrompt.message}
+          initialToken={sourceAccessToken}
+          onSubmit={tokenPrompt.onRetry}
+          onClose={() => setTokenPrompt(null)}
         />
       )}
 

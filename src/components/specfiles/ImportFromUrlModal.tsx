@@ -2,6 +2,8 @@ import { useState } from "react";
 
 interface Props {
   folderPath: string;
+  /** Pre-filled access token from a previous session (persisted by parent). */
+  initialAccessToken?: string;
   onImport: (url: string, folderPath: string, filename?: string, accessToken?: string) => Promise<void>;
   onClose: () => void;
 }
@@ -34,13 +36,13 @@ interface UrlEntry {
   error?: string;
 }
 
-export function ImportFromUrlModal({ folderPath, onImport, onClose }: Props) {
+export function ImportFromUrlModal({ folderPath, initialAccessToken, onImport, onClose }: Props) {
   const [rawText, setRawText] = useState("");
   const [entries, setEntries] = useState<UrlEntry[]>([]);
   const [importing, setImporting] = useState(false);
   const [phase, setPhase] = useState<"input" | "review" | "done">("input");
-  const [accessToken, setAccessToken] = useState("");
-  const [tokenExpanded, setTokenExpanded] = useState(false);
+  const [accessToken, setAccessToken] = useState(initialAccessToken ?? "");
+  const [tokenExpanded, setTokenExpanded] = useState(!!initialAccessToken);
 
   // Parse URLs from raw text
   function handleContinue() {
