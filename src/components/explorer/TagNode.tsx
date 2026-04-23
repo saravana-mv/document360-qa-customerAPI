@@ -22,6 +22,10 @@ interface TagNodeProps {
 }
 
 export function TagNode({ tag, tests }: TagNodeProps) {
+  // Every test in a flow carries the same flowFileName — grab the first.
+  // Must be declared before any selector that references it (TDZ in bundled code).
+  const flowFileName = tests[0]?.flowFileName;
+
   const open = useExplorerUIStore((s) => s.expandedTags.has(tag.name));
   const toggleTag = useExplorerUIStore((s) => s.toggleTag);
   const [deleting, setDeleting] = useState(false);
@@ -34,8 +38,6 @@ export function TagNode({ tag, tests }: TagNodeProps) {
   const tagResult = tagResults[tag.name];
   const status = tagResult?.status ?? "idle";
   const isSelected = selectedTags.has(tag.name);
-  // Every test in a flow carries the same flowFileName — grab the first.
-  const flowFileName = tests[0]?.flowFileName;
 
   // Flow metadata from flow status store
   const flowEntry = useFlowStatusStore((s) => flowFileName ? s.byName[flowFileName] : undefined);
