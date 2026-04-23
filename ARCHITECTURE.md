@@ -47,7 +47,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 | `user.store` | `user`, `role`, `status` | Roles: owner / project_owner / qa_manager / qa_engineer / member. `AccessGate` enforces. |
 | `flowStatus.store` | `byName: Record<string, FlowStatusEntry>` | Flow activation state. Must finish loading before TestExplorer builds tags. |
 | `runner.store` | `running`, `paused`, `pausedAt`, `tagResults`, `log[]` | Test execution. Breakpoints stored separately. |
-| `scenarioOrg.store` | `versionConfigs`, `folders`, `placements` | Single `__scenario_org__` doc in Cosmos. NEWLY-ADDED pinned folder per version. |
+| `scenarioOrg.store` | `versionConfigs`, `folders`, `placements`, `scenarioConfigs`, `detectedEndpoint` | Single `__scenario_org__` doc in Cosmos. Per-version config, per-scenario env overrides (`ScenarioEnvOverride`), auto-detected endpoint from OpenAPI specs. |
 | `explorerUI.store` | `expandedVersions`, `expandedFolders`, `rearrangeMode` | UI-only state for tree expansion and drag-drop mode. |
 | `aiCost.store` | `workshopCostUsd`, `adhocCostUsd` | Every AI call must report here. TopBar shows total. |
 | `breakpoints.store` | `ids: Set<testId>` | Per-step pause/resume. Persisted in localStorage. |
@@ -63,7 +63,7 @@ src/components/
 ├── auth/           # EntraGate (SSO wrapper), ProjectGate (project selection guard), AccessGate (role check), LoginScreen, OAuthCallback
 ├── common/         # Layout, TopBar, SideNav, Modal, ContextMenu, XmlCodeBlock, XmlEditor, ResizeHandle, ProjectPicker
 ├── specfiles/      # FileTree, FlowChatPanel, FlowIdeasPanel, FlowsPanel, DetailPanel, ImportFromUrlModal
-├── explorer/       # TestExplorer, VersionAccordion, ScenarioFolderTree, TagNode, ConnectEndpointModal
+├── explorer/       # TestExplorer, VersionAccordion, ScenarioFolderTree, TagNode, ConnectEndpointModal, ScenarioEnvOverrideModal
 ├── runner/         # RunControls, LiveLog, ProgressBar, RunHistory
 ├── results/        # ResultsPanel, DetailPane, SummaryDrawer, DiffModal
 └── setup/          # SetupPanel, ProjectSettingsCard, ApiKeysCard
@@ -228,7 +228,7 @@ Browser → SWA /.auth/login/aad → Microsoft login → SWA sets cookie
 
 ### API Proxy (Generic Auth Injection)
 ```
-Browser → ConnectEndpointModal (cURL paste / manual form) → POST /api/version-auth/credential
+Browser → ConnectEndpointModal (cURL paste / manual form / auto-detected from OpenAPI spec) → POST /api/version-auth/credential
        → Credential stored in Azure Table Storage (keyed by OID + version)
        → Auth types: bearer | apikey_header | apikey_query | basic | cookie | oauth | none
        → GET /api/d360/{path} → proxy reads stored credential → injects appropriate auth
@@ -290,6 +290,12 @@ All Cosmos queries scope by `projectId` (from Entra claims). Settings use `userI
 
 ### Multi-Tenant Blob Scoping
 All spec-file blob operations are scoped with a `{projectId}/` prefix. Azure Functions (`specFiles`, `specFilesImportUrl`, `specFilesSync`, `specFilesSources`, `generateFlowIdeas`, `generateFlow`, `flowChat`) prepend the project ID from auth claims to all blob paths. Migration script at `scripts/migrate-project-scoping.mjs` moves legacy unscoped blobs under the project prefix, creates default project docs, and generates project-member records from existing users.
+
+### Scenario Environment Override Hierarchy
+Test context is built with a 3-tier merge: scenario-level overrides (from `scenarioConfigs`) > version-level config (from `versionConfigs`) > global defaults. `buildContextByTag` in `RunControls` performs the merge at runtime. `ScenarioEnvOverrideModal` (TagNode context menu) edits per-scenario overrides. Server-side `scenarioOrg.ts` persists `scenarioConfigs` alongside folders/placements.
+
+### OpenAPI Auto-Detection
+`autoDetectEndpoint.ts` parses uploaded/imported spec files for `servers[].url` (OpenAPI 3.x) or `host`+`basePath` (Swagger 2.x) and security scheme definitions. Detected config stored in `scenarioOrg.store.detectedEndpoint` and surfaced as a blue banner in Spec Manager + pre-fill in `ConnectEndpointModal`.
 
 ### Version Polling
 `useVersionCheck` hook polls `/version.json` every 60s (first check at 10s). Compares against baked-in `__BUILD_VERSION__`. Shows green "Relaunch" banner in TopBar when mismatch detected.

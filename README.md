@@ -55,6 +55,8 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 - Credentials stored server-side — browser never holds API secrets
 - Version accordion shows connection status badge ("Not connected" / endpoint label)
 - Run gating — prompts Connect Endpoint modal if version not connected
+- **OpenAPI auto-detection** — Automatically detects endpoint config from uploaded/imported OpenAPI 3.x / Swagger 2.x specs, shown as pre-fill in Connect modal
+- **Per-scenario environment overrides** — Override version-level endpoint config on individual scenarios (TagNode context menu), with blue badge indicator
 
 ### Authentication & Access Control
 - Entra ID SSO (single-tenant) with role-based access
@@ -199,7 +201,7 @@ Both environments follow the same build steps:
 │   │   ├── tests/              # Test execution engine + flow XML system
 │   │   ├── oauth/              # OAuth PKCE flow
 │   │   ├── flow/               # AI prompt builder
-│   │   ├── spec/               # OpenAPI parser, fingerprinting, diffing
+│   │   ├── spec/               # OpenAPI parser, fingerprinting, diffing, autoDetectEndpoint
 │   │   └── curlParser.ts       # cURL command parser for Connect Endpoint auto-detection
 │   ├── types/                  # TypeScript interfaces
 │   └── hooks/                  # Auth guard, version check

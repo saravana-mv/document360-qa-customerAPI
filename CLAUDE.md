@@ -23,7 +23,7 @@ FlowForge is a generic AI-assisted API testing platform. It lets QA teams import
 - **localStorage**: Pure UI state only (tree expansion, panel widths, breakpoints)
 
 ### Key Stores (Zustand)
-`auth.store` (OAuth session), `setup.store` (project/version/AI model), `user.store` (role), `project.store` (project list/selection), `flowStatus.store` (flow activation), `runner.store` (test execution), `scenarioOrg.store` (folder tree), `aiCost.store` (spend tracking), `aiCredits.store` (credit budgets/usage), `breakpoints.store` (step pause/resume), `projectVariables.store` (project-level key/value variables)
+`auth.store` (OAuth session), `setup.store` (project/version/AI model), `user.store` (role), `project.store` (project list/selection), `flowStatus.store` (flow activation), `runner.store` (test execution), `scenarioOrg.store` (folder tree, versionConfigs, scenarioConfigs, detectedEndpoint), `aiCost.store` (spend tracking), `aiCredits.store` (credit budgets/usage), `breakpoints.store` (step pause/resume), `projectVariables.store` (project-level key/value variables)
 
 ### API Functions (`api/src/functions/`)
 25+ Azure Functions. All wrapped with `withAuth()`. Key routes: `/api/spec-files/*`, `/api/flow-files`, `/api/flow-chat`, `/api/generate-flow-ideas`, `/api/generate-flow`, `/api/run-scenario`, `/api/d360/*` (proxy), `/api/active-tests`, `/api/test-runs`, `/api/users`, `/api/api-keys`, `/api/audit-log`, `/api/projects`, `/api/project-members`, `/api/ai-credits`, `/api/project-variables`, `/api/version-auth/credential`
@@ -33,6 +33,12 @@ Entra ID SSO → `EntraGate` auto-login → `ProjectGate` redirects to `/project
 
 ### Connect Endpoint (Generic Auth)
 Versions are connected to any API endpoint via `ConnectEndpointModal` (cURL paste or manual form). Supported `AuthType` values: `"bearer"` | `"apikey_header"` | `"apikey_query"` | `"basic"` | `"cookie"` | `"oauth"` | `"none"`. Credentials stored server-side via `/api/version-auth/credential`. `d360Proxy` injects the appropriate auth header/query param based on stored type. `cURL parser` (`src/lib/curlParser.ts`) auto-detects endpoint config from pasted cURL commands.
+
+### OpenAPI Auto-Detection
+`autoDetectEndpoint.ts` (`src/lib/spec/autoDetectEndpoint.ts`) detects endpoint config (base URL, auth type) from uploaded/imported OpenAPI 3.x and Swagger 2.x spec files. When detection succeeds, a blue notification banner appears in Spec Manager with an "Apply" action. Detected config is stored in `scenarioOrg.store.detectedEndpoint` for cross-page access and shown in `ConnectEndpointModal` as a pre-fill option.
+
+### Per-Scenario Environment Overrides
+Individual scenarios can override the version-level endpoint config via `ScenarioEnvOverrideModal` (accessible from TagNode context menu). Overrides stored as `scenarioConfigs: Record<flowPath, ScenarioEnvOverride>` in `scenarioOrg.store` and persisted server-side. Override hierarchy: scenario config > version config > global defaults. `buildContextByTag` merges scenario overrides into test context at runtime. Scenarios with active overrides show a blue slider icon badge.
 
 ### Role Hierarchy
 5-tier hierarchy: `owner`(5) > `project_owner`(4) > `qa_manager`(3) > `qa_engineer`(2) > `member`(1). Super Owners bypass all checks and see all projects; other users see only projects they are members of. Project creation requires `project_owner`+. When a project owner invites someone who doesn't have a tenant-level `users` doc, one is auto-created with role `member`.
