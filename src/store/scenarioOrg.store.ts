@@ -3,6 +3,7 @@ import { getScenarioOrg, saveScenarioOrg } from "../lib/api/scenarioOrgApi";
 import { getActiveFlows } from "../lib/api/activeTestsApi";
 import { useSetupStore } from "./setup.store";
 import { NEWLY_ADDED, depthOf } from "../lib/treeUtils";
+import type { DetectedEndpoint } from "../lib/spec/autoDetectEndpoint";
 
 export type AuthType = "bearer" | "apikey_header" | "apikey_query" | "basic" | "cookie" | "oauth" | "none";
 
@@ -82,6 +83,10 @@ interface ScenarioOrgState {
   // Clear placements (for delete-all)
   clearPlacements: () => void;
 
+  // Auto-detected endpoint from OpenAPI spec (set by Spec Manager)
+  detectedEndpoint: DetectedEndpoint | null;
+  setDetectedEndpoint: (ep: DetectedEndpoint | null) => void;
+
   // Full reset (for project switch)
   reset: () => void;
 
@@ -108,6 +113,8 @@ export const useScenarioOrgStore = create<ScenarioOrgState>((set, get) => ({
   versionConfigs: {},
   folders: {},
   placements: {},
+  detectedEndpoint: null,
+  setDetectedEndpoint: (ep) => set({ detectedEndpoint: ep }),
 
   load: async () => {
     if (get().loading || get().loaded || loadStarted) return;

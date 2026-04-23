@@ -51,6 +51,7 @@ import { useAiCostStore } from "../store/aiCost.store";
 import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
 import { useAuthStore } from "../store/auth.store";
 import { useSetupStore } from "../store/setup.store";
+import { detectEndpointFromSpec, type DetectedEndpoint } from "../lib/spec/autoDetectEndpoint";
 import {
   getAllIdeas,
   saveIdeas,
@@ -229,6 +230,9 @@ export function SpecFilesPage() {
     existingName: string;
     suggestedNewName: string;
   } | null>(null);
+
+  // ── Auto-detected endpoint notification ──────────────────────────────────
+  const [specDetection, setSpecDetection] = useState<DetectedEndpoint | null>(null);
 
   // ── Resizable panel widths ────────────────────────────────────────────────
   const [treeWidth, setTreeWidth] = useState(240);
@@ -716,6 +720,15 @@ export function SpecFilesPage() {
   async function handleUpload(name: string, fileContent: string, contentType: string) {
     await uploadSpecFile(name, fileContent, contentType);
     await loadFiles();
+
+    // Try auto-detecting endpoint config from uploaded JSON spec
+    if (name.toLowerCase().endsWith(".json") && fileContent) {
+      const detected = detectEndpointFromSpec(fileContent);
+      if (detected) {
+        setSpecDetection(detected);
+        useScenarioOrgStore.getState().setDetectedEndpoint(detected);
+      }
+    }
   }
 
   async function handleDeleteFile(path: string) {
@@ -778,6 +791,8 @@ export function SpecFilesPage() {
       await importSpecFileFromUrl(url, folderPath, filename, userAccessToken);
       await loadFiles();
       await loadSourcedPaths();
+      // Try auto-detect on imported JSON files
+      await tryDetectAfterImport(url, folderPath, filename);
       return;
     }
 
@@ -803,6 +818,39 @@ export function SpecFilesPage() {
     await importSpecFileFromUrl(url, folderPath, filename, effectiveToken, clientContent);
     await loadFiles();
     await loadSourcedPaths();
+
+    // Try auto-detect: use clientContent if available, otherwise read back
+    const resolvedName = filename || url.split("/").pop() || "";
+    if (resolvedName.toLowerCase().endsWith(".json")) {
+      if (clientContent) {
+        const detected = detectEndpointFromSpec(clientContent);
+        if (detected) {
+          setSpecDetection(detected);
+          useScenarioOrgStore.getState().setDetectedEndpoint(detected);
+        }
+      } else {
+        await tryDetectAfterImport(url, folderPath, filename);
+      }
+    }
+  }
+
+  /** Read back an imported JSON file and try endpoint auto-detection. */
+  async function tryDetectAfterImport(url: string, folderPath: string, filename?: string) {
+    const resolvedName = filename || url.split("/").pop() || "";
+    if (!resolvedName.toLowerCase().endsWith(".json")) return;
+    const blobPath = folderPath ? `${folderPath}/${resolvedName}` : resolvedName;
+    try {
+      const content = await getSpecFileContent(blobPath);
+      if (content) {
+        const detected = detectEndpointFromSpec(content);
+        if (detected) {
+          setSpecDetection(detected);
+          useScenarioOrgStore.getState().setDetectedEndpoint(detected);
+        }
+      }
+    } catch {
+      // Not critical — silently skip detection
+    }
   }
 
   // ── Sync from URL source ──────────────────────────────────────────────────
@@ -1763,6 +1811,29 @@ export function SpecFilesPage() {
             <div className="mx-2 mt-2 text-xs text-[#d1242f] bg-[#ffebe9] border border-[#ffcecb] rounded-md px-2 py-1.5 shrink-0">
               {error}
               <button onClick={() => setError(null)} className="ml-2 text-[#d1242f]/60 hover:text-[#d1242f]">✕</button>
+            </div>
+          )}
+          {specDetection && (
+            <div className="mx-2 mt-2 text-xs bg-[#ddf4ff] border border-[#54aeff66] rounded-md px-2.5 py-2 shrink-0">
+              <div className="flex items-start gap-2">
+                <svg className="w-3.5 h-3.5 text-[#0969da] shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+                </svg>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[#0969da] font-medium">{specDetection.summary}</p>
+                  <p className="text-[#656d76] mt-0.5">
+                    Connect your versions in Scenario Manager to use this endpoint.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSpecDetection(null)}
+                  className="text-[#656d76] hover:text-[#1f2328] shrink-0 p-0.5"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
           )}
           <FileTree
