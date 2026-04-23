@@ -62,7 +62,10 @@ export function ProjectPicker() {
               <button
                 key={p.id}
                 onClick={() => {
-                  selectProject(p.id);
+                  if (p.id !== selectedProjectId) {
+                    selectProject(p.id);
+                    navigate("/spec-files");
+                  }
                   setOpen(false);
                 }}
                 className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors ${

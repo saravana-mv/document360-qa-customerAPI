@@ -10,6 +10,13 @@ import type { ProjectDoc } from "../lib/api/projectsApi";
 import { useSetupStore } from "./setup.store";
 import { useAiCreditsStore } from "./aiCredits.store";
 import { useProjectVariablesStore } from "./projectVariables.store";
+import { useFlowStatusStore } from "./flowStatus.store";
+import { useSpecStore } from "./spec.store";
+import { useScenarioOrgStore } from "./scenarioOrg.store";
+import { useRunnerStore } from "./runner.store";
+import { useAiCostStore } from "./aiCost.store";
+import { clearRegistry } from "../lib/tests/registry";
+import { loadFlowsFromQueue } from "../lib/tests/flowXml/loader";
 
 interface ProjectState {
   projects: ProjectDoc[];
@@ -89,10 +96,35 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   select: (id) => {
+    const prevId = useSetupStore.getState().selectedProjectId;
     useSetupStore.getState().selectProject(id);
+
     if (id) {
+      // Reset all project-scoped stores when switching to a different project
+      if (id !== prevId) {
+        // Clear test registry and flow statuses
+        clearRegistry();
+        useFlowStatusStore.getState().reset();
+        // Clear spec/parsed tags
+        useSpecStore.getState().setSpec(null, [], null);
+        // Reset scenario org (clears loadStarted guard)
+        useScenarioOrgStore.getState().reset();
+        // Reset runner state
+        useRunnerStore.getState().resetRun();
+        useRunnerStore.getState().clearSelection();
+        useRunnerStore.getState().clearHistoryView();
+        // Reset AI cost tracking
+        useAiCostStore.getState().setWorkshopCost(0);
+      }
+
+      // Load fresh data for the new project
       useAiCreditsStore.getState().loadCredits(id);
       useProjectVariablesStore.getState().load();
+
+      // Reload flow files for the new project
+      if (id !== prevId) {
+        void loadFlowsFromQueue();
+      }
     } else {
       useAiCreditsStore.getState().clear();
       useProjectVariablesStore.getState().clear();

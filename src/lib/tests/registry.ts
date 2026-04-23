@@ -28,6 +28,11 @@ export function getAllTags(): string[] {
   return [...new Set(getAllTests().map((t) => t.tag))];
 }
 
+/** Clear all registered tests (used on project switch). */
+export function clearRegistry(): void {
+  registry.clear();
+}
+
 /** Drop every registered test whose id matches the predicate. */
 export function unregisterWhere(predicate: (def: TestDef) => boolean): number {
   let removed = 0;

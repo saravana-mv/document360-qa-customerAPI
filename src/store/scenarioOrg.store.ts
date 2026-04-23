@@ -40,6 +40,9 @@ interface ScenarioOrgState {
   // Clear placements (for delete-all)
   clearPlacements: () => void;
 
+  // Full reset (for project switch)
+  reset: () => void;
+
   // Derived helpers
   getVersionForFlow: (flowPath: string) => string | null;
   getFolderForFlow: (flowPath: string) => string;
@@ -259,6 +262,11 @@ export const useScenarioOrgStore = create<ScenarioOrgState>((set, get) => ({
   clearPlacements: () => {
     set({ placements: {} });
     get().save();
+  },
+
+  reset: () => {
+    loadStarted = false;
+    set({ loaded: false, loading: false, versionConfigs: {}, folders: {}, placements: {} });
   },
 
   getVersionForFlow: (flowPath) => extractVersion(flowPath),

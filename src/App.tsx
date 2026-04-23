@@ -35,6 +35,30 @@ function PageLoader() {
   );
 }
 
+/** Project-scoped routes — keyed by selectedProjectId so all pages fully
+ *  remount when the user switches projects from the TopBar picker. */
+function ProjectScopedRoutes() {
+  const projectId = useSetupStore((s) => s.selectedProjectId);
+  return (
+    <div key={projectId || "__none__"} className="contents">
+      <Routes>
+        {/* Settings — nested layout with secondary LHS nav */}
+        <Route path="/settings" element={<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>}>
+          <Route index element={<Suspense fallback={<PageLoader />}><SetupPanel /></Suspense>} />
+          <Route path="members" element={<Suspense fallback={<PageLoader />}><MembersContent /></Suspense>} />
+          <Route path="variables" element={<Suspense fallback={<PageLoader />}><ProjectVariablesPage /></Suspense>} />
+          <Route path="api-keys" element={<Suspense fallback={<PageLoader />}><ApiKeysCard /></Suspense>} />
+          <Route path="audit-log" element={<Suspense fallback={<PageLoader />}><AuditLogContent /></Suspense>} />
+        </Route>
+        <Route path="/test" element={<TestPage />} />
+        <Route path="/spec-files" element={<Suspense fallback={<PageLoader />}><SpecFilesPage /></Suspense>} />
+        {/* Fallback for project-scoped unknown paths */}
+        <Route path="*" element={<Navigate to="/spec-files" replace />} />
+      </Routes>
+    </div>
+  );
+}
+
 function AppRoutes() {
   const { initFromSession } = useAuthStore();
 
@@ -68,21 +92,12 @@ function AppRoutes() {
         <Route path="/global-settings" element={<GlobalSettingsPage />} />
         <Route path="/" element={<Navigate to="/projects" replace />} />
         <Route path="/callback" element={<OAuthCallback />} />
-        {/* Settings — nested layout with secondary LHS nav */}
-        <Route path="/settings" element={<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>}>
-          <Route index element={<Suspense fallback={<PageLoader />}><SetupPanel /></Suspense>} />
-          <Route path="members" element={<Suspense fallback={<PageLoader />}><MembersContent /></Suspense>} />
-          <Route path="variables" element={<Suspense fallback={<PageLoader />}><ProjectVariablesPage /></Suspense>} />
-          <Route path="api-keys" element={<Suspense fallback={<PageLoader />}><ApiKeysCard /></Suspense>} />
-          <Route path="audit-log" element={<Suspense fallback={<PageLoader />}><AuditLogContent /></Suspense>} />
-        </Route>
         {/* Backwards compat redirects */}
         <Route path="/setup" element={<Navigate to="/settings" replace />} />
         <Route path="/users" element={<Navigate to="/settings/members" replace />} />
         <Route path="/audit-log" element={<Navigate to="/settings/audit-log" replace />} />
-        <Route path="/test" element={<TestPage />} />
-        <Route path="/spec-files" element={<Suspense fallback={<PageLoader />}><SpecFilesPage /></Suspense>} />
-        <Route path="*" element={<Navigate to="/projects" replace />} />
+        {/* All project-scoped pages — keyed by projectId for full remount on switch */}
+        <Route path="*" element={<ProjectScopedRoutes />} />
       </Routes>
     </ProjectGate>
   );
