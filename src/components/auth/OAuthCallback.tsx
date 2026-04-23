@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { loadConnectionId, handleConnectionCallback } from "../../lib/oauth/flow";
 import { Spinner } from "../common/Spinner";
 
 export function OAuthCallback() {
   const navigate = useNavigate();
-  const { connectionId: routeConnectionId } = useParams<{ connectionId?: string }>();
   const [message, setMessage] = useState("Completing sign in...");
   const [failed, setFailed] = useState(false);
 
@@ -26,12 +25,12 @@ export function OAuthCallback() {
       return;
     }
 
-    // Resolve connection ID from route params or session storage
-    const connectionId = routeConnectionId || loadConnectionId();
+    // Resolve connection ID from session storage (saved before redirect)
+    const connectionId = loadConnectionId();
     if (connectionId) {
       try {
         setMessage("Exchanging authorization code...");
-        const redirectUri = `${window.location.origin}/oauth/callback/${connectionId}`;
+        const redirectUri = `${window.location.origin}/oauth/callback`;
         await handleConnectionCallback(code, state, connectionId, redirectUri);
         navigate(`/settings/connections?connected=${connectionId}`);
       } catch (err) {
@@ -45,7 +44,7 @@ export function OAuthCallback() {
 
     // No connection ID found — redirect with error
     navigate("/settings/connections?error=" + encodeURIComponent("No connection ID found"));
-  }, [navigate, routeConnectionId]);
+  }, [navigate]);
 
   useEffect(() => { exchange(); }, [exchange]);
 

@@ -39,7 +39,6 @@ export function ConnectionsPage() {
         authorizationUrl: conn.authorizationUrl,
         clientId: conn.clientId,
         scopes: conn.scopes || "",
-        redirectUri: `/oauth/callback/${conn.id}`,
       });
       // Page will redirect — no need to clear state
     } catch (e) {
@@ -240,8 +239,9 @@ export function ConnectionsPage() {
           <div className="mt-4 p-3 bg-[#f6f8fa] border border-[#d1d9e0] rounded-md">
             <p className="text-xs text-[#656d76]">
               <strong className="text-[#1f2328]">Redirect URI:</strong> When registering your OAuth app with the API provider,
-              set the redirect URI to your FlowForge instance URL + the path shown in the connection details (e.g.{" "}
-              <code className="bg-white px-1 rounded text-[#1f2328]">https://your-app.azurestaticapps.net/oauth/callback/&lt;id&gt;</code>).
+              use{" "}
+              <code className="bg-white px-1 rounded text-[#1f2328]">{window.location.origin}/oauth/callback</code>{" "}
+              as the redirect URI. This is the same for all connections.
             </p>
           </div>
         )}

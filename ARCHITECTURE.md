@@ -42,7 +42,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 
 | Store | Key State | Notes |
 |-------|-----------|-------|
-| `auth.store` | `status`, `token`, `projectId` | OAuth session. Synchronous init from sessionStorage. |
+| `auth.store` | `status`, `token`, `projectId` | Entra ID session. Auto-authenticates after Entra (no separate API login gate). |
 | `setup.store` | `selectedProjectId`, `selectedVersionId`, `aiModel`, `baseUrl`, `apiVersion` | Persisted to Cosmos `/settings`. `apiVersion` rewrites all request paths. |
 | `user.store` | `user`, `role`, `status` | Roles: owner / project_owner / qa_manager / qa_engineer / member. `AccessGate` enforces. |
 | `flowStatus.store` | `byName: Record<string, FlowStatusEntry>` | Flow activation state. Must finish loading before TestExplorer builds tags. |
@@ -115,7 +115,7 @@ tests/
 2. `parser.ts` parses XML into `FlowElement` tree
 3. `builder.ts` converts to `TestDef` with assertions, captures, flags
 4. `registry.ts` stores definitions
-5. `runner.ts` executes: merges scenario env overrides into context, resolves `{{state.*}}`, `{{proj.*}}` (project variables) interpolation, runs HTTP calls via proxy (with `X-D360-Auth-Type` header), evaluates assertions
+5. `runner.ts` executes: merges scenario env overrides into context, resolves `{{state.*}}`, `{{proj.*}}` (project variables) interpolation, runs HTTP calls via generic proxy (with `X-FF-Auth-Type` / `X-FF-Base-Url` / `X-FF-Connection-Id` headers), evaluates assertions
 6. Teardown steps run even if prior steps fail
 
 ---
@@ -140,8 +140,8 @@ tests/
 | `activeTests` | `/api/active-tests` | GET/PUT/POST | Manage active flow set |
 | `testRuns` | `/api/test-runs` | GET/POST | Persist/query run results |
 | `runScenario` | `/api/run-scenario` | POST | **Public API**: Server-side test execution |
-| `d360Auth` | `/api/d360-auth` | POST/GET | D360 OAuth code exchange + token refresh |
-| `d360Proxy` | `/api/d360/*` | All | Proxy to D360 API with injected bearer |
+| `oauthAuth` | `/api/oauth-auth` | POST/GET | Generic OAuth code exchange + token refresh |
+| `proxy` | `/api/proxy/{*path}` | All | Generic API proxy — reads base URL from `X-FF-Base-Url`, connection ID from `X-FF-Connection-Id`, injects stored auth |
 | `users` | `/api/users` | GET/POST/PUT | User CRUD + `/users/me` |
 | `apiKeys` | `/api/api-keys` | GET/POST/DELETE | API key management |
 | `versionAuth` | `/api/version-auth`, `/api/version-auth/credential` | GET/POST/DELETE | Per-version auth config + generic credential storage (any auth type) |
@@ -164,9 +164,8 @@ tests/
 | `cosmosClient.ts` | Lazy-init Cosmos client + `ensureContainer()` for all 12 containers |
 | `blobClient.ts` | Azure Blob Storage (upload, download, list, delete, exists) |
 | `browserFetch.ts` | `fetchWithCookieJar()` + browser User-Agent headers for Cloudflare-fronted URLs |
-| `tokenStore.ts` | Azure Table Storage for D360 OAuth tokens |
+| `oauthTokenStore.ts` | Azure Table Storage for OAuth tokens (`oauthtokens` table) + `getValidOAuthToken()` with auto-refresh |
 | `versionApiKeyStore.ts` | Table Storage for per-version credentials (any auth type — bearer, API key, basic, cookie, etc.) |
-| `d360Token.ts` | Fetch/cache D360 tokens from Table Storage |
 | `modelPricing.ts` | `resolveModel()`, `computeCost()`, pricing for Opus/Sonnet/Haiku |
 | `aiCredits.ts` | `checkCredits()`, `recordUsage()`, `seedProjectCredits()`, `seedUserCredits()`, `updateProjectBudget()`, `updateUserBudget()` — credit enforcement for AI endpoints |
 | `auditLog.ts` | Fire-and-forget `audit()` function, writes to Cosmos `audit-log` container. Actions include `project.member_add`, `project.member_remove`, `project.member_role_change`, `project.variables.update`. |
@@ -231,9 +230,11 @@ Browser → SWA /.auth/login/aad → Microsoft login → SWA sets cookie
 Browser → ConnectEndpointModal (cURL paste / manual form / auto-detected from OpenAPI spec) → POST /api/version-auth/credential
        → Credential stored in Azure Table Storage (keyed by OID + version)
        → Auth types: bearer | apikey_header | apikey_query | basic | cookie | oauth | none
-       → GET /api/d360/{path} → proxy reads stored credential → injects appropriate auth
-       → Forwards to configured endpoint (D360 or any REST API)
-       → builder.ts sends X-D360-Auth-Type header to tell proxy which injection to use
+       → GET /api/proxy/{path} → proxy reads X-FF-Base-Url + X-FF-Connection-Id headers
+       → Reads stored credential → injects appropriate auth
+       → Forwards to target API endpoint
+       → OAuth connections use X-FF-Connection-Id to look up token with auto-refresh (oauthTokenStore)
+       → builder.ts sends X-FF-Auth-Type header to tell proxy which injection to use
 ```
 
 ### Public API Auth

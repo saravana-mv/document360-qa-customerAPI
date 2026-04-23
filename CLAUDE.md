@@ -23,16 +23,16 @@ FlowForge is a generic AI-assisted API testing platform. It lets QA teams import
 - **localStorage**: Pure UI state only (tree expansion, panel widths, breakpoints)
 
 ### Key Stores (Zustand)
-`auth.store` (OAuth session), `setup.store` (project/version/AI model), `user.store` (role), `project.store` (project list/selection), `flowStatus.store` (flow activation), `runner.store` (test execution), `scenarioOrg.store` (folder tree, versionConfigs, scenarioConfigs, detectedEndpoint), `aiCost.store` (spend tracking), `aiCredits.store` (credit budgets/usage), `breakpoints.store` (step pause/resume), `projectVariables.store` (project-level key/value variables)
+`auth.store` (Entra ID session), `setup.store` (project/version/AI model), `user.store` (role), `project.store` (project list/selection), `flowStatus.store` (flow activation), `runner.store` (test execution), `scenarioOrg.store` (folder tree, versionConfigs, scenarioConfigs, detectedEndpoint), `aiCost.store` (spend tracking), `aiCredits.store` (credit budgets/usage), `breakpoints.store` (step pause/resume), `projectVariables.store` (project-level key/value variables)
 
 ### API Functions (`api/src/functions/`)
-25+ Azure Functions. All wrapped with `withAuth()`. Key routes: `/api/spec-files/*`, `/api/flow-files`, `/api/flow-chat`, `/api/generate-flow-ideas`, `/api/generate-flow`, `/api/run-scenario`, `/api/d360/*` (proxy), `/api/active-tests`, `/api/test-runs`, `/api/users`, `/api/api-keys`, `/api/audit-log`, `/api/projects`, `/api/project-members`, `/api/ai-credits`, `/api/project-variables`, `/api/version-auth/credential`
+25+ Azure Functions. All wrapped with `withAuth()`. Key routes: `/api/spec-files/*`, `/api/flow-files`, `/api/flow-chat`, `/api/generate-flow-ideas`, `/api/generate-flow`, `/api/run-scenario`, `/api/proxy/*` (generic API proxy), `/api/active-tests`, `/api/test-runs`, `/api/users`, `/api/api-keys`, `/api/audit-log`, `/api/projects`, `/api/project-members`, `/api/ai-credits`, `/api/project-variables`, `/api/version-auth/credential`
 
 ### Auth Flow
-Entra ID SSO → `EntraGate` auto-login → `ProjectGate` redirects to `/projects` if no project selected → `withAuth()` extracts OID/project from claims → `withProjectRole()` enforces per-project membership → credentials in Azure Table Storage → proxy injects auth at `/api/d360/*` based on stored credential type → browser never holds real API credentials
+Entra ID SSO → `EntraGate` auto-login → `ProjectGate` redirects to `/projects` if no project selected → `withAuth()` extracts OID/project from claims → `withProjectRole()` enforces per-project membership → credentials in Azure Table Storage → generic proxy at `/api/proxy/*` injects auth based on stored credential type (reads base URL from `X-FF-Base-Url`, connection from `X-FF-Connection-Id`) → browser never holds real API credentials
 
 ### Connect Endpoint (Generic Auth)
-Versions are connected to any API endpoint via `ConnectEndpointModal` (cURL paste or manual form). Supported `AuthType` values: `"bearer"` | `"apikey_header"` | `"apikey_query"` | `"basic"` | `"cookie"` | `"oauth"` | `"none"`. Credentials stored server-side via `/api/version-auth/credential`. `d360Proxy` injects the appropriate auth header/query param based on stored type. `cURL parser` (`src/lib/curlParser.ts`) auto-detects endpoint config from pasted cURL commands.
+Versions are connected to any API endpoint via `ConnectEndpointModal` (cURL paste or manual form). Supported `AuthType` values: `"bearer"` | `"apikey_header"` | `"apikey_query"` | `"basic"` | `"cookie"` | `"oauth"` | `"none"`. Credentials stored server-side via `/api/version-auth/credential`. Generic proxy (`/api/proxy/*`) injects the appropriate auth header/query param based on stored type. `cURL parser` (`src/lib/curlParser.ts`) auto-detects endpoint config from pasted cURL commands.
 
 ### OpenAPI Auto-Detection
 `autoDetectEndpoint.ts` (`src/lib/spec/autoDetectEndpoint.ts`) detects endpoint config (base URL, auth type) from uploaded/imported OpenAPI 3.x and Swagger 2.x spec files. When detection succeeds, a blue notification banner appears in Spec Manager with an "Apply" action. Detected config is stored in `scenarioOrg.store.detectedEndpoint` for cross-page access and shown in `ConnectEndpointModal` as a pre-fill option.
@@ -85,8 +85,7 @@ No generic Tailwind colors (`text-blue-600`, `bg-purple-100`). Always use exact 
 ## Domain Rules
 
 ### Flow Dependencies (CRITICAL)
-- Every flow that creates an article MUST start with: Create Category → Create Article. End with teardown: Delete Article → Delete Category.
-- The D360 API requires `category_id` even though spec marks it nullable.
+- Flows that create dependent entities must set up prerequisites first and tear them down after (e.g., Create Category → Create Article → Delete Article → Delete Category).
 - Check for entity dependencies whenever writing new flows.
 
 ### Flow File Rules
@@ -110,7 +109,7 @@ Three authoritative sources must stay in sync: `FLOW_SYSTEM_PROMPT` in `generate
 Status 204/205/304 MUST have `body: undefined` in Azure Functions v4. Even `Buffer.from(new ArrayBuffer(0))` triggers `TypeError` in undici during response serialization — producing a bare 500 with no diagnostic info. Always check null-body statuses.
 
 ### SWA 5xx Masking
-Azure SWA strips body + custom headers from 5xx responses. Workaround: remap to 502 (passes through). Store original status in `X-D360-Upstream-Status`.
+Azure SWA strips body + custom headers from 5xx responses. Workaround: remap to 502 (passes through). Store original status in `X-FF-Upstream-Status`.
 
 ### Azure Functions Route Sharing
 On SWA, multiple functions sharing the same route path with different HTTP methods causes GET 404. Consolidate into a single router function dispatching by `req.method`.
@@ -122,7 +121,7 @@ On SWA, multiple functions sharing the same route path with different HTTP metho
 Always commit `package.json` AND `package-lock.json` after installing packages. Without this, CI's `npm ci` fails silently and Oryx deploys raw source HTML → white screen.
 
 ### Cloudflare Browser Headers
-Server-side fetch to Document360 endpoints needs browser User-Agent, Accept, and cookie jar. Bare `fetch()` gets rejected. Use `browserFetch()` from `api/src/lib/browserFetch.ts`.
+Server-side fetch to Cloudflare-fronted endpoints needs browser User-Agent, Accept, and cookie jar. Bare `fetch()` gets rejected. Use `browserFetch()` from `api/src/lib/browserFetch.ts`.
 
 ### TestExplorer Race Conditions
 Must wait for `useFlowStatusStore` to finish loading before building `parsedTags`. Gate on `loading` state, not just data presence.
@@ -131,7 +130,7 @@ Must wait for `useFlowStatusStore` to finish loading before building `parsedTags
 Never call `loadFlowsFromQueue` in a loop after parallel saves. Batch all saves, activate all, then load once.
 
 ### Enum Aliases
-D360 API returns enum fields as integers at runtime (spec uses strings). `enumAliases.ts` + bidirectional `jsonEqual` handles name↔ordinal.
+Some APIs return enum fields as integers at runtime (spec uses strings). `enumAliases.ts` + bidirectional `jsonEqual` handles name↔ordinal.
 
 ### Debugging 500s
 For Azure Functions 500 with empty body: enable **Application Insights first** before theorizing. It reveals runtime exceptions invisible to browser.
@@ -181,7 +180,7 @@ Ideas strictly scoped to endpoints in provided spec files. Never reference exter
 
 ### Environment Variables (Azure Portal → SWA → Settings → Environment variables)
 Required: `ANTHROPIC_API_KEY`, `COSMOS_CONNECTION_STRING`, `AZURE_STORAGE_CONNECTION_STRING`, `AAD_CLIENT_ID`, `AAD_CLIENT_SECRET`, `SEED_OWNER_OID`, `AUTH_ENABLED`
-Optional (have defaults): `D360_API_BASE_URL`, `D360_TOKEN_URL`, `D360_CLIENT_ID`
+Optional (have defaults): none currently — all endpoint config is per-version via Connections
 
 ---
 

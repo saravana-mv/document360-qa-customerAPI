@@ -76,8 +76,8 @@ async function createConnection(req: HttpRequest): Promise<HttpResponseInit> {
     if (!body.clientId?.trim()) return err(400, "clientId is required");
 
     const id = randomUUID();
-    // Auto-generate redirect URI based on the app's origin
-    const redirectUri = body.redirectUri?.trim() || `/oauth/callback/${id}`;
+    // All connections share a single callback URL — connectionId is tracked in sessionStorage
+    const redirectUri = body.redirectUri?.trim() || `/oauth/callback`;
 
     const doc: ConnectionDoc = {
       id,

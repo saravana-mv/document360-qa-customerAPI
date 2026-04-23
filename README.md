@@ -19,7 +19,7 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 | Backend | Azure Functions v4 (Node.js, esbuild bundled) |
 | Database | Azure Cosmos DB (serverless, 12 containers) |
 | File Storage | Azure Blob Storage (spec files only) |
-| Auth | Entra ID (Azure AD) SSO + D360 OAuth proxy |
+| Auth | Entra ID (Azure AD) SSO + generic OAuth/credential proxy |
 | AI | Anthropic Claude API (Sonnet 4.6 default, Opus 4.6, Haiku 4.5) |
 | Deployment | Azure Static Web Apps + GitHub Actions CI/CD |
 | Editor | CodeMirror 6 (XML viewer/editor) |
@@ -62,8 +62,8 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 - Entra ID SSO (single-tenant) with role-based access
 - Five roles: Owner (Super) > Project Owner > QA Manager > QA Engineer > Member
 - Per-project membership with `ProjectGate` route guard
-- Per-version generic auth (any supported auth type) — credentials stored server-side
-- Server-side proxy injects appropriate auth header/query based on stored credential type
+- Per-version generic auth via Connections (any supported auth type) — credentials stored server-side
+- Generic proxy (`/api/proxy/*`) injects appropriate auth header/query based on stored credential type and connection
 
 ### Public API
 - `POST /api/run-scenario` with `X-API-Key` authentication
@@ -130,7 +130,6 @@ Create `api/local.settings.json`:
     "COSMOS_CONNECTION_STRING": "AccountEndpoint=...",
     "AZURE_STORAGE_CONNECTION_STRING": "DefaultEndpointsProtocol=...",
     "AUTH_ENABLED": "false",
-    "D360_API_BASE_URL": "https://apihub.document360.io",
     "SEED_OWNER_OID": "your-entra-oid"
   }
 }
@@ -183,9 +182,7 @@ Both environments follow the same build steps:
 | `AAD_CLIENT_SECRET` | Yes | Entra ID secret |
 | `SEED_OWNER_OID` | Yes | Entra OID for initial owner account |
 | `AUTH_ENABLED` | Yes | `false` staging, `true` production |
-| `D360_API_BASE_URL` | No | Defaults to `apihub.berlin.document360.net` |
-| `D360_TOKEN_URL` | No | Defaults to `identity.berlin.document360.net/connect/token` |
-| `D360_CLIENT_ID` | No | Defaults to `apiHubWordClient` |
+| _(none currently)_ | — | All endpoint config is per-version via Connections |
 
 ---
 

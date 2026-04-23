@@ -29,7 +29,6 @@ export async function startConnectionAuthFlow(connection: {
   authorizationUrl: string;
   clientId: string;
   scopes: string;
-  redirectUri: string;
 }): Promise<void> {
   const verifier = await generateCodeVerifier();
   const challenge = await generateCodeChallenge(verifier);
@@ -38,7 +37,7 @@ export async function startConnectionAuthFlow(connection: {
   saveVerifier(verifier, state);
   saveConnectionId(connection.id);
 
-  const redirectUri = `${window.location.origin}${connection.redirectUri}`;
+  const redirectUri = `${window.location.origin}/oauth/callback`;
 
   const params = new URLSearchParams({
     response_type: "code",
