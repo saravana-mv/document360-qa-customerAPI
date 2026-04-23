@@ -191,7 +191,7 @@ export function ConnectionsPage() {
           </span>
         )}
         {!status.hasRefreshToken && status.authenticated && (
-          <span className="text-xs text-[#bf8700] flex items-center gap-1">
+          <span className="text-sm text-[#bf8700] flex items-center gap-1">
             <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
             </svg>
@@ -233,13 +233,13 @@ export function ConnectionsPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-sm font-bold text-[#1f2328]">Connections</h1>
-            <p className="text-xs text-[#656d76] mt-1">
+            <p className="text-sm text-[#656d76] mt-1">
               Register OAuth apps to authenticate FlowForge against external APIs. Token status refreshes automatically.
             </p>
           </div>
           <button
             onClick={() => setShowCreate(true)}
-            className="px-3 py-1.5 text-xs font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md transition-colors border border-[#1a7f37]/80"
+            className="px-3 py-1.5 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md transition-colors border border-[#1a7f37]/80"
           >
             New connection
           </button>
@@ -247,7 +247,7 @@ export function ConnectionsPage() {
 
         {/* Error */}
         {error && (
-          <div className="mb-4 p-2.5 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-xs text-[#d1242f]">
+          <div className="mb-4 p-2.5 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-sm text-[#d1242f]">
             {error}
           </div>
         )}
@@ -266,12 +266,12 @@ export function ConnectionsPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m9.86-1.135a4.5 4.5 0 0 0-1.242-7.244l-4.5-4.5a4.5 4.5 0 0 0-6.364 6.364L4.34 8.303" />
             </svg>
             <p className="text-sm font-medium text-[#1f2328] mb-1">No connections yet</p>
-            <p className="text-xs text-[#656d76] mb-4">
+            <p className="text-sm text-[#656d76] mb-4">
               Create a connection to authenticate against your API using OAuth 2.0.
             </p>
             <button
               onClick={() => setShowCreate(true)}
-              className="px-3 py-1.5 text-xs font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md transition-colors border border-[#1a7f37]/80"
+              className="px-3 py-1.5 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md transition-colors border border-[#1a7f37]/80"
             >
               New connection
             </button>
@@ -365,7 +365,7 @@ export function ConnectionsPage() {
                         <button
                           onClick={() => void handleDisconnect(conn)}
                           disabled={disconnecting === conn.id}
-                          className="px-2.5 py-1 text-xs font-medium text-[#656d76] bg-white border border-[#d1d9e0] rounded-md hover:bg-[#f6f8fa] hover:border-[#bbc0c5] transition-colors disabled:opacity-50"
+                          className="px-2.5 py-1 text-sm font-medium text-[#656d76] bg-white border border-[#d1d9e0] rounded-md hover:bg-[#f6f8fa] hover:border-[#bbc0c5] transition-colors disabled:opacity-50"
                           title="Disconnect"
                         >
                           {disconnecting === conn.id ? "..." : "Disconnect"}
@@ -374,7 +374,7 @@ export function ConnectionsPage() {
                         <button
                           onClick={() => void handleConnect(conn)}
                           disabled={connecting === conn.id}
-                          className="px-2.5 py-1 text-xs font-medium text-white bg-[#0969da] rounded-md hover:bg-[#0969da]/90 transition-colors disabled:opacity-50"
+                          className="px-2.5 py-1 text-sm font-medium text-white bg-[#0969da] rounded-md hover:bg-[#0969da]/90 transition-colors disabled:opacity-50"
                           title="Connect via OAuth"
                         >
                           {connecting === conn.id ? "..." : "Connect"}
@@ -413,7 +413,7 @@ export function ConnectionsPage() {
         {/* Redirect URI help text */}
         {connections.length > 0 && (
           <div className="mt-4 p-3 bg-[#f6f8fa] border border-[#d1d9e0] rounded-md">
-            <p className="text-xs text-[#656d76]">
+            <p className="text-sm text-[#656d76]">
               <strong className="text-[#1f2328]">Redirect URI:</strong> When registering your OAuth app with the API provider,
               use{" "}
               <code className="bg-white px-1 rounded text-[#1f2328]">{window.location.origin}/callback</code>{" "}
