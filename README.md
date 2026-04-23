@@ -78,7 +78,7 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 - Multi-project support with full-screen Project Selection page (tile grid, create, team/personal visibility)
 - Per-project membership management via Settings > Members tab (add/remove members, assign roles)
 - Project-level variables (`proj.varName`) — shared key/value pairs interpolated at runtime in both browser and server runners
-- **Project API Rules** — per-project configurable rules and enum aliases injected into AI prompts; enum aliases loaded at runtime by both browser and server runners
+- **API Rules (version-folder scoped)** — per-version-folder configurable rules and enum aliases (stored as `_rules.json` in blob storage), injected into AI prompts; enum aliases loaded at runtime by both browser and server runners; inline editor in Spec Manager on top-level version folders
 - Project reset (owner only — wipes flows, ideas, runs)
 
 ### Deployment Intelligence

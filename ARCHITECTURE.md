@@ -62,7 +62,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 src/components/
 ├── auth/           # EntraGate (SSO wrapper), ProjectGate (project selection guard), AccessGate (role check), LoginScreen, OAuthCallback
 ├── common/         # Layout, TopBar, SideNav, Modal, ContextMenu, XmlCodeBlock, XmlEditor, ResizeHandle, ProjectPicker
-├── specfiles/      # FileTree, FlowChatPanel, FlowIdeasPanel, FlowsPanel, DetailPanel, ImportFromUrlModal
+├── specfiles/      # FileTree, FlowChatPanel, FlowIdeasPanel, FlowsPanel, DetailPanel, ImportFromUrlModal, FolderRulesPanel
 ├── explorer/       # TestExplorer, VersionAccordion, ScenarioFolderTree, TagNode, ConnectEndpointModal, ScenarioEnvOverrideModal
 ├── runner/         # RunControls, LiveLog, ProgressBar, RunHistory
 ├── results/        # ResultsPanel, DetailPane, SummaryDrawer, DiffModal
@@ -90,7 +90,7 @@ All API calls go through `client.ts` which adds auth headers and rewrites `/vN/`
 | `projectMembersApi.ts` | `listProjectMembers`, `addProjectMember`, `updateProjectMember`, `removeProjectMember` |
 | `aiCreditsApi.ts` | `getCredits`, `updateProjectBudget`, `updateUserBudget`, `listUserCredits` |
 | `projectVariablesApi.ts` | `getProjectVariables`, `saveProjectVariables` |
-| `apiRulesApi.ts` | `getApiRules`, `saveApiRules` |
+| `apiRulesApi.ts` | `getApiRules`, `saveApiRules`, `fetchFolderApiRules(folder)`, `saveFolderApiRules(folder, data)` |
 
 ### Test Execution Engine (`src/lib/tests/`)
 
@@ -107,7 +107,7 @@ tests/
     ├── loader.ts       # Load flows from Cosmos active queue
     ├── validate.ts     # XSD schema validation
     ├── activeTests.ts  # Cosmos activation/deactivation
-    ├── enumAliases.ts  # Bidirectional enum name ↔ ordinal mapping (configurable per-project via API Rules)
+    ├── enumAliases.ts  # Bidirectional enum name ↔ ordinal mapping (configurable per version folder via _rules.json)
     └── types.ts        # FlowElement, FlowStep, FlowAssertion, etc.
 ```
 
@@ -155,7 +155,8 @@ tests/
 | `resetProject` | `/api/reset-project` | POST | Owner-only project wipe |
 | `aiCredits` | `/api/ai-credits` | GET/PUT | Credit status (GET), update project budget (PUT `/project`), update user budget (PUT `/user/{userId}`), list user credits (GET `/users`) — Super Owner only for writes |
 | `projectVariables` | `/api/project-variables` | GET/PUT | Project-level key/value variables stored in `settings` container. GET returns all variables; PUT saves (qa_manager+). Audit action: `project.variables.update`. |
-| `apiRules` | `/api/api-rules` | GET/PUT | Per-project API rules and enum aliases stored in `settings` container (id: `api_rules`). Injected into all AI system prompts. Enum aliases loaded at runtime by both runners. Audit action: `project.apiRules.update`. |
+| `specFilesRules` | `/api/spec-files/rules` | GET/PUT | Version-folder-scoped API rules and enum aliases stored as `_rules.json` blobs. GET/PUT by folder path query param. |
+| `apiRules` | `/api/api-rules` | GET/PUT | **Deprecated (fallback only)** — Legacy per-project API rules in `settings` container. `loadApiRules` tries blob `_rules.json` first, falls back here. |
 
 ### Shared Libraries (`api/src/lib/`)
 
@@ -171,7 +172,7 @@ tests/
 | `modelPricing.ts` | `resolveModel()`, `computeCost()`, pricing for Opus/Sonnet/Haiku |
 | `aiCredits.ts` | `checkCredits()`, `recordUsage()`, `seedProjectCredits()`, `seedUserCredits()`, `updateProjectBudget()`, `updateUserBudget()` — credit enforcement for AI endpoints |
 | `auditLog.ts` | Fire-and-forget `audit()` function, writes to Cosmos `audit-log` container. Actions include `project.member_add`, `project.member_remove`, `project.member_role_change`, `project.variables.update`, `project.apiRules.update`. |
-| `apiRules.ts` | `loadApiRules(projectId)` fetches project API rules from Cosmos; `injectApiRules(systemPrompt, projectId)` appends rules to AI system prompts. |
+| `apiRules.ts` | `loadApiRules(projectId, versionFolder?)` fetches API rules — tries blob `_rules.json` first (version-folder scoped), falls back to Cosmos; `injectApiRules(systemPrompt, projectId, versionFolder?)` appends rules to AI system prompts; `extractVersionFolder(paths)` derives version folder from spec file paths. |
 
 ### Server-Side Flow Runner (`api/src/lib/flowRunner/`)
 
@@ -210,6 +211,7 @@ spec-files/
 │   │   ├── articles/
 │   │   │   ├── create-article.md
 │   │   │   ├── _sources.json      # Manifest: { "create-article.md": { sourceUrl, importedAt, lastSyncedAt } }
+│   │   │   ├── _rules.json        # Version-folder API rules: { rules, enumAliases } — replaces project-level Cosmos storage
 │   │   │   └── _versions/         # Hidden from UI — auto-preserved on sync
 │   │   │       └── create-article.md.2025-02-15T14-30-45-123Z
 │   │   └── categories/
