@@ -2,7 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import Anthropic from "@anthropic-ai/sdk";
 import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
 import { withAuth, getProjectId } from "../lib/auth";
-import { loadApiRules, injectApiRules } from "../lib/apiRules";
+import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRules";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -147,7 +147,7 @@ async function editFlow(req: HttpRequest, _ctx: InvocationContext): Promise<Http
     };
   }
 
-  let body: { xml: string; prompt: string; model?: string };
+  let body: { xml: string; prompt: string; model?: string; versionFolder?: string };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -169,10 +169,11 @@ async function editFlow(req: HttpRequest, _ctx: InvocationContext): Promise<Http
   const client = new Anthropic({ apiKey });
   const model = resolveModel(body.model, DEFAULT_FLOW_MODEL);
 
-  // Load project-specific API rules
+  // Load version-folder API rules (falls back to project-level)
   let projectId: string;
   try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
-  const { rules: apiRules } = await loadApiRules(projectId);
+  const versionFolder = body.versionFolder?.trim() || null;
+  const { rules: apiRules } = await loadApiRules(projectId, versionFolder ?? undefined);
   const systemPrompt = injectApiRules(FLOW_EDIT_SYSTEM_PROMPT, apiRules);
 
   try {

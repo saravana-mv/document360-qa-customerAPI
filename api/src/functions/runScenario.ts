@@ -11,7 +11,7 @@ import { executeScenario } from "../lib/flowRunner";
 import type { RunContext } from "../lib/flowRunner";
 import { setEnumAliases } from "../lib/flowRunner/interpolation";
 import { getSettingsContainer, getTestRunsContainer } from "../lib/cosmosClient";
-import { loadApiRules } from "../lib/apiRules";
+import { loadApiRules, extractVersionFolder } from "../lib/apiRules";
 import { audit } from "../lib/auditLog";
 
 const CORS_HEADERS = {
@@ -58,9 +58,11 @@ async function handleRunScenario(req: HttpRequest, _ctx: InvocationContext): Pro
 
   // Resolve scenario XML from Cosmos
   let xml: string;
+  let resolvedFileName = "";
   try {
     const resolved = await resolveScenario(scenarioId, apiKeyDoc.projectId);
     xml = resolved.xml;
+    resolvedFileName = resolved.fileName;
   } catch (e) {
     if (e instanceof ScenarioNotFoundError) {
       return err(404, e.message);
@@ -129,9 +131,10 @@ async function handleRunScenario(req: HttpRequest, _ctx: InvocationContext): Pro
     projectVariables,
   };
 
-  // Load project enum aliases before execution
+  // Load version-folder enum aliases before execution (falls back to project-level)
   try {
-    const { enumAliases } = await loadApiRules(apiKeyDoc.projectId);
+    const versionFolder = extractVersionFolder(resolvedFileName);
+    const { enumAliases } = await loadApiRules(apiKeyDoc.projectId, versionFolder ?? undefined);
     setEnumAliases(enumAliases);
   } catch { /* proceed without enum aliases */ }
 

@@ -90,6 +90,9 @@ export function SetupPanel() {
         {canManage && (
           <div className="bg-white rounded-xl border border-[#d1d9e0] shadow-sm p-6">
             <h2 className="text-base font-semibold text-[#1f2328] mb-0.5">API Rules</h2>
+            <div className="mb-3 px-3 py-2 bg-[#fff8c5] border border-[#d4a72c]/30 rounded-md text-sm text-[#6f5800]">
+              API Rules have moved to version folders in Spec Manager. Use the <strong>Rules</strong> button on a top-level folder (e.g. v2) to configure per-version rules. Rules set here serve as a project-wide fallback.
+            </div>
             <p className="text-sm text-[#656d76] mb-5">
               Rules that describe your API's quirks, dependencies, and conventions. These are injected into AI prompts when generating ideas, flows, and edits.
             </p>

@@ -37,12 +37,13 @@ export async function editFlowXml(
   xml: string,
   prompt: string,
   model?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  versionFolder?: string
 ): Promise<FlowXmlResult> {
   const res = await fetch(`/api/edit-flow`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ xml, prompt, ...(model ? { model } : {}) }),
+    body: JSON.stringify({ xml, prompt, ...(model ? { model } : {}), ...(versionFolder ? { versionFolder } : {}) }),
     signal,
   });
 

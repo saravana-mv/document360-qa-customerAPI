@@ -4,7 +4,7 @@ import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { DEFAULT_IDEAS_MODEL, resolveModel, priceFor, computeCost } from "../lib/modelPricing";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { checkCredits, recordUsage } from "../lib/aiCredits";
-import { loadApiRules, injectApiRules } from "../lib/apiRules";
+import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRules";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -250,8 +250,9 @@ export async function generateFlowIdeasHandler(
     : MAX_IDEAS_PER_RUN;
   const userMessage = `Analyze these API specifications and generate up to ${requestedCount} NEW test flow ideas.${scopeNote}${existingList}\n\n## Spec Files\n\n${specText}`;
 
-  // Load and inject project-specific API rules
-  const { rules: apiRules } = await loadApiRules(projectId);
+  // Load and inject version-folder API rules (falls back to project-level)
+  const versionFolder = extractVersionFolder(body.folderPath ?? "");
+  const { rules: apiRules } = await loadApiRules(projectId, versionFolder ?? undefined);
   const systemPrompt = injectApiRules(SYSTEM_PROMPT, apiRules);
 
   // ── Resolve model ──

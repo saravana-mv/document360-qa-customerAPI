@@ -4,7 +4,7 @@ import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { checkCredits, recordUsage } from "../lib/aiCredits";
-import { loadApiRules, injectApiRules } from "../lib/apiRules";
+import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRules";
 
 function scopedPath(projectId: string, name: string): string {
   if (!projectId || projectId === "unknown") return name;
@@ -329,8 +329,9 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       ? `\n\nIMPORTANT: You are working with ${specCount} endpoint specifications. The primary test steps MUST focus on endpoints described in the specs above. However, you MUST still add prerequisite setup and teardown steps as required by the hard rules and project-specific API rules — these are ALWAYS allowed regardless of scope.`
       : "";
 
-  // Load and inject project-specific API rules
-  const { rules: apiRules } = await loadApiRules(projectId);
+  // Load and inject version-folder API rules (falls back to project-level)
+  const versionFolder = extractVersionFolder(body.specFiles ?? []);
+  const { rules: apiRules } = await loadApiRules(projectId, versionFolder ?? undefined);
   const userMessage = specContext
     ? `${body.prompt}${scopeNote}\n\n# Relevant API Specification\n\n${specContext}`
     : body.prompt;

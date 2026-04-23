@@ -4,7 +4,7 @@ import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { checkCredits, recordUsage } from "../lib/aiCredits";
-import { loadApiRules, injectApiRules } from "../lib/apiRules";
+import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRules";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -217,8 +217,9 @@ async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<Http
   const specFiles = body.specFiles ?? [];
   const specContext = await buildSpecContext(specFiles, projectId);
 
-  // Load and inject project-specific API rules
-  const { rules: apiRules } = await loadApiRules(projectId);
+  // Load and inject version-folder API rules (falls back to project-level)
+  const versionFolder = extractVersionFolder(specFiles);
+  const { rules: apiRules } = await loadApiRules(projectId, versionFolder ?? undefined);
 
   // Inject spec content into the system prompt so the AI always has access,
   // regardless of conversation length or message position.

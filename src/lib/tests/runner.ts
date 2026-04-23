@@ -3,7 +3,7 @@ import { runAssertions } from "./assertions";
 import { useRunnerStore } from "../../store/runner.store";
 import { isBreakpointSet } from "../../store/breakpoints.store";
 import { saveTestRun } from "../api/testRunsApi";
-import { fetchApiRules } from "../api/apiRulesApi";
+import { fetchFolderApiRules, fetchApiRules } from "../api/apiRulesApi";
 import { setEnumAliases } from "./flowXml/enumAliases";
 
 export interface RunOptions {
@@ -162,10 +162,24 @@ export async function runTests(options: RunOptions): Promise<void> {
   const { tests, context } = options;
   const store = getStore();
 
-  // Load project enum aliases before running
+  // Load enum aliases — try version-folder first, fall back to project-level
   try {
-    const { enumAliases } = await fetchApiRules();
-    setEnumAliases(enumAliases);
+    // Determine version folder from the first test's flow file path
+    const firstPath = tests[0]?.flowFileName ?? "";
+    const versionFolder = firstPath.split("/")[0];
+    if (versionFolder) {
+      const { enumAliases } = await fetchFolderApiRules(versionFolder);
+      if (enumAliases) {
+        setEnumAliases(enumAliases);
+      } else {
+        // Fallback to project-level
+        const { enumAliases: projectAliases } = await fetchApiRules();
+        setEnumAliases(projectAliases);
+      }
+    } else {
+      const { enumAliases } = await fetchApiRules();
+      setEnumAliases(enumAliases);
+    }
   } catch { /* proceed without aliases */ }
 
   store.startRun();
