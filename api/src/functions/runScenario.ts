@@ -1,10 +1,10 @@
 // POST /api/run-scenario — FlowForge Public API endpoint.
 //
 // Authenticated via X-API-Key (not Entra). Runs a scenario server-side
-// using the bound D360 credentials and returns structured results.
+// using the bound credentials and returns structured results.
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import { withApiKey, getApiKeyDoc, resolveD360Credentials } from "../lib/apiKeyAuth";
+import { withApiKey, getApiKeyDoc, resolveCredentials } from "../lib/apiKeyAuth";
 import { resolveScenario, ScenarioNotFoundError } from "../lib/flowRunner";
 import { parseFlowXml, FlowXmlParseError } from "../lib/flowRunner";
 import { executeScenario } from "../lib/flowRunner";
@@ -77,22 +77,21 @@ async function handleRunScenario(req: HttpRequest, _ctx: InvocationContext): Pro
     return err(500, `Unexpected parse error: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  // Resolve D360 credentials
-  let d360Creds: { d360AccessToken?: string; d360ApiKey?: string };
+  // Resolve credentials
+  let creds: { accessToken?: string; apiKey?: string };
   try {
-    d360Creds = await resolveD360Credentials(apiKeyDoc);
+    creds = await resolveCredentials(apiKeyDoc);
   } catch (e) {
-    return err(401, `D360 credential error: ${e instanceof Error ? e.message : String(e)}`);
+    return err(401, `Credential error: ${e instanceof Error ? e.message : String(e)}`);
   }
 
   // Build RunContext from API key doc + creator's settings.
-  // The API key stores a version *label* (e.g. "v3") from the scenario org,
-  // but D360 expects the real version GUID for project_version_id fields.
+  // The API key stores a version *label* (e.g. "v3") from the scenario org.
   // The creator's settings.selectedVersionId holds the actual GUID.
   const settings = await getCreatorSettings(apiKeyDoc.createdBy.oid);
   const baseUrl = (typeof settings.baseUrl === "string" && settings.baseUrl)
     ? settings.baseUrl
-    : "https://apihub.document360.io";
+    : "";
   const apiVersion = (typeof settings.apiVersion === "string" && settings.apiVersion)
     ? settings.apiVersion
     : "v2";
@@ -124,7 +123,7 @@ async function handleRunScenario(req: HttpRequest, _ctx: InvocationContext): Pro
     apiVersion,
     baseUrl,
     authMethod: apiKeyDoc.authMethod,
-    ...d360Creds,
+    ...creds,
     projectVariables,
   };
 

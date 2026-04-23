@@ -1,8 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRunnerStore } from "../../store/runner.store";
-import { useAuthStore, isSessionValid } from "../../store/auth.store";
 import { useSetupStore } from "../../store/setup.store";
-import { useSpecStore } from "../../store/spec.store";
 import { useScenarioOrgStore } from "../../store/scenarioOrg.store";
 import { getAllTests, getTestsByTag } from "../../lib/tests/registry";
 import { runTests } from "../../lib/tests/runner";
@@ -12,32 +10,22 @@ import { Spinner } from "../common/Spinner";
 import { ConnectEndpointModal } from "../explorer/ConnectEndpointModal";
 import type { TestContext } from "../../types/test.types";
 import type { TestDef } from "../../types/test.types";
+import type { TokenSet } from "../../types/auth.types";
+import { useSpecStore } from "../../store/spec.store";
+
+// Entra gates access; the proxy handles real credentials server-side.
+const PROXY_TOKEN: TokenSet = { access_token: "proxied", token_type: "Bearer" };
 
 export function RunControls() {
   const runner = useRunnerStore();
-  const { token, logout } = useAuthStore();
   const setup = useSetupStore();
-  const spec = useSpecStore();
-
-  /**
-   * If the session is no longer valid, clear auth + loaded tests so the
-   * Test Manager drops back to the ProjectSettingsCard (sign-in prompt).
-   * Returns true when the caller should abort the run.
-   */
-  function guardSession(): boolean {
-    if (isSessionValid()) return false;
-    logout();
-    spec.setSpec(null, [], null);
-    return true;
-  }
 
   const allTests = getAllTests();
   const doneCount = Object.values(runner.testResults).filter(
     (t) => t.status !== "idle" && t.status !== "running"
   ).length;
 
-  const isAuthenticated = !!token;
-  const settingsMissing = !setup.selectedVersionId || !setup.langCode;
+  const settingsMissing = !setup.selectedVersionId;
 
   // Check for unconnected versions
   const versionConfigs = useScenarioOrgStore((s) => s.versionConfigs);
@@ -51,17 +39,17 @@ export function RunControls() {
     return Array.from(versions).filter((v) => {
       const vc = versionConfigs[v];
       if (!vc) return true;
-      return !vc.credentialConfigured && vc.authType !== "oauth";
+      if (vc.authType === "none") return false;
+      if (vc.authType === "oauth") return !vc.connectionId;
+      return !vc.credentialConfigured;
     });
   }, [allTests, versionConfigs]);
 
   const [connectVersion, setConnectVersion] = useState<string | null>(null);
-  const cannotRun = !isAuthenticated || settingsMissing;
 
   /** Build per-tag context overrides from version configs + scenario overrides.
    *  Priority: scenario override > version config > global defaults */
   function buildContextByTag(tests: TestDef[]): Record<string, TestContext> {
-    if (!token) return {};
     const scenarioOrg = useScenarioOrgStore.getState();
     const byTag: Record<string, TestContext> = {};
     const seen = new Set<string>();
@@ -79,7 +67,7 @@ export function RunControls() {
       // Merge scenario-level overrides on top of version config
       const sc = scenarioOrg.scenarioConfigs[flowPath];
       byTag[t.tag] = buildTestContext({
-        token,
+        token: PROXY_TOKEN,
         projectId: setup.selectedProjectId,
         versionId: setup.selectedVersionId,
         langCode: setup.langCode,
@@ -89,13 +77,13 @@ export function RunControls() {
         authVersion: version,
         authHeaderName: sc?.authHeaderName || vc.authHeaderName,
         authQueryParam: sc?.authQueryParam || vc.authQueryParam,
+        connectionId: vc?.connectionId,
       });
     }
     return byTag;
   }
 
   async function runAll() {
-    if (guardSession() || !token) return;
     if (unconnectedVersions.length > 0) {
       setConnectVersion(unconnectedVersions[0]);
       return;
@@ -103,7 +91,7 @@ export function RunControls() {
     runner.resetRun();
 
     const ctx = buildTestContext({
-      token,
+      token: PROXY_TOKEN,
       projectId: setup.selectedProjectId,
       versionId: setup.selectedVersionId,
       langCode: setup.langCode,
@@ -123,7 +111,6 @@ export function RunControls() {
   }
 
   async function runSelected() {
-    if (guardSession() || !token) return;
     if (unconnectedVersions.length > 0) {
       setConnectVersion(unconnectedVersions[0]);
       return;
@@ -131,7 +118,7 @@ export function RunControls() {
     runner.resetRun();
 
     const ctx = buildTestContext({
-      token,
+      token: PROXY_TOKEN,
       projectId: setup.selectedProjectId,
       versionId: setup.selectedVersionId,
       langCode: setup.langCode,
@@ -159,7 +146,7 @@ export function RunControls() {
     window.addEventListener("run-selected", handler);
     return () => window.removeEventListener("run-selected", handler);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, runner.selectedTags, runner.selectedTests]);
+  }, [runner.selectedTags, runner.selectedTests]);
 
   const viewingHistory = runner.viewingHistory;
   const parsedTags = useSpecStore((s) => s.parsedTags);
@@ -235,7 +222,7 @@ export function RunControls() {
       <div className="flex items-center gap-2 px-4 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa]">
         <button
           onClick={runAll}
-          disabled={runner.running || cannotRun}
+          disabled={runner.running || settingsMissing}
           className="px-2.5 py-1 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-xs font-medium rounded-md transition-colors disabled:opacity-50 flex items-center gap-1.5 border border-[#1a7f37]/80"
         >
           {runner.running && <Spinner size="sm" className="text-white" />}
@@ -243,7 +230,7 @@ export function RunControls() {
         </button>
         <button
           onClick={runSelected}
-          disabled={runner.running || cannotRun || (runner.selectedTags.size === 0 && runner.selectedTests.size === 0)}
+          disabled={runner.running || settingsMissing || (runner.selectedTags.size === 0 && runner.selectedTests.size === 0)}
           className="px-2.5 py-1 bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-xs font-medium rounded-md transition-colors disabled:opacity-50 border border-[#d1d9e0]"
         >
           Run selected
@@ -268,17 +255,13 @@ export function RunControls() {
       </div>
       )}
       {/* Settings warning — shown below controls to avoid header misalignment */}
-      {!viewingHistory && isAuthenticated && settingsMissing && (
+      {!viewingHistory && settingsMissing && (
         <div className="flex items-center gap-2 px-4 py-2 border-b border-[#d1d9e0] bg-[#fff8c5]">
           <svg className="w-4 h-4 text-[#9a6700] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
           </svg>
           <span className="text-xs text-[#9a6700]">
-            {!setup.selectedVersionId && !setup.langCode
-              ? "Version and language not set — open Project Settings and save before running."
-              : !setup.selectedVersionId
-                ? "Version not set — open Project Settings and save before running."
-                : "Language not set — open Project Settings and save before running."}
+            Version not set — open Project Settings and save before running.
           </span>
         </div>
       )}
@@ -293,7 +276,7 @@ export function RunControls() {
           <div className="flex-1 min-w-0">
             <div className="text-xs font-semibold text-[#1f2328]">Paused at breakpoint</div>
             <div className="text-xs text-[#656d76] truncate">
-              {runner.pausedAt.tag} → {runner.pausedAt.testName}
+              {runner.pausedAt.tag} &rarr; {runner.pausedAt.testName}
             </div>
           </div>
           <button

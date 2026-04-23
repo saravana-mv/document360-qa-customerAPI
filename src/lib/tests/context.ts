@@ -14,6 +14,7 @@ export interface BuildContextOptions {
   authVersion?: string;
   authHeaderName?: string;
   authQueryParam?: string;
+  connectionId?: string;
 }
 
 export function buildTestContext(opts: BuildContextOptions): TestContext {
@@ -29,6 +30,7 @@ export function buildTestContext(opts: BuildContextOptions): TestContext {
     authVersion: opts.authVersion,
     authHeaderName: opts.authHeaderName,
     authQueryParam: opts.authQueryParam,
+    connectionId: opts.connectionId,
     projectVariables: Object.keys(projectVariables).length > 0 ? projectVariables : undefined,
   };
 }

@@ -6,7 +6,6 @@
 import type { HttpRequest, HttpResponseInit } from "@azure/functions";
 import { hashKey, findApiKeyByHash, touchApiKey } from "./apiKeyStore";
 import type { ApiKeyDocument } from "./apiKeyStore";
-import { getValidAccessToken } from "./d360Token";
 import { getApiKeyForVersion } from "./versionApiKeyStore";
 import type { RunContext } from "./flowRunner/types";
 
@@ -69,21 +68,21 @@ export function getApiKeyDoc(req: HttpRequest): ApiKeyDocument {
 }
 
 /**
- * Build the D360 credential portion of RunContext from the API key's
+ * Build the credential portion of RunContext from the API key's
  * bound version + auth method.
  */
-export async function resolveD360Credentials(
+export async function resolveCredentials(
   doc: ApiKeyDocument,
-): Promise<{ d360AccessToken?: string; d360ApiKey?: string }> {
+): Promise<{ accessToken?: string; apiKey?: string }> {
   if (doc.authMethod === "oauth") {
-    // Use the key creator's stored OAuth token
-    const { accessToken } = await getValidAccessToken(doc.createdBy.oid);
-    return { d360AccessToken: accessToken };
+    // OAuth requires a stored connection — server-side runner should use
+    // a version with stored credentials instead.
+    throw new Error("OAuth auth method requires a configured connection. Use a version with stored credentials.");
   }
   // API key auth — read from version API key store
-  const apiKey = await getApiKeyForVersion(doc.createdBy.oid, doc.versionId);
-  if (!apiKey) {
-    throw new Error("No D360 API key configured for this version");
+  const stored = await getApiKeyForVersion(doc.createdBy.oid, doc.versionId);
+  if (!stored) {
+    throw new Error("No API key configured for this version");
   }
-  return { d360ApiKey: apiKey };
+  return { apiKey: stored };
 }

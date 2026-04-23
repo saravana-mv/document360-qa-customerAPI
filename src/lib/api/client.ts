@@ -1,19 +1,18 @@
 import type { ApiError } from "../../types/api.types";
 
-// Phase 2: all D360 Customer API calls go through the server-side proxy at
-// /api/d360/proxy/*. The browser no longer holds a bearer token — the proxy
-// looks up the caller's Entra oid, fetches (or refreshes) the stored D360
-// access token, and injects the Authorization header on forwarded requests.
+// All API calls go through the server-side proxy at /api/proxy/*. The proxy
+// looks up credentials (OAuth tokens, API keys) server-side and injects the
+// appropriate Authorization header on forwarded requests.
 
-const PROXY_BASE = "/api/d360/proxy";
+const PROXY_BASE = "/api/proxy";
 const DEFAULT_API_VERSION = "v3";
 
-// Retained as a no-op for compatibility with setup.store — the upstream D360
-// host is pinned in the server-side proxy, not the browser.
+// Retained as a no-op for compatibility with setup.store — the upstream
+// host is configured server-side, not in the browser.
 let _apiVersion = DEFAULT_API_VERSION;
 
 export function setApiBaseUrl(_url: string): void {
-  // no-op: upstream URL is controlled by the Azure Function D360_API_BASE_URL.
+  // no-op: upstream URL is controlled server-side.
 }
 
 export function getApiBaseUrl(): string {
@@ -32,8 +31,8 @@ interface RequestOptions {
   method?: string;
   body?: unknown;
   /**
-   * Left in the signature for compatibility — the proxy injects the real
-   * bearer token server-side, so whatever the caller passes is discarded.
+   * Left in the signature for compatibility — the proxy injects credentials
+   * server-side, so whatever the caller passes is discarded.
    */
   token?: string;
   signal?: AbortSignal;
@@ -70,15 +69,14 @@ async function request<T>(path: string, options: RequestOptions): Promise<T> {
       let detail = "";
       try { detail = await response.clone().text(); } catch { /* ignore */ }
       console.warn(`[apiClient] 401 on ${method} ${url} (attempt ${attempts}):`, detail);
-      // Proxy returns 401 when the D360 token is missing/unrefreshable.
-      // But immediately after a fresh sign-in, the proxy may not yet have
-      // the token available (cold start, Table Storage propagation). Retry
-      // once before declaring the session expired.
+      // Proxy returns 401 when credentials are missing or expired.
+      // Retry once before declaring the session expired — the proxy may
+      // still be propagating after a fresh sign-in.
       if (attempts < 2) {
         await new Promise((res) => setTimeout(res, 1500));
         continue;
       }
-      // Notify the app so the UI falls back to the sign-in prompt.
+      // Notify the app so the UI can respond to the auth failure.
       console.warn("[apiClient] 401 persisted after retry — dispatching session-expired");
       window.dispatchEvent(new CustomEvent("session-expired"));
     }

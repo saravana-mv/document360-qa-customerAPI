@@ -4,7 +4,6 @@ import { useScenarioOrgStore } from "../../store/scenarioOrg.store";
 import { useRunnerStore } from "../../store/runner.store";
 import { useFlowStatusStore } from "../../store/flowStatus.store";
 import { useSpecStore } from "../../store/spec.store";
-import { useAuthStore } from "../../store/auth.store";
 import { useUserStore } from "../../store/user.store";
 import { ScenarioFolderTree } from "./ScenarioFolderTree";
 import { ProjectSettingsCard } from "../setup/ProjectSettingsCard";
@@ -12,7 +11,6 @@ import { ConnectEndpointModal } from "./ConnectEndpointModal";
 import { getAllTests, getTestsByTag, unregisterWhere } from "../../lib/tests/registry";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import { deactivateFlow } from "../../lib/tests/flowXml/activeTests";
-import { startAuthFlow, loadOAuthConfig } from "../../lib/oauth/flow";
 import type { ParsedTag } from "../../types/spec.types";
 
 interface VersionAccordionProps {
@@ -34,8 +32,6 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
   const createFolder = useScenarioOrgStore((s) => s.createFolder);
   const { selectedTags } = useRunnerStore();
 
-  const authStatus = useAuthStore((s) => s.status);
-
   const [showConnect, setShowConnect] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
@@ -51,12 +47,12 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
   const { clearSelection } = useRunnerStore();
   const setSpec = useSpecStore((s) => s.setSpec);
 
-  const isAuthed = authStatus === "authenticated";
+  const isAuthed = true; // Always authenticated via Entra ID
   const selectedCount = tags.filter((t) => selectedTags.has(t.name)).length;
   const noScenarios = tags.length === 0;
   const fewScenarios = tags.length <= 1;
 
-  const isConnected = versionConfig?.credentialConfigured || versionConfig?.authType === "oauth";
+  const isConnected = versionConfig?.credentialConfigured || (versionConfig?.authType === "oauth" && !!versionConfig?.connectionId);
 
   // Expand/collapse all folders + tags within this version
   const versionFolders = useScenarioOrgStore((s) => s.folders[version] ?? EMPTY_ARR);
@@ -304,25 +300,6 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
             <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m9.86-1.135a4.5 4.5 0 0 0-1.242-7.244l-4.5-4.5a4.5 4.5 0 0 0-6.364 6.364L4.34 8.303" />
           </svg>
         </button>
-        {versionConfig?.authType === "oauth" && (
-          <button
-            onClick={() => {
-              const config = loadOAuthConfig();
-              if (config) void startAuthFlow(config);
-            }}
-            disabled={authStatus !== "authenticated"}
-            title="Sign in / refresh D360 token"
-            className={`shrink-0 rounded-md p-1 transition-colors ${
-              authStatus !== "authenticated"
-                ? "text-[#656d76] opacity-40 cursor-not-allowed"
-                : "text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff]"
-            }`}
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
-            </svg>
-          </button>
-        )}
 
         <span className="w-px h-4 bg-[#d1d9e0] shrink-0" />
 
@@ -351,15 +328,8 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
         <ConnectEndpointModal version={version} onClose={() => setShowConnect(false)} />
       )}
 
-      {/* Sign-in + settings when not authenticated */}
-      {open && authStatus !== "authenticated" && (
-        <div className="ml-5 mt-1 mb-1 border border-[#d1d9e0] rounded-md overflow-hidden">
-          <ProjectSettingsCard onDone={() => {}} />
-        </div>
-      )}
-
-      {/* Folder tree + inline create — only when authenticated */}
-      {open && authStatus === "authenticated" && (
+      {/* Folder tree + inline create */}
+      {open && (
         <div className="mt-0.5">
           <ScenarioFolderTree version={version} tags={tags} sortOrder={sortOrder} />
           {/* Inline folder creation at version root level */}

@@ -19,6 +19,8 @@ export interface TestContext {
   authHeaderName?: string;
   /** Query param name for apikey_query auth (e.g. "api_key") */
   authQueryParam?: string;
+  /** OAuth connection ID for proxy credential lookup */
+  connectionId?: string;
   /** Project-level variables (proj.varName). */
   projectVariables?: Record<string, string>;
 }

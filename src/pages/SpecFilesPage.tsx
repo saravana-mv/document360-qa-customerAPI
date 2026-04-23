@@ -49,7 +49,7 @@ import { useFlowStatusStore } from "../store/flowStatus.store";
 import { useScenarioOrgStore } from "../store/scenarioOrg.store";
 import { useAiCostStore } from "../store/aiCost.store";
 import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
-import { useAuthStore } from "../store/auth.store";
+
 import { useSetupStore } from "../store/setup.store";
 import { detectEndpointFromSpec, type DetectedEndpoint } from "../lib/spec/autoDetectEndpoint";
 import {
@@ -797,7 +797,7 @@ export function SpecFilesPage() {
     }
 
     // Use stored token if available
-    const effectiveToken = sourceAccessToken.trim() || useAuthStore.getState().token?.access_token;
+    const effectiveToken = sourceAccessToken.trim() || "";
 
     // Try client-side fetch first — the browser may have session cookies for this URL
     let clientContent: string | undefined;
@@ -863,7 +863,7 @@ export function SpecFilesPage() {
     const syncedPath = folderPath ? `${folderPath}/${filename}` : filename;
     setSyncingPaths((prev) => new Set([...prev, syncedPath]));
     try {
-      const token = overrideToken || sourceAccessToken.trim() || useAuthStore.getState().token?.access_token;
+      const token = overrideToken || sourceAccessToken.trim() || "";
       const result = await syncSpecFiles(folderPath, filename, token);
       const failed = result.synced.filter((r) => !r.updated);
       if (failed.length > 0) {
@@ -905,7 +905,7 @@ export function SpecFilesPage() {
     filename?: string,
     accessToken?: string,
   ): Promise<{ synced: Array<{ name: string; updated: boolean; error?: string }> }> {
-    const token = accessToken || sourceAccessToken.trim() || useAuthStore.getState().token?.access_token;
+    const token = accessToken || sourceAccessToken.trim() || "";
     return syncSpecFiles(folderPath, filename, token);
   }
 

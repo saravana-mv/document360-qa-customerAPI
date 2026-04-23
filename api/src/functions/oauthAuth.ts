@@ -1,6 +1,6 @@
 // Generic OAuth server-side endpoints.
 //
-// These generalize the D360-specific d360Auth.ts to work with any OAuth
+// These work with any OAuth
 // connection registered in the connections Cosmos container.
 //
 //   POST /api/oauth/exchange           body { connectionId, code, codeVerifier, redirectUri }

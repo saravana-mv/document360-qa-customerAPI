@@ -145,7 +145,7 @@ function jsonEqual(a: unknown, b: unknown): boolean {
   // Loose number/string compare for "5" vs 5
   if (typeof a === "number" && typeof b === "string") {
     if (String(a) === b) return true;
-    // Document360 enums: API returns integers (e.g. 0) while specs and flow
+    // Enum aliases: API returns integers (e.g. 0) while specs and flow
     // XML often use the string name (e.g. "draft"). Treat them as equal.
     if (enumMatches(b, a)) return true;
   }
@@ -197,12 +197,12 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
     return failError(start, err);
   }
 
-  // requestUrl is what we CAPTURE and DISPLAY — always the upstream D360 URL
-  // so the Detail pane matches the public API docs. fetchUrl is what we
-  // actually call, which goes through our server-side proxy so the D360
-  // bearer token never reaches the browser.
+  // requestUrl is what we CAPTURE and DISPLAY — the upstream API URL so the
+  // Detail pane matches the public API docs. fetchUrl is what we actually
+  // call, which goes through our server-side proxy so credentials never
+  // reach the browser.
   const requestUrl = `${ctx.baseUrl}${resolvedPath}${queryString}`;
-  const fetchUrl = `/api/d360/proxy${resolvedPath}${queryString}`;
+  const fetchUrl = `/api/proxy${resolvedPath}${queryString}`;
 
   // Resolve body
   let requestBody: unknown = undefined;
@@ -218,23 +218,23 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
   // Make the HTTP call. We bypass apiClient so each step's request URL/body
   // is captured exactly for the Detail Pane.
   //
-  // Phase 2: the request goes through /api/d360/proxy, which injects the real
-  // D360 bearer server-side. We still need to signal noAuth steps so the
-  // proxy forwards without auth — an X-D360-No-Auth: 1 header does that.
-  // Only declare a Content-Type when we actually send a body. D360 (and many
-  // ASP.NET APIs) return 500 when DELETE/GET arrives with Content-Type:
-  // application/json but no payload — the model binder tries to parse the
-  // empty body as JSON and throws. Matches what the API docs try-it does.
+  // The request goes through /api/proxy, which injects credentials server-side.
+  // We signal noAuth steps so the proxy forwards without auth — X-FF-No-Auth: 1.
+  // Only declare a Content-Type when we actually send a body. Many APIs return
+  // 500 when DELETE/GET arrives with Content-Type: application/json but no
+  // payload — the model binder tries to parse the empty body as JSON and throws.
   //
   const headers: Record<string, string> = {};
   if (requestBody !== undefined) headers["Content-Type"] = "application/json";
-  if (step.noAuth) headers["X-D360-No-Auth"] = "1";
+  if (step.noAuth) headers["X-FF-No-Auth"] = "1";
   if (ctx.authType && ctx.authType !== "none" && ctx.authVersion) {
-    headers["X-D360-Auth-Type"] = ctx.authType;
-    headers["X-D360-Version"] = ctx.authVersion;
-    if (ctx.authHeaderName) headers["X-D360-Auth-Header-Name"] = ctx.authHeaderName;
-    if (ctx.authQueryParam) headers["X-D360-Auth-Query-Param"] = ctx.authQueryParam;
+    headers["X-FF-Auth-Type"] = ctx.authType;
+    headers["X-FF-Version"] = ctx.authVersion;
+    if (ctx.authHeaderName) headers["X-FF-Auth-Header-Name"] = ctx.authHeaderName;
+    if (ctx.authQueryParam) headers["X-FF-Auth-Query-Param"] = ctx.authQueryParam;
   }
+  if (ctx.connectionId) headers["X-FF-Connection-Id"] = ctx.connectionId;
+  if (ctx.baseUrl) headers["X-FF-Base-Url"] = ctx.baseUrl;
 
   let httpStatus: number;
   let responseBody: unknown = undefined;
@@ -328,7 +328,7 @@ function extractErrorMessage(body: unknown): string | undefined {
   if (!body || typeof body !== "object") return undefined;
   const b = body as Record<string, unknown>;
 
-  // D360 ProblemDetails: collect all errors with field info for debugging
+  // ProblemDetails / RFC 7807: collect all errors with field info for debugging
   if (Array.isArray(b.errors) && b.errors.length > 0) {
     const parts = (b.errors as Array<Record<string, unknown>>).map((e) => {
       const msg = typeof e.message === "string" ? e.message : "";

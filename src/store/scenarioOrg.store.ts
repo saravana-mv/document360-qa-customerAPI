@@ -17,8 +17,10 @@ export interface VersionConfig {
   authQueryParam?: string;
   /** True when credentials are stored server-side */
   credentialConfigured: boolean;
-  /** Short display label (e.g. "Document360 v3") */
+  /** Short display label (e.g. "My API v2") */
   endpointLabel?: string;
+  /** OAuth connection ID (from Settings → Connections) */
+  connectionId?: string;
 
   // Legacy fields — kept for backward compat during migration
   authMethod?: "oauth" | "apikey";

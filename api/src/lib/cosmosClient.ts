@@ -5,7 +5,7 @@
 //   flows, ideas, test-runs — partitioned by /projectId
 //   settings                — partitioned by /userId (per-user, cross-project)
 //
-// Follows the tokenStore.ts pattern: lazy-init client, cache container refs,
+// Pattern: lazy-init client, cache container refs,
 // auto-create database/containers on first access.
 
 import { CosmosClient, Container, Database } from "@azure/cosmos";

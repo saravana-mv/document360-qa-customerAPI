@@ -2,7 +2,6 @@ const KEYS = {
   CODE_VERIFIER: "oauth_code_verifier",
   STATE: "oauth_state",
   TOKEN: "oauth_token",
-  PROJECT_ID: "oauth_project_id",
 } as const;
 
 export function saveVerifier(verifier: string, state: string): void {
@@ -39,13 +38,4 @@ export function getToken(): unknown | null {
 
 export function clearToken(): void {
   sessionStorage.removeItem(KEYS.TOKEN);
-  sessionStorage.removeItem(KEYS.PROJECT_ID);
-}
-
-export function saveProjectId(projectId: string): void {
-  sessionStorage.setItem(KEYS.PROJECT_ID, projectId);
-}
-
-export function getProjectId(): string {
-  return sessionStorage.getItem(KEYS.PROJECT_ID) ?? "";
 }

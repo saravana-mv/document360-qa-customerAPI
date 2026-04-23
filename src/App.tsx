@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { lazy, Suspense, useEffect } from "react";
 import { useAuthStore } from "./store/auth.store";
-import { useSpecStore } from "./store/spec.store";
 import { OAuthCallback } from "./components/auth/OAuthCallback";
 import { TestPage } from "./pages/TestPage";
 import { Spinner } from "./components/common/Spinner";
@@ -76,11 +75,9 @@ function AppRoutes() {
     }
 
     // Global handler: any 401 from the API client means the session is stale.
-    // Clear auth + loaded tests so TestExplorer falls back to the settings card.
     const onExpired = () => {
       console.warn("[session-expired] event fired — logging out. Stack:", new Error().stack);
       useAuthStore.getState().logout();
-      useSpecStore.getState().setSpec(null, [], null);
     };
     window.addEventListener("session-expired", onExpired);
     return () => window.removeEventListener("session-expired", onExpired);
@@ -93,7 +90,6 @@ function AppRoutes() {
         <Route path="/projects" element={<ProjectSelectionPage />} />
         <Route path="/global-settings" element={<GlobalSettingsPage />} />
         <Route path="/" element={<Navigate to="/projects" replace />} />
-        <Route path="/callback" element={<OAuthCallback />} />
         <Route path="/oauth/callback/:connectionId" element={<OAuthCallback />} />
         {/* Backwards compat redirects */}
         <Route path="/setup" element={<Navigate to="/settings" replace />} />

@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { useSpecStore } from "../../store/spec.store";
-import { useAuthStore } from "../../store/auth.store";
 import { useSetupStore } from "../../store/setup.store";
 import { useFlowStatusStore } from "../../store/flowStatus.store";
 import { useExplorerUIStore } from "../../store/explorerUI.store";
 import { useScenarioOrgStore } from "../../store/scenarioOrg.store";
 import { getAllTests } from "../../lib/tests/registry";
-import { getProjectIdFromToken, fetchProject } from "../../lib/api/projects";
+import { fetchProject } from "../../lib/api/projects";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import { VersionAccordion } from "./VersionAccordion";
 import { Spinner } from "../common/Spinner";
@@ -14,7 +13,6 @@ import type { ParsedTag } from "../../types/spec.types";
 
 export function TestExplorer() {
   const { parsedTags, setSpec } = useSpecStore();
-  const { status, token } = useAuthStore();
   const setup = useSetupStore();
   const sortOrder = useExplorerUIStore((s) => s.sortOrder);
   const orgLoaded = useScenarioOrgStore((s) => s.loaded);
@@ -27,10 +25,7 @@ export function TestExplorer() {
   const [autoLoadError, setAutoLoadError] = useState<string | null>(null);
   const [autoLoading, setAutoLoading] = useState(false);
 
-  const isAuthenticated = status === "authenticated" && !!token;
-
-  // Build parsedTags from registry whenever flows change — no D360 auth required.
-  // This lets the version accordions render even when not signed in.
+  // Build parsedTags from registry whenever flows change.
   useEffect(() => {
     if (flowsLoading) return;
     const tests = getAllTests();
@@ -44,9 +39,8 @@ export function TestExplorer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flowsByName, flowsLoading]);
 
-  // When authenticated, auto-load project info (project name, versions list)
+  // Auto-load project info if settings are confirmed but project not yet loaded
   useEffect(() => {
-    if (!isAuthenticated) return;
     if (!setup.settingsConfirmed) return;
     if (setup.selectedProjectId && setup.projects.length > 0) return;
     if (flowsLoading) return;
@@ -55,15 +49,15 @@ export function TestExplorer() {
       setAutoLoading(true);
       setAutoLoadError(null);
       try {
-        let projectId = setup.selectedProjectId;
+        const projectId = setup.selectedProjectId;
         if (!projectId) {
-          projectId = getProjectIdFromToken(token!.access_token);
-          if (!projectId) throw new Error("doc360_project_id not found in token — sign out and back in.");
-          const project = await fetchProject(projectId, token!.access_token);
-          if (cancelled) return;
-          setup.setProjects([project]);
-          setup.selectProject(projectId);
+          // No project selected — user needs to pick one from the project selection page
+          setAutoLoading(false);
+          return;
         }
+        const project = await fetchProject(projectId, "proxied");
+        if (cancelled) return;
+        setup.setProjects([project]);
       } catch (err) {
         if (!cancelled) setAutoLoadError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -72,7 +66,7 @@ export function TestExplorer() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, flowsLoading]);
+  }, [flowsLoading]);
 
   // Load scenario org once tests are available
   useEffect(() => {

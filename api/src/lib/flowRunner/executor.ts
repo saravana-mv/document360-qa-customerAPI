@@ -1,6 +1,6 @@
 // Server-side scenario executor.
 // Takes a ParsedFlow + RunContext and executes every step sequentially,
-// calling D360 APIs directly (no browser proxy). Returns a structured result.
+// calling upstream APIs directly (no browser proxy). Returns a structured result.
 
 import type {
   ParsedFlow,
@@ -160,14 +160,14 @@ async function executeStep(
     }
   }
 
-  // Build headers — call D360 directly (no proxy)
+  // Build headers — call upstream API directly (no proxy)
   const headers: Record<string, string> = {};
   if (requestBody !== undefined) headers["Content-Type"] = "application/json";
   if (!step.noAuth) {
-    if (ctx.authMethod === "oauth" && ctx.d360AccessToken) {
-      headers["Authorization"] = `Bearer ${ctx.d360AccessToken}`;
-    } else if (ctx.authMethod === "apikey" && ctx.d360ApiKey) {
-      headers["api_token"] = ctx.d360ApiKey;
+    if (ctx.authMethod === "oauth" && ctx.accessToken) {
+      headers["Authorization"] = `Bearer ${ctx.accessToken}`;
+    } else if (ctx.authMethod === "apikey" && ctx.apiKey) {
+      headers["api_token"] = ctx.apiKey;
     }
   }
 
@@ -293,7 +293,7 @@ function runAssertions(
     }
     // field-equals
     const actual = readPath(responseBody, a.field);
-    const emptyCtx: RunContext = { projectId: "", versionId: "", langCode: "", apiVersion: "", baseUrl: "", authMethod: "oauth" };
+    const emptyCtx: RunContext = { projectId: "", versionId: "", langCode: "", apiVersion: "", baseUrl: "", authMethod: "none" };
     const expected = coerce(substitute(a.value, emptyCtx, state));
     return {
       id: `field-equals-${a.field}`,

@@ -3,6 +3,7 @@ import { parseCurl, maskCredential, authTypeLabel } from "../../lib/curlParser";
 import type { CurlParseResult } from "../../lib/curlParser";
 import { saveCredential, deleteCredential, getVersionAuthStatus } from "../../lib/api/versionAuthApi";
 import { useScenarioOrgStore } from "../../store/scenarioOrg.store";
+import { useConnectionsStore } from "../../store/connections.store";
 import type { AuthType, VersionConfig } from "../../store/scenarioOrg.store";
 import type { DetectedEndpoint } from "../../lib/spec/autoDetectEndpoint";
 
@@ -19,7 +20,7 @@ const AUTH_TYPE_OPTIONS: { value: AuthType; label: string }[] = [
   { value: "apikey_query", label: "API Key (Query Param)" },
   { value: "basic", label: "Basic Auth" },
   { value: "cookie", label: "Session Cookie" },
-  { value: "oauth", label: "D360 OAuth" },
+  { value: "oauth", label: "OAuth Connection" },
   { value: "none", label: "No Auth" },
 ];
 
@@ -41,9 +42,15 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
   const [authQueryParam, setAuthQueryParam] = useState(versionConfig?.authQueryParam ?? "");
   const [endpointLabel, setEndpointLabel] = useState(versionConfig?.endpointLabel ?? "");
 
+  const [connectionId, setConnectionId] = useState(versionConfig?.connectionId ?? "");
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
+
+  // Load OAuth connections for the picker
+  const { connections, authStatus: connAuthStatus, load: loadConnections } = useConnectionsStore();
+  useEffect(() => { void loadConnections(); }, [loadConnections]);
 
   // Check current auth status on mount
   const [serverConfigured, setServerConfigured] = useState(versionConfig?.credentialConfigured ?? false);
@@ -97,6 +104,7 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
         authQueryParam: authType === "apikey_query" ? authQueryParam : undefined,
         credentialConfigured: needsServerCred && !!credential.trim(),
         endpointLabel: endpointLabel.trim() || undefined,
+        connectionId: authType === "oauth" ? connectionId || undefined : undefined,
       };
       setVersionConfig(version, config);
       onClose();
@@ -137,8 +145,8 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
     setTab("manual");
   }
 
-  const isConnected = versionConfig?.credentialConfigured || versionConfig?.authType === "oauth";
-  const canSave = baseUrl.trim() && (authType === "none" || authType === "oauth" || credential.trim());
+  const isConnected = versionConfig?.credentialConfigured || (versionConfig?.authType === "oauth" && !!versionConfig?.connectionId);
+  const canSave = baseUrl.trim() && (authType === "none" || (authType === "oauth" ? !!connectionId : !!credential.trim()));
   const showSpecBanner = !!detectedEndpoint && !isConnected && !baseUrl;
 
   return (
@@ -409,11 +417,33 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
               )}
 
               {authType === "oauth" && (
-                <div className="flex items-center gap-2 ml-[6.5rem]">
-                  <span className="w-2 h-2 rounded-full bg-[#0969da] shrink-0" />
-                  <span className="text-xs text-[#656d76]">
-                    D360 OAuth will be used. Sign in via the refresh button in the header bar.
-                  </span>
+                <div className="space-y-2 ml-[6.5rem]">
+                  <select
+                    value={connectionId}
+                    onChange={(e) => setConnectionId(e.target.value)}
+                    className="w-full text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
+                  >
+                    <option value="">Select a connection...</option>
+                    {connections.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}{connAuthStatus[c.id]?.authenticated ? " \u2713" : ""}</option>
+                    ))}
+                  </select>
+                  {connectionId && connAuthStatus[connectionId]?.authenticated && (
+                    <p className="text-xs text-[#1a7f37] flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-[#1a7f37] shrink-0" />
+                      Connected
+                    </p>
+                  )}
+                  {connectionId && !connAuthStatus[connectionId]?.authenticated && (
+                    <p className="text-xs text-[#656d76]">
+                      Not connected — go to Settings &rarr; Connections to authenticate.
+                    </p>
+                  )}
+                  {connections.length === 0 && (
+                    <p className="text-xs text-[#656d76]">
+                      No connections registered. Go to Settings &rarr; Connections to create one.
+                    </p>
+                  )}
                 </div>
               )}
             </div>

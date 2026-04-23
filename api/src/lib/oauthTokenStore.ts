@@ -1,10 +1,11 @@
 // Generic OAuth token store, backed by Azure Table Storage.
 // Row key format: {oid}:{connectionId} — one row per user per connection.
 //
-// This generalizes the D360-specific tokenStore.ts to support any OAuth
+// This supports any OAuth
 // connection registered in the connections Cosmos container.
 
 import { TableClient, RestError } from "@azure/data-tables";
+import { getConnectionsContainer } from "./cosmosClient";
 
 const CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING ?? "";
 const TABLE_NAME = "oauthtokens";
@@ -103,4 +104,80 @@ export async function deleteOAuthToken(oid: string, connectionId: string): Promi
     if (e instanceof RestError && e.statusCode === 404) return;
     throw e;
   }
+}
+
+// ── Auto-refresh helper ─────────────────────────────────────────────────────
+
+const REFRESH_SKEW_MS = 60_000;
+
+interface ConnectionDoc {
+  id: string;
+  tokenUrl: string;
+  clientId: string;
+  clientSecret?: string;
+}
+
+async function getConnectionDoc(connectionId: string): Promise<ConnectionDoc | null> {
+  const container = await getConnectionsContainer();
+  const { resources } = await container.items
+    .query<ConnectionDoc>({
+      query: "SELECT c.id, c.tokenUrl, c.clientId, c.clientSecret FROM c WHERE c.id = @id AND c.type = 'connection'",
+      parameters: [{ name: "@id", value: connectionId }],
+    })
+    .fetchAll();
+  return resources[0] ?? null;
+}
+
+interface TokenResponse {
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+}
+
+/**
+ * Returns a valid access token for the given user + connection.
+ * Auto-refreshes if expired and a refresh token is available.
+ */
+export async function getValidOAuthToken(
+  oid: string,
+  connectionId: string,
+): Promise<{ accessToken: string }> {
+  const row = await getOAuthToken(oid, connectionId);
+  if (!row) throw new Error("OAUTH_NOT_AUTHENTICATED");
+
+  if (row.expiresAt - REFRESH_SKEW_MS > Date.now()) {
+    return { accessToken: row.accessToken };
+  }
+
+  if (!row.refreshToken) throw new Error("OAUTH_REFRESH_UNAVAILABLE");
+
+  const conn = await getConnectionDoc(connectionId);
+  if (!conn) throw new Error("OAUTH_CONNECTION_NOT_FOUND");
+
+  const params = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: row.refreshToken,
+    client_id: conn.clientId,
+  });
+  if (conn.clientSecret) params.set("client_secret", conn.clientSecret);
+
+  const res = await fetch(conn.tokenUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`OAuth refresh failed (${res.status}): ${text}`);
+  }
+  const tokenRes = (await res.json()) as TokenResponse;
+  const expiresAt = Date.now() + (tokenRes.expires_in ?? 3600) * 1000;
+
+  await putOAuthToken(oid, connectionId, {
+    accessToken: tokenRes.access_token,
+    refreshToken: tokenRes.refresh_token ?? row.refreshToken,
+    expiresAt,
+  });
+
+  return { accessToken: tokenRes.access_token };
 }

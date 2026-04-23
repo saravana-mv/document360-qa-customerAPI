@@ -1,16 +1,13 @@
 import { apiClient, getApiVersion } from "./client";
-import { getProjectId as getStoredProjectId } from "../oauth/session";
 import type { Project } from "../../types/api.types";
 
 /**
- * Phase 2: the browser no longer has the D360 JWT, so we can't decode it
- * client-side. The exchange endpoint extracts `doc360_project_id` server-side
- * and returns it, and the SPA caches it in sessionStorage. This helper now
- * just reads that cached value — the `accessToken` parameter is ignored and
- * kept only for call-site compatibility.
+ * Returns the project ID. With Entra ID SSO, the project ID is managed
+ * by the setup store — this function is kept for call-site compatibility
+ * but always returns an empty string (callers should use setup.selectedProjectId).
  */
 export function getProjectIdFromToken(_accessToken: string): string {
-  return getStoredProjectId();
+  return "";
 }
 
 export async function fetchProject(projectId: string, token: string): Promise<Project> {

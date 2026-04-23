@@ -3,7 +3,7 @@ import type { Project, ProjectVersion } from "../types/api.types";
 import { setApiBaseUrl, setApiVersion } from "../lib/api/client";
 import { loadSettings, saveSettings, migrateFromLocalStorage } from "../lib/api/settingsApi";
 
-const DEFAULT_BASE_URL = "https://apihub.berlin.document360.net";
+const DEFAULT_BASE_URL = "";
 const DEFAULT_API_VERSION = "v3";
 
 export const AI_MODELS = [

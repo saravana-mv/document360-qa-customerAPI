@@ -48,13 +48,13 @@ export interface RunContext {
   versionId: string;
   langCode: string;
   apiVersion: string;
-  /** Absolute base URL, e.g. "https://apihub.document360.io" */
+  /** Absolute base URL for the upstream API. */
   baseUrl: string;
-  /** Bearer token for D360 API calls. */
-  d360AccessToken?: string;
-  /** D360 API key (alternative to OAuth). */
-  d360ApiKey?: string;
-  authMethod: "oauth" | "apikey";
+  /** Bearer/OAuth access token for upstream API calls. */
+  accessToken?: string;
+  /** API key (alternative to OAuth). */
+  apiKey?: string;
+  authMethod: "oauth" | "apikey" | "bearer" | "apikey_header" | "apikey_query" | "basic" | "cookie" | "none";
   /** Project-level variables (proj.varName). */
   projectVariables?: Record<string, string>;
 }

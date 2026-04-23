@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useAuthStore } from "../../store/auth.store";
-import { handleCallback, loadOAuthConfig, loadConnectionId, handleConnectionCallback } from "../../lib/oauth/flow";
+import { loadConnectionId, handleConnectionCallback } from "../../lib/oauth/flow";
 import { Spinner } from "../common/Spinner";
 
 export function OAuthCallback() {
   const navigate = useNavigate();
   const { connectionId: routeConnectionId } = useParams<{ connectionId?: string }>();
-  const { setToken, setError } = useAuthStore();
   const [message, setMessage] = useState("Completing sign in...");
   const [failed, setFailed] = useState(false);
 
@@ -19,57 +17,35 @@ export function OAuthCallback() {
 
     if (errorParam) {
       const msg = params.get("error_description") || errorParam;
-      setError(msg);
       navigate("/settings/connections?error=" + encodeURIComponent(msg));
       return;
     }
 
     if (!code || !state) {
-      setError("Missing code or state in callback");
-      navigate("/settings/connections");
+      navigate("/settings/connections?error=" + encodeURIComponent("Missing code or state in callback"));
       return;
     }
 
-    // Check if this is a generic connection callback
+    // Resolve connection ID from route params or session storage
     const connectionId = routeConnectionId || loadConnectionId();
     if (connectionId) {
       try {
         setMessage("Exchanging authorization code...");
         const redirectUri = `${window.location.origin}/oauth/callback/${connectionId}`;
         await handleConnectionCallback(code, state, connectionId, redirectUri);
-        // Redirect back to connections page with success
         navigate(`/settings/connections?connected=${connectionId}`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error("[OAuthCallback] connection exchange failed:", msg);
-        setError(msg);
         setFailed(true);
         setMessage(msg);
       }
       return;
     }
 
-    // Legacy D360 OAuth flow
-    const config = loadOAuthConfig();
-    if (!config) {
-      setError("OAuth config not found — please sign in again");
-      navigate("/spec-files");
-      return;
-    }
-
-    try {
-      setMessage("Exchanging authorization code...");
-      const result = await handleCallback(code, state, config);
-      setToken(result.token, result.projectId);
-      navigate("/test");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("[OAuthCallback] exchange failed:", msg);
-      setError(msg);
-      setFailed(true);
-      setMessage(msg);
-    }
-  }, [navigate, setToken, setError, routeConnectionId]);
+    // No connection ID found — redirect with error
+    navigate("/settings/connections?error=" + encodeURIComponent("No connection ID found"));
+  }, [navigate, routeConnectionId]);
 
   useEffect(() => { exchange(); }, [exchange]);
 
@@ -85,13 +61,13 @@ export function OAuthCallback() {
             </div>
             <div className="flex gap-3">
               <button
-                onClick={() => navigate("/test")}
+                onClick={() => navigate("/settings/connections")}
                 className="px-4 py-2 text-xs font-medium text-[#656d76] bg-white border border-[#d1d9e0] rounded-md hover:bg-[#f6f8fa]"
               >
-                Go to Test Manager
+                Go to Connections
               </button>
               <button
-                onClick={() => { setFailed(false); setMessage("Retrying…"); exchange(); }}
+                onClick={() => { setFailed(false); setMessage("Retrying..."); exchange(); }}
                 className="px-4 py-2 text-xs font-medium text-white bg-[#1a7f37] rounded-md hover:bg-[#1a7f37]/90"
               >
                 Retry

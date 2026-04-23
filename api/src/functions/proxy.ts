@@ -1,27 +1,26 @@
-// Thin proxy that forwards SPA calls to the Document360 Customer API.
+// Generic API proxy that forwards SPA calls to any upstream API.
 //
-// The browser calls /api/d360/proxy/<path>[?query]; this function:
+// The browser calls /api/proxy/<path>[?query]; this function:
 //   1. Resolves the caller's Entra oid from x-ms-client-principal (via withAuth)
-//   2. Fetches the stored D360 token row and refreshes if near expiry
-//   3. Forwards the request to D360 with Authorization: Bearer <access_token>
+//   2. For OAuth auth, fetches the stored token and refreshes if near expiry
+//   3. Forwards the request upstream with the configured auth header
 //   4. Streams back status + body + content-type
 //
-// The SPA never sees the D360 access or refresh token — only this proxy and
+// The SPA never sees access or refresh tokens — only this proxy and
 // the token store do.
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { withAuth, parseClientPrincipal } from "../lib/auth";
-import { getValidAccessToken } from "../lib/d360Token";
+import { getValidOAuthToken } from "../lib/oauthTokenStore";
 import { getCredentialForVersion, getApiKeyForVersion } from "../lib/versionApiKeyStore";
 
-const D360_BASE_URL =
-  (process.env.D360_API_BASE_URL ?? "https://apihub.berlin.document360.net").replace(/\/$/, "");
+const DEFAULT_BASE_URL =
+  (process.env.DEFAULT_API_BASE_URL ?? "").replace(/\/$/, "");
 
 // Allowlist of request headers we forward upstream. Everything else is
 // dropped — browser-added noise (Origin, Referer, sec-ch-*, sec-fetch-*,
-// User-Agent, Accept-Encoding, Accept-Language) caused D360 to 500 with an
-// empty body on DELETE. The API docs try-it works because it sends a minimal
-// header set; mirror that.
+// User-Agent, Accept-Encoding, Accept-Language) can cause upstream APIs
+// to return errors. Keep the header set minimal.
 const ALLOWED_REQUEST_HEADERS = new Set([
   "content-type",
   "accept",
@@ -36,9 +35,9 @@ const FORWARDED_RESPONSE_HEADERS = ["content-type", "content-language", "etag"];
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-D360-Method, X-D360-No-Auth, X-D360-Auth-Type, X-D360-Auth-Method, X-D360-Version, X-D360-Auth-Header-Name, X-D360-Auth-Query-Param",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-FF-Method, X-FF-No-Auth, X-FF-Auth-Type, X-FF-Auth-Method, X-FF-Version, X-FF-Auth-Header-Name, X-FF-Auth-Query-Param, X-FF-Base-Url, X-FF-Connection-Id",
   // Allow the SPA to read our debug headers from cross-origin responses.
-  "Access-Control-Expose-Headers": "X-D360-Proxy-Build, X-D360-Proxy-Crash, X-D360-Upstream-Status, X-D360-Upstream-Url, X-D360-Trace-Id, Content-Type",
+  "Access-Control-Expose-Headers": "X-FF-Proxy-Build, X-FF-Proxy-Crash, X-FF-Upstream-Status, X-FF-Upstream-Url, X-FF-Trace-Id, Content-Type",
 };
 
 function errJson(status: number, message: string, extra?: Record<string, unknown>): HttpResponseInit {
@@ -58,7 +57,7 @@ async function proxyHandler(req: HttpRequest, ctx: InvocationContext): Promise<H
     // an opaque 500 with no body and no custom headers, hiding the cause.
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack ?? "" : "";
-    ctx.error(`[d360Proxy] handler crashed: ${msg}\n${stack}`);
+    ctx.error(`[apiProxy] handler crashed: ${msg}\n${stack}`);
     // Return 502 instead of 500 — SWA edge strips body/headers from 5xx,
     // but passes 502 through since it means "gateway error".
     return {
@@ -66,8 +65,8 @@ async function proxyHandler(req: HttpRequest, ctx: InvocationContext): Promise<H
       headers: {
         ...CORS_HEADERS,
         "Content-Type": "application/json",
-        "X-D360-Proxy-Build": "envelope-v6-rpc",
-        "X-D360-Proxy-Crash": "1",
+        "X-FF-Proxy-Build": "proxy-v7-generic",
+        "X-FF-Proxy-Crash": "1",
       },
       body: JSON.stringify({
         _proxyDebug: "Proxy handler threw before producing a response",
@@ -86,36 +85,42 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
   const principal = parseClientPrincipal(req);
   if (!principal) return errJson(401, "Unauthorized");
 
-  // Extract the sub-path from the route, e.g. /api/d360/proxy/v3/projects/xyz
-  // params.path contains everything after "d360/proxy/".
+  // Extract the sub-path from the route, e.g. /api/proxy/v3/projects/xyz
+  // params.path contains everything after "proxy/".
   const subPath = (req.params?.path ?? "").replace(/^\/+/, "");
   if (!subPath) return errJson(400, "Missing upstream path");
+
+  // Resolve base URL: client header > env var > error
+  const baseUrlHeader = (req.headers.get("x-ff-base-url") ?? "").replace(/\/$/, "");
+  const baseUrl = baseUrlHeader || DEFAULT_BASE_URL;
+  if (!baseUrl) return errJson(400, "Missing upstream base URL. Set X-FF-Base-Url header or configure DEFAULT_API_BASE_URL.");
 
   // Method tunneling: Azure SWA edge has been observed to reject DELETE
   // requests from the browser with a bare 500 (no function invocation,
   // only x-ms-middleware-request-id in the response). As a workaround,
-  // the SPA may send the request as POST with `X-D360-Method: DELETE`,
+  // the SPA may send the request as POST with `X-FF-Method: DELETE`,
   // and we'll forward to the upstream with the real method.
-  const methodOverride = (req.headers.get("x-d360-method") ?? "").toUpperCase();
+  const methodOverride = (req.headers.get("x-ff-method") ?? "").toUpperCase();
   const effectiveMethod = methodOverride && ["GET", "POST", "PUT", "PATCH", "DELETE"].includes(methodOverride)
     ? methodOverride
     : req.method;
 
   // Preserve the query string verbatim.
   const url = new URL(req.url);
-  let upstreamUrl = `${D360_BASE_URL}/${subPath}${url.search}`;
+  let upstreamUrl = `${baseUrl}/${subPath}${url.search}`;
 
-  // Opt-out header lets flow tests deliberately call D360 without auth so they
-  // can verify the 401 path. We still require Entra — this is only about
-  // whether we inject the D360 Bearer header.
-  const noAuth = (req.headers.get("x-d360-no-auth") ?? "").toLowerCase() === "1";
+  // Opt-out header lets flow tests deliberately call the upstream without auth
+  // so they can verify the 401 path. We still require Entra — this is only
+  // about whether we inject the upstream auth header.
+  const noAuth = (req.headers.get("x-ff-no-auth") ?? "").toLowerCase() === "1";
 
-  // Per-version auth: client sends X-D360-Auth-Type and X-D360-Version to
+  // Per-version auth: client sends X-FF-Auth-Type and X-FF-Version to
   // indicate what auth type to use. The credential is fetched server-side.
-  const authTypeHint = (req.headers.get("x-d360-auth-type") ?? req.headers.get("x-d360-auth-method") ?? "").toLowerCase();
-  const versionHint = req.headers.get("x-d360-version") ?? "";
-  const authHeaderNameHint = req.headers.get("x-d360-auth-header-name") ?? "";
-  const authQueryParamHint = req.headers.get("x-d360-auth-query-param") ?? "";
+  const authTypeHint = (req.headers.get("x-ff-auth-type") ?? req.headers.get("x-ff-auth-method") ?? "").toLowerCase();
+  const versionHint = req.headers.get("x-ff-version") ?? "";
+  const authHeaderNameHint = req.headers.get("x-ff-auth-header-name") ?? "";
+  const authQueryParamHint = req.headers.get("x-ff-auth-query-param") ?? "";
+  const connectionId = req.headers.get("x-ff-connection-id") ?? "";
 
   const forwardHeaders: Record<string, string> = {};
   forwardHeaders["Accept"] = "application/json";
@@ -145,20 +150,22 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
     } else if (effectiveAuthType === "cookie") {
       forwardHeaders["Cookie"] = cred;
     } else {
-      // Fallback for any unrecognized auth type (e.g. legacy "apikey" rows)
-      // — inject as api_token query param
+      // Fallback for any unrecognized auth type — inject as api_token query param
       const separator = upstreamUrl.includes("?") ? "&" : "?";
       upstreamUrl = `${upstreamUrl}${separator}api_token=${encodeURIComponent(cred)}`;
     }
   } else if (authTypeHint === "oauth" || !authTypeHint) {
-    // D360 OAuth: fetch stored OAuth token
+    // OAuth: fetch stored OAuth token for the given connection
+    if (!connectionId) {
+      return errJson(401, "OAuth connection ID required", { code: "OAUTH_CONNECTION_ID_REQUIRED" });
+    }
     let accessToken = "";
     try {
-      ({ accessToken } = await getValidAccessToken(principal.userId));
+      ({ accessToken } = await getValidOAuthToken(principal.userId, connectionId));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (msg === "D360_NOT_AUTHENTICATED" || msg === "D360_REFRESH_UNAVAILABLE") {
-        return errJson(401, "D360 sign-in required", { code: msg });
+      if (msg === "OAUTH_NOT_AUTHENTICATED" || msg === "OAUTH_REFRESH_UNAVAILABLE") {
+        return errJson(401, "OAuth sign-in required", { code: msg });
       }
       return errJson(502, `Token refresh failed: ${msg}`);
     }
@@ -175,16 +182,13 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
   // intermediaries reject DELETE with Content-Length > 0.
   //
   // Note: we key off EFFECTIVE method, not the incoming request method. A
-  // tunneled DELETE arrives as POST with x-d360-method: DELETE; we must
+  // tunneled DELETE arrives as POST with X-FF-Method: DELETE; we must
   // drop the body before forwarding, matching a real DELETE.
   const methodsWithBody = new Set(["POST", "PUT", "PATCH"]);
   const bodyBuf = methodsWithBody.has(effectiveMethod) ? await req.arrayBuffer() : undefined;
 
   // SWA Free plan kills Functions at 30s. Cap the upstream request at 25s and
   // return a clean 502 envelope before SWA returns its generic bare 500.
-  // D360's DELETE of live entities can take tens of seconds (cascading
-  // cleanup of versions/references) — this is the main trigger for the
-  // "bare 500 with only x-ms-middleware-request-id" pattern.
   const controller = new AbortController();
   const timeoutMs = 25000;
   const timeoutTimer = setTimeout(() => controller.abort(), timeoutMs);
@@ -208,9 +212,9 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
       headers: {
         ...CORS_HEADERS,
         "Content-Type": "application/json",
-        "X-D360-Proxy-Build": "envelope-v6-rpc",
-        "X-D360-Upstream-Url": upstreamUrl,
-        "X-D360-Upstream-Timeout": isAbort ? "1" : "0",
+        "X-FF-Proxy-Build": "proxy-v7-generic",
+        "X-FF-Upstream-Url": upstreamUrl,
+        "X-FF-Upstream-Timeout": isAbort ? "1" : "0",
       },
       body: JSON.stringify({
         _proxyDebug: isAbort ? "Upstream timeout" : "Upstream fetch error",
@@ -228,8 +232,8 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
   }
   // Sentinel header — present on EVERY proxied response so we can confirm the
   // current proxy build is the one handling the request (cache-buster check).
-  responseHeaders["X-D360-Proxy-Build"] = "envelope-v6-rpc";
-  responseHeaders["X-D360-Upstream-Status"] = String(upstream.status);
+  responseHeaders["X-FF-Proxy-Build"] = "proxy-v7-generic";
+  responseHeaders["X-FF-Upstream-Status"] = String(upstream.status);
 
   // Pass through the body as a buffer — Functions v4 handles content-length.
   let responseBuf = Buffer.from(await upstream.arrayBuffer());
@@ -243,7 +247,7 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
     const upstreamHeaders: Record<string, string> = {};
     upstream.headers.forEach((v, k) => { upstreamHeaders[k] = v; });
     const envelope = {
-      _proxyDebug: "Upstream 5xx — wrapped by d360 proxy",
+      _proxyDebug: "Upstream 5xx — wrapped by API proxy",
       upstream: {
         method: req.method,
         url: upstreamUrl,
@@ -260,12 +264,12 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
     };
     responseBuf = Buffer.from(JSON.stringify(envelope, null, 2));
     responseHeaders["Content-Type"] = "application/json";
-    responseHeaders["X-D360-Upstream-Status"] = String(upstream.status);
-    responseHeaders["X-D360-Upstream-Url"] = upstreamUrl;
+    responseHeaders["X-FF-Upstream-Status"] = String(upstream.status);
+    responseHeaders["X-FF-Upstream-Url"] = upstreamUrl;
     const traceId = upstream.headers.get("trace_id") || upstream.headers.get("x-request-id") || upstream.headers.get("x-trace-id") || "";
-    if (traceId) responseHeaders["X-D360-Trace-Id"] = traceId;
+    if (traceId) responseHeaders["X-FF-Trace-Id"] = traceId;
 
-    ctx.warn(`[d360Proxy] upstream ${upstream.status} ${effectiveMethod} ${upstreamUrl}`, {
+    ctx.warn(`[apiProxy] upstream ${upstream.status} ${effectiveMethod} ${upstreamUrl}`, {
       requestHeaders: envelope.request.headers,
       requestBodyBytes: envelope.request.bodyBytes,
       responseHeaders: upstreamHeaders,
@@ -278,13 +282,13 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
   // only `x-ms-middleware-request-id`, hiding the real upstream failure.
   // Remap any upstream 5xx to 502 (Bad Gateway) so SWA passes our envelope
   // through unmolested. The original upstream status is preserved in the
-  // X-D360-Upstream-Status header and in the envelope body.
+  // X-FF-Upstream-Status header and in the envelope body.
   const returnStatus = upstream.status >= 500 ? 502 : upstream.status;
 
   // Undici's Response constructor (used by Azure Functions v4 to serialize
   // our HttpResponseInit) REJECTS any body on 204/205/304 — even an empty
   // Buffer throws `Invalid response status code 204` and the runtime emits
-  // a generic 500 to the caller. D360 returns 204 for successful DELETE.
+  // a generic 500 to the caller.
   const nullBodyStatuses = new Set([204, 205, 304]);
   const finalBody = nullBodyStatuses.has(returnStatus) ? undefined : responseBuf;
 
@@ -295,9 +299,9 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
   };
 }
 
-app.http("d360Proxy", {
+app.http("apiProxy", {
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   authLevel: "anonymous",
-  route: "d360/proxy/{*path}",
+  route: "proxy/{*path}",
   handler: withAuth(proxyHandler),
 });

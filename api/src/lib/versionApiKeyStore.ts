@@ -1,6 +1,6 @@
 // Per-version credential store, backed by Azure Table Storage.
 // Stores generic credentials (bearer tokens, API keys, basic auth, cookies)
-// for any auth type. Shared lib — imported by versionAuth function and d360Proxy.
+// for any auth type. Shared lib — imported by versionAuth function and proxy.
 
 import { TableClient, RestError } from "@azure/data-tables";
 
