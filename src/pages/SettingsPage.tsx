@@ -43,6 +43,16 @@ const NAV_ITEMS: SettingsNavItem[] = [
     ),
   },
   {
+    to: "/settings/connections",
+    label: "Connections",
+    minRole: "qa_manager",
+    icon: (
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m9.86-1.135a4.5 4.5 0 0 0-1.242-7.244l-4.5-4.5a4.5 4.5 0 0 0-6.364 6.364L4.34 8.303" />
+      </svg>
+    ),
+  },
+  {
     to: "/settings/api-keys",
     label: "API Keys",
     minRole: "qa_manager",
