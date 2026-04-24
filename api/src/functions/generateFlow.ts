@@ -484,7 +484,11 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   // Extract common required fields for both prompt injection AND post-processing
   const commonFields = specContext ? extractCommonRequiredFields(specContext) : [];
   const projVarMap = buildProjVarMap(commonFields, projVars);
-  console.log(`[generateFlow] specContext length=${specContext.length}, commonFields=${JSON.stringify(commonFields)}, projVarMap=${JSON.stringify(projVarMap)}`);
+  // Diagnostic: log required fields patterns found in specContext
+  const reqFieldLines = specContext.split("\n").filter(l => l.includes("REQUIRED FIELDS") || l.includes("**YES**"));
+  console.log(`[generateFlow] specContext length=${specContext.length}, specFiles=${JSON.stringify(body.specFiles)}`);
+  console.log(`[generateFlow] REQUIRED FIELDS lines found: ${reqFieldLines.length}`, reqFieldLines.slice(0, 10));
+  console.log(`[generateFlow] commonFields=${JSON.stringify(commonFields)}, projVarMap=${JSON.stringify(projVarMap)}`);
 
   if (commonFields.length > 0) {
     const fieldList = commonFields.map(f => `\`${f}\``).join(", ");

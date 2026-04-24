@@ -1478,7 +1478,7 @@ export function SpecFilesPage() {
         try {
           const prompt = buildFlowPrompt(idea);
           const relevantSpecs = filterRelevantSpecs(idea, specFileNames);
-          console.log(`[FlowGen] Calling API for "${idea.title}" with ${relevantSpecs.length} spec files`);
+          console.log(`[FlowGen] Calling API for "${idea.title}" with ${relevantSpecs.length} spec files:`, relevantSpecs, `(from ${specFileNames.length} total:`, specFileNames, `)`);
           const result = await generateFlowXml(prompt, relevantSpecs, aiModel, ctrl.signal);
           console.log(`[FlowGen] Success for "${idea.title}" — ${result.xml.length} chars`);
 
