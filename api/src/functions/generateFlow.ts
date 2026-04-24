@@ -6,6 +6,7 @@ import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../li
 import { checkCredits, recordUsage } from "../lib/aiCredits";
 import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRules";
 import { loadProjectVariables, injectProjectVariables } from "../lib/projectVariables";
+import { extractRequiredFieldsSummary } from "../lib/specRequiredFields";
 
 /** Strip markdown fences AND any preamble text before the XML declaration. */
 function cleanXmlResponse(raw: string): string {
@@ -280,6 +281,7 @@ function truncateContext(sections: string[]): string {
   return result.join("\n\n---\n\n");
 }
 
+
 /** POST /api/generate-flow
  *  Body: { prompt: string; specFiles?: string[]; stream?: boolean }
  *  Response: SSE stream of text chunks, or JSON { xml: string }
@@ -358,8 +360,9 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   console.log(`[generateFlow] apiRules loaded: ${apiRules.length} chars`);
   const projVars = await loadProjectVariables(projectId);
   console.log(`[generateFlow] projVars:`, projVars.map(v => v.name));
+  const requiredFieldsSummary = specContext ? extractRequiredFieldsSummary(specContext) : "";
   const userMessage = specContext
-    ? `${body.prompt}${scopeNote}\n\n# Relevant API Specification\n\n${specContext}`
+    ? `${body.prompt}${scopeNote}\n\n# Relevant API Specification\n\n${specContext}${requiredFieldsSummary}`
     : body.prompt;
 
   const shouldStream = body.stream !== false; // default to streaming
