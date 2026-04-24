@@ -186,8 +186,6 @@ function DesignTab({ testId }: { testId: string }) {
     projectVars[v.name] = v.value;
   }
 
-  console.log("[DesignTab] rendering for:", testId, "method:", typeof def.method, "name:", typeof def.name);
-
   // Rewrite the leading /vN/ to the currently-selected API version so the
   // preview matches what the runner will actually hit.
   const displayPath = rewriteApiVersion(def.path, apiVersion);
@@ -1010,10 +1008,6 @@ export function DetailPane({ testId, onClose }: DetailPaneProps) {
 
   const status: TestStatus = result?.status ?? "idle";
   const badge = statusBadge[status];
-
-  console.log("[DetailPane] rendering testId:", testId, "status:", status, "activeTab:", activeTab,
-    "def.method:", typeof def.method, def.method,
-    "def.name:", typeof def.name, def.name);
 
   return (
     <div className="bg-white flex flex-col h-full overflow-hidden w-full">
