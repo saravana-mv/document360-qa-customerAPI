@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { parseCurl, maskCredential, authTypeLabel } from "../../lib/curlParser";
+import { parseCurl, authTypeLabel } from "../../lib/curlParser";
 import type { CurlParseResult } from "../../lib/curlParser";
-import { saveCredential, deleteCredential, getVersionAuthStatus } from "../../lib/api/versionAuthApi";
+import { deleteCredential } from "../../lib/api/versionAuthApi";
 import { useScenarioOrgStore } from "../../store/scenarioOrg.store";
 import { useConnectionsStore } from "../../store/connections.store";
-import type { AuthType, VersionConfig } from "../../store/scenarioOrg.store";
+import type { VersionConfig } from "../../store/scenarioOrg.store";
 import type { DetectedEndpoint } from "../../lib/spec/autoDetectEndpoint";
+import { ProviderBadge } from "../connections/ConnectionFormModal";
 
 interface ConnectEndpointModalProps {
   version: string;
@@ -14,63 +15,37 @@ interface ConnectEndpointModalProps {
 
 type Tab = "curl" | "manual";
 
-const AUTH_TYPE_OPTIONS: { value: AuthType; label: string }[] = [
-  { value: "bearer", label: "Bearer Token" },
-  { value: "apikey_header", label: "API Key (Header)" },
-  { value: "apikey_query", label: "API Key (Query Param)" },
-  { value: "basic", label: "Basic Auth" },
-  { value: "cookie", label: "Session Cookie" },
-  { value: "oauth", label: "OAuth Connection" },
-  { value: "none", label: "No Auth" },
-];
-
 export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalProps) {
   const versionConfig = useScenarioOrgStore((s) => s.versionConfigs[version]);
   const setVersionConfig = useScenarioOrgStore((s) => s.setVersionConfig);
   const detectedEndpoint = useScenarioOrgStore((s) => s.detectedEndpoint);
 
-  const [tab, setTab] = useState<Tab>("curl");
+  const [tab, setTab] = useState<Tab>("manual");
   const [curlInput, setCurlInput] = useState("");
   const [parsed, setParsed] = useState<CurlParseResult | null>(null);
 
-  // Manual form state
+  // Core fields
   const [baseUrl, setBaseUrl] = useState(versionConfig?.baseUrl ?? "");
   const [apiVersion, setApiVersion] = useState(versionConfig?.apiVersion ?? "");
-  const [authType, setAuthType] = useState<AuthType>(versionConfig?.authType ?? "none");
-  const [credential, setCredential] = useState("");
-  const [authHeaderName, setAuthHeaderName] = useState(versionConfig?.authHeaderName ?? "");
-  const [authQueryParam, setAuthQueryParam] = useState(versionConfig?.authQueryParam ?? "");
   const [endpointLabel, setEndpointLabel] = useState(versionConfig?.endpointLabel ?? "");
-
   const [connectionId, setConnectionId] = useState(versionConfig?.connectionId ?? "");
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
 
-  // Load OAuth connections for the picker
+  // Load connections for the picker
   const { connections, authStatus: connAuthStatus, load: loadConnections } = useConnectionsStore();
   useEffect(() => { void loadConnections(); }, [loadConnections]);
 
-  // Check current auth status on mount
-  const [serverConfigured, setServerConfigured] = useState(versionConfig?.credentialConfigured ?? false);
-  useEffect(() => {
-    getVersionAuthStatus(version)
-      .then((s) => setServerConfigured(s.configured))
-      .catch(() => { /* ignore */ });
-  }, [version]);
 
   function handleParseCurl() {
     if (!curlInput.trim()) return;
     const result = parseCurl(curlInput);
     setParsed(result);
-    // Auto-fill manual form from parsed result
+    // Auto-fill base URL and version from parsed result
     if (result.baseUrl) setBaseUrl(result.baseUrl);
     if (result.apiVersion) setApiVersion(result.apiVersion);
-    setAuthType(result.authType);
-    setCredential(result.credential);
-    if (result.authHeaderName) setAuthHeaderName(result.authHeaderName);
-    if (result.authQueryParam) setAuthQueryParam(result.authQueryParam);
     if (result.baseUrl) {
       try {
         const host = new URL(result.baseUrl).hostname;
@@ -83,28 +58,14 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
     setSaving(true);
     setError(null);
     try {
-      // Save credential server-side (if not "none" or "oauth")
-      const needsServerCred = authType !== "none" && authType !== "oauth";
-      if (needsServerCred && credential.trim()) {
-        await saveCredential({
-          version,
-          authType,
-          credential: credential.trim(),
-          authHeaderName: authType === "apikey_header" ? authHeaderName || undefined : undefined,
-          authQueryParam: authType === "apikey_query" ? authQueryParam || undefined : undefined,
-        });
-      }
-
-      // Update version config in store
+      const selectedConn = connections.find((c) => c.id === connectionId);
       const config: VersionConfig = {
         baseUrl: baseUrl.trim(),
         apiVersion: apiVersion.trim(),
-        authType,
-        authHeaderName: authType === "apikey_header" ? authHeaderName : undefined,
-        authQueryParam: authType === "apikey_query" ? authQueryParam : undefined,
-        credentialConfigured: needsServerCred && !!credential.trim(),
+        authType: selectedConn?.provider === "oauth2" ? "oauth" : connectionId ? (selectedConn?.provider ?? "none") : "none",
+        credentialConfigured: !!connectionId && selectedConn?.provider !== "oauth2",
         endpointLabel: endpointLabel.trim() || undefined,
-        connectionId: authType === "oauth" ? connectionId || undefined : undefined,
+        connectionId: connectionId || undefined,
       };
       setVersionConfig(version, config);
       onClose();
@@ -138,16 +99,15 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
   function applyDetectedEndpoint(ep: DetectedEndpoint) {
     if (ep.baseUrl) setBaseUrl(ep.baseUrl);
     if (ep.apiVersion) setApiVersion(ep.apiVersion);
-    setAuthType(ep.authType);
-    if (ep.authHeaderName) setAuthHeaderName(ep.authHeaderName);
-    if (ep.authQueryParam) setAuthQueryParam(ep.authQueryParam);
     if (ep.endpointLabel) setEndpointLabel(ep.endpointLabel);
     setTab("manual");
   }
 
-  const isConnected = versionConfig?.credentialConfigured || (versionConfig?.authType === "oauth" && !!versionConfig?.connectionId);
-  const canSave = baseUrl.trim() && (authType === "none" || (authType === "oauth" ? !!connectionId : !!credential.trim()));
+  const isConnected = !!connectionId || versionConfig?.credentialConfigured || (versionConfig?.authType === "oauth" && !!versionConfig?.connectionId);
+  const canSave = baseUrl.trim();
   const showSpecBanner = !!detectedEndpoint && !isConnected && !baseUrl;
+
+  const selectedConn = connections.find((c) => c.id === connectionId);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
@@ -181,6 +141,21 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
         {/* Tabs */}
         <div className="flex border-b border-[#d1d9e0]">
           <button
+            onClick={() => setTab("manual")}
+            className={`flex-1 px-4 py-2.5 text-xs font-medium transition-colors ${
+              tab === "manual"
+                ? "text-[#0969da] border-b-2 border-[#0969da] bg-white"
+                : "text-[#656d76] hover:text-[#1f2328] hover:bg-[#f6f8fa]"
+            }`}
+          >
+            <span className="flex items-center justify-center gap-1.5">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
+              </svg>
+              Configure
+            </span>
+          </button>
+          <button
             onClick={() => setTab("curl")}
             className={`flex-1 px-4 py-2.5 text-xs font-medium transition-colors ${
               tab === "curl"
@@ -193,21 +168,6 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
                 <path strokeLinecap="round" strokeLinejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" />
               </svg>
               Paste cURL
-            </span>
-          </button>
-          <button
-            onClick={() => setTab("manual")}
-            className={`flex-1 px-4 py-2.5 text-xs font-medium transition-colors ${
-              tab === "manual"
-                ? "text-[#0969da] border-b-2 border-[#0969da] bg-white"
-                : "text-[#656d76] hover:text-[#1f2328] hover:bg-[#f6f8fa]"
-            }`}
-          >
-            <span className="flex items-center justify-center gap-1.5">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
-              </svg>
-              Manual
             </span>
           </button>
         </div>
@@ -238,7 +198,7 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
             <>
               <div>
                 <label className="block text-xs font-medium text-[#1f2328] mb-1.5">
-                  Paste a cURL command from your API
+                  Paste a cURL command to auto-detect base URL and version
                 </label>
                 <textarea
                   value={curlInput}
@@ -275,25 +235,12 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
                     <span className="text-[#1f2328]">{parsed.apiVersion || "—"}</span>
                     <span className="text-[#656d76]">Auth Type</span>
                     <span className="text-[#1f2328]">{authTypeLabel(parsed.authType)}</span>
-                    {parsed.credential && (
-                      <>
-                        <span className="text-[#656d76]">Credential</span>
-                        <span className="text-[#1f2328] font-mono">{maskCredential(parsed.credential)}</span>
-                      </>
-                    )}
-                    {parsed.authHeaderName && (
-                      <>
-                        <span className="text-[#656d76]">Header Name</span>
-                        <span className="text-[#1f2328] font-mono">{parsed.authHeaderName}</span>
-                      </>
-                    )}
-                    {parsed.authQueryParam && (
-                      <>
-                        <span className="text-[#656d76]">Query Param</span>
-                        <span className="text-[#1f2328] font-mono">{parsed.authQueryParam}</span>
-                      </>
-                    )}
                   </div>
+                  {parsed.authType !== "none" && (
+                    <p className="text-xs text-[#656d76] mt-1">
+                      Credentials detected but not stored here. Create a connection in Settings &rarr; Connections to manage auth.
+                    </p>
+                  )}
                   {parsed.warnings.map((w, i) => (
                     <p key={i} className="text-xs text-[#9a6700] flex items-start gap-1.5">
                       <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -307,21 +254,15 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
 
               {parsed && parsed.baseUrl && (
                 <p className="text-xs text-[#656d76]">
-                  The detected values have been pre-filled in the form below. Review and adjust if needed.
+                  Base URL and version have been pre-filled. Switch to Configure tab to select a connection and save.
                 </p>
               )}
             </>
           )}
 
-          {/* Manual form (always visible below cURL result, or as primary in Manual tab) */}
-          {(tab === "manual" || (tab === "curl" && parsed?.baseUrl)) && (
+          {/* Manual / Configure tab */}
+          {tab === "manual" && (
             <div className="space-y-3">
-              {tab === "manual" && (
-                <p className="text-xs text-[#656d76]">
-                  Enter your API endpoint details manually.
-                </p>
-              )}
-
               <div className="flex items-center gap-2">
                 <label className="text-xs text-[#656d76] w-24 shrink-0">Label</label>
                 <input
@@ -352,91 +293,49 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
                 />
               </div>
 
+              {/* Connection picker */}
               <div className="flex items-start gap-2">
-                <label className="text-xs text-[#656d76] w-24 shrink-0 pt-1.5">Auth Type</label>
-                <select
-                  value={authType}
-                  onChange={(e) => setAuthType(e.target.value as AuthType)}
-                  className="flex-1 text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
-                >
-                  {AUTH_TYPE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Auth-specific fields */}
-              {authType === "apikey_header" && (
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-[#656d76] w-24 shrink-0">Header Name</label>
-                  <input
-                    className="flex-1 text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
-                    value={authHeaderName}
-                    onChange={(e) => setAuthHeaderName(e.target.value)}
-                    placeholder="X-Api-Key"
-                  />
-                </div>
-              )}
-
-              {authType === "apikey_query" && (
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-[#656d76] w-24 shrink-0">Param Name</label>
-                  <input
-                    className="flex-1 text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
-                    value={authQueryParam}
-                    onChange={(e) => setAuthQueryParam(e.target.value)}
-                    placeholder="api_key"
-                  />
-                </div>
-              )}
-
-              {authType !== "none" && authType !== "oauth" && (
-                <div className="flex items-start gap-2">
-                  <label className="text-xs text-[#656d76] w-24 shrink-0 pt-1.5">Credential</label>
-                  <div className="flex-1 space-y-1">
-                    <input
-                      type="password"
-                      className="w-full text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
-                      value={credential}
-                      onChange={(e) => setCredential(e.target.value)}
-                      placeholder={
-                        authType === "bearer" ? "Paste bearer token" :
-                        authType === "basic" ? "Base64-encoded user:pass" :
-                        authType === "cookie" ? "session=abc123; other=xyz" :
-                        "Paste credential"
-                      }
-                    />
-                    {serverConfigured && !credential && (
-                      <p className="text-xs text-[#1a7f37] flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-[#1a7f37] shrink-0" />
-                        Credential already stored — leave blank to keep current
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {authType === "oauth" && (
-                <div className="space-y-2 ml-[6.5rem]">
+                <label className="text-xs text-[#656d76] w-24 shrink-0 pt-1.5">Connection</label>
+                <div className="flex-1 space-y-1.5">
                   <select
                     value={connectionId}
                     onChange={(e) => setConnectionId(e.target.value)}
                     className="w-full text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
                   >
-                    <option value="">Select a connection...</option>
-                    {connections.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}{connAuthStatus[c.id]?.authenticated ? " \u2713" : ""}</option>
-                    ))}
+                    <option value="">No auth</option>
+                    {connections.map((c) => {
+                      const isOAuth = c.provider === "oauth2";
+                      const oauthOk = isOAuth && connAuthStatus[c.id]?.authenticated;
+                      const tokenOk = !isOAuth && c.hasCredential;
+                      const suffix = oauthOk ? " \u2713" : tokenOk ? " \u2713" : "";
+                      return (
+                        <option key={c.id} value={c.id}>{c.name}{suffix}</option>
+                      );
+                    })}
                   </select>
-                  {connectionId && connAuthStatus[connectionId]?.authenticated && (
+
+                  {/* Status indicator for selected connection */}
+                  {selectedConn && selectedConn.provider === "oauth2" && connAuthStatus[selectedConn.id]?.authenticated && (
                     <p className="text-xs text-[#1a7f37] flex items-center gap-1">
                       <span className="w-2 h-2 rounded-full bg-[#1a7f37] shrink-0" />
-                      Connected
+                      OAuth connected
                     </p>
                   )}
-                  {connectionId && !connAuthStatus[connectionId]?.authenticated && (
+                  {selectedConn && selectedConn.provider === "oauth2" && !connAuthStatus[selectedConn.id]?.authenticated && (
                     <p className="text-xs text-[#656d76]">
                       Not connected — go to Settings &rarr; Connections to authenticate.
+                    </p>
+                  )}
+                  {selectedConn && selectedConn.provider !== "oauth2" && selectedConn.hasCredential && (
+                    <p className="text-xs text-[#1a7f37] flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-[#1a7f37] shrink-0" />
+                      <ProviderBadge provider={selectedConn.provider} />
+                      <span>Credential configured</span>
+                    </p>
+                  )}
+                  {selectedConn && selectedConn.provider !== "oauth2" && !selectedConn.hasCredential && (
+                    <p className="text-xs text-[#656d76]">
+                      No credential stored — go to Settings &rarr; Connections to add one.
                     </p>
                   )}
                   {connections.length === 0 && (
@@ -445,7 +344,7 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
                     </p>
                   )}
                 </div>
-              )}
+              </div>
             </div>
           )}
 

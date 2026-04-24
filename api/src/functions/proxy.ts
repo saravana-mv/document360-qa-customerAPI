@@ -10,9 +10,10 @@
 // the token store do.
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import { withAuth, parseClientPrincipal } from "../lib/auth";
+import { withAuth, parseClientPrincipal, getProjectId } from "../lib/auth";
 import { getValidOAuthToken } from "../lib/oauthTokenStore";
 import { getCredentialForVersion, getApiKeyForVersion } from "../lib/versionApiKeyStore";
+import { getConnectionsContainer } from "../lib/cosmosClient";
 
 const DEFAULT_BASE_URL =
   (process.env.DEFAULT_API_BASE_URL ?? "").replace(/\/+$/, "");
@@ -129,8 +130,56 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
 
   if (noAuth) {
     forwardHeaders["Authorization"] = "Bearer __invalid__";
+  } else if (connectionId) {
+    // Connection-based auth: look up the connection doc from Cosmos
+    const projectId = getProjectId(req);
+    const container = await getConnectionsContainer();
+    let connDoc: { provider: string; credential?: string; authHeaderName?: string; authQueryParam?: string } | undefined;
+    try {
+      const { resource } = await container.item(connectionId, projectId).read();
+      connDoc = resource as typeof connDoc;
+    } catch { /* not found */ }
+
+    if (!connDoc) {
+      return errJson(404, "Connection not found", { code: "CONNECTION_NOT_FOUND", connectionId });
+    }
+
+    if (connDoc.provider === "oauth2") {
+      // OAuth: fetch stored OAuth token for the given connection
+      let accessToken = "";
+      try {
+        ({ accessToken } = await getValidOAuthToken(principal.userId, connectionId));
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg === "OAUTH_NOT_AUTHENTICATED" || msg === "OAUTH_REFRESH_UNAVAILABLE") {
+          return errJson(401, "OAuth sign-in required", { code: msg });
+        }
+        return errJson(502, `Token refresh failed: ${msg}`);
+      }
+      forwardHeaders["Authorization"] = `Bearer ${accessToken}`;
+    } else {
+      // Token-based auth from connection doc
+      const cred = connDoc.credential;
+      if (!cred) {
+        return errJson(401, "Connection has no credential stored", { code: "CONNECTION_NO_CREDENTIAL", connectionId });
+      }
+      if (connDoc.provider === "bearer") {
+        forwardHeaders["Authorization"] = `Bearer ${cred}`;
+      } else if (connDoc.provider === "apikey_header") {
+        const headerName = connDoc.authHeaderName || "api_token";
+        forwardHeaders[headerName] = cred;
+      } else if (connDoc.provider === "apikey_query") {
+        const paramName = connDoc.authQueryParam || "api_key";
+        const separator = upstreamUrl.includes("?") ? "&" : "?";
+        upstreamUrl = `${upstreamUrl}${separator}${encodeURIComponent(paramName)}=${encodeURIComponent(cred)}`;
+      } else if (connDoc.provider === "basic") {
+        forwardHeaders["Authorization"] = `Basic ${cred}`;
+      } else if (connDoc.provider === "cookie") {
+        forwardHeaders["Cookie"] = cred;
+      }
+    }
   } else if (authTypeHint && authTypeHint !== "none" && authTypeHint !== "oauth" && versionHint) {
-    // Generic credential auth: fetch stored credential and inject based on type
+    // Legacy: per-user credential auth via Azure Table Storage
     const stored = await getCredentialForVersion(principal.userId, versionHint);
     if (!stored) {
       return errJson(401, "Credentials not configured for this version", { code: "CREDENTIAL_NOT_CONFIGURED", version: versionHint });
@@ -152,26 +201,9 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
     } else if (effectiveAuthType === "cookie") {
       forwardHeaders["Cookie"] = cred;
     } else {
-      // Fallback for any unrecognized auth type — inject as api_token query param
       const separator = upstreamUrl.includes("?") ? "&" : "?";
       upstreamUrl = `${upstreamUrl}${separator}api_token=${encodeURIComponent(cred)}`;
     }
-  } else if (authTypeHint === "oauth" || !authTypeHint) {
-    // OAuth: fetch stored OAuth token for the given connection
-    if (!connectionId) {
-      return errJson(401, "OAuth connection ID required", { code: "OAUTH_CONNECTION_ID_REQUIRED" });
-    }
-    let accessToken = "";
-    try {
-      ({ accessToken } = await getValidOAuthToken(principal.userId, connectionId));
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg === "OAUTH_NOT_AUTHENTICATED" || msg === "OAUTH_REFRESH_UNAVAILABLE") {
-        return errJson(401, "OAuth sign-in required", { code: msg });
-      }
-      return errJson(502, `Token refresh failed: ${msg}`);
-    }
-    forwardHeaders["Authorization"] = `Bearer ${accessToken}`;
   }
   req.headers.forEach((value, key) => {
     if (ALLOWED_REQUEST_HEADERS.has(key.toLowerCase())) {

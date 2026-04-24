@@ -24,18 +24,28 @@ function err(status: number, message: string): HttpResponseInit {
   return { status, headers: { ...CORS_HEADERS, "Content-Type": "application/json" }, body: JSON.stringify({ error: message }) };
 }
 
+type ConnectionProvider = "oauth2" | "bearer" | "apikey_header" | "apikey_query" | "basic" | "cookie";
+
 interface ConnectionDoc {
   id: string;
   projectId: string;
   type: "connection";
   name: string;
-  provider: "oauth2";
-  authorizationUrl: string;
-  tokenUrl: string;
-  clientId: string;
+  provider: ConnectionProvider;
+
+  // OAuth-specific (provider === "oauth2")
+  authorizationUrl?: string;
+  tokenUrl?: string;
+  clientId?: string;
   clientSecret?: string;          // Stored server-side, never returned to client
-  scopes: string;
-  redirectUri: string;
+  scopes?: string;
+  redirectUri?: string;
+
+  // Token-based (all non-oauth providers)
+  credential?: string;            // Stored server-side, never returned to client
+  authHeaderName?: string;        // For apikey_header
+  authQueryParam?: string;        // For apikey_query
+
   createdAt: string;
   createdBy: { oid: string; name: string };
   updatedAt: string;
@@ -43,9 +53,9 @@ interface ConnectionDoc {
 }
 
 /** Strip secret fields before returning to client. */
-function sanitize(doc: ConnectionDoc): Omit<ConnectionDoc, "clientSecret"> & { hasSecret: boolean } {
-  const { clientSecret, ...rest } = doc;
-  return { ...rest, hasSecret: !!clientSecret };
+function sanitize(doc: ConnectionDoc) {
+  const { clientSecret, credential, ...rest } = doc;
+  return { ...rest, hasSecret: !!clientSecret, hasCredential: !!credential };
 }
 
 async function listConnections(req: HttpRequest): Promise<HttpResponseInit> {
@@ -65,19 +75,29 @@ async function listConnections(req: HttpRequest): Promise<HttpResponseInit> {
   }
 }
 
+const VALID_PROVIDERS = new Set<ConnectionProvider>(["oauth2", "bearer", "apikey_header", "apikey_query", "basic", "cookie"]);
+
 async function createConnection(req: HttpRequest): Promise<HttpResponseInit> {
   try {
     const projectId = getProjectId(req);
     const user = getUserInfo(req);
-    const body = (await req.json()) as Partial<ConnectionDoc>;
+    const body = (await req.json()) as Partial<ConnectionDoc> & { provider?: string };
 
     if (!body.name?.trim()) return err(400, "name is required");
-    if (!body.authorizationUrl?.trim()) return err(400, "authorizationUrl is required");
-    if (!body.tokenUrl?.trim()) return err(400, "tokenUrl is required");
-    if (!body.clientId?.trim()) return err(400, "clientId is required");
+    const provider = (body.provider || "oauth2") as ConnectionProvider;
+    if (!VALID_PROVIDERS.has(provider)) return err(400, `Invalid provider: ${body.provider}`);
+
+    if (provider === "oauth2") {
+      if (!body.authorizationUrl?.trim()) return err(400, "authorizationUrl is required");
+      if (!body.tokenUrl?.trim()) return err(400, "tokenUrl is required");
+      if (!body.clientId?.trim()) return err(400, "clientId is required");
+    } else {
+      if (!body.credential?.trim()) return err(400, "credential is required");
+      if (provider === "apikey_header" && !body.authHeaderName?.trim()) return err(400, "authHeaderName is required for API Key (Header)");
+      if (provider === "apikey_query" && !body.authQueryParam?.trim()) return err(400, "authQueryParam is required for API Key (Query)");
+    }
 
     const id = randomUUID();
-    // All connections share a single callback URL — connectionId is tracked in sessionStorage
     const redirectUri = body.redirectUri?.trim() || `/callback`;
 
     const doc: ConnectionDoc = {
@@ -85,13 +105,18 @@ async function createConnection(req: HttpRequest): Promise<HttpResponseInit> {
       projectId,
       type: "connection",
       name: body.name.trim(),
-      provider: "oauth2",
-      authorizationUrl: body.authorizationUrl.trim(),
-      tokenUrl: body.tokenUrl.trim(),
-      clientId: body.clientId.trim(),
-      clientSecret: body.clientSecret?.trim() || undefined,
-      scopes: body.scopes?.trim() ?? "",
-      redirectUri,
+      provider,
+      // OAuth fields
+      authorizationUrl: provider === "oauth2" ? body.authorizationUrl!.trim() : undefined,
+      tokenUrl: provider === "oauth2" ? body.tokenUrl!.trim() : undefined,
+      clientId: provider === "oauth2" ? body.clientId!.trim() : undefined,
+      clientSecret: provider === "oauth2" ? (body.clientSecret?.trim() || undefined) : undefined,
+      scopes: provider === "oauth2" ? (body.scopes?.trim() ?? "") : undefined,
+      redirectUri: provider === "oauth2" ? redirectUri : undefined,
+      // Token fields
+      credential: provider !== "oauth2" ? body.credential!.trim() : undefined,
+      authHeaderName: provider === "apikey_header" ? body.authHeaderName!.trim() : undefined,
+      authQueryParam: provider === "apikey_query" ? body.authQueryParam!.trim() : undefined,
       createdAt: new Date().toISOString(),
       createdBy: user,
       updatedAt: new Date().toISOString(),
@@ -128,14 +153,28 @@ async function updateConnection(req: HttpRequest): Promise<HttpResponseInit> {
     const body = (await req.json()) as Partial<ConnectionDoc>;
 
     existing.name = body.name?.trim() || existing.name;
-    existing.authorizationUrl = body.authorizationUrl?.trim() || existing.authorizationUrl;
-    existing.tokenUrl = body.tokenUrl?.trim() || existing.tokenUrl;
-    existing.clientId = body.clientId?.trim() || existing.clientId;
-    existing.scopes = body.scopes?.trim() ?? existing.scopes;
-    // Only update secret if explicitly provided (empty string clears it)
-    if (body.clientSecret !== undefined) {
-      existing.clientSecret = body.clientSecret.trim() || undefined;
+
+    if (existing.provider === "oauth2") {
+      existing.authorizationUrl = body.authorizationUrl?.trim() || existing.authorizationUrl;
+      existing.tokenUrl = body.tokenUrl?.trim() || existing.tokenUrl;
+      existing.clientId = body.clientId?.trim() || existing.clientId;
+      existing.scopes = body.scopes?.trim() ?? existing.scopes;
+      if (body.clientSecret !== undefined) {
+        existing.clientSecret = body.clientSecret.trim() || undefined;
+      }
+    } else {
+      // Token-based providers: update credential if provided
+      if (body.credential !== undefined && body.credential.trim()) {
+        existing.credential = body.credential.trim();
+      }
+      if (existing.provider === "apikey_header" && body.authHeaderName !== undefined) {
+        existing.authHeaderName = body.authHeaderName.trim() || existing.authHeaderName;
+      }
+      if (existing.provider === "apikey_query" && body.authQueryParam !== undefined) {
+        existing.authQueryParam = body.authQueryParam.trim() || existing.authQueryParam;
+      }
     }
+
     existing.updatedAt = new Date().toISOString();
     existing.updatedBy = user;
 

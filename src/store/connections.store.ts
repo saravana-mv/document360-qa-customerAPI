@@ -95,8 +95,11 @@ export const useConnectionsStore = create<ConnectionsState>((set, get) => ({
 
   fetchAllStatuses: async () => {
     const { connections } = get();
+    // Only poll OAuth connections — token-based connections don't have token status
+    const oauthConns = connections.filter((c) => c.provider === "oauth2");
+    if (oauthConns.length === 0) return;
     const results = await Promise.allSettled(
-      connections.map((c) => getOAuthStatus(c.id).then((s) => ({ id: c.id, status: s }))),
+      oauthConns.map((c) => getOAuthStatus(c.id).then((s) => ({ id: c.id, status: s }))),
     );
     const statuses: Record<string, OAuthStatus> = {};
     for (const r of results) {

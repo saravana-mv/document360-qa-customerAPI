@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useConnectionsStore } from "../store/connections.store";
 import { Spinner } from "../components/common/Spinner";
-import { ConnectionFormModal } from "../components/connections/ConnectionFormModal";
+import { ConnectionFormModal, ProviderBadge } from "../components/connections/ConnectionFormModal";
 import { startConnectionAuthFlow } from "../lib/oauth/flow";
 import type { Connection } from "../lib/api/connectionsApi";
 
@@ -65,14 +65,15 @@ export function ConnectionsPage() {
     }
   }, [searchParams, setSearchParams, fetchStatus]);
 
-  // Periodic status polling — refresh all statuses every 30s
+  // Periodic status polling — refresh all statuses every 30s (OAuth only)
   useEffect(() => {
-    if (connections.length === 0) return;
+    const oauthConns = connections.filter((c) => c.provider === "oauth2");
+    if (oauthConns.length === 0) return;
     const interval = setInterval(() => {
       void fetchAllStatuses();
     }, STATUS_POLL_INTERVAL);
     return () => clearInterval(interval);
-  }, [connections.length, fetchAllStatuses]);
+  }, [connections, fetchAllStatuses]);
 
   // Tick every 10s for countdown updates
   useEffect(() => {
@@ -85,8 +86,8 @@ export function ConnectionsPage() {
     try {
       await startConnectionAuthFlow({
         id: conn.id,
-        authorizationUrl: conn.authorizationUrl,
-        clientId: conn.clientId,
+        authorizationUrl: conn.authorizationUrl!,
+        clientId: conn.clientId!,
         scopes: conn.scopes || "",
       });
     } catch (e) {
@@ -134,14 +135,23 @@ export function ConnectionsPage() {
     }
   }
 
-  function getStatusInfo(connId: string): {
+  function getStatusInfo(conn: Connection): {
     label: string;
     dotColor: string;
     textColor: string;
     bgColor: string;
     borderColor: string;
   } {
-    const status = authStatus[connId];
+    // Non-OAuth connections: show "Configured" if credential exists
+    if (conn.provider !== "oauth2") {
+      if (conn.hasCredential) {
+        return { label: "Configured", dotColor: "bg-[#1a7f37]", textColor: "text-[#1a7f37]", bgColor: "bg-[#dafbe1]", borderColor: "border-[#1a7f37]/20" };
+      }
+      return { label: "No credential", dotColor: "bg-[#656d76]", textColor: "text-[#656d76]", bgColor: "bg-[#f6f8fa]", borderColor: "border-[#d1d9e0]" };
+    }
+
+    // OAuth status
+    const status = authStatus[conn.id];
     if (!status?.authenticated) {
       return { label: "Not connected", dotColor: "bg-[#656d76]", textColor: "text-[#656d76]", bgColor: "bg-[#f6f8fa]", borderColor: "border-[#d1d9e0]" };
     }
@@ -151,16 +161,17 @@ export function ConnectionsPage() {
       }
       return { label: "Expired", dotColor: "bg-[#d1242f]", textColor: "text-[#d1242f]", bgColor: "bg-[#ffebe9]", borderColor: "border-[#ffcecb]" };
     }
-    // Connected — show time remaining
     const expiresInMs = status.expiresAt ? status.expiresAt - Date.now() : 0;
     if (expiresInMs < 300_000 && expiresInMs > 0) {
-      // Less than 5 min — warning
       return { label: `Expires in ${formatTimeRemaining(expiresInMs)}`, dotColor: "bg-[#bf8700]", textColor: "text-[#bf8700]", bgColor: "bg-[#fff8c5]", borderColor: "border-[#d4a72c]/30" };
     }
     return { label: "Connected", dotColor: "bg-[#1a7f37]", textColor: "text-[#1a7f37]", bgColor: "bg-[#dafbe1]", borderColor: "border-[#1a7f37]/20" };
   }
 
   function renderConnectionDetail(conn: Connection) {
+    // Non-OAuth connections don't need token detail
+    if (conn.provider !== "oauth2") return null;
+
     const status = authStatus[conn.id];
     const hc = healthChecks[conn.id];
     if (!status?.authenticated) return null;
@@ -169,7 +180,6 @@ export function ConnectionsPage() {
 
     return (
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
-        {/* Token expiry */}
         {status.expiresAt && (
           <span className="text-xs text-[#656d76] flex items-center gap-1">
             <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -181,7 +191,6 @@ export function ConnectionsPage() {
           </span>
         )}
 
-        {/* Auto-refresh indicator */}
         {status.hasRefreshToken && (
           <span className="text-xs text-[#1a7f37] flex items-center gap-1">
             <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -199,14 +208,12 @@ export function ConnectionsPage() {
           </span>
         )}
 
-        {/* Last refreshed */}
         {status.lastRefreshedAt && (
           <span className="text-xs text-[#656d76]">
             Last refreshed {formatRelativeTime(status.lastRefreshedAt)}
           </span>
         )}
 
-        {/* Health check result */}
         {hc && !hc.loading && (
           <span className={`text-xs flex items-center gap-1 ${hc.healthy ? "text-[#1a7f37]" : "text-[#d1242f]"}`}>
             {hc.healthy ? (
@@ -234,7 +241,7 @@ export function ConnectionsPage() {
           <div>
             <h1 className="text-sm font-bold text-[#1f2328]">Connections</h1>
             <p className="text-sm text-[#656d76] mt-1">
-              Register OAuth apps to authenticate FlowForge against external APIs. Token status refreshes automatically.
+              Manage reusable authentication connections for your API endpoints. Supports OAuth 2.0, Bearer tokens, API keys, Basic Auth, and cookies.
             </p>
           </div>
           <button
@@ -267,7 +274,7 @@ export function ConnectionsPage() {
             </svg>
             <p className="text-sm font-medium text-[#1f2328] mb-1">No connections yet</p>
             <p className="text-sm text-[#656d76] mb-4">
-              Create a connection to authenticate against your API using OAuth 2.0.
+              Create a connection to authenticate against your API. Supports OAuth 2.0, Bearer tokens, API keys, and more.
             </p>
             <button
               onClick={() => setShowCreate(true)}
@@ -282,9 +289,10 @@ export function ConnectionsPage() {
         {connections.length > 0 && (
           <div className="border border-[#d1d9e0] rounded-lg divide-y divide-[#d1d9e0] bg-white">
             {connections.map((conn) => {
-              const si = getStatusInfo(conn.id);
+              const si = getStatusInfo(conn);
               const status = authStatus[conn.id];
               const hcLoading = healthChecks[conn.id]?.loading;
+              const isOAuth = conn.provider === "oauth2";
 
               return (
                 <div key={conn.id} className="px-4 py-3 hover:bg-[#f6f8fa]/50 transition-colors">
@@ -300,9 +308,7 @@ export function ConnectionsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-[#1f2328] truncate">{conn.name}</span>
-                        <span className="px-1.5 py-0.5 text-xs font-medium bg-[#ddf4ff] text-[#0969da] rounded-full uppercase tracking-wide shrink-0">
-                          OAuth 2.0
-                        </span>
+                        <ProviderBadge provider={conn.provider} />
                         {/* Status badge */}
                         <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${si.textColor} ${si.bgColor} border ${si.borderColor} shrink-0`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${si.dotColor}`} />
@@ -310,8 +316,10 @@ export function ConnectionsPage() {
                         </span>
                       </div>
                       <div className="flex items-center gap-3 mt-0.5">
-                        <span className="text-xs text-[#656d76] font-mono truncate">{conn.clientId}</span>
-                        {conn.hasSecret && (
+                        {isOAuth && conn.clientId && (
+                          <span className="text-xs text-[#656d76] font-mono truncate">{conn.clientId}</span>
+                        )}
+                        {isOAuth && conn.hasSecret && (
                           <span className="text-xs text-[#656d76] flex items-center gap-1 shrink-0">
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
@@ -319,67 +327,88 @@ export function ConnectionsPage() {
                             Secret stored
                           </span>
                         )}
+                        {!isOAuth && conn.hasCredential && (
+                          <span className="text-xs text-[#656d76] flex items-center gap-1 shrink-0">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                            </svg>
+                            Credential stored
+                          </span>
+                        )}
+                        {conn.provider === "apikey_header" && conn.authHeaderName && (
+                          <span className="text-xs text-[#656d76] font-mono truncate">Header: {conn.authHeaderName}</span>
+                        )}
+                        {conn.provider === "apikey_query" && conn.authQueryParam && (
+                          <span className="text-xs text-[#656d76] font-mono truncate">Param: {conn.authQueryParam}</span>
+                        )}
                       </div>
                     </div>
 
                     {/* Actions */}
                     <div className="flex items-center gap-1 shrink-0">
-                      {/* Health check */}
-                      {status?.authenticated && (
-                        <button
-                          onClick={() => void handleHealthCheck(conn)}
-                          disabled={!!hcLoading}
-                          className="p-1.5 text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff] rounded-md transition-colors disabled:opacity-50"
-                          title="Health check"
-                        >
-                          {hcLoading ? (
-                            <Spinner size="sm" className="text-[#656d76]" />
-                          ) : (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
-                            </svg>
+                      {/* OAuth-specific actions */}
+                      {isOAuth && (
+                        <>
+                          {/* Health check */}
+                          {status?.authenticated && (
+                            <button
+                              onClick={() => void handleHealthCheck(conn)}
+                              disabled={!!hcLoading}
+                              className="p-1.5 text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff] rounded-md transition-colors disabled:opacity-50"
+                              title="Health check"
+                            >
+                              {hcLoading ? (
+                                <Spinner size="sm" className="text-[#656d76]" />
+                              ) : (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+                                </svg>
+                              )}
+                            </button>
                           )}
-                        </button>
+
+                          {/* Refresh token */}
+                          {status?.authenticated && status?.hasRefreshToken && (
+                            <button
+                              onClick={() => void handleRefresh(conn)}
+                              disabled={refreshing === conn.id}
+                              className="p-1.5 text-[#656d76] hover:text-[#1a7f37] hover:bg-[#dafbe1] rounded-md transition-colors disabled:opacity-50"
+                              title="Refresh token now"
+                            >
+                              {refreshing === conn.id ? (
+                                <Spinner size="sm" className="text-[#656d76]" />
+                              ) : (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+                                </svg>
+                              )}
+                            </button>
+                          )}
+
+                          {/* Connect / Disconnect */}
+                          {status?.authenticated ? (
+                            <button
+                              onClick={() => void handleDisconnect(conn)}
+                              disabled={disconnecting === conn.id}
+                              className="px-2.5 py-1 text-sm font-medium text-[#656d76] bg-white border border-[#d1d9e0] rounded-md hover:bg-[#f6f8fa] hover:border-[#bbc0c5] transition-colors disabled:opacity-50"
+                              title="Disconnect"
+                            >
+                              {disconnecting === conn.id ? "..." : "Disconnect"}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => void handleConnect(conn)}
+                              disabled={connecting === conn.id}
+                              className="px-2.5 py-1 text-sm font-medium text-white bg-[#0969da] rounded-md hover:bg-[#0969da]/90 transition-colors disabled:opacity-50"
+                              title="Connect via OAuth"
+                            >
+                              {connecting === conn.id ? "..." : "Connect"}
+                            </button>
+                          )}
+                        </>
                       )}
 
-                      {/* Refresh token */}
-                      {status?.authenticated && status?.hasRefreshToken && (
-                        <button
-                          onClick={() => void handleRefresh(conn)}
-                          disabled={refreshing === conn.id}
-                          className="p-1.5 text-[#656d76] hover:text-[#1a7f37] hover:bg-[#dafbe1] rounded-md transition-colors disabled:opacity-50"
-                          title="Refresh token now"
-                        >
-                          {refreshing === conn.id ? (
-                            <Spinner size="sm" className="text-[#656d76]" />
-                          ) : (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
-                            </svg>
-                          )}
-                        </button>
-                      )}
-
-                      {/* Connect / Disconnect */}
-                      {status?.authenticated ? (
-                        <button
-                          onClick={() => void handleDisconnect(conn)}
-                          disabled={disconnecting === conn.id}
-                          className="px-2.5 py-1 text-sm font-medium text-[#656d76] bg-white border border-[#d1d9e0] rounded-md hover:bg-[#f6f8fa] hover:border-[#bbc0c5] transition-colors disabled:opacity-50"
-                          title="Disconnect"
-                        >
-                          {disconnecting === conn.id ? "..." : "Disconnect"}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => void handleConnect(conn)}
-                          disabled={connecting === conn.id}
-                          className="px-2.5 py-1 text-sm font-medium text-white bg-[#0969da] rounded-md hover:bg-[#0969da]/90 transition-colors disabled:opacity-50"
-                          title="Connect via OAuth"
-                        >
-                          {connecting === conn.id ? "..." : "Connect"}
-                        </button>
-                      )}
+                      {/* Edit — all types */}
                       <button
                         onClick={() => setEditing(conn)}
                         className="p-1.5 text-[#656d76] hover:text-[#1f2328] hover:bg-[#f6f8fa] rounded-md transition-colors"
@@ -389,6 +418,8 @@ export function ConnectionsPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
                         </svg>
                       </button>
+
+                      {/* Delete — all types */}
                       <button
                         onClick={() => void handleDelete(conn)}
                         disabled={deleting === conn.id}
@@ -402,7 +433,7 @@ export function ConnectionsPage() {
                     </div>
                   </div>
 
-                  {/* Detail row — expiry, refresh, health check */}
+                  {/* Detail row — expiry, refresh, health check (OAuth only) */}
                   {renderConnectionDetail(conn)}
                 </div>
               );
@@ -410,8 +441,8 @@ export function ConnectionsPage() {
           </div>
         )}
 
-        {/* Redirect URI help text */}
-        {connections.length > 0 && (
+        {/* Redirect URI help text — only if there are OAuth connections */}
+        {connections.some((c) => c.provider === "oauth2") && (
           <div className="mt-4 p-3 bg-[#f6f8fa] border border-[#d1d9e0] rounded-md">
             <p className="text-sm text-[#656d76]">
               <strong className="text-[#1f2328]">Redirect URI:</strong> When registering your OAuth app with the API provider,

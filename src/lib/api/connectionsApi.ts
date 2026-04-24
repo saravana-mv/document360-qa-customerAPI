@@ -1,16 +1,26 @@
 import { getProjectHeaders } from "./projectHeader";
 
+export type ConnectionProvider = "oauth2" | "bearer" | "apikey_header" | "apikey_query" | "basic" | "cookie";
+
 export interface Connection {
   id: string;
   projectId: string;
   name: string;
-  provider: "oauth2";
-  authorizationUrl: string;
-  tokenUrl: string;
-  clientId: string;
+  provider: ConnectionProvider;
+
+  // OAuth-specific
+  authorizationUrl?: string;
+  tokenUrl?: string;
+  clientId?: string;
   hasSecret: boolean;
-  scopes: string;
-  redirectUri: string;
+  scopes?: string;
+  redirectUri?: string;
+
+  // Token-based
+  hasCredential: boolean;
+  authHeaderName?: string;
+  authQueryParam?: string;
+
   createdAt: string;
   createdBy: { oid: string; name: string };
   updatedAt: string;
@@ -19,11 +29,17 @@ export interface Connection {
 
 export interface CreateConnectionPayload {
   name: string;
-  authorizationUrl: string;
-  tokenUrl: string;
-  clientId: string;
+  provider: ConnectionProvider;
+  // OAuth
+  authorizationUrl?: string;
+  tokenUrl?: string;
+  clientId?: string;
   clientSecret?: string;
   scopes?: string;
+  // Token-based
+  credential?: string;
+  authHeaderName?: string;
+  authQueryParam?: string;
 }
 
 export type UpdateConnectionPayload = Partial<CreateConnectionPayload>;
