@@ -5,6 +5,7 @@ import { DEFAULT_IDEAS_MODEL, resolveModel, priceFor, computeCost } from "../lib
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { checkCredits, recordUsage } from "../lib/aiCredits";
 import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRules";
+import { loadProjectVariables, injectProjectVariables } from "../lib/projectVariables";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -253,7 +254,8 @@ export async function generateFlowIdeasHandler(
   // Load and inject version-folder API rules (falls back to project-level)
   const versionFolder = extractVersionFolder(body.folderPath ?? "");
   const { rules: apiRules } = await loadApiRules(projectId, versionFolder ?? undefined);
-  const systemPrompt = injectApiRules(SYSTEM_PROMPT, apiRules);
+  const projVars = await loadProjectVariables(projectId);
+  const systemPrompt = injectProjectVariables(injectApiRules(SYSTEM_PROMPT, apiRules), projVars);
 
   // ── Resolve model ──
   const model = resolveModel(body.model, DEFAULT_IDEAS_MODEL);

@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
 import { withAuth, getProjectId } from "../lib/auth";
 import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRules";
+import { loadProjectVariables, injectProjectVariables } from "../lib/projectVariables";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -59,13 +60,15 @@ The child elements of \`<step>\` must appear in this order:
 
 \`\`\`xml
 <pathParams>
-  <param name="project_id">proj.project_id</param>
-  <param name="resource_id">{{state.createdResourceId}}</param>
+  <param name="myParam">proj.myVariable</param>            <!-- project variable (no {{ }} wrapper for pathParam values) -->
+  <param name="resource_id">{{state.createdResourceId}}</param>  <!-- state variable -->
 </pathParams>
 <queryParams>
-  <param name="lang_code">proj.lang_code</param>
+  <param name="some_param">proj.someVariable</param>
 </queryParams>
 \`\`\`
+
+**IMPORTANT**: Use the exact project variable names as listed in the "Available Project Variables" section below. Do NOT rename, convert case, or add underscores.
 
 ### Body
 
@@ -109,7 +112,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 
 ### Interpolation tokens (allowed in any text/attr value)
 
-- \`{{proj.variableName}}\` — project-level variable defined in Settings → Variables (e.g. proj.project_id, proj.lang_code)
+- \`{{proj.variableName}}\` — project-level variable defined in Settings → Variables. Use the EXACT names from the "Available Project Variables" section.
 - \`{{ctx.apiVersion}}\`, \`{{ctx.baseUrl}}\` — runtime context (API version, base URL)
 - \`{{state.variableName}}\` — value captured from a previous step
 - \`{{timestamp}}\` — Unix ms timestamp at execution time
@@ -174,7 +177,8 @@ async function editFlow(req: HttpRequest, _ctx: InvocationContext): Promise<Http
   try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
   const versionFolder = body.versionFolder?.trim() || null;
   const { rules: apiRules } = await loadApiRules(projectId, versionFolder ?? undefined);
-  const systemPrompt = injectApiRules(FLOW_EDIT_SYSTEM_PROMPT, apiRules);
+  const projVars = await loadProjectVariables(projectId);
+  const systemPrompt = injectProjectVariables(injectApiRules(FLOW_EDIT_SYSTEM_PROMPT, apiRules), projVars);
 
   try {
     const userMessage = `Here is the current flow XML:\n\n\`\`\`xml\n${body.xml}\n\`\`\`\n\nPlease apply the following changes:\n${body.prompt}`;

@@ -5,6 +5,7 @@ import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPrici
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { checkCredits, recordUsage } from "../lib/aiCredits";
 import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRules";
+import { loadProjectVariables, injectProjectVariables } from "../lib/projectVariables";
 
 function scopedPath(projectId: string, name: string): string {
   if (!projectId || projectId === "unknown") return name;
@@ -66,13 +67,15 @@ The child elements of \`<step>\` must appear in this order:
 
 \`\`\`xml
 <pathParams>
-  <param name="project_id">proj.project_id</param>        <!-- project variable -->
-  <param name="resource_id">{{state.createdResourceId}}</param>
+  <param name="myParam">proj.myVariable</param>            <!-- project variable (no {{ }} wrapper for pathParam values) -->
+  <param name="resource_id">{{state.createdResourceId}}</param>  <!-- state variable ({{ }} in body/query, bare in pathParam) -->
 </pathParams>
 <queryParams>
-  <param name="lang_code">proj.lang_code</param>
+  <param name="some_param">proj.someVariable</param>
 </queryParams>
 \`\`\`
+
+**IMPORTANT**: Use the exact project variable names as listed in the "Available Project Variables" section below. Do NOT rename, convert case, or add underscores.
 
 ### Body
 
@@ -128,7 +131,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 
 ### Interpolation tokens (allowed in any text/attr value)
 
-- \`{{proj.variableName}}\` — project-level variable defined in Settings → Variables (e.g. proj.project_id, proj.lang_code)
+- \`{{proj.variableName}}\` — project-level variable defined in Settings → Variables. Use the EXACT names from the "Available Project Variables" section.
 - \`{{ctx.apiVersion}}\`, \`{{ctx.baseUrl}}\` — runtime context (API version, base URL)
 - \`{{state.variableName}}\` — value captured from a previous step
 - \`{{timestamp}}\` — Unix ms timestamp at execution time
@@ -332,6 +335,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   // Load and inject version-folder API rules (falls back to project-level)
   const versionFolder = extractVersionFolder(body.specFiles ?? []);
   const { rules: apiRules } = await loadApiRules(projectId, versionFolder ?? undefined);
+  const projVars = await loadProjectVariables(projectId);
   const userMessage = specContext
     ? `${body.prompt}${scopeNote}\n\n# Relevant API Specification\n\n${specContext}`
     : body.prompt;
@@ -345,7 +349,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     const readable = new ReadableStream({
       async start(controller) {
         try {
-          const systemPrompt = injectApiRules(FLOW_SYSTEM_PROMPT, apiRules);
+          const systemPrompt = injectProjectVariables(injectApiRules(FLOW_SYSTEM_PROMPT, apiRules), projVars);
           const stream = client.messages.stream({
             model,
             max_tokens: 8192,
@@ -403,7 +407,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   } else {
     // Non-streaming: collect full response
     try {
-      const systemPrompt = injectApiRules(FLOW_SYSTEM_PROMPT, apiRules);
+      const systemPrompt = injectProjectVariables(injectApiRules(FLOW_SYSTEM_PROMPT, apiRules), projVars);
       const stream = client.messages.stream({
         model,
         max_tokens: 8192,

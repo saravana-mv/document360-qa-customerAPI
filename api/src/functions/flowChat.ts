@@ -5,6 +5,7 @@ import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPrici
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { checkCredits, recordUsage } from "../lib/aiCredits";
 import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRules";
+import { loadProjectVariables, injectProjectVariables } from "../lib/projectVariables";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -220,10 +221,11 @@ async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<Http
   // Load and inject version-folder API rules (falls back to project-level)
   const versionFolder = extractVersionFolder(specFiles);
   const { rules: apiRules } = await loadApiRules(projectId, versionFolder ?? undefined);
+  const projVars = await loadProjectVariables(projectId);
 
   // Inject spec content into the system prompt so the AI always has access,
   // regardless of conversation length or message position.
-  let systemPrompt = injectApiRules(FLOW_CHAT_SYSTEM_PROMPT, apiRules);
+  let systemPrompt = injectProjectVariables(injectApiRules(FLOW_CHAT_SYSTEM_PROMPT, apiRules), projVars);
   if (specContext) {
     systemPrompt += `\n\n# Available API Specifications (${specFiles.length} file${specFiles.length !== 1 ? "s" : ""})\n\nThe user has provided the following API endpoint specifications. Use ONLY these endpoints when designing flows.\n\n${specContext}`;
   }
