@@ -174,21 +174,19 @@ function safeStr(v: unknown): string {
 function DesignTab({ testId }: { testId: string }) {
   const def = getTest(testId);
   const { apiVersion } = useSetupStore();
-  const projectVars = useProjectVariablesStore((s) => s.asRecord());
+  // Use stable selector — grab the variables array reference directly instead
+  // of calling asRecord() which creates a new object every render and breaks
+  // Zustand's Object.is equality check.
+  const variables = useProjectVariablesStore((s) => s.variables);
   if (!def) return null;
 
-  // DEBUG: detect non-string fields that will be rendered as text
-  for (const key of ["description", "method", "path", "tag", "entity", "id", "name"] as const) {
-    const val = (def as unknown as Record<string, unknown>)[key];
-    if (val !== undefined && val !== null && typeof val !== "string") {
-      console.error(`[DesignTab] def.${key} is ${typeof val}, not string:`, val);
-    }
+  // Build project variables record from the stable array
+  const projectVars: Record<string, string> = {};
+  for (const v of variables) {
+    projectVars[v.name] = v.value;
   }
-  if (def.queryParams) {
-    for (const [k, v] of Object.entries(def.queryParams)) {
-      if (typeof v !== "string") console.error(`[DesignTab] queryParam "${k}" is ${typeof v}:`, v);
-    }
-  }
+
+  console.log("[DesignTab] rendering for:", testId, "method:", typeof def.method, "name:", typeof def.name);
 
   // Rewrite the leading /vN/ to the currently-selected API version so the
   // preview matches what the runner will actually hit.
@@ -1013,19 +1011,23 @@ export function DetailPane({ testId, onClose }: DetailPaneProps) {
   const status: TestStatus = result?.status ?? "idle";
   const badge = statusBadge[status];
 
+  console.log("[DetailPane] rendering testId:", testId, "status:", status, "activeTab:", activeTab,
+    "def.method:", typeof def.method, def.method,
+    "def.name:", typeof def.name, def.name);
+
   return (
     <div className="bg-white flex flex-col h-full overflow-hidden w-full">
 
       {/* ── Title row — aligns with LHS h-10 ── */}
       <div className="flex items-center gap-2 px-4 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
-        <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded shrink-0 ${methodColor[def.method] ?? "text-[#656d76] bg-[#eef1f6]"}`}>
-          {def.method}
+        <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded shrink-0 ${methodColor[safeStr(def.method)] ?? "text-[#656d76] bg-[#eef1f6]"}`}>
+          {safeStr(def.method)}
         </span>
-        <span className="flex-1 text-sm font-semibold text-[#1f2328] truncate" title={def.name}>
-          {def.name}
+        <span className="flex-1 text-sm font-semibold text-[#1f2328] truncate" title={safeStr(def.name)}>
+          {safeStr(def.name)}
         </span>
         <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${badge.cls}`}>
-          {badge.icon} {badge.label}
+          {safeStr(badge.icon)} {safeStr(badge.label)}
         </span>
         <button
           onClick={onClose}
