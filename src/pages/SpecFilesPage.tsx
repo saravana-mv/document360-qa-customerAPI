@@ -281,15 +281,19 @@ export function SpecFilesPage() {
         console.log("[SpecFilesPage] Loaded workshopMap from API:", Object.keys(map).length, "entries",
           Object.entries(map).map(([k, v]) => `${k}: ${v.ideas.length} ideas, ${v.generatedFlows.length} flows`));
         // Clean up orphaned flows — flows whose ideaId doesn't match any idea
-        // in the same context (can happen after partial deletes or ID collisions)
+        // across the ENTIRE map (ideas may live under a child key while flows
+        // are stored at a parent folder key).
+        const allIdeaIds = new Set<string>();
+        for (const ctx of Object.values(map)) {
+          for (const idea of ctx.ideas) allIdeaIds.add(idea.id);
+        }
         let cleaned = false;
         for (const [key, ctx] of Object.entries(map)) {
-          const ideaIds = new Set(ctx.ideas.map(i => i.id));
-          const orphans = ctx.generatedFlows.filter(f => !ideaIds.has(f.ideaId));
+          const orphans = ctx.generatedFlows.filter(f => !allIdeaIds.has(f.ideaId));
           if (orphans.length > 0) {
             console.warn(`[SpecFilesPage] Removing ${orphans.length} orphaned flows from "${key}"`,
               orphans.map(f => f.ideaId));
-            ctx.generatedFlows = ctx.generatedFlows.filter(f => ideaIds.has(f.ideaId));
+            ctx.generatedFlows = ctx.generatedFlows.filter(f => allIdeaIds.has(f.ideaId));
             cleaned = true;
           }
         }
