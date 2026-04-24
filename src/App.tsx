@@ -19,6 +19,7 @@ const ApiKeysCard = lazy(() => import("./components/setup/ApiKeysCard").then((m)
 const MembersContent = lazy(() => import("./pages/MembersPage").then((m) => ({ default: m.MembersContent })));
 const ProjectVariablesPage = lazy(() => import("./pages/ProjectVariablesPage").then((m) => ({ default: m.ProjectVariablesPage })));
 const ConnectionsPage = lazy(() => import("./pages/ConnectionsPage").then((m) => ({ default: m.ConnectionsPage })));
+const AiCreditsPage = lazy(() => import("./components/settings/AiCreditsPage").then((m) => ({ default: m.AiCreditsPage })));
 
 // Register placeholder suites (categories/drive stubs).
 // Articles tests come from .flow.xml files — loaded at runtime via loadFlowsFromQueue.
@@ -48,6 +49,7 @@ function ProjectScopedRoutes() {
           <Route path="members" element={<Suspense fallback={<PageLoader />}><MembersContent /></Suspense>} />
           <Route path="variables" element={<Suspense fallback={<PageLoader />}><ProjectVariablesPage /></Suspense>} />
           <Route path="connections" element={<Suspense fallback={<PageLoader />}><ConnectionsPage /></Suspense>} />
+          <Route path="ai-credits" element={<Suspense fallback={<PageLoader />}><AiCreditsPage /></Suspense>} />
           <Route path="api-keys" element={<Suspense fallback={<PageLoader />}><ApiKeysCard /></Suspense>} />
           <Route path="audit-log" element={<Suspense fallback={<PageLoader />}><AuditLogContent /></Suspense>} />
         </Route>
