@@ -319,7 +319,7 @@ Your entire response is the XML document and nothing else.`;
 // cost-effective. Each flow only needs the endpoints it references, not every
 // spec in the project.
 const MAX_SPEC_CONTEXT_CHARS = 50_000;
-const MAX_SPEC_FILES = 5;
+const MAX_SPEC_FILES = 15;
 
 async function buildSpecContext(specFiles: string[], projectId: string): Promise<string> {
   if (!specFiles || specFiles.length === 0) {
