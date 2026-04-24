@@ -6,7 +6,7 @@ import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../li
 import { checkCredits, recordUsage } from "../lib/aiCredits";
 import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRules";
 import { loadProjectVariables, injectProjectVariables } from "../lib/projectVariables";
-import { extractRequiredFieldsSummary } from "../lib/specRequiredFields";
+import { distillSpecContext } from "../lib/specRequiredFields";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -218,19 +218,21 @@ async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<Http
     }
   }
   const specFiles = body.specFiles ?? [];
-  const specContext = await buildSpecContext(specFiles, projectId);
+  const rawSpecContext = await buildSpecContext(specFiles, projectId);
 
   // Load and inject version-folder API rules (falls back to project-level)
   const versionFolder = extractVersionFolder(specFiles);
   const { rules: apiRules } = await loadApiRules(projectId, versionFolder ?? undefined);
   const projVars = await loadProjectVariables(projectId);
 
+  // Distill raw OpenAPI JSON into compact, AI-friendly format
+  const specContext = rawSpecContext ? distillSpecContext(rawSpecContext) : "";
+
   // Inject spec content into the system prompt so the AI always has access,
   // regardless of conversation length or message position.
   let systemPrompt = injectProjectVariables(injectApiRules(FLOW_CHAT_SYSTEM_PROMPT, apiRules), projVars);
   if (specContext) {
-    const requiredFieldsSummary = extractRequiredFieldsSummary(specContext);
-    systemPrompt += `\n\n# Available API Specifications (${specFiles.length} file${specFiles.length !== 1 ? "s" : ""})\n\nThe user has provided the following API endpoint specifications. Use ONLY these endpoints when designing flows.\n\n${specContext}${requiredFieldsSummary}`;
+    systemPrompt += `\n\n# Available API Specifications (${specFiles.length} file${specFiles.length !== 1 ? "s" : ""})\n\nThe user has provided the following API endpoint specifications. Use ONLY these endpoints when designing flows.\n\n${specContext}`;
   }
 
   // Pass messages through as-is — spec context is in the system prompt

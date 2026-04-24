@@ -6,7 +6,7 @@ import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../li
 import { checkCredits, recordUsage } from "../lib/aiCredits";
 import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRules";
 import { loadProjectVariables, injectProjectVariables } from "../lib/projectVariables";
-import { extractRequiredFieldsSummary, extractCommonRequiredFields } from "../lib/specRequiredFields";
+import { distillSpecContext, extractCommonRequiredFields } from "../lib/specRequiredFields";
 
 /** Strip markdown fences AND any preamble text before the XML declaration. */
 function cleanXmlResponse(raw: string): string {
@@ -345,7 +345,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       console.warn("[generateFlow] credit check failed, proceeding anyway:", e);
     }
   }
-  const specContext = await buildSpecContext(body.specFiles ?? [], projectId);
+  const rawSpecContext = await buildSpecContext(body.specFiles ?? [], projectId);
   const specCount = body.specFiles?.length ?? 0;
   const scopeNote = specCount === 1
     ? `\n\nIMPORTANT: You are working with a SINGLE endpoint specification. The primary test steps of the flow MUST focus on this endpoint. However, you MUST still add prerequisite setup and teardown steps as required by the hard rules and project-specific API rules — these are ALWAYS allowed regardless of scope.`
@@ -355,14 +355,14 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
 
   // Load and inject version-folder API rules (falls back to project-level)
   const versionFolder = extractVersionFolder(body.specFiles ?? []);
-  console.log(`[generateFlow] specFiles:`, body.specFiles, `→ versionFolder:`, versionFolder);
   const { rules: apiRules } = await loadApiRules(projectId, versionFolder ?? undefined);
-  console.log(`[generateFlow] apiRules loaded: ${apiRules.length} chars`);
   const projVars = await loadProjectVariables(projectId);
-  console.log(`[generateFlow] projVars:`, projVars.map(v => v.name));
-  const requiredFieldsSummary = specContext ? extractRequiredFieldsSummary(specContext) : "";
-  console.log(`[generateFlow] specContext length: ${specContext.length}, requiredFieldsSummary length: ${requiredFieldsSummary.length}`);
-  if (requiredFieldsSummary) console.log(`[generateFlow] requiredFieldsSummary:\n${requiredFieldsSummary.slice(0, 500)}`);
+
+  // Distill raw OpenAPI JSON into compact, AI-friendly format.
+  // This replaces 1000+ line JSON blobs with ~50-line summaries that
+  // put required fields, examples, and schemas front and center.
+  const specContext = rawSpecContext ? distillSpecContext(rawSpecContext) : "";
+  console.log(`[generateFlow] raw spec: ${rawSpecContext.length} chars → distilled: ${specContext.length} chars`);
 
   // Detect API version — prefer folder path (unambiguous), fall back to spec content
   let canonicalVersion: string | null = null;
@@ -374,7 +374,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     const versionSet = new Set<string>();
     const versionRe = /\/v(\d+)\//g;
     let vm: RegExpExecArray | null;
-    while ((vm = versionRe.exec(specContext)) !== null) {
+    while ((vm = versionRe.exec(rawSpecContext)) !== null) {
       versionSet.add(`v${vm[1]}`);
     }
     if (versionSet.size === 1) canonicalVersion = [...versionSet][0];
@@ -384,7 +384,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     : "";
 
   const userMessage = specContext
-    ? `${body.prompt}${scopeNote}${versionDirective}\n\n# Relevant API Specification\n\n${specContext}${requiredFieldsSummary}`
+    ? `${body.prompt}${scopeNote}${versionDirective}\n\n# Relevant API Specification\n\n${specContext}`
     : body.prompt;
 
   const shouldStream = body.stream !== false; // default to streaming
@@ -393,13 +393,12 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   // Build system prompt once (used by both streaming and non-streaming paths)
   let flowSystemPrompt = FLOW_SYSTEM_PROMPT;
 
-  // Inject common required fields into the hard rules so the AI cannot miss them
-  if (specContext) {
-    const commonFields = extractCommonRequiredFields(specContext);
+  // Inject common required fields for steps that lack their own spec file
+  if (rawSpecContext) {
+    const commonFields = extractCommonRequiredFields(rawSpecContext);
     if (commonFields.length > 0) {
       const fieldList = commonFields.map(f => `\`${f}\``).join(", ");
-      const injection = `\n\n**PREREQUISITE STEP REQUIRED FIELDS**: When creating prerequisite/dependency resources (e.g., a parent category before articles), you MUST include these fields in the request body: ${fieldList}. Use project variables (\`{{proj.X}}\`) for their values. This applies to ALL POST/PUT steps, even those without a spec file.`;
-      flowSystemPrompt += injection;
+      flowSystemPrompt += `\n\n**COMMON REQUIRED FIELDS**: These fields appear as required across multiple endpoints in this API: ${fieldList}. When creating ANY resource (including prerequisite/setup steps without a spec file), include these fields using project variables (\`{{proj.X}}\`) or state variables (\`{{state.X}}\`).`;
     }
   }
 
