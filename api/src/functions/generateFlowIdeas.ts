@@ -75,7 +75,7 @@ Always start with the simplest scenarios before progressing to complex ones. The
 
 ## Rules
 1. Generate up to ${MAX_IDEAS_PER_RUN} ideas maximum per request
-2. **STRICT SCOPE**: Only use API endpoints that are explicitly described in the provided spec files. Do NOT reference, invent, or assume endpoints that are not in the provided context — even if you know they exist in the broader API. Every step in a flow must map to an endpoint from the specs given. **Exception**: prerequisite setup/teardown steps for entity dependencies (rule 3) are allowed even if the endpoint is not in the specs — but you MUST use the same API version prefix (e.g., \`/v3/\`) as the provided specs. NEVER use a different version like \`/v2/\` if the specs are \`/v3/\`.
+2. **STRICT SCOPE — NO PRIOR KNOWLEDGE**: Only use API endpoints explicitly described in the provided spec files. Do NOT use your training data or prior knowledge about this API — treat the specs as if you are seeing this API for the first time. For prerequisite setup/teardown steps not in the specs, construct the path by following the EXACT same URL pattern and version prefix as the provided specs.
 3. Always note entity dependencies (e.g., child resource flows need parent setup/teardown)
 4. Include both happy-path and error-path flows
 5. Group related flows logically
