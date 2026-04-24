@@ -21,6 +21,87 @@ function cleanXmlResponse(raw: string): string {
   return xml;
 }
 
+/**
+ * Post-process generated XML: inject missing common required fields into
+ * POST/PUT step bodies.  The AI often omits fields like project_version_id
+ * for prerequisite steps that lack a spec file.  This function ensures all
+ * POST/PUT bodies include the common required fields.
+ *
+ * @param xml        The generated flow XML
+ * @param fields     Common required field names (e.g. ["project_version_id"])
+ * @param projVarMap Map of field name → project variable token (e.g. "project_version_id" → "{{proj.projectVersionId}}")
+ */
+function injectMissingRequiredFields(
+  xml: string,
+  fields: string[],
+  projVarMap: Record<string, string>,
+): string {
+  if (fields.length === 0) return xml;
+
+  // Match each <step> that contains a POST or PUT method and has a <body> CDATA
+  const stepRe = /<step\b[^>]*>[\s\S]*?<\/step>/g;
+
+  return xml.replace(stepRe, (stepXml) => {
+    // Only process POST and PUT steps
+    const methodMatch = stepXml.match(/<method>(POST|PUT|PATCH)<\/method>/i);
+    if (!methodMatch) return stepXml;
+
+    // Find the CDATA body
+    const cdataRe = /(<body><!\[CDATA\[)([\s\S]*?)(\]\]><\/body>)/;
+    const cdataMatch = stepXml.match(cdataRe);
+    if (!cdataMatch) return stepXml;
+
+    const bodyJson = cdataMatch[2].trim();
+    if (!bodyJson.startsWith("{")) return stepXml; // Not JSON
+
+    try {
+      const parsed = JSON.parse(bodyJson);
+      let modified = false;
+
+      for (const field of fields) {
+        if (!(field in parsed)) {
+          // Inject the missing field with the appropriate project variable
+          parsed[field] = projVarMap[field] ?? `{{proj.${field}}}`;
+          modified = true;
+        }
+      }
+
+      if (!modified) return stepXml;
+
+      // Rebuild the CDATA with the injected fields
+      const newJson = JSON.stringify(parsed, null, 2);
+      return stepXml.replace(cdataRe, `$1\n${newJson}\n      $3`);
+    } catch {
+      // JSON parse failed — leave untouched
+      return stepXml;
+    }
+  });
+}
+
+/** Build a map from required field names to their best project variable token. */
+function buildProjVarMap(
+  fields: string[],
+  projVars: { name: string; value: string }[],
+): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const field of fields) {
+    // Try exact match first (e.g. projVars has "projectVersionId" for field "project_version_id")
+    // Convert snake_case to camelCase for matching
+    const camel = field.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    const matchedVar = projVars.find(v =>
+      v.name === field || v.name === camel ||
+      v.name.toLowerCase() === field.toLowerCase() ||
+      v.name.toLowerCase() === camel.toLowerCase()
+    );
+    if (matchedVar) {
+      map[field] = `{{proj.${matchedVar.name}}}`;
+    } else {
+      map[field] = `{{proj.${camel}}}`;
+    }
+  }
+  return map;
+}
+
 function scopedPath(projectId: string, name: string): string {
   if (!projectId || projectId === "unknown") return name;
   if (name.startsWith(projectId + "/")) return name;
@@ -390,13 +471,13 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   // Build system prompt once (used by both streaming and non-streaming paths)
   let flowSystemPrompt = FLOW_SYSTEM_PROMPT;
 
-  // Inject common required fields for steps that lack their own spec file
-  if (specContext) {
-    const commonFields = extractCommonRequiredFields(specContext);
-    if (commonFields.length > 0) {
-      const fieldList = commonFields.map(f => `\`${f}\``).join(", ");
-      flowSystemPrompt += `\n\n**COMMON REQUIRED FIELDS**: These fields appear as required across multiple endpoints in this API: ${fieldList}. When creating ANY resource (including prerequisite/setup steps without a spec file), include these fields using project variables (\`{{proj.X}}\`) or state variables (\`{{state.X}}\`).`;
-    }
+  // Extract common required fields for both prompt injection AND post-processing
+  const commonFields = specContext ? extractCommonRequiredFields(specContext) : [];
+  const projVarMap = buildProjVarMap(commonFields, projVars);
+
+  if (commonFields.length > 0) {
+    const fieldList = commonFields.map(f => `\`${f}\``).join(", ");
+    flowSystemPrompt += `\n\n**COMMON REQUIRED FIELDS**: These fields appear as required across multiple endpoints in this API: ${fieldList}. When creating ANY resource (including prerequisite/setup steps without a spec file), include these fields using project variables (\`{{proj.X}}\`) or state variables (\`{{state.X}}\`).`;
   }
 
   const systemPrompt = injectProjectVariables(injectApiRules(flowSystemPrompt, apiRules), projVars);
@@ -481,6 +562,9 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
         xml = xml.replace(/(<path>(?:GET|POST|PUT|PATCH|DELETE)\s+)\/v\d+\//gi, `$1/${canonicalVersion}/`);
         xml = xml.replace(/(<path>)\/v\d+\//gi, `$1/${canonicalVersion}/`);
       }
+
+      // Post-process: inject missing common required fields into POST/PUT bodies
+      xml = injectMissingRequiredFields(xml, commonFields, projVarMap);
 
       const inputTokens = finalMessage.usage.input_tokens;
       const outputTokens = finalMessage.usage.output_tokens;
