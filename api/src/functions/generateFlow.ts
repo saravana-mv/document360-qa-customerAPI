@@ -347,11 +347,13 @@ async function buildSpecContext(specFiles: string[], projectId: string): Promise
   const capped = specFiles.slice(0, MAX_SPEC_FILES);
   const contents = await Promise.all(
     capped.map(async (name) => {
+      const blobPath = scopedPath(projectId, name);
       try {
-        const content = await readDistilledContent(scopedPath(projectId, name));
+        const content = await readDistilledContent(blobPath);
         return `## ${name}\n\n${content}`;
-      } catch {
-        return `## ${name}\n\n(File not found)`;
+      } catch (err) {
+        console.error(`[generateFlow] Failed to read spec: ${blobPath}`, err);
+        return `## ${name}\n\n(File not found: ${blobPath})`;
       }
     })
   );
@@ -615,7 +617,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
         body: JSON.stringify({
           xml,
           usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, costUsd },
-          _debug: { commonFields, projVarMap, specFilesReceived: body.specFiles?.length ?? 0, specContextLength: specContext.length },
+          _debug: { projectId, commonFields, projVarMap, specFilesReceived: body.specFiles?.length ?? 0, specContextLength: specContext.length, specContextSnippet: specContext.slice(0, 300) },
         }),
       };
     } catch (e) {
