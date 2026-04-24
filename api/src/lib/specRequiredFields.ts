@@ -401,41 +401,55 @@ export function extractRequiredFieldsSummary(specContext: string): string {
 }
 
 /**
- * Extract just the common required field names (excluding generic ones).
+ * Extract common required field names from spec context.
+ * Works with both raw OpenAPI JSON blocks AND distilled format.
  */
 export function extractCommonRequiredFields(specContext: string): string[] {
-  const jsonBlockRe = /````json\s+(\w+)\s+(\S+)\n([\s\S]*?)````/g;
   const fieldFrequency: Record<string, number> = {};
 
-  let match: RegExpExecArray | null;
-  while ((match = jsonBlockRe.exec(specContext)) !== null) {
-    try {
-      const spec = JSON.parse(match[3]);
-      const schemas = spec?.components?.schemas;
-      if (!schemas) continue;
-      const paths = spec?.paths;
-      if (!paths) continue;
-      for (const [, pathObj] of Object.entries(paths) as [string, Record<string, unknown>][]) {
-        for (const [, opObj] of Object.entries(pathObj) as [string, Record<string, unknown>][]) {
-          const op = opObj as Record<string, unknown>;
-          const reqBody = op.requestBody as Record<string, unknown> | undefined;
-          if (!reqBody) continue;
-          const content = reqBody.content as Record<string, Record<string, unknown>> | undefined;
-          if (!content) continue;
-          const jsonContent = content["application/json"];
-          if (!jsonContent) continue;
-          const schemaRef = jsonContent.schema as Record<string, string> | undefined;
-          if (!schemaRef?.$ref) continue;
-          const schemaName = schemaRef.$ref.split("/").pop();
-          if (!schemaName || !schemas[schemaName]) continue;
-          const schema = schemas[schemaName] as Record<string, unknown>;
-          const required = (schema.required as string[]) ?? [];
-          for (const f of required) {
-            fieldFrequency[f] = (fieldFrequency[f] || 0) + 1;
+  // Try distilled format first: **REQUIRED FIELDS: `field1`, `field2`**
+  const distilledRe = /\*\*REQUIRED FIELDS:\s*(.+?)\*\*/g;
+  let dm: RegExpExecArray | null;
+  while ((dm = distilledRe.exec(specContext)) !== null) {
+    const fields = dm[1].match(/`(\w+)`/g)?.map(f => f.replace(/`/g, "")) ?? [];
+    for (const f of fields) {
+      fieldFrequency[f] = (fieldFrequency[f] || 0) + 1;
+    }
+  }
+
+  // Also try raw OpenAPI JSON blocks (for backward compat / runtime distill)
+  if (Object.keys(fieldFrequency).length === 0) {
+    const jsonBlockRe = /````json\s+(\w+)\s+(\S+)\n([\s\S]*?)````/g;
+    let match: RegExpExecArray | null;
+    while ((match = jsonBlockRe.exec(specContext)) !== null) {
+      try {
+        const spec = JSON.parse(match[3]);
+        const schemas = spec?.components?.schemas;
+        if (!schemas) continue;
+        const paths = spec?.paths;
+        if (!paths) continue;
+        for (const [, pathObj] of Object.entries(paths) as [string, Record<string, unknown>][]) {
+          for (const [, opObj] of Object.entries(pathObj) as [string, Record<string, unknown>][]) {
+            const op = opObj as Record<string, unknown>;
+            const reqBody = op.requestBody as Record<string, unknown> | undefined;
+            if (!reqBody) continue;
+            const content = reqBody.content as Record<string, Record<string, unknown>> | undefined;
+            if (!content) continue;
+            const jsonContent = content["application/json"];
+            if (!jsonContent) continue;
+            const schemaRef = jsonContent.schema as Record<string, string> | undefined;
+            if (!schemaRef?.$ref) continue;
+            const schemaName = schemaRef.$ref.split("/").pop();
+            if (!schemaName || !schemas[schemaName]) continue;
+            const schema = schemas[schemaName] as Record<string, unknown>;
+            const required = (schema.required as string[]) ?? [];
+            for (const f of required) {
+              fieldFrequency[f] = (fieldFrequency[f] || 0) + 1;
+            }
           }
         }
-      }
-    } catch { /* skip */ }
+      } catch { /* skip */ }
+    }
   }
 
   return Object.entries(fieldFrequency)

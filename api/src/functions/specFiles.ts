@@ -2,6 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import { listBlobs, downloadBlob, uploadBlob, deleteBlob, renameBlob, blobExists } from "../lib/blobClient";
 import { withAuth, getUserInfo, getProjectId } from "../lib/auth";
 import { audit } from "../lib/auditLog";
+import { distillAndStore, deleteDistilled, renameDistilled } from "../lib/specDistillCache";
 
 /** Safe project ID extraction — returns "unknown" if header missing. */
 function safeProjectId(req: HttpRequest): string {
@@ -44,7 +45,9 @@ async function listFiles(req: HttpRequest, _ctx: InvocationContext): Promise<Htt
     const blobPrefix = projectId !== "unknown"
       ? (userPrefix ? `${projectId}/${userPrefix}` : `${projectId}/`)
       : userPrefix;
-    const blobs = await listBlobs(blobPrefix);
+    const allBlobs = await listBlobs(blobPrefix);
+    // Filter out internal blobs (_distilled/ companions)
+    const blobs = allBlobs.filter(b => !b.name.includes("/_distilled/"));
     // Strip project prefix from names so frontend sees clean paths
     if (projectId !== "unknown") {
       const prefix = projectId + "/";
@@ -117,6 +120,8 @@ async function createFile(req: HttpRequest, _ctx: InvocationContext): Promise<Ht
       await snapshotSkillsVersion(projectId, blobName, body.name, body.content);
     }
     await uploadBlob(blobName, body.content, body.contentType);
+    // Pre-compute distilled version for AI consumption
+    distillAndStore(blobName, body.content).catch(() => {});
     const user = getUserInfo(req);
     audit(projectId, "spec.upload", user, body.name, { size: body.content.length });
     return ok({ name: body.name, uploaded: true });
@@ -139,14 +144,17 @@ async function updateFile(req: HttpRequest, _ctx: InvocationContext): Promise<Ht
     if (body.newName && body.newName !== body.name) {
       const newBlobName = projectId !== "unknown" ? scopedPath(projectId, body.newName) : body.newName;
       await renameBlob(blobName, newBlobName);
+      renameDistilled(blobName, newBlobName).catch(() => {});
       if (body.content !== undefined) {
         await uploadBlob(newBlobName, body.content);
+        distillAndStore(newBlobName, body.content).catch(() => {});
       }
       audit(projectId, "spec.rename", user, body.name, { newName: body.newName });
       return ok({ renamed: true, name: body.newName });
     }
     if (body.content !== undefined) {
       await uploadBlob(blobName, body.content);
+      distillAndStore(blobName, body.content).catch(() => {});
       audit(projectId, "spec.update", user, body.name);
       return ok({ updated: true, name: body.name });
     }
@@ -165,6 +173,7 @@ async function deleteFile(req: HttpRequest, _ctx: InvocationContext): Promise<Ht
     const projectId = safeProjectId(req);
     const blobName = projectId !== "unknown" ? scopedPath(projectId, name) : name;
     await deleteBlob(blobName);
+    deleteDistilled(blobName).catch(() => {});
     const user = getUserInfo(req);
     audit(projectId, "spec.delete", user, name);
     return ok({ deleted: true, name });

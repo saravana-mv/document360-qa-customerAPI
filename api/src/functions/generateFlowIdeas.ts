@@ -1,6 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import Anthropic from "@anthropic-ai/sdk";
 import { downloadBlob, listBlobs } from "../lib/blobClient";
+import { readDistilledContent } from "../lib/specDistillCache";
 import { DEFAULT_IDEAS_MODEL, resolveModel, priceFor, computeCost } from "../lib/modelPricing";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { checkCredits, recordUsage } from "../lib/aiCredits";
@@ -173,7 +174,7 @@ export async function generateFlowIdeasHandler(
     filesAnalyzed = paths.length;
     try {
       specContents = await Promise.all(
-        paths.map(async (name) => ({ name, content: await downloadBlob(scopedPath(projectId, name)) })),
+        paths.map(async (name) => ({ name, content: await readDistilledContent(scopedPath(projectId, name)) })),
       );
     } catch (e) {
       return err(500, `Failed to read spec files: ${e instanceof Error ? e.message : String(e)}`);
@@ -181,7 +182,7 @@ export async function generateFlowIdeasHandler(
   } else if (isSingleFile) {
     // Single file context — read just this one file
     try {
-      const content = await downloadBlob(scopedPath(projectId, contextPath));
+      const content = await readDistilledContent(scopedPath(projectId, contextPath));
       specContents = [{ name: contextPath, content }];
       filesAnalyzed = 1;
     } catch (e) {
@@ -198,7 +199,7 @@ export async function generateFlowIdeasHandler(
       return err(500, `Failed to list blobs: ${e instanceof Error ? e.message : String(e)}`);
     }
 
-    const mdBlobs = allBlobs.filter((b) => b.name.endsWith(".md") && !b.name.endsWith("/.keep"));
+    const mdBlobs = allBlobs.filter((b) => b.name.endsWith(".md") && !b.name.endsWith("/.keep") && !b.name.includes("/_distilled/"));
 
     if (mdBlobs.length === 0) {
       return ok({
@@ -226,7 +227,7 @@ export async function generateFlowIdeasHandler(
       specContents = await Promise.all(
         mdBlobs.map(async (b) => ({
           name: projPrefix && b.name.startsWith(projPrefix) ? b.name.slice(projPrefix.length) : b.name,
-          content: await downloadBlob(b.name),
+          content: await readDistilledContent(b.name),
         }))
       );
     } catch (e) {

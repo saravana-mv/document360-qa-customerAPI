@@ -6,7 +6,7 @@ import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../li
 import { checkCredits, recordUsage } from "../lib/aiCredits";
 import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRules";
 import { loadProjectVariables, injectProjectVariables } from "../lib/projectVariables";
-import { distillSpecContext } from "../lib/specRequiredFields";
+import { readDistilledContent } from "../lib/specDistillCache";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -118,7 +118,7 @@ async function buildSpecContext(specFiles: string[], projectId: string): Promise
   const contents = await Promise.all(
     capped.map(async (name) => {
       try {
-        const content = await downloadBlob(scopedPath(projectId, name));
+        const content = await readDistilledContent(scopedPath(projectId, name));
         return `## ${name}\n\n${content}`;
       } catch {
         return `## ${name}\n\n(File not found)`;
@@ -218,15 +218,13 @@ async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<Http
     }
   }
   const specFiles = body.specFiles ?? [];
-  const rawSpecContext = await buildSpecContext(specFiles, projectId);
+  // buildSpecContext now reads pre-distilled versions (cached at upload time)
+  const specContext = await buildSpecContext(specFiles, projectId);
 
   // Load and inject version-folder API rules (falls back to project-level)
   const versionFolder = extractVersionFolder(specFiles);
   const { rules: apiRules } = await loadApiRules(projectId, versionFolder ?? undefined);
   const projVars = await loadProjectVariables(projectId);
-
-  // Distill raw OpenAPI JSON into compact, AI-friendly format
-  const specContext = rawSpecContext ? distillSpecContext(rawSpecContext) : "";
 
   // Inject spec content into the system prompt so the AI always has access,
   // regardless of conversation length or message position.

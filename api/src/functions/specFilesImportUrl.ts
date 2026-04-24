@@ -3,6 +3,7 @@ import { uploadBlob, downloadBlob } from "../lib/blobClient";
 import { withAuth, getUserInfo, getProjectId } from "../lib/auth";
 import { audit } from "../lib/auditLog";
 import { browserFetch } from "../lib/browserFetch";
+import { distillAndStore } from "../lib/specDistillCache";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -136,6 +137,7 @@ async function handler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpR
     }
 
     await uploadBlob(blobPath, content, "text/markdown");
+    distillAndStore(blobPath, content).catch(() => {});
 
     const manifest = await readManifest(projectId, folderPath);
     manifest[filename] = { sourceUrl: url, importedAt: new Date().toISOString(), lastSyncedAt: null };

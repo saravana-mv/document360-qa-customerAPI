@@ -3,6 +3,7 @@ import { uploadBlob, downloadBlob, listBlobs } from "../lib/blobClient";
 import { withAuth, getUserInfo, getProjectId } from "../lib/auth";
 import { audit } from "../lib/auditLog";
 import { browserFetch } from "../lib/browserFetch";
+import { distillAndStore } from "../lib/specDistillCache";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -91,6 +92,7 @@ async function syncOneFile(
       throw new Error("URL returned HTML instead of markdown — authentication may be required");
     }
     await uploadBlob(blobPath, content, "text/markdown");
+    distillAndStore(blobPath, content).catch(() => {});
     manifest[filename] = { ...entry, lastSyncedAt: new Date().toISOString() };
     return { name: localPath, updated: true };
   } catch (e) {
