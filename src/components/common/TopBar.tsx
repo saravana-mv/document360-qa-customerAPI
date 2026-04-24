@@ -10,7 +10,10 @@ export function TopBar() {
   const entraLogout = useEntraAuthStore((s) => s.logout);
   const totalCostUsd = useAiCostStore((s) => s.totalCostUsd);
   const projectCredits = useAiCreditsStore((s) => s.projectCredits);
-  const exhausted = useAiCreditsStore((s) => s.exhausted);
+  const userCredits = useAiCreditsStore((s) => s.userCredits);
+  const projectExhausted = projectCredits ? projectCredits.remainingUsd <= 0 : false;
+  const userExhausted = userCredits ? userCredits.remainingUsd <= 0 : false;
+  const exhausted = projectExhausted || userExhausted;
   const { currentVersion, updateAvailable, newVersion, relaunch, dismiss } = useVersionCheck();
 
   return (
@@ -58,7 +61,11 @@ export function TopBar() {
       {/* AI credit usage pill */}
       {projectCredits && (
         <span
-          title={`Project AI budget: $${projectCredits.usedUsd.toFixed(2)} of $${projectCredits.totalBudgetUsd.toFixed(2)} used (${projectCredits.callCount} calls)${totalCostUsd > 0 ? `\nThis session: $${totalCostUsd.toFixed(4)}` : ""}`}
+          title={[
+            `Project: $${projectCredits.usedUsd.toFixed(2)} / $${projectCredits.totalBudgetUsd.toFixed(2)} (${projectCredits.callCount} calls)`,
+            userCredits ? `Your usage: $${userCredits.usedUsd.toFixed(2)} / $${userCredits.totalBudgetUsd.toFixed(2)}` : null,
+            totalCostUsd > 0 ? `This session: $${totalCostUsd.toFixed(4)}` : null,
+          ].filter(Boolean).join("\n")}
           className={`text-[11px] font-medium px-2 py-0.5 rounded-full border shrink-0 ${
             exhausted
               ? "text-[#f85149] bg-[#3d1f20] border-[#f8514933]"
@@ -67,7 +74,8 @@ export function TopBar() {
         >
           AI: <span className="text-[#e6edf3]">${projectCredits.usedUsd.toFixed(2)}</span>
           <span className="text-[#656d76]"> / ${projectCredits.totalBudgetUsd.toFixed(2)}</span>
-          {exhausted && <span className="text-[#f85149] ml-1">exhausted</span>}
+          {projectExhausted && <span className="text-[#f85149] ml-1">project exhausted</span>}
+          {!projectExhausted && userExhausted && <span className="text-[#f85149] ml-1">your limit reached</span>}
         </span>
       )}
       {!projectCredits && totalCostUsd > 0 && (
