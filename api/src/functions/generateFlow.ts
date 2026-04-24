@@ -6,7 +6,7 @@ import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../li
 import { checkCredits, recordUsage } from "../lib/aiCredits";
 import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRules";
 import { loadProjectVariables, injectProjectVariables } from "../lib/projectVariables";
-import { extractRequiredFieldsSummary } from "../lib/specRequiredFields";
+import { extractRequiredFieldsSummary, extractCommonRequiredFields } from "../lib/specRequiredFields";
 
 /** Strip markdown fences AND any preamble text before the XML declaration. */
 function cleanXmlResponse(raw: string): string {
@@ -390,13 +390,27 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   const shouldStream = body.stream !== false; // default to streaming
   const model = resolveModel(body.model, DEFAULT_FLOW_MODEL);
 
+  // Build system prompt once (used by both streaming and non-streaming paths)
+  let flowSystemPrompt = FLOW_SYSTEM_PROMPT;
+
+  // Inject common required fields into the hard rules so the AI cannot miss them
+  if (specContext) {
+    const commonFields = extractCommonRequiredFields(specContext);
+    if (commonFields.length > 0) {
+      const fieldList = commonFields.map(f => `\`${f}\``).join(", ");
+      const injection = `\n\n**PREREQUISITE STEP REQUIRED FIELDS**: When creating prerequisite/dependency resources (e.g., a parent category before articles), you MUST include these fields in the request body: ${fieldList}. Use project variables (\`{{proj.X}}\`) for their values. This applies to ALL POST/PUT steps, even those without a spec file.`;
+      flowSystemPrompt += injection;
+    }
+  }
+
+  const systemPrompt = injectProjectVariables(injectApiRules(flowSystemPrompt, apiRules), projVars);
+
   if (shouldStream) {
     // SSE streaming response
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
         try {
-          const systemPrompt = injectProjectVariables(injectApiRules(FLOW_SYSTEM_PROMPT, apiRules), projVars);
           const stream = client.messages.stream({
             model,
             max_tokens: 8192,
@@ -454,7 +468,6 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   } else {
     // Non-streaming: collect full response
     try {
-      const systemPrompt = injectProjectVariables(injectApiRules(FLOW_SYSTEM_PROMPT, apiRules), projVars);
       const stream = client.messages.stream({
         model,
         max_tokens: 8192,

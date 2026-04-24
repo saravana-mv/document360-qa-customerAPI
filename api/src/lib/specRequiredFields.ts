@@ -61,6 +61,55 @@ export function extractRequiredFieldsSummary(specContext: string): string {
 
   if (summaries.length === 0) return "";
 
+  return buildResult(summaries);
+}
+
+/**
+ * Extract just the common required field names (excluding generic ones like "name"/"title").
+ * Returns an array like ["project_version_id", "status"] that callers can inject into prompts.
+ */
+export function extractCommonRequiredFields(specContext: string): string[] {
+  const jsonBlockRe = /````json\s+(\w+)\s+(\S+)\n([\s\S]*?)````/g;
+  const fieldFrequency: Record<string, number> = {};
+
+  let match: RegExpExecArray | null;
+  while ((match = jsonBlockRe.exec(specContext)) !== null) {
+    try {
+      const spec = JSON.parse(match[3]);
+      const schemas = spec?.components?.schemas;
+      if (!schemas) continue;
+      const paths = spec?.paths;
+      if (!paths) continue;
+      for (const [, pathObj] of Object.entries(paths) as [string, Record<string, unknown>][]) {
+        for (const [, opObj] of Object.entries(pathObj) as [string, Record<string, unknown>][]) {
+          const op = opObj as Record<string, unknown>;
+          const reqBody = op.requestBody as Record<string, unknown> | undefined;
+          if (!reqBody) continue;
+          const content = reqBody.content as Record<string, Record<string, unknown>> | undefined;
+          if (!content) continue;
+          const jsonContent = content["application/json"];
+          if (!jsonContent) continue;
+          const schemaRef = jsonContent.schema as Record<string, string> | undefined;
+          if (!schemaRef?.$ref) continue;
+          const schemaName = schemaRef.$ref.split("/").pop();
+          if (!schemaName || !schemas[schemaName]) continue;
+          const schema = schemas[schemaName] as Record<string, unknown>;
+          const required = (schema.required as string[]) ?? [];
+          for (const f of required) {
+            fieldFrequency[f] = (fieldFrequency[f] || 0) + 1;
+          }
+        }
+      }
+    } catch { /* skip */ }
+  }
+
+  return Object.entries(fieldFrequency)
+    .filter(([name]) => !["name", "title"].includes(name))
+    .map(([name]) => name);
+}
+
+function buildResult(summaries: string[]): string {
+
   // Collect fields that appear as required across multiple endpoints — these
   // are cross-cutting requirements that should be included in ALL POST/PUT
   // bodies, including prerequisite/dependency steps that have no spec.
