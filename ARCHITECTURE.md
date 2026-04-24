@@ -43,7 +43,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 | Store | Key State | Notes |
 |-------|-----------|-------|
 | `auth.store` | `status`, `token`, `projectId` | Entra ID session. Auto-authenticates after Entra (no separate API login gate). |
-| `setup.store` | `selectedProjectId`, `selectedVersionId`, `aiModel`, `baseUrl`, `apiVersion` | Persisted to Cosmos `/settings`. `apiVersion` rewrites all request paths. |
+| `setup.store` | `selectedProjectId`, `aiModel`, `baseUrl`, `apiVersion` | Persisted to Cosmos `/settings`. `apiVersion` rewrites all request paths. D360-specific fields (`selectedVersionId`, `langCode`) removed — use project variables instead. |
 | `user.store` | `user`, `role`, `status` | Roles: owner / project_owner / qa_manager / qa_engineer / member. `AccessGate` enforces. |
 | `flowStatus.store` | `byName: Record<string, FlowStatusEntry>` | Flow activation state. Must finish loading before TestExplorer builds tags. |
 | `runner.store` | `running`, `paused`, `pausedAt`, `tagResults`, `log[]` | Test execution. Breakpoints stored separately. |
@@ -54,7 +54,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 | `aiCredits.store` | `projectCredits`, `userCredits`, `loading` | Loads project + user credit budgets/usage from `/api/ai-credits`. Refreshed after cost events. |
 | `project.store` | `projects`, `selectedProject`, `loading` | Project list, selection, CRUD. ProjectPicker in TopBar. |
 | `entraAuth.store` | `tenant`, `clientId`, `redirectUri` | Entra ID configuration. |
-| `projectVariables.store` | `variables`, `loading` | Project-level key/value pairs. Loaded from `/api/project-variables`. Used as `proj.varName` in flow interpolation. |
+| `projectVariables.store` | `variables`, `loading` | Project-level key/value pairs. Loaded from `/api/project-variables`. Used as `proj.varName` in flow interpolation and `{name}` path parameter resolution. |
 
 ### Component Organization
 
@@ -66,7 +66,7 @@ src/components/
 ├── explorer/       # TestExplorer, VersionAccordion, ScenarioFolderTree, TagNode, ConnectEndpointModal, ScenarioEnvOverrideModal
 ├── runner/         # RunControls, LiveLog, ProgressBar, RunHistory
 ├── results/        # ResultsPanel, DetailPane, SummaryDrawer, DiffModal
-└── setup/          # SetupPanel, ProjectSettingsCard, ApiKeysCard
+└── setup/          # SetupPanel, ApiKeysCard
 ```
 
 ### API Client Layer (`src/lib/api/`)
@@ -98,7 +98,7 @@ All API calls go through `client.ts` which adds auth headers and rewrites `/vN/`
 tests/
 ├── registry.ts         # Global test registry (getAllTests, registerTest)
 ├── runner.ts           # Execution loop: setup → execute → teardown (with pause/resume)
-├── context.ts          # Runtime context (project, version, auth type/tokens/headers, captures) — buildTestContext takes options object
+├── context.ts          # Runtime context (auth type/tokens/headers, captures, project variables) — buildTestContext takes options object. Path params resolve generically from `proj.*` variables.
 ├── assertions.ts       # status, field-exists, field-equals, field-contains, etc.
 ├── buildParsedTags.ts  # Build tag tree from registry for TestExplorer
 └── flowXml/
@@ -116,7 +116,7 @@ tests/
 2. `parser.ts` parses XML into `FlowElement` tree
 3. `builder.ts` converts to `TestDef` with assertions, captures, flags
 4. `registry.ts` stores definitions
-5. `runner.ts` executes: merges scenario env overrides into context, resolves `{{state.*}}`, `{{proj.*}}` (project variables) interpolation, runs HTTP calls via generic proxy (with `X-FF-Auth-Type` / `X-FF-Base-Url` / `X-FF-Connection-Id` headers), evaluates assertions
+5. `runner.ts` executes: merges scenario env overrides into context, resolves `{{state.*}}` and `{{proj.*}}` (project variables) interpolation, resolves `{any_name}` path params from `proj.*` variables, runs HTTP calls via generic proxy (with `X-FF-Auth-Type` / `X-FF-Base-Url` / `X-FF-Connection-Id` headers), evaluates assertions
 6. Teardown steps run even if prior steps fail
 
 ---
@@ -182,9 +182,9 @@ Used by the Public API (`/api/run-scenario`) to execute flows without a browser:
 |--------|---------|
 | `parser.ts` | Parse flow XML into step instructions |
 | `executor.ts` | Execute steps (HTTP calls, assertions, captures) |
-| `interpolation.ts` | Replace `{{state.key}}`, `{{ctx.*}}`, and `{{proj.*}}` placeholders |
+| `interpolation.ts` | Replace `{{state.key}}` and `{{proj.*}}` placeholders. `ctx.projectId`/`ctx.versionId`/`ctx.langCode` are backward-compatible aliases for `proj.project_id`/`proj.version_id`/`proj.lang_code`. |
 | `scenarioResolver.ts` | Resolve scenario GUID → flow XML from Cosmos |
-| `types.ts` | `RunContext`, `ScenarioResult`, step types |
+| `types.ts` | `RunContext` (token, baseUrl, apiVersion, auth fields, projectVariables — no D360-specific fields), `ScenarioResult`, step types |
 
 ### Cosmos DB Schema
 
@@ -193,7 +193,7 @@ Used by the Public API (`/api/run-scenario`) to execute flows without a browser:
 | `flows` | `/projectId` | `{ id, projectId, name, path, xml, lockedBy?, lockedAt?, createdBy, ... }` |
 | `ideas` | `/projectId` | `{ id, projectId, contextPath, ideas[], ... }` |
 | `test-runs` | `/projectId` | `{ id, projectId, summary, tagResults, testResults, log[], source, ... }` |
-| `settings` | `/userId` | `{ id, userId, selectedProjectId, selectedVersionId, aiModel, ... }` |
+| `settings` | `/userId` | `{ id, userId, selectedProjectId, aiModel, baseUrl, apiVersion, ... }` |
 | `users` | `/tenantId` | `{ id, tenantId, oid, name, email, role, status, ... }` |
 | `api-keys` | `/projectId` | `{ id, projectId, name, keyHash, prefix, createdBy, ... }` |
 | `audit-log` | `/projectId` | `{ id, projectId, action, actor, target, details, timestamp }` |

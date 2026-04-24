@@ -1,6 +1,6 @@
 # FlowForge
 
-A generic AI-assisted API testing platform. Import API specifications, connect any REST endpoint, generate test scenarios with Claude AI, execute tests against live endpoints, and track results — all from a single web app. Originally built for Document360, now supports any API.
+A generic AI-assisted API testing platform. Import API specifications, connect any REST endpoint, generate test scenarios with Claude AI, execute tests against live endpoints, and track results — all from a single web app. Fully generic — no vendor-specific context in the test execution pipeline. Path parameters in flow XML resolve from project variables (`proj.*`) at runtime.
 
 **Staging:** https://purple-mud-0bc0f5203.7.azurestaticapps.net
 **Production:** https://delightful-smoke-0a3c52a03.7.azurestaticapps.net
@@ -77,7 +77,7 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 - Full audit log with filtering, pagination, and search
 - Multi-project support with full-screen Project Selection page (tile grid, create, team/personal visibility)
 - Per-project membership management via Settings > Members tab (add/remove members, assign roles)
-- Project-level variables (`proj.varName`) — shared key/value pairs interpolated at runtime in both browser and server runners
+- Project-level variables (`proj.varName`) — shared key/value pairs interpolated at runtime in both browser and server runners; also used to resolve `{any_name}` path parameters in flow XML (e.g., `{project_id}` maps to `proj.project_id`)
 - **API Rules (version-folder scoped)** — per-version-folder configurable rules and enum aliases (stored as `_rules.json` in blob storage), injected into AI prompts; enum aliases loaded at runtime by both browser and server runners; inline editor in Spec Manager on top-level version folders
 - Project reset (owner only — wipes flows, ideas, runs)
 

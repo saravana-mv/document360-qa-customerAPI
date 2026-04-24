@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-FlowForge is a generic AI-assisted API testing platform. It lets QA teams import API specs, connect any REST endpoint (with flexible auth), generate test flow ideas and XML definitions using Claude, execute tests against live endpoints, and track results — all from a single web app. Originally built for Document360, it now supports any API via the Connect Endpoint feature.
+FlowForge is a generic AI-assisted API testing platform. It lets QA teams import API specs, connect any REST endpoint (with flexible auth), generate test flow ideas and XML definitions using Claude, execute tests against live endpoints, and track results — all from a single web app. Fully generic — no vendor-specific context in the test execution pipeline. Path parameters in flow XML (e.g., `{project_id}`) resolve from `proj.*` project variables at runtime.
 
 **Stack:** React 19 + Vite 8 + Tailwind v4 + Zustand | Azure Functions v4 (Node.js) + Cosmos DB | Entra ID auth | Anthropic Claude API
 **Deployed:** Azure Static Web Apps — Staging: `https://purple-mud-0bc0f5203.7.azurestaticapps.net` | Production: `https://delightful-smoke-0a3c52a03.7.azurestaticapps.net`
@@ -23,7 +23,7 @@ FlowForge is a generic AI-assisted API testing platform. It lets QA teams import
 - **localStorage**: Pure UI state only (tree expansion, panel widths, breakpoints)
 
 ### Key Stores (Zustand)
-`auth.store` (Entra ID session), `setup.store` (project/version/AI model), `user.store` (role), `project.store` (project list/selection), `flowStatus.store` (flow activation), `runner.store` (test execution), `scenarioOrg.store` (folder tree, versionConfigs, scenarioConfigs, detectedEndpoint), `aiCost.store` (spend tracking), `aiCredits.store` (credit budgets/usage), `breakpoints.store` (step pause/resume), `projectVariables.store` (project-level key/value variables)
+`auth.store` (Entra ID session), `setup.store` (project ID, base URL, API version, AI model), `user.store` (role), `project.store` (project list/selection), `flowStatus.store` (flow activation), `runner.store` (test execution), `scenarioOrg.store` (folder tree, versionConfigs, scenarioConfigs, detectedEndpoint), `aiCost.store` (spend tracking), `aiCredits.store` (credit budgets/usage), `breakpoints.store` (step pause/resume), `projectVariables.store` (project-level key/value variables)
 
 ### API Functions (`api/src/functions/`)
 25+ Azure Functions. All wrapped with `withAuth()`. Key routes: `/api/spec-files/*`, `/api/spec-files/rules`, `/api/flow-files`, `/api/flow-chat`, `/api/generate-flow-ideas`, `/api/generate-flow`, `/api/run-scenario`, `/api/proxy/*` (generic API proxy), `/api/active-tests`, `/api/test-runs`, `/api/users`, `/api/api-keys`, `/api/audit-log`, `/api/projects`, `/api/project-members`, `/api/ai-credits`, `/api/project-variables`, `/api/version-auth/credential`, `/api/api-rules`
