@@ -40,7 +40,8 @@ export async function generateFlowXml(
     throw new Error(msg);
   }
 
-  const data = await res.json() as { xml: string; usage?: FlowUsage };
+  const data = await res.json() as { xml: string; usage?: FlowUsage; _debug?: unknown };
+  if (data._debug) console.log("[FlowGen] Backend debug:", data._debug);
   return { xml: cleanXml(data.xml), usage: data.usage ?? null };
 }
 

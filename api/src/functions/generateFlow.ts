@@ -615,6 +615,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
         body: JSON.stringify({
           xml,
           usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, costUsd },
+          _debug: { commonFields, projVarMap, specFilesReceived: body.specFiles?.length ?? 0, specContextLength: specContext.length },
         }),
       };
     } catch (e) {
