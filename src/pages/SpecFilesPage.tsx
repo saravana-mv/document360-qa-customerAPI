@@ -267,14 +267,28 @@ export function SpecFilesPage() {
           return;
         }
         await migrateIdeasFromLocalStorage();
-        const map = await getAllIdeas();
+        const rawMap = await getAllIdeas();
+        // Normalize — ensure arrays are never null/undefined
+        const map: WorkshopMap = {};
+        for (const [key, ctx] of Object.entries(rawMap)) {
+          map[key] = {
+            ideas: ctx.ideas ?? [],
+            usage: ctx.usage ?? null,
+            flowsUsage: ctx.flowsUsage ?? null,
+            generatedFlows: (ctx.generatedFlows ?? []) as GeneratedFlow[],
+          };
+        }
+        console.log("[SpecFilesPage] Loaded workshopMap from API:", Object.keys(map).length, "entries",
+          Object.entries(map).map(([k, v]) => `${k}: ${v.ideas.length} ideas, ${v.generatedFlows.length} flows`));
         // Clean up orphaned flows — flows whose ideaId doesn't match any idea
         // in the same context (can happen after partial deletes or ID collisions)
         let cleaned = false;
-        for (const ctx of Object.values(map)) {
+        for (const [key, ctx] of Object.entries(map)) {
           const ideaIds = new Set(ctx.ideas.map(i => i.id));
           const orphans = ctx.generatedFlows.filter(f => !ideaIds.has(f.ideaId));
           if (orphans.length > 0) {
+            console.warn(`[SpecFilesPage] Removing ${orphans.length} orphaned flows from "${key}"`,
+              orphans.map(f => f.ideaId));
             ctx.generatedFlows = ctx.generatedFlows.filter(f => ideaIds.has(f.ideaId));
             cleaned = true;
           }
@@ -304,6 +318,8 @@ export function SpecFilesPage() {
   useEffect(() => {
     if (!workshopLoaded || !activePath || generatingFlows) return;
     const agg = aggregateForPath(workshopMap, activePath);
+    console.log("[SpecFilesPage] Re-populate working set for", activePath,
+      "→", agg.ideas.length, "ideas,", agg.generatedFlows.length, "flows");
     if (agg.ideas.length > 0 || agg.generatedFlows.length > 0) {
       setIdeas(agg.ideas);
       setIdeasUsage(agg.usage);
@@ -1357,6 +1373,8 @@ export function SpecFilesPage() {
   function persistFlowsForPath(path: string, flows: GeneratedFlow[]) {
     const flowsToSave = flows.filter((f) => f.status === "done" || f.status === "error");
     if (flowsToSave.length === 0) return;
+    console.log("[SpecFilesPage] persistFlowsForPath:", path, flowsToSave.length, "flows",
+      flowsToSave.map(f => `${f.ideaId}:${f.status}`));
     const cumulativeFlowsUsage = flowsToSave.reduce<FlowUsage | null>((acc, f) => {
       if (!f.usage) return acc;
       if (!acc) return { ...f.usage };
