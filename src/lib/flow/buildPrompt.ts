@@ -61,7 +61,6 @@ export function filterRelevantSpecs(idea: FlowIdea, allSpecFiles: string[]): str
   // creation/deletion) that aren't mentioned in the idea's steps.
   const entityFolders = new Set<string>();
   for (const f of matched) {
-    // Extract the entity folder: "V3/articles/bulk-create.md" → "V3/articles"
     const lastSlash = f.lastIndexOf("/");
     if (lastSlash > 0) entityFolders.add(f.slice(0, lastSlash).toLowerCase());
   }
@@ -73,21 +72,26 @@ export function filterRelevantSpecs(idea: FlowIdea, allSpecFiles: string[]): str
     if (firstSlash > 0) versionRoots.add(folder.slice(0, firstSlash));
   }
 
-  // Include create/delete specs from ALL entity folders under the same version root
+  // Collect create/delete specs from ALL sibling entity folders under the same version root
   const siblingSpecs = allSpecFiles.filter((name) => {
     const lower = name.toLowerCase();
-    // Must be under same version root
     if (!Array.from(versionRoots).some(vr => lower.startsWith(vr + "/"))) return false;
-    // Must not already be matched
     if (matched.includes(name)) return false;
-    // Include create and delete specs (needed for prerequisite setup/teardown)
     const filename = lower.split("/").pop() ?? "";
     return filename.startsWith("create-") || filename.startsWith("delete-");
   });
 
-  const combined = [...matched, ...siblingSpecs];
-
-  // Distilled specs are compact (~2-3KB each), so we can afford more files
+  // Priority order: sibling dependency specs are RESERVED first (they provide
+  // required field context for prerequisite steps), then fill remaining slots
+  // with primary matched specs. This prevents the primary entity from consuming
+  // all slots and starving dependency specs.
   const MAX_SPEC_FILES = 15;
+  const reservedSlots = Math.min(siblingSpecs.length, 5); // reserve up to 5 slots for dependencies
+  const primarySlots = MAX_SPEC_FILES - reservedSlots;
+  const combined = [
+    ...matched.slice(0, primarySlots),
+    ...siblingSpecs.slice(0, reservedSlots),
+  ];
+
   return (combined.length > 0 ? combined : allSpecFiles).slice(0, MAX_SPEC_FILES);
 }
