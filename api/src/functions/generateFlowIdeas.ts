@@ -353,6 +353,20 @@ export async function generateFlowIdeasHandler(
     });
   }
 
+  // Post-process: fix wrong API version prefixes in step paths.
+  // The AI sometimes uses memorised paths from training data (e.g. /v2/)
+  // instead of the version found in the specs (e.g. /v3/).
+  if (detectedVersions.length === 1) {
+    const correctVersion = detectedVersions[0]; // e.g. "v3"
+    for (const idea of ideas) {
+      if (Array.isArray(idea.steps)) {
+        idea.steps = idea.steps.map((step: string) =>
+          step.replace(/\/v\d+\//g, `/${correctVersion}/`)
+        );
+      }
+    }
+  }
+
   return ok({ ideas, usage });
 }
 

@@ -245,7 +245,31 @@ async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<Http
     });
 
     const textBlock = response.content.find((b) => b.type === "text");
-    const reply = textBlock && textBlock.type === "text" ? textBlock.text : "";
+    let reply = textBlock && textBlock.type === "text" ? textBlock.text : "";
+
+    // Post-process: fix wrong API version prefixes in flowplan paths
+    const versionSet2 = new Set<string>();
+    const vRe = /\/v(\d+)\//g;
+    let vMatch: RegExpExecArray | null;
+    const searchTarget = specContext || reply;
+    while ((vMatch = vRe.exec(searchTarget)) !== null) {
+      versionSet2.add(`v${vMatch[1]}`);
+    }
+    // Only fix if specs use a single version (unambiguous)
+    if (specContext) {
+      const specVersions = new Set<string>();
+      const svRe = /\/v(\d+)\//g;
+      let sv: RegExpExecArray | null;
+      while ((sv = svRe.exec(specContext)) !== null) {
+        specVersions.add(`v${sv[1]}`);
+      }
+      if (specVersions.size === 1) {
+        const cv = [...specVersions][0];
+        // Fix paths like "POST /v2/..." or "/v2/..." inside flowplan JSON blocks
+        reply = reply.replace(/((?:GET|POST|PUT|PATCH|DELETE)\s+)\/v\d+\//gi, `$1/${cv}/`);
+        reply = reply.replace(/"path":\s*"\/v\d+\//g, `"path": "/${cv}/`);
+      }
+    }
 
     const inputTokens = response.usage.input_tokens;
     const outputTokens = response.usage.output_tokens;

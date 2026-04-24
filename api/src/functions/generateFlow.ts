@@ -458,7 +458,14 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       const finalMessage = await stream.finalMessage();
       const textBlock = finalMessage.content.find((b) => b.type === "text");
       const rawXml = textBlock && textBlock.type === "text" ? textBlock.text : "";
-      const xml = cleanXmlResponse(rawXml);
+      let xml = cleanXmlResponse(rawXml);
+
+      // Post-process: fix wrong API version prefixes in <path> elements
+      if (detectedVersions.length === 1) {
+        const cv = detectedVersions[0];
+        xml = xml.replace(/(<path>(?:GET|POST|PUT|PATCH|DELETE)\s+)\/v\d+\//gi, `$1/${cv}/`);
+        xml = xml.replace(/(<path>)\/v\d+\//gi, `$1/${cv}/`);
+      }
 
       const inputTokens = finalMessage.usage.input_tokens;
       const outputTokens = finalMessage.usage.output_tokens;
