@@ -94,7 +94,7 @@ async function buildSpecContext(specFiles: string[], projectId: string): Promise
     try {
       const prefix = projectId !== "unknown" ? `${projectId}/` : undefined;
       const blobs = await listBlobs(prefix);
-      const mdFiles = blobs.filter((b) => b.name.endsWith(".md") && !b.name.endsWith("/Skills.md")).slice(0, MAX_SPEC_FILES);
+      const mdFiles = blobs.filter((b) => b.name.endsWith(".md")).slice(0, MAX_SPEC_FILES);
       if (mdFiles.length === 0) return "";
       const contents = await Promise.all(mdFiles.map((b) => downloadBlob(b.name)));
       const projPrefix = projectId !== "unknown" ? projectId + "/" : "";

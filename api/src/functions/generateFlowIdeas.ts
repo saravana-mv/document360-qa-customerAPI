@@ -197,7 +197,7 @@ export async function generateFlowIdeasHandler(
       return err(500, `Failed to list blobs: ${e instanceof Error ? e.message : String(e)}`);
     }
 
-    const mdBlobs = allBlobs.filter((b) => b.name.endsWith(".md") && !b.name.endsWith("/.keep") && !b.name.endsWith("/Skills.md"));
+    const mdBlobs = allBlobs.filter((b) => b.name.endsWith(".md") && !b.name.endsWith("/.keep"));
 
     if (mdBlobs.length === 0) {
       return ok({
