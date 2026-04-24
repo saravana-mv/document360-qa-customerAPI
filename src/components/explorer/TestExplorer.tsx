@@ -1,11 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useSpecStore } from "../../store/spec.store";
-import { useSetupStore } from "../../store/setup.store";
 import { useFlowStatusStore } from "../../store/flowStatus.store";
 import { useExplorerUIStore } from "../../store/explorerUI.store";
 import { useScenarioOrgStore } from "../../store/scenarioOrg.store";
 import { getAllTests } from "../../lib/tests/registry";
-import { fetchProject } from "../../lib/api/projects";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import { VersionAccordion } from "./VersionAccordion";
 import { Spinner } from "../common/Spinner";
@@ -13,7 +11,6 @@ import type { ParsedTag } from "../../types/spec.types";
 
 export function TestExplorer() {
   const { parsedTags, setSpec } = useSpecStore();
-  const setup = useSetupStore();
   const sortOrder = useExplorerUIStore((s) => s.sortOrder);
   const orgLoaded = useScenarioOrgStore((s) => s.loaded);
   const orgLoading = useScenarioOrgStore((s) => s.loading);
@@ -21,9 +18,6 @@ export function TestExplorer() {
   const flowsLoading = useFlowStatusStore((s) => s.loading);
   const flowsByName = useFlowStatusStore((s) => s.byName);
   const allTests = getAllTests();
-
-  const [autoLoadError, setAutoLoadError] = useState<string | null>(null);
-  const [autoLoading, setAutoLoading] = useState(false);
 
   // Build parsedTags from registry whenever flows change.
   useEffect(() => {
@@ -38,35 +32,6 @@ export function TestExplorer() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flowsByName, flowsLoading]);
-
-  // Auto-load project info if project not yet loaded
-  useEffect(() => {
-    if (!setup.selectedProjectId) return;
-    if (setup.selectedProjectId && setup.projects.length > 0) return;
-    if (flowsLoading) return;
-    let cancelled = false;
-    (async () => {
-      setAutoLoading(true);
-      setAutoLoadError(null);
-      try {
-        const projectId = setup.selectedProjectId;
-        if (!projectId) {
-          // No project selected — user needs to pick one from the project selection page
-          setAutoLoading(false);
-          return;
-        }
-        const project = await fetchProject(projectId, "proxied");
-        if (cancelled) return;
-        setup.setProjects([project]);
-      } catch (err) {
-        if (!cancelled) setAutoLoadError(err instanceof Error ? err.message : String(err));
-      } finally {
-        if (!cancelled) setAutoLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flowsLoading]);
 
   // Load scenario org once tests are available
   useEffect(() => {
@@ -110,21 +75,11 @@ export function TestExplorer() {
     }));
 
   // Still loading flows from queue
-  if (flowsLoading || autoLoading) {
+  if (flowsLoading) {
     return (
       <div className="flex items-center justify-center h-full text-xs text-[#656d76] gap-2">
         <Spinner size="sm" className="text-[#656d76]" />
         Loading scenarios…
-      </div>
-    );
-  }
-
-  if (autoLoadError) {
-    return (
-      <div className="p-4">
-        <div className="px-3 py-2 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-xs text-[#d1242f]">
-          {autoLoadError}
-        </div>
       </div>
     );
   }
