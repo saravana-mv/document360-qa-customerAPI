@@ -540,6 +540,10 @@ export function SpecFilesPage() {
     return true;
   }
 
+  function handleCancelGeneration() {
+    abortRef.current?.abort();
+  }
+
   async function selectFile(path: string) {
     if (!confirmLeaveGeneration()) return;
     setMultiSelectedPaths(new Set());
@@ -2123,6 +2127,7 @@ export function SpecFilesPage() {
                           onDeselectAllFlows={deselectAllFlows}
                           thisLevelOnly={thisLevelOnly}
                           onToggleThisLevel={(hasSubLevelFlows || hasSubLevelIdeas) ? () => setThisLevelOnly((v) => !v) : undefined}
+                          onCancelGeneration={generatingFlows ? handleCancelGeneration : undefined}
                         />
                       </div>
                       <ResizeHandle width={flowsWidth} onResize={setFlowsWidth} minWidth={180} maxWidth={500} />
