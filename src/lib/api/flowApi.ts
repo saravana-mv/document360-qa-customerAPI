@@ -5,6 +5,14 @@ export interface FlowXmlResult {
   usage: FlowUsage | null;
 }
 
+/** Strip markdown code fences and leading/trailing whitespace from AI XML output. */
+function stripFences(xml: string): string {
+  return xml
+    .replace(/^```(?:xml)?\s*\n?/, "")
+    .replace(/\n?```\s*$/, "")
+    .trim();
+}
+
 /** Generate flow XML (non-streaming). Returns the XML string and usage data. */
 export async function generateFlowXml(
   prompt: string,
@@ -29,7 +37,7 @@ export async function generateFlowXml(
   }
 
   const data = await res.json() as { xml: string; usage?: FlowUsage };
-  return { xml: data.xml, usage: data.usage ?? null };
+  return { xml: stripFences(data.xml), usage: data.usage ?? null };
 }
 
 /** Edit an existing flow XML using AI. Returns updated XML and usage data. */
@@ -57,7 +65,7 @@ export async function editFlowXml(
   }
 
   const data = await res.json() as { xml: string; usage?: FlowUsage };
-  return { xml: data.xml, usage: data.usage ?? null };
+  return { xml: stripFences(data.xml), usage: data.usage ?? null };
 }
 
 /** Generate a short descriptive title for a flow prompt using AI (Haiku). */

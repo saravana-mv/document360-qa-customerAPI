@@ -194,7 +194,7 @@ async function editFlow(req: HttpRequest, _ctx: InvocationContext): Promise<Http
     let xml = textBlock && textBlock.type === "text" ? textBlock.text : "";
 
     // Strip markdown code fences if the model wraps its output
-    xml = xml.replace(/^```xml\s*\n?/, "").replace(/\n?```\s*$/, "").trim();
+    xml = xml.replace(/^```(?:xml)?\s*\n?/, "").replace(/\n?```\s*$/, "").trim();
 
     const inputTokens = response.usage.input_tokens;
     const outputTokens = response.usage.output_tokens;

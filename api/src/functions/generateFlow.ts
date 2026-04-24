@@ -420,7 +420,10 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
 
       const finalMessage = await stream.finalMessage();
       const textBlock = finalMessage.content.find((b) => b.type === "text");
-      const xml = textBlock && textBlock.type === "text" ? textBlock.text : "";
+      let xml = textBlock && textBlock.type === "text" ? textBlock.text : "";
+
+      // Strip markdown code fences if the model wraps its output
+      xml = xml.replace(/^```(?:xml)?\s*\n?/, "").replace(/\n?```\s*$/, "").trim();
 
       const inputTokens = finalMessage.usage.input_tokens;
       const outputTokens = finalMessage.usage.output_tokens;
