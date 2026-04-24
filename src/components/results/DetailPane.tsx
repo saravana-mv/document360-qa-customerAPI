@@ -191,19 +191,72 @@ function DesignTab({ testId }: { testId: string }) {
   const displayPath = rewriteApiVersion(def.path, apiVersion);
   const pathTokens = displayPath.match(/\{[^}]+\}/g) ?? [];
 
-  // Build param values from project variables (generic — any {param_name} → proj.param_name)
-  const ctxParamValues: Record<string, string> = {};
-  for (const [key, val] of Object.entries(projectVars)) {
-    ctxParamValues[`{${key}}`] = val || "(not configured)";
-  }
+  // Classify each path token and compute its expression + resolved value
+  type ParamInfo = {
+    token: string;       // e.g. "{project_id}"
+    paramName: string;   // e.g. "project_id"
+    kind: "proj" | "state" | "unknown";
+    expression: string;  // e.g. "{{proj.projectId}}" or "{{state.createdId}}"
+    resolved: string;    // actual value or the expression if unresolvable
+    tooltip?: string;
+  };
 
-  // Build resolved URL — ctx params get real values, state params keep their template string
-  const resolvedPath = pathTokens.reduce((path, token) => {
+  const paramInfos: ParamInfo[] = pathTokens.map((token) => {
     const paramName = token.slice(1, -1);
     const meta = def.pathParamsMeta?.[paramName];
-    const replacement = meta ? meta.value : (ctxParamValues[token] ?? token);
-    return path.replace(token, replacement);
-  }, displayPath);
+
+    if (meta) {
+      const raw = meta.value; // e.g. "proj.projectId" or "{{state.createdId}}"
+      const isProj = raw.startsWith("proj.");
+      const varName = isProj ? raw.slice("proj.".length) : raw;
+      const expression = raw.startsWith("{{") ? raw : `{{${raw}}}`;
+
+      if (isProj) {
+        const resolvedVal = projectVars[varName];
+        return {
+          token, paramName, kind: "proj" as const,
+          expression,
+          resolved: resolvedVal || "(not configured)",
+          tooltip: meta.tooltip,
+        };
+      }
+      // state or other expression
+      return {
+        token, paramName, kind: "state" as const,
+        expression,
+        resolved: expression, // state values only known at runtime
+        tooltip: meta.tooltip,
+      };
+    }
+
+    // No meta — try to match by token name against project variables
+    const projVal = projectVars[paramName];
+    if (projVal !== undefined) {
+      return {
+        token, paramName, kind: "proj" as const,
+        expression: `{{proj.${paramName}}}`,
+        resolved: projVal || "(not configured)",
+      };
+    }
+
+    return {
+      token, paramName, kind: "unknown" as const,
+      expression: token,
+      resolved: "(not configured)",
+    };
+  });
+
+  // Build expression URL (with {{proj.X}} / {{state.X}} tokens)
+  const expressionPath = paramInfos.reduce(
+    (path, p) => path.replace(p.token, p.expression),
+    displayPath,
+  );
+
+  // Build resolved URL (with actual values where available)
+  const resolvedPath = paramInfos.reduce(
+    (path, p) => path.replace(p.token, p.resolved),
+    displayPath,
+  );
 
   return (
     <div className="p-4 space-y-5 text-sm">
@@ -227,56 +280,81 @@ function DesignTab({ testId }: { testId: string }) {
       </div>
 
       {/* Path Parameters */}
-      {pathTokens.length > 0 && (
+      {paramInfos.length > 0 && (
         <div>
           <Label>Path Parameters</Label>
-          <div className="space-y-2">
-            {pathTokens.map((token) => {
-              const paramName = token.slice(1, -1);
-              const meta = def.pathParamsMeta?.[paramName];
-              const isStateBased = !!meta;
-              const displayValue = meta ? meta.value : (ctxParamValues[token] ?? "(not configured)");
-              const missing = displayValue === "(not configured)";
-
-              return (
-                <div key={token} className="text-xs">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {/* Param token */}
-                    <span className="font-mono text-[#0969da] bg-[#ddf4ff] border border-[#b6e3ff] px-2 py-0.5 rounded shrink-0">
-                      {safeStr(token)}
-                    </span>
-                    <span className="text-[#afb8c1]">→</span>
-                    {/* Value — with tooltip if state-based */}
-                    {meta?.tooltip ? (
-                      <Tooltip text={safeStr(meta.tooltip)}>
-                        <span className="font-mono text-[#0969da] bg-[#ddf4ff] border border-[#b6e3ff] px-2 py-0.5 rounded cursor-help underline decoration-dotted underline-offset-2">
-                          {safeStr(displayValue)}
-                        </span>
-                      </Tooltip>
-                    ) : (
-                      <span className={`font-mono px-2 py-0.5 rounded ${
-                        missing
-                          ? "text-[#9a6700] italic"
-                          : "text-[#1f2328] bg-[#eef1f6]"
+          <div className="space-y-2.5">
+            {paramInfos.map((p) => (
+              <div key={p.token} className="text-xs">
+                {/* Row 1: {token} → expression (badge) */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-[#656d76] bg-[#eef1f6] border border-[#d1d9e0] px-2 py-0.5 rounded shrink-0">
+                    {safeStr(p.token)}
+                  </span>
+                  <span className="text-[#afb8c1]">→</span>
+                  {p.tooltip ? (
+                    <Tooltip text={safeStr(p.tooltip)}>
+                      <span className={`font-mono px-2 py-0.5 rounded cursor-help underline decoration-dotted underline-offset-2 ${
+                        p.kind === "proj"
+                          ? "text-[#1a7f37] bg-[#dafbe1] border border-[#aceebb]"
+                          : "text-[#0969da] bg-[#ddf4ff] border border-[#b6e3ff]"
                       }`}>
-                        {safeStr(displayValue)}
+                        {safeStr(p.expression)}
                       </span>
-                    )}
-                    {!missing && <CopyButton value={displayValue} />}
-                    {isStateBased && (
-                      <span className="text-[11px] text-[#656d76] italic">runtime</span>
-                    )}
-                  </div>
+                    </Tooltip>
+                  ) : (
+                    <span className={`font-mono px-2 py-0.5 rounded ${
+                      p.kind === "proj"
+                        ? "text-[#1a7f37] bg-[#dafbe1] border border-[#aceebb]"
+                        : p.kind === "state"
+                          ? "text-[#0969da] bg-[#ddf4ff] border border-[#b6e3ff]"
+                          : "text-[#9a6700] italic"
+                    }`}>
+                      {safeStr(p.expression)}
+                    </span>
+                  )}
+                  <span className={`text-[11px] italic ${
+                    p.kind === "proj" ? "text-[#1a7f37]" : p.kind === "state" ? "text-[#656d76]" : "text-[#9a6700]"
+                  }`}>
+                    {p.kind === "proj" ? "project variable" : p.kind === "state" ? "runtime" : "not configured"}
+                  </span>
                 </div>
-              );
-            })}
+                {/* Row 2: resolved value for project variables */}
+                {p.kind === "proj" && p.resolved !== "(not configured)" && (
+                  <div className="flex items-center gap-2 mt-1 ml-6 group/pval">
+                    <span className="text-[#afb8c1]">→</span>
+                    <span className="font-mono text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] px-2 py-0.5 rounded">
+                      {safeStr(p.resolved)}
+                    </span>
+                    <CopyButton value={p.resolved} className="opacity-0 group-hover/pval:opacity-100 transition-opacity" />
+                  </div>
+                )}
+                {p.kind === "proj" && p.resolved === "(not configured)" && (
+                  <div className="flex items-center gap-2 mt-1 ml-6">
+                    <span className="text-[#afb8c1]">→</span>
+                    <span className="text-[#9a6700] italic">Set in Settings → Variables</span>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
 
-          {/* Resolved URL preview */}
-          <div className="mt-2.5 flex items-center gap-1.5 group/url font-mono text-xs text-[#656d76] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-3 py-2">
-            <span className="text-[#afb8c1] mr-0.5 shrink-0">→</span>
-            <span className="break-all flex-1">{safeStr(resolvedPath)}</span>
-            <CopyButton value={resolvedPath} className="opacity-0 group-hover/url:opacity-100 transition-opacity" />
+          {/* URL resolution preview — expression → resolved */}
+          <div className="mt-3 space-y-1.5">
+            {/* Expression URL */}
+            <div className="flex items-start gap-1.5 group/expr font-mono text-xs text-[#656d76] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-3 py-2">
+              <span className="text-[#afb8c1] mr-0.5 shrink-0 mt-px">→</span>
+              <span className="break-all flex-1">{safeStr(expressionPath)}</span>
+              <CopyButton value={expressionPath} className="opacity-0 group-hover/expr:opacity-100 transition-opacity shrink-0" />
+            </div>
+            {/* Resolved URL (only show if different from expression) */}
+            {resolvedPath !== expressionPath && (
+              <div className="flex items-start gap-1.5 group/url font-mono text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-3 py-2">
+                <span className="text-[#afb8c1] mr-0.5 shrink-0 mt-px">→</span>
+                <span className="break-all flex-1">{safeStr(resolvedPath)}</span>
+                <CopyButton value={resolvedPath} className="opacity-0 group-hover/url:opacity-100 transition-opacity shrink-0" />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -285,17 +363,50 @@ function DesignTab({ testId }: { testId: string }) {
       {def.queryParams && Object.keys(def.queryParams).length > 0 && (
         <div>
           <Label>Query Parameters</Label>
-          <div className="space-y-1">
-            {Object.entries(def.queryParams).map(([k, v]) => (
-              <div key={k} className="flex items-center gap-2 text-xs py-0.5 group/qp">
-                <span className="font-mono text-[#0969da] bg-[#ddf4ff] border border-[#b6e3ff] px-2 py-0.5 rounded shrink-0">
-                  {safeStr(k)}
-                </span>
-                <span className="text-[#afb8c1]">=</span>
-                <span className="font-mono text-[#1f2328] flex-1">{safeStr(v)}</span>
-                <CopyButton value={`${k}=${v}`} className="opacity-0 group-hover/qp:opacity-100 transition-opacity" />
-              </div>
-            ))}
+          <div className="space-y-1.5">
+            {Object.entries(def.queryParams).map(([k, v]) => {
+              const isProj = v.startsWith("proj.");
+              const projVarName = isProj ? v.slice("proj.".length) : "";
+              const resolvedVal = isProj ? (projectVars[projVarName] || "(not configured)") : v;
+              const expression = isProj ? `{{${v}}}` : v;
+
+              return (
+                <div key={k} className="text-xs">
+                  <div className="flex items-center gap-2 group/qp">
+                    <span className="font-mono text-[#656d76] bg-[#eef1f6] border border-[#d1d9e0] px-2 py-0.5 rounded shrink-0">
+                      {safeStr(k)}
+                    </span>
+                    <span className="text-[#afb8c1]">=</span>
+                    <span className={`font-mono px-2 py-0.5 rounded ${
+                      isProj
+                        ? "text-[#1a7f37] bg-[#dafbe1] border border-[#aceebb]"
+                        : "text-[#1f2328]"
+                    }`}>
+                      {safeStr(expression)}
+                    </span>
+                    {isProj && (
+                      <span className="text-[11px] text-[#1a7f37] italic">project variable</span>
+                    )}
+                    <CopyButton value={`${k}=${resolvedVal}`} className="opacity-0 group-hover/qp:opacity-100 transition-opacity" />
+                  </div>
+                  {isProj && resolvedVal !== "(not configured)" && (
+                    <div className="flex items-center gap-2 mt-1 ml-6 group/qpval">
+                      <span className="text-[#afb8c1]">→</span>
+                      <span className="font-mono text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] px-2 py-0.5 rounded">
+                        {safeStr(resolvedVal)}
+                      </span>
+                      <CopyButton value={resolvedVal} className="opacity-0 group-hover/qpval:opacity-100 transition-opacity" />
+                    </div>
+                  )}
+                  {isProj && resolvedVal === "(not configured)" && (
+                    <div className="flex items-center gap-2 mt-1 ml-6">
+                      <span className="text-[#afb8c1]">→</span>
+                      <span className="text-[#9a6700] italic">Set in Settings → Variables</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
