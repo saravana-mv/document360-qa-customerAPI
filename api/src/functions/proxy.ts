@@ -10,7 +10,7 @@
 // the token store do.
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import { withAuth, parseClientPrincipal, getProjectId } from "../lib/auth";
+import { withAuth, parseClientPrincipal } from "../lib/auth";
 import { getValidOAuthToken } from "../lib/oauthTokenStore";
 import { getCredentialForVersion, getApiKeyForVersion } from "../lib/versionApiKeyStore";
 import { getConnectionsContainer } from "../lib/cosmosClient";
@@ -131,13 +131,16 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
   if (noAuth) {
     forwardHeaders["Authorization"] = "Bearer __invalid__";
   } else if (connectionId) {
-    // Connection-based auth: look up the connection doc from Cosmos
-    const projectId = getProjectId(req);
+    // Connection-based auth: look up the connection doc from Cosmos by id
+    // Proxy doesn't receive X-FlowForge-ProjectId, so use cross-partition query
     const container = await getConnectionsContainer();
     let connDoc: { provider: string; credential?: string; authHeaderName?: string; authQueryParam?: string } | undefined;
     try {
-      const { resource } = await container.item(connectionId, projectId).read();
-      connDoc = resource as typeof connDoc;
+      const { resources } = await container.items.query({
+        query: "SELECT * FROM c WHERE c.id = @id AND c.type = 'connection'",
+        parameters: [{ name: "@id", value: connectionId }],
+      }).fetchAll();
+      if (resources.length > 0) connDoc = resources[0] as typeof connDoc;
     } catch { /* not found */ }
 
     if (!connDoc) {
