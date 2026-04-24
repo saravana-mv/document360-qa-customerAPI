@@ -60,8 +60,36 @@ export function extractRequiredFieldsSummary(specContext: string): string {
   }
 
   if (summaries.length === 0) return "";
+
+  // Collect fields that appear as required across multiple endpoints — these
+  // are cross-cutting requirements that should be included in ALL POST/PUT
+  // bodies, including prerequisite/dependency steps that have no spec.
+  const fieldFrequency: Record<string, number> = {};
+  for (const summary of summaries) {
+    const reqMatch = summary.match(/\*\*Required fields\*\*: (.+)/);
+    if (reqMatch) {
+      const fields = reqMatch[1].match(/`(\w+)`/g)?.map(f => f.replace(/`/g, "")) ?? [];
+      for (const f of fields) {
+        fieldFrequency[f] = (fieldFrequency[f] || 0) + 1;
+      }
+    }
+  }
+  // Fields appearing in any spec are likely needed for related endpoints too
+  const commonFields = Object.entries(fieldFrequency)
+    .filter(([name]) => !["name", "title"].includes(name)) // Skip generic field names
+    .map(([name]) => `\`${name}\``);
+
+  let crossNote = "";
+  if (commonFields.length > 0) {
+    crossNote = "\n\n### Common Required Fields for Prerequisite Steps\n\n" +
+      "When creating **prerequisite/dependency steps** (e.g., creating a parent category before creating articles), " +
+      "the endpoint may not have a spec file in the context. In that case, include these fields that are " +
+      "commonly required across this API: " + commonFields.join(", ") + ".\n" +
+      "Use project variables (`{{proj.X}}`) or state variables (`{{state.X}}`) for their values.";
+  }
+
   return "\n\n# Request Body Required Fields Summary\n\n" +
     "**IMPORTANT**: The following required fields were extracted from the API spec schemas. " +
     "You MUST include ALL fields marked as **YES** in the `<body>` CDATA of the corresponding steps.\n\n" +
-    summaries.join("\n\n");
+    summaries.join("\n\n") + crossNote;
 }

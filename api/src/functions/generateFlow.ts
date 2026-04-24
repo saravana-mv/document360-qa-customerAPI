@@ -202,7 +202,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 
 1. **STRICT SCOPE**: Only use API endpoints, methods, and paths explicitly described in the provided spec files. Do not invent endpoints.
 2. **Entity dependencies**: If the API has dependent entities (e.g., a child resource that requires a parent), create the prerequisites first and clean them up last. Check the spec for required fields and dependencies.
-3. **Request body MUST include ALL required fields**: When the spec file documents a request body schema, you MUST include EVERY field listed as \`required\`. Parse the schema carefully — look for \`required: [field1, field2, ...]\` arrays, "Required" labels, or "(required)" annotations next to properties. For each required field, use: a project variable (\`{{proj.X}}\`) if one matches, a state variable (\`{{state.X}}\`) captured from a prior step, or a sensible test value. Omitting a required field will cause the API call to fail at runtime — this is a critical error.
+3. **Request body MUST include ALL required fields**: When the spec file documents a request body schema, you MUST include EVERY field listed as \`required\`. Parse the schema carefully — look for \`required: [field1, field2, ...]\` arrays, "Required" labels, or "(required)" annotations next to properties. For each required field, use: a project variable (\`{{proj.X}}\`) if one matches, a state variable (\`{{state.X}}\`) captured from a prior step, or a sensible test value. Omitting a required field will cause the API call to fail at runtime — this is a critical error. **For prerequisite/dependency steps** (e.g., creating a parent entity) where no spec is provided: check the "Common Required Fields" section at the end of the spec context and include those fields in the request body too.
 4. **Teardown is MANDATORY for every flow**: Every flow — regardless of complexity — MUST end with teardown steps that delete ALL resources created during the flow. The testing environment must be left exactly as it was before the flow ran. Delete child resources before parent. Mark every teardown step with \`<flags teardown="true"/>\`.
 5. **State passing**: Use \`<capture variable="state.X" source="response.data.Y"/>\` then reference \`{{state.X}}\` in later steps.
 6. **Unique names**: For resource names, use \`[TEST] Something - {{timestamp}}\`.
@@ -361,6 +361,8 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   const projVars = await loadProjectVariables(projectId);
   console.log(`[generateFlow] projVars:`, projVars.map(v => v.name));
   const requiredFieldsSummary = specContext ? extractRequiredFieldsSummary(specContext) : "";
+  console.log(`[generateFlow] specContext length: ${specContext.length}, requiredFieldsSummary length: ${requiredFieldsSummary.length}`);
+  if (requiredFieldsSummary) console.log(`[generateFlow] requiredFieldsSummary:\n${requiredFieldsSummary.slice(0, 500)}`);
   const userMessage = specContext
     ? `${body.prompt}${scopeNote}\n\n# Relevant API Specification\n\n${specContext}${requiredFieldsSummary}`
     : body.prompt;
