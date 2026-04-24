@@ -112,10 +112,13 @@ export async function readDistilledContent(blobPath: string): Promise<string> {
     const cached = await downloadBlob(companionPath);
     // Check version — stale caches are re-distilled
     if (cached.startsWith(`<!-- distill-v${DISTILL_VERSION} -->`)) {
+      console.log(`[distillCache] HIT v${DISTILL_VERSION} for ${blobPath}`);
       return cached;
     }
+    console.log(`[distillCache] STALE cache for ${blobPath}, re-distilling`);
     // Stale version — fall through to re-distill
   } catch {
+    console.log(`[distillCache] MISS for ${blobPath}, distilling on the fly`);
     // Companion doesn't exist — fall back to runtime distillation
   }
 

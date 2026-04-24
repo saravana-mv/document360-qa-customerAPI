@@ -97,13 +97,16 @@ export async function generateTitle(
   return data.title;
 }
 
-/** Stream flow XML from Claude via SSE. Calls onChunk for each text delta. */
+/** Stream flow XML from Claude via SSE. Calls onChunk for each text delta.
+ *  If onCorrected is provided, it receives the post-processed XML after streaming completes.
+ */
 export async function generateFlowStream(
   prompt: string,
   specFiles: string[],
   onChunk: (text: string) => void,
   model?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onCorrected?: (xml: string) => void,
 ): Promise<void> {
   const res = await fetch(`/api/generate-flow`, {
     method: "POST",
@@ -140,9 +143,10 @@ export async function generateFlowStream(
       const data = line.slice(6).trim();
       if (data === "[DONE]") return;
       try {
-        const parsed = JSON.parse(data) as { text?: string; error?: string };
+        const parsed = JSON.parse(data) as { text?: string; error?: string; corrected?: string };
         if (parsed.error) throw new Error(parsed.error);
-        if (parsed.text) onChunk(parsed.text);
+        if (parsed.corrected && onCorrected) onCorrected(parsed.corrected);
+        else if (parsed.text) onChunk(parsed.text);
       } catch (e) {
         // re-throw real errors, skip JSON parse failures
         if (e instanceof SyntaxError) continue;

@@ -484,6 +484,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   // Extract common required fields for both prompt injection AND post-processing
   const commonFields = specContext ? extractCommonRequiredFields(specContext) : [];
   const projVarMap = buildProjVarMap(commonFields, projVars);
+  console.log(`[generateFlow] specContext length=${specContext.length}, commonFields=${JSON.stringify(commonFields)}, projVarMap=${JSON.stringify(projVarMap)}`);
 
   if (commonFields.length > 0) {
     const fieldList = commonFields.map(f => `\`${f}\``).join(", ");
@@ -505,15 +506,31 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
             messages: [{ role: "user", content: userMessage }],
           });
 
+          // Collect full text for post-processing while also streaming chunks
+          let fullText = "";
           for await (const event of stream) {
             if (
               event.type === "content_block_delta" &&
               event.delta.type === "text_delta"
             ) {
+              fullText += event.delta.text;
               const sseData = `data: ${JSON.stringify({ text: event.delta.text })}\n\n`;
               controller.enqueue(encoder.encode(sseData));
             }
           }
+
+          // Post-process the complete XML (version fix + required fields injection)
+          let xml = cleanXmlResponse(fullText);
+          if (canonicalVersion) {
+            xml = xml.replace(/(<path>(?:GET|POST|PUT|PATCH|DELETE)\s+)\/v\d+\//gi, `$1/${canonicalVersion}/`);
+            xml = xml.replace(/(<path>)\/v\d+\//gi, `$1/${canonicalVersion}/`);
+          }
+          console.log(`[generateFlow] stream post-process: commonFields=${JSON.stringify(commonFields)}, projVarMap=${JSON.stringify(projVarMap)}`);
+          xml = injectMissingRequiredFields(xml, commonFields, projVarMap);
+
+          // Send the corrected XML so the frontend can replace the raw streamed text
+          const correctedData = `data: ${JSON.stringify({ corrected: xml })}\n\n`;
+          controller.enqueue(encoder.encode(correctedData));
 
           // Send usage data before closing
           const finalMsg = await stream.finalMessage();
