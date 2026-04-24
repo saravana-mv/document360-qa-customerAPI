@@ -81,12 +81,10 @@ export function buildTree(files: SpecFileItem[]): TreeNode[] {
 function sortLevel(nodes: TreeNode[]): TreeNode[] {
   return nodes
     .sort((a, b) => {
+      // Skills.md always first — before folders and all other files
+      if (a.name === "Skills.md" && a.type === "file") return -1;
+      if (b.name === "Skills.md" && b.type === "file") return 1;
       if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
-      // Pin Skills.md to top of files within a folder
-      if (a.type === "file" && b.type === "file") {
-        if (a.name === "Skills.md") return -1;
-        if (b.name === "Skills.md") return 1;
-      }
       return a.name.localeCompare(b.name);
     })
     .map((n) => (n.type === "folder" ? { ...n, children: sortLevel(n.children) } : n));
@@ -122,13 +120,11 @@ const METHOD_RANK: Record<string, number> = { GET: 0, POST: 1, PUT: 2, PATCH: 3,
 
 function sortChildren(nodes: TreeNode[], order: SortOrder): TreeNode[] {
   return [...nodes].sort((a, b) => {
-    // Folders always come first
+    // Skills.md always first — before folders and all other files
+    if (a.name === "Skills.md" && a.type === "file") return -1;
+    if (b.name === "Skills.md" && b.type === "file") return 1;
+    // Folders before other files
     if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
-    // Pin Skills.md to top
-    if (a.type === "file" && b.type === "file") {
-      if (a.name === "Skills.md") return -1;
-      if (b.name === "Skills.md") return 1;
-    }
     if (order === "method" && a.type === "file" && b.type === "file") {
       const ma = a.httpMethod ? (METHOD_RANK[a.httpMethod] ?? 99) : 100;
       const mb = b.httpMethod ? (METHOD_RANK[b.httpMethod] ?? 99) : 100;
