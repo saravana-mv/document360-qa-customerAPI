@@ -497,8 +497,11 @@ export function extractCommonRequiredFields(specContext: string): string[] {
     }
   }
 
+  // Only return fields that look like cross-entity identifiers (contain "id" or "version")
+  // rather than generic content fields (title, name, description, content, etc.)
+  // which are entity-specific and would produce wrong values if injected into unrelated steps.
   return Object.entries(fieldFrequency)
-    .filter(([name]) => !["name", "title", "articles"].includes(name))
+    .filter(([name]) => /id$|_id|version/i.test(name))
     .map(([name]) => name);
 }
 
