@@ -13,7 +13,6 @@ import type { SkillsVersion } from "../../lib/api/specFilesApi";
 interface Props {
   path: string;
   content: string;
-  onClose: () => void;
   onSaved?: () => void;
 }
 
@@ -288,7 +287,7 @@ function ReadOnlyPreview({ content, label }: { content: string; label: string })
 
 // ── Main Component ───────────────────────────────────────────────────────────
 
-export function SkillsEditor({ path, content, onClose, onSaved }: Props) {
+export function SkillsEditor({ path, content, onSaved }: Props) {
   const [draft, setDraft] = useState(content);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -503,15 +502,6 @@ export function SkillsEditor({ path, content, onClose, onSaved }: Props) {
             className="px-3 py-1 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? "Saving..." : "Save"}
-          </button>
-          <button
-            onClick={onClose}
-            className="p-1 text-[#656d76] hover:text-[#1f2328] hover:bg-[#f6f8fa] rounded-md transition-colors"
-            title="Close"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
           </button>
         </div>
       </div>

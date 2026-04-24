@@ -1,10 +1,12 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useExplorerUIStore } from "../../store/explorerUI.store";
 import { useScenarioOrgStore } from "../../store/scenarioOrg.store";
 import { useRunnerStore } from "../../store/runner.store";
 import { useFlowStatusStore } from "../../store/flowStatus.store";
 import { useSpecStore } from "../../store/spec.store";
 import { useUserStore } from "../../store/user.store";
+import { getOAuthStatus } from "../../lib/api/oauthApi";
+import type { OAuthStatus } from "../../lib/api/oauthApi";
 import { ScenarioFolderTree } from "./ScenarioFolderTree";
 import { ConnectEndpointModal } from "./ConnectEndpointModal";
 import { getAllTests, getTestsByTag, unregisterWhere } from "../../lib/tests/registry";
@@ -49,7 +51,24 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
   const noScenarios = tags.length === 0;
   const fewScenarios = tags.length <= 1;
 
-  const isConnected = versionConfig?.credentialConfigured || (versionConfig?.authType === "oauth" && !!versionConfig?.connectionId);
+  // Check OAuth token status for OAuth connections
+  const [oauthStatus, setOauthStatus] = useState<OAuthStatus | null>(null);
+  const connectionId = versionConfig?.connectionId;
+  const isOAuth = versionConfig?.authType === "oauth";
+
+  useEffect(() => {
+    if (!isOAuth || !connectionId) { setOauthStatus(null); return; }
+    let cancelled = false;
+    getOAuthStatus(connectionId).then(s => { if (!cancelled) setOauthStatus(s); }).catch(() => {});
+    const interval = setInterval(() => {
+      getOAuthStatus(connectionId).then(s => { if (!cancelled) setOauthStatus(s); }).catch(() => {});
+    }, 60_000); // refresh every 60s
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [isOAuth, connectionId]);
+
+  const hasCredential = versionConfig?.credentialConfigured || (isOAuth && !!connectionId);
+  const isOAuthExpired = isOAuth && oauthStatus?.expired === true;
+  const isConnected = hasCredential && !isOAuthExpired;
 
   // Expand/collapse all folders + tags within this version
   const versionFolders = useScenarioOrgStore((s) => s.folders[version] ?? EMPTY_ARR);
@@ -166,6 +185,14 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
               title={`Connected: ${versionConfig?.endpointLabel || versionConfig?.baseUrl || "configured"}`}
             >
               {versionConfig?.endpointLabel || versionConfig?.baseUrl || "Connected"}
+            </button>
+          ) : isOAuthExpired ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowConnect(true); }}
+              className="text-xs text-[#d1242f] font-medium shrink-0 px-1.5 py-px rounded-full bg-[#ffebe9] border border-[#d1242f]/30 hover:bg-[#d1242f]/10 transition-colors"
+              title="OAuth token expired — re-authenticate in Settings → Connections"
+            >
+              Expired
             </button>
           ) : (
             <button

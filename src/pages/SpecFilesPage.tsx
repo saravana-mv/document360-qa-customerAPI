@@ -2055,7 +2055,7 @@ export function SpecFilesPage() {
                 loadingContent ? (
                   <div className="flex-1 flex items-center justify-center text-[#656d76] text-sm">Loading…</div>
                 ) : (
-                  <SkillsEditor path={selectedPath} content={content} onClose={() => setViewingContent(false)} onSaved={() => void loadFiles()} />
+                  <SkillsEditor path={selectedPath} content={content} onSaved={() => void loadFiles()} />
                 )
               ) : viewingContent && isFileContext ? (
                 /* Markdown content viewer (replaces workshop when filename link is clicked) */
