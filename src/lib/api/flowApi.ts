@@ -41,8 +41,9 @@ export async function generateFlowXml(
     throw new Error(msg);
   }
 
-  const data = await res.json() as { xml: string; usage?: FlowUsage; _debug?: unknown };
+  const data = await res.json() as { xml: string; usage?: FlowUsage; warning?: string; failedFiles?: string[]; _debug?: unknown };
   if (data._debug) console.log("[FlowGen] Backend debug:", data._debug);
+  if (data.warning) console.warn("[FlowGen] Warning:", data.warning, data.failedFiles);
   return { xml: cleanXml(data.xml), usage: data.usage ?? null };
 }
 

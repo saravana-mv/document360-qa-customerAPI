@@ -321,30 +321,34 @@ Your entire response is the XML document and nothing else.`;
 const MAX_SPEC_CONTEXT_CHARS = 50_000;
 const MAX_SPEC_FILES = 15;
 
-async function buildSpecContext(specFiles: string[], projectId: string): Promise<string> {
+async function buildSpecContext(specFiles: string[], projectId: string): Promise<{ context: string; failedFiles: string[] }> {
   if (!specFiles || specFiles.length === 0) {
     // Load a default set of available spec files
     try {
       const prefix = projectId !== "unknown" ? `${projectId}/` : undefined;
       const blobs = await listBlobs(prefix);
       const mdFiles = blobs.filter((b) => b.name.endsWith(".md")).slice(0, MAX_SPEC_FILES);
-      if (mdFiles.length === 0) return "";
+      if (mdFiles.length === 0) return { context: "", failedFiles: [] };
       const contents = await Promise.all(mdFiles.map((b) => downloadBlob(b.name)));
       const projPrefix = projectId !== "unknown" ? projectId + "/" : "";
-      return truncateContext(
-        contents.map((c, i) => {
-          const displayName = projPrefix && mdFiles[i].name.startsWith(projPrefix)
-            ? mdFiles[i].name.slice(projPrefix.length) : mdFiles[i].name;
-          return `## ${displayName}\n\n${c}`;
-        }),
-      );
+      return {
+        context: truncateContext(
+          contents.map((c, i) => {
+            const displayName = projPrefix && mdFiles[i].name.startsWith(projPrefix)
+              ? mdFiles[i].name.slice(projPrefix.length) : mdFiles[i].name;
+            return `## ${displayName}\n\n${c}`;
+          }),
+        ),
+        failedFiles: [],
+      };
     } catch {
-      return "";
+      return { context: "", failedFiles: [] };
     }
   }
 
   // Only process up to MAX_SPEC_FILES — read pre-distilled versions when available
   const capped = specFiles.slice(0, MAX_SPEC_FILES);
+  const failedFiles: string[] = [];
   const contents = await Promise.all(
     capped.map(async (name) => {
       const blobPath = scopedPath(projectId, name);
@@ -353,11 +357,13 @@ async function buildSpecContext(specFiles: string[], projectId: string): Promise
         return `## ${name}\n\n${content}`;
       } catch (err) {
         console.error(`[generateFlow] Failed to read spec: ${blobPath}`, err);
-        return `## ${name}\n\n(File not found: ${blobPath})`;
+        failedFiles.push(name);
+        return "";
       }
     })
   );
-  return truncateContext(contents);
+  const validContents = contents.filter(c => c.length > 0);
+  return { context: truncateContext(validContents), failedFiles };
 }
 
 function truncateContext(sections: string[]): string {
@@ -440,8 +446,22 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     }
   }
   // buildSpecContext now reads pre-distilled versions (cached at upload time)
-  const specContext = await buildSpecContext(body.specFiles ?? [], projectId);
-  const specCount = body.specFiles?.length ?? 0;
+  const specFiles = body.specFiles ?? [];
+  const { context: specContext, failedFiles } = await buildSpecContext(specFiles, projectId);
+
+  // Fail early if ALL requested spec files couldn't be read
+  if (specFiles.length > 0 && failedFiles.length === specFiles.length) {
+    return {
+      status: 422,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        error: `Could not read any of the ${specFiles.length} spec files. The AI would generate without spec context, producing incorrect request bodies. Check that the project has spec files uploaded.`,
+        failedFiles,
+      }),
+    };
+  }
+
+  const specCount = specFiles.length;
   const scopeNote = specCount === 1
     ? `\n\nIMPORTANT: You are working with a SINGLE endpoint specification. The primary test steps of the flow MUST focus on this endpoint. However, you MUST still add prerequisite setup and teardown steps as required by the hard rules and project-specific API rules — these are ALWAYS allowed regardless of scope.`
     : specCount > 1
@@ -617,7 +637,8 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
         body: JSON.stringify({
           xml,
           usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, costUsd },
-          _debug: { projectId, commonFields, projVarMap, specFilesReceived: body.specFiles?.length ?? 0, specContextLength: specContext.length, specContextSnippet: specContext.slice(0, 300) },
+          ...(failedFiles.length > 0 ? { warning: `${failedFiles.length} of ${specFiles.length} spec files could not be read. Flow may be missing required fields.`, failedFiles } : {}),
+          _debug: { projectId, commonFields, projVarMap, specFilesReceived: specFiles.length, specContextLength: specContext.length },
         }),
       };
     } catch (e) {
