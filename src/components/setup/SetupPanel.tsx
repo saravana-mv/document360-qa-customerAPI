@@ -1,63 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useSetupStore, AI_MODELS, type AiModelId } from "../../store/setup.store";
 import { useUserStore } from "../../store/user.store";
 import { fullProjectReset } from "../../lib/api/resetApi";
-import { fetchApiRules, saveApiRules, type ApiRulesData } from "../../lib/api/apiRulesApi";
-import { setEnumAliases } from "../../lib/tests/flowXml/enumAliases";
 
 
 
 export function SetupPanel() {
   const setup = useSetupStore();
   const isOwner = useUserStore((s) => s.hasRole("owner"));
-  const canManage = useUserStore((s) => s.hasRole("qa_manager"));
-  const selectedProjectId = setup.selectedProjectId;
 
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
-
-  // API Rules state
-  const [apiRules, setApiRules] = useState("");
-  const [enumAliasText, setEnumAliasText] = useState("");
-  const [rulesLoading, setRulesLoading] = useState(true);
-  const [rulesSaving, setRulesSaving] = useState(false);
-  const [rulesSaved, setRulesSaved] = useState(false);
-  const [rulesError, setRulesError] = useState<string | null>(null);
-  const [rulesOriginal, setRulesOriginal] = useState<ApiRulesData>({ rules: "", enumAliases: "" });
-
-  useEffect(() => {
-    if (!selectedProjectId) return;
-    setRulesLoading(true);
-    fetchApiRules()
-      .then((data) => {
-        setApiRules(data.rules);
-        setEnumAliasText(data.enumAliases);
-        setRulesOriginal(data);
-        setEnumAliases(data.enumAliases);
-      })
-      .catch(() => { /* ok — new project */ })
-      .finally(() => setRulesLoading(false));
-  }, [selectedProjectId]);
-
-  const rulesChanged = apiRules !== rulesOriginal.rules || enumAliasText !== rulesOriginal.enumAliases;
-
-  async function handleSaveRules() {
-    setRulesSaving(true);
-    setRulesError(null);
-    setRulesSaved(false);
-    try {
-      await saveApiRules({ rules: apiRules, enumAliases: enumAliasText });
-      setRulesOriginal({ rules: apiRules, enumAliases: enumAliasText });
-      setEnumAliases(enumAliasText);
-      setRulesSaved(true);
-      setTimeout(() => setRulesSaved(false), 2000);
-    } catch (e) {
-      setRulesError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setRulesSaving(false);
-    }
-  }
 
   return (
     <div className="min-h-screen bg-[#f6f8fa] flex items-start justify-center px-4 py-8">
@@ -86,74 +40,6 @@ export function SetupPanel() {
             </p>
           </div>
         </div>
-        {/* ── API Rules (for AI generation — qa_manager+) ────────────────── */}
-        {canManage && (
-          <div className="bg-white rounded-xl border border-[#d1d9e0] shadow-sm p-6">
-            <h2 className="text-base font-semibold text-[#1f2328] mb-0.5">API Rules</h2>
-            <div className="mb-3 px-3 py-2 bg-[#fff8c5] border border-[#d4a72c]/30 rounded-md text-sm text-[#6f5800]">
-              API Rules have moved to version folders in Spec Manager. Use the <strong>Rules</strong> button on a top-level folder (e.g. v2) to configure per-version rules. Rules set here serve as a project-wide fallback.
-            </div>
-            <p className="text-sm text-[#656d76] mb-5">
-              Rules that describe your API's quirks, dependencies, and conventions. These are injected into AI prompts when generating ideas, flows, and edits.
-            </p>
-
-            {rulesLoading ? (
-              <p className="text-sm text-[#656d76]">Loading…</p>
-            ) : (
-              <>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-[#1f2328] mb-1">
-                    API-Specific Rules
-                  </label>
-                  <textarea
-                    value={apiRules}
-                    onChange={(e) => setApiRules(e.target.value)}
-                    rows={8}
-                    placeholder={"Example:\n- NEVER use PUT — this API only supports PATCH for updates.\n- Articles require a category_id (create Category first).\n- DELETE returns 204 with no body.\n- The PATCH body only accepts: title, content, category_id."}
-                    className="w-full px-3 py-2 border border-[#d1d9e0] rounded-md text-sm bg-[#f6f8fa] focus:bg-white text-[#1f2328] font-mono resize-y"
-                  />
-                  <p className="text-[11px] text-[#656d76] mt-1">
-                    Free-text rules appended to the AI system prompt. Describe HTTP method restrictions, entity dependencies, required fields, etc.
-                  </p>
-                </div>
-
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-[#1f2328] mb-1">
-                    Enum Aliases <span className="text-[#656d76] font-normal">(optional)</span>
-                  </label>
-                  <textarea
-                    value={enumAliasText}
-                    onChange={(e) => setEnumAliasText(e.target.value)}
-                    rows={4}
-                    placeholder={"# name=value (one per line)\ndraft=0\npublished=3\nfolder=0\npage=1"}
-                    className="w-full px-3 py-2 border border-[#d1d9e0] rounded-md text-sm bg-[#f6f8fa] focus:bg-white text-[#1f2328] font-mono resize-y"
-                  />
-                  <p className="text-[11px] text-[#656d76] mt-1">
-                    If the API returns enums as integers but the spec uses strings, map them here. Format: <code className="text-[11px]">name=value</code> per line. Lines starting with # are comments.
-                  </p>
-                </div>
-
-                {rulesError && (
-                  <p className="text-xs text-[#d1242f] mb-3">{rulesError}</p>
-                )}
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleSaveRules}
-                    disabled={rulesSaving || !rulesChanged}
-                    className="px-3 py-[6px] text-sm font-medium text-white bg-[#1a7f37] border border-[#1a7f37]/80 rounded-md hover:bg-[#1a7f37]/90 transition-colors disabled:opacity-50"
-                  >
-                    {rulesSaving ? "Saving…" : "Save rules"}
-                  </button>
-                  {rulesSaved && (
-                    <span className="text-xs text-[#1a7f37]">Saved</span>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
         {/* ── Danger zone (owner only) ──────────────────────────── */}
         {isOwner && (
           <div className="bg-white rounded-xl border border-[#d1242f]/40 shadow-sm p-6">

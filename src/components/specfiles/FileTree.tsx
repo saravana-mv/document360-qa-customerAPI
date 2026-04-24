@@ -461,7 +461,7 @@ function TreeNodeRow({
                 onRename={() => onRenameStart(node.path)}
                 onDelete={() => onDeleteNode(node)}
               />
-            ) : (
+            ) : node.name === "Skills.md" ? null : (
               <ContextMenu
                 items={[
                   ...(sourcedPaths?.has(node.path) ? [{

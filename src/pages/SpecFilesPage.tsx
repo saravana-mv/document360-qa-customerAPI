@@ -1394,7 +1394,7 @@ export function SpecFilesPage() {
     } else {
       const prefix = activePath.endsWith("/") ? activePath : `${activePath}/`;
       specFileNames = files
-        .filter((f) => f.name.startsWith(prefix) && f.name.endsWith(".md"))
+        .filter((f) => f.name.startsWith(prefix) && f.name.endsWith(".md") && !f.name.endsWith("/Skills.md"))
         .map((f) => f.name);
     }
 
