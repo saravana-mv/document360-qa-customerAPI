@@ -5,12 +5,16 @@ export interface FlowXmlResult {
   usage: FlowUsage | null;
 }
 
-/** Strip markdown code fences and leading/trailing whitespace from AI XML output. */
-function stripFences(xml: string): string {
-  return xml
+/** Strip markdown code fences, preamble commentary, and whitespace from AI XML output. */
+function cleanXml(raw: string): string {
+  let xml = raw
     .replace(/^```(?:xml)?\s*\n?/, "")
     .replace(/\n?```\s*$/, "")
     .trim();
+  // Strip any commentary before the XML declaration
+  const xmlStart = xml.indexOf("<?xml");
+  if (xmlStart > 0) xml = xml.slice(xmlStart);
+  return xml;
 }
 
 /** Generate flow XML (non-streaming). Returns the XML string and usage data. */
@@ -37,7 +41,7 @@ export async function generateFlowXml(
   }
 
   const data = await res.json() as { xml: string; usage?: FlowUsage };
-  return { xml: stripFences(data.xml), usage: data.usage ?? null };
+  return { xml: cleanXml(data.xml), usage: data.usage ?? null };
 }
 
 /** Edit an existing flow XML using AI. Returns updated XML and usage data. */
@@ -65,7 +69,7 @@ export async function editFlowXml(
   }
 
   const data = await res.json() as { xml: string; usage?: FlowUsage };
-  return { xml: stripFences(data.xml), usage: data.usage ?? null };
+  return { xml: cleanXml(data.xml), usage: data.usage ?? null };
 }
 
 /** Generate a short descriptive title for a flow prompt using AI (Haiku). */

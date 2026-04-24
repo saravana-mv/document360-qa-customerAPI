@@ -7,6 +7,18 @@ import { checkCredits, recordUsage } from "../lib/aiCredits";
 import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRules";
 import { loadProjectVariables, injectProjectVariables } from "../lib/projectVariables";
 
+/** Strip markdown fences AND any preamble text before the XML declaration. */
+function cleanXmlResponse(raw: string): string {
+  let xml = raw
+    .replace(/^```(?:xml)?\s*\n?/, "")
+    .replace(/\n?```\s*$/, "")
+    .trim();
+  // Strip any commentary/preamble before the XML declaration
+  const xmlStart = xml.indexOf("<?xml");
+  if (xmlStart > 0) xml = xml.slice(xmlStart);
+  return xml;
+}
+
 function scopedPath(projectId: string, name: string): string {
   if (!projectId || projectId === "unknown") return name;
   if (name.startsWith(projectId + "/")) return name;
@@ -199,9 +211,13 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 8. **Spec-driven assertions**: When spec files are provided, read the documented response schema and status codes carefully. The spec is the source of truth.
 9. **Schema exactness**: Elements must appear in the order listed above. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status. Use \`field-exists\` / \`field-equals\` / \`array-not-empty\` — no other assertion types exist.
 
-## Output format
+## Output format — MANDATORY
 
-Output ONLY the raw XML starting with \`<?xml\`. No markdown code fences. No commentary. No explanation.`;
+Your response MUST begin with \`<?xml version="1.0" encoding="UTF-8"?>\` as the very first characters.
+Do NOT include ANY text before the XML declaration — no analysis, no commentary, no explanation, no preamble.
+Do NOT wrap the XML in markdown code fences.
+If spec files are missing or incomplete, still output valid XML using reasonable defaults — NEVER explain what you're doing instead.
+Your entire response is the XML document and nothing else.`;
 
 // Cap spec context to ~50k characters (~12k tokens) to keep flow generation
 // cost-effective. Each flow only needs the endpoints it references, not every
@@ -353,12 +369,20 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       async start(controller) {
         try {
           const systemPrompt = injectProjectVariables(injectApiRules(FLOW_SYSTEM_PROMPT, apiRules), projVars);
+          const XML_PREFILL = `<?xml version="1.0" encoding="UTF-8"?>`;
           const stream = client.messages.stream({
             model,
             max_tokens: 8192,
             system: systemPrompt,
-            messages: [{ role: "user", content: userMessage }],
+            messages: [
+              { role: "user", content: userMessage },
+              { role: "assistant", content: XML_PREFILL },
+            ],
           });
+
+          // Send the prefill as the first chunk so the client gets the full XML
+          const prefillChunk = `data: ${JSON.stringify({ text: XML_PREFILL })}\n\n`;
+          controller.enqueue(encoder.encode(prefillChunk));
 
           for await (const event of stream) {
             if (
@@ -411,19 +435,21 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     // Non-streaming: collect full response
     try {
       const systemPrompt = injectProjectVariables(injectApiRules(FLOW_SYSTEM_PROMPT, apiRules), projVars);
+      const XML_PREFILL = `<?xml version="1.0" encoding="UTF-8"?>`;
       const stream = client.messages.stream({
         model,
         max_tokens: 8192,
         system: systemPrompt,
-        messages: [{ role: "user", content: userMessage }],
+        messages: [
+          { role: "user", content: userMessage },
+          { role: "assistant", content: XML_PREFILL },
+        ],
       });
 
       const finalMessage = await stream.finalMessage();
       const textBlock = finalMessage.content.find((b) => b.type === "text");
-      let xml = textBlock && textBlock.type === "text" ? textBlock.text : "";
-
-      // Strip markdown code fences if the model wraps its output
-      xml = xml.replace(/^```(?:xml)?\s*\n?/, "").replace(/\n?```\s*$/, "").trim();
+      const rawXml = textBlock && textBlock.type === "text" ? textBlock.text : "";
+      const xml = cleanXmlResponse(XML_PREFILL + rawXml);
 
       const inputTokens = finalMessage.usage.input_tokens;
       const outputTokens = finalMessage.usage.output_tokens;

@@ -5,6 +5,17 @@ import { withAuth, getProjectId } from "../lib/auth";
 import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRules";
 import { loadProjectVariables, injectProjectVariables } from "../lib/projectVariables";
 
+/** Strip markdown fences AND any preamble text before the XML declaration. */
+function cleanXmlResponse(raw: string): string {
+  let xml = raw
+    .replace(/^```(?:xml)?\s*\n?/, "")
+    .replace(/\n?```\s*$/, "")
+    .trim();
+  const xmlStart = xml.indexOf("<?xml");
+  if (xmlStart > 0) xml = xml.slice(xmlStart);
+  return xml;
+}
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -130,9 +141,12 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 8. **HTTP status codes**: Use these defaults unless the spec or project API rules state otherwise: GET → 200, POST (create) → 201, PUT/PATCH (update) → 200, DELETE → 204 (No Content). DELETE responses typically have an empty body — do not add body assertions on DELETE unless the spec says otherwise.
 9. If you see incorrect assertions in the existing XML, fix them as part of your edit.
 
-## Output format
+## Output format — MANDATORY
 
-Output ONLY the raw XML starting with \`<?xml\`. No markdown code fences. No commentary. No explanation.`;
+Your response MUST begin with \`<?xml version="1.0" encoding="UTF-8"?>\` as the very first characters.
+Do NOT include ANY text before the XML declaration — no analysis, no commentary, no explanation, no preamble.
+Do NOT wrap the XML in markdown code fences.
+Your entire response is the XML document and nothing else.`;
 
 /** POST /api/edit-flow
  *  Body: { xml: string; prompt: string; model?: string }
@@ -183,18 +197,20 @@ async function editFlow(req: HttpRequest, _ctx: InvocationContext): Promise<Http
   try {
     const userMessage = `Here is the current flow XML:\n\n\`\`\`xml\n${body.xml}\n\`\`\`\n\nPlease apply the following changes:\n${body.prompt}`;
 
+    const XML_PREFILL = `<?xml version="1.0" encoding="UTF-8"?>`;
     const response = await client.messages.create({
       model,
       max_tokens: 8192,
       system: systemPrompt,
-      messages: [{ role: "user", content: userMessage }],
+      messages: [
+        { role: "user", content: userMessage },
+        { role: "assistant", content: XML_PREFILL },
+      ],
     });
 
     const textBlock = response.content.find((b) => b.type === "text");
-    let xml = textBlock && textBlock.type === "text" ? textBlock.text : "";
-
-    // Strip markdown code fences if the model wraps its output
-    xml = xml.replace(/^```(?:xml)?\s*\n?/, "").replace(/\n?```\s*$/, "").trim();
+    const rawXml = textBlock && textBlock.type === "text" ? textBlock.text : "";
+    const xml = cleanXmlResponse(XML_PREFILL + rawXml);
 
     const inputTokens = response.usage.input_tokens;
     const outputTokens = response.usage.output_tokens;
