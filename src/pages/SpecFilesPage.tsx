@@ -1413,15 +1413,22 @@ export function SpecFilesPage() {
     );
     if (selectedIdeas.length === 0) return;
 
-    // Get spec file names for context — depends on whether context is a file or folder
+    // Get spec file names for context — the primary set comes from the active
+    // folder, but we also include the full version folder so that prerequisite
+    // endpoint specs (e.g. categories when generating article flows) can be
+    // found by filterRelevantSpecs.
+    const allMdFiles = files.filter((f) => f.name.endsWith(".md")).map((f) => f.name);
     let specFileNames: string[];
     if (activePath.endsWith(".md")) {
-      specFileNames = [activePath];
+      specFileNames = allMdFiles;
     } else {
-      const prefix = activePath.endsWith("/") ? activePath : `${activePath}/`;
-      specFileNames = files
-        .filter((f) => f.name.startsWith(prefix) && f.name.endsWith(".md"))
-        .map((f) => f.name);
+      // Use all .md files under the version root (e.g. V3/) so dependency
+      // specs from sibling folders are available for prerequisite steps.
+      const versionRoot = activePath.split("/")[0];
+      const versionPrefix = versionRoot ? `${versionRoot}/` : "";
+      specFileNames = versionPrefix
+        ? allMdFiles.filter((f) => f.startsWith(versionPrefix))
+        : allMdFiles;
     }
 
     // Preserve existing completed flows, add pending entries for new ones
