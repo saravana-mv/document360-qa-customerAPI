@@ -20,78 +20,83 @@ ${steps}`;
 }
 
 /**
- * Extract relevant spec file names from the available files based on the
- * idea's steps. Matches endpoint paths mentioned in steps (e.g.
- * "POST /v3/projects/{project_id}/articles") against spec filenames.
- * Returns a filtered list so only relevant specs are sent as context.
+ * Parse idea steps to find exactly the spec files needed for each endpoint.
  *
- * Since specs are pre-distilled (compact format), we can afford a generous
- * limit. We also include "create" and "delete" specs from sibling entity
- * folders so prerequisite/teardown steps have proper spec context.
+ * Each step like "POST /v3/projects/{project_id}/categories" is parsed to
+ * extract the HTTP method and resource name, then matched against available
+ * spec filenames by (action, resource) pair. This gives precise results
+ * (typically 4-6 files) instead of flooding the AI with irrelevant specs.
  */
 export function filterRelevantSpecs(idea: FlowIdea, allSpecFiles: string[]): string[] {
-  // Extract endpoint keywords from the idea's steps
-  // Steps typically mention paths like "/articles", "/categories", "/versions", etc.
-  const stepText = idea.steps.join(" ").toLowerCase() + " " + idea.description.toLowerCase();
+  const needed = new Set<string>();
 
-  // Build a set of entity keywords from the idea
-  const keywords = new Set<string>();
-  for (const entity of idea.entities) {
-    keywords.add(entity.toLowerCase());
-  }
+  // Map HTTP methods to typical spec filename action prefixes
+  const methodToActions: Record<string, string[]> = {
+    POST: ["create-", "bulk-create-"],
+    GET: ["get-"],
+    DELETE: ["delete-", "bulk-delete-"],
+    PUT: ["update-", "bulk-update-"],
+    PATCH: ["update-"],
+  };
 
-  // Extract path segments that look like API resource names
-  const pathPattern = /\/(?:v\d+\/)?(?:projects\/\{[^}]+\}\/)?([\w-]+)/gi;
-  let match: RegExpExecArray | null;
-  while ((match = pathPattern.exec(stepText)) !== null) {
-    keywords.add(match[1].toLowerCase());
-  }
+  for (const step of idea.steps) {
+    // Parse: "POST /v3/projects/{project_id}/categories (description)"
+    // or:   "GET /v3/projects/{project_id}/articles/{article_id}"
+    const stepMatch = step.match(/(GET|POST|PUT|PATCH|DELETE)\s+(\/\S+)/i);
+    if (!stepMatch) continue;
 
-  // Match spec files that contain any of these keywords in their filename
-  const matched = allSpecFiles.filter((name) => {
-    const lower = name.toLowerCase();
-    for (const kw of keywords) {
-      if (lower.includes(kw)) return true;
+    const method = stepMatch[1].toUpperCase();
+    const path = stepMatch[2];
+
+    // Extract meaningful segments (skip version, "projects", path params)
+    const segments = path.split("/").filter(
+      (s) => s && !s.startsWith("{") && !/^v\d+$/i.test(s) && s !== "projects"
+    );
+    // "/v3/projects/{id}/categories"       → ["categories"]
+    // "/v3/projects/{id}/articles/bulk"     → ["articles", "bulk"]
+    // "/v3/projects/{id}/articles/{art_id}" → ["articles"]
+
+    const resource = segments[0]?.toLowerCase();
+    if (!resource) continue;
+
+    const isBulk = segments.includes("bulk");
+    const actions = methodToActions[method] ?? [];
+
+    // Find the best matching spec file
+    for (const file of allSpecFiles) {
+      const lower = file.toLowerCase();
+      const filename = lower.split("/").pop() ?? "";
+
+      // Must relate to this resource (folder name or filename)
+      if (!lower.includes(`/${resource}/`) && !filename.includes(resource)) continue;
+
+      // Match action prefix to method, respecting bulk vs single
+      for (const action of actions) {
+        const isBulkAction = action.startsWith("bulk-");
+        if (isBulk !== isBulkAction) continue;
+        if (filename.startsWith(action)) {
+          needed.add(file);
+          break;
+        }
+      }
     }
-    return false;
-  });
-
-  // Also include "create" and "delete" specs from sibling entity folders.
-  // Flows often need prerequisite entities (e.g. article flows need category
-  // creation/deletion) that aren't mentioned in the idea's steps.
-  const entityFolders = new Set<string>();
-  for (const f of matched) {
-    const lastSlash = f.lastIndexOf("/");
-    if (lastSlash > 0) entityFolders.add(f.slice(0, lastSlash).toLowerCase());
   }
 
-  // Find the version root (e.g. "v3") from matched files
-  const versionRoots = new Set<string>();
-  for (const folder of entityFolders) {
-    const firstSlash = folder.indexOf("/");
-    if (firstSlash > 0) versionRoots.add(folder.slice(0, firstSlash));
-  }
+  if (needed.size > 0) return Array.from(needed);
 
-  // Collect create/delete specs from ALL sibling entity folders under the same version root
-  const siblingSpecs = allSpecFiles.filter((name) => {
-    const lower = name.toLowerCase();
-    if (!Array.from(versionRoots).some(vr => lower.startsWith(vr + "/"))) return false;
-    if (matched.includes(name)) return false;
-    const filename = lower.split("/").pop() ?? "";
-    return filename.startsWith("create-") || filename.startsWith("delete-");
-  });
+  // Fallback: if step parsing found nothing (unusual), use keyword matching
+  const stepText = idea.steps.join(" ").toLowerCase() + " " + idea.description.toLowerCase();
+  const keywords = new Set<string>();
+  for (const entity of idea.entities) keywords.add(entity.toLowerCase());
+  const pathRe = /\/(?:v\d+\/)?(?:projects\/\{[^}]+\}\/)?([\w-]+)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = pathRe.exec(stepText)) !== null) keywords.add(m[1].toLowerCase());
 
-  // Priority order: sibling dependency specs are RESERVED first (they provide
-  // required field context for prerequisite steps), then fill remaining slots
-  // with primary matched specs. This prevents the primary entity from consuming
-  // all slots and starving dependency specs.
-  const MAX_SPEC_FILES = 15;
-  const reservedSlots = Math.min(siblingSpecs.length, 5); // reserve up to 5 slots for dependencies
-  const primarySlots = MAX_SPEC_FILES - reservedSlots;
-  const combined = [
-    ...matched.slice(0, primarySlots),
-    ...siblingSpecs.slice(0, reservedSlots),
-  ];
-
-  return (combined.length > 0 ? combined : allSpecFiles).slice(0, MAX_SPEC_FILES);
+  return allSpecFiles
+    .filter((name) => {
+      const lower = name.toLowerCase();
+      for (const kw of keywords) { if (lower.includes(kw)) return true; }
+      return false;
+    })
+    .slice(0, 10);
 }
