@@ -69,7 +69,7 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
   }
 
   const isConnected = !!connectionId || versionConfig?.credentialConfigured || (versionConfig?.authType === "oauth" && !!versionConfig?.connectionId);
-  const canSave = baseUrl.trim();
+  const canSave = !!(baseUrl.trim() || connectionId);
 
   const selectedConn = connections.find((c) => c.id === connectionId);
 
@@ -191,7 +191,7 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
             <button
               onClick={() => void handleDisconnect()}
               disabled={disconnecting}
-              className="text-xs font-medium text-[#d1242f] hover:text-[#d1242f]/80 transition-colors disabled:opacity-50"
+              className="text-xs font-medium text-[#d1242f] hover:text-[#d1242f]/80 transition-colors disabled:opacity-50 cursor-pointer"
             >
               {disconnecting ? "Disconnecting…" : "Disconnect"}
             </button>
@@ -199,14 +199,14 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
           <div className="flex-1" />
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-xs font-medium text-[#1f2328] border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] rounded-md transition-colors"
+            className="px-3 py-1.5 text-xs font-medium text-[#1f2328] border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] rounded-md transition-colors cursor-pointer"
           >
             Cancel
           </button>
           <button
             onClick={() => void handleSave()}
             disabled={saving || !canSave}
-            className="px-3 py-1.5 text-xs font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md transition-colors disabled:opacity-50 border border-[#1a7f37]/80"
+            className="px-3 py-1.5 text-xs font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border border-[#1a7f37]/80"
           >
             {saving ? "Saving…" : isConnected ? "Update" : "Connect"}
           </button>
