@@ -51,30 +51,40 @@ function injectMissingRequiredFields(
     const cdataMatch = stepXml.match(cdataRe);
     if (!cdataMatch) return stepXml;
 
-    const bodyJson = cdataMatch[2].trim();
-    if (!bodyJson.startsWith("{")) return stepXml; // Not JSON
+    const bodyText = cdataMatch[2];
+    if (!bodyText.trim().startsWith("{")) return stepXml; // Not JSON
 
-    try {
-      const parsed = JSON.parse(bodyJson);
-      let modified = false;
-
-      for (const field of fields) {
-        if (!(field in parsed)) {
-          // Inject the missing field with the appropriate project variable
-          parsed[field] = projVarMap[field] ?? `{{proj.${field}}}`;
-          modified = true;
-        }
+    // Use string-based check (not JSON.parse) because body contains
+    // interpolation tokens like {{timestamp}} which aren't valid JSON
+    const missingFields: string[] = [];
+    for (const field of fields) {
+      // Check if the field name appears as a JSON key in the body
+      if (!bodyText.includes(`"${field}"`)) {
+        missingFields.push(field);
       }
-
-      if (!modified) return stepXml;
-
-      // Rebuild the CDATA with the injected fields
-      const newJson = JSON.stringify(parsed, null, 2);
-      return stepXml.replace(cdataRe, `$1\n${newJson}\n      $3`);
-    } catch {
-      // JSON parse failed — leave untouched
-      return stepXml;
     }
+
+    if (missingFields.length === 0) return stepXml;
+
+    // Insert missing fields before the last closing brace
+    const additions = missingFields
+      .map(f => `  "${f}": "${projVarMap[f] ?? `{{proj.${f}}}`}"`)
+      .join(",\n");
+
+    // Find the last } in the body and insert before it
+    const lastBrace = bodyText.lastIndexOf("}");
+    if (lastBrace < 0) return stepXml;
+
+    // Check if there are existing fields (need a comma)
+    const beforeBrace = bodyText.slice(0, lastBrace).trimEnd();
+    const needsComma = beforeBrace.length > 0 && !beforeBrace.endsWith("{") && !beforeBrace.endsWith(",");
+    const separator = needsComma ? ",\n" : "\n";
+
+    const newBody = bodyText.slice(0, lastBrace).trimEnd() +
+      separator + additions + "\n" +
+      bodyText.slice(lastBrace).trimStart().replace(/^}/, "      }");
+
+    return stepXml.replace(cdataRe, `$1${newBody}$3`);
   });
 }
 
@@ -564,6 +574,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       }
 
       // Post-process: inject missing common required fields into POST/PUT bodies
+      console.log(`[generateFlow] post-process: commonFields=${JSON.stringify(commonFields)}, projVarMap=${JSON.stringify(projVarMap)}`);
       xml = injectMissingRequiredFields(xml, commonFields, projVarMap);
 
       const inputTokens = finalMessage.usage.input_tokens;
