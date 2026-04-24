@@ -364,16 +364,23 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   console.log(`[generateFlow] specContext length: ${specContext.length}, requiredFieldsSummary length: ${requiredFieldsSummary.length}`);
   if (requiredFieldsSummary) console.log(`[generateFlow] requiredFieldsSummary:\n${requiredFieldsSummary.slice(0, 500)}`);
 
-  // Detect API version from spec context paths
-  const versionSet = new Set<string>();
-  const versionRe = /\/v(\d+)\//g;
-  let vm: RegExpExecArray | null;
-  while ((vm = versionRe.exec(specContext)) !== null) {
-    versionSet.add(`v${vm[1]}`);
+  // Detect API version — prefer folder path (unambiguous), fall back to spec content
+  let canonicalVersion: string | null = null;
+  if (versionFolder) {
+    const fm = versionFolder.match(/^v(\d+)$/i);
+    if (fm) canonicalVersion = `v${fm[1]}`;
   }
-  const detectedVersions = [...versionSet];
-  const versionDirective = detectedVersions.length === 1
-    ? `\n\n**CRITICAL — API VERSION**: This API uses ${detectedVersions[0]} endpoints EXCLUSIVELY. ALL paths in your XML — including prerequisite/setup/teardown steps — MUST use /${detectedVersions[0]}/ prefix. Do NOT use any other version.`
+  if (!canonicalVersion) {
+    const versionSet = new Set<string>();
+    const versionRe = /\/v(\d+)\//g;
+    let vm: RegExpExecArray | null;
+    while ((vm = versionRe.exec(specContext)) !== null) {
+      versionSet.add(`v${vm[1]}`);
+    }
+    if (versionSet.size === 1) canonicalVersion = [...versionSet][0];
+  }
+  const versionDirective = canonicalVersion
+    ? `\n\n**CRITICAL — API VERSION**: This API uses ${canonicalVersion} endpoints EXCLUSIVELY. ALL paths in your XML — including prerequisite/setup/teardown steps — MUST use /${canonicalVersion}/ prefix. Do NOT use any other version.`
     : "";
 
   const userMessage = specContext
@@ -461,10 +468,9 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       let xml = cleanXmlResponse(rawXml);
 
       // Post-process: fix wrong API version prefixes in <path> elements
-      if (detectedVersions.length === 1) {
-        const cv = detectedVersions[0];
-        xml = xml.replace(/(<path>(?:GET|POST|PUT|PATCH|DELETE)\s+)\/v\d+\//gi, `$1/${cv}/`);
-        xml = xml.replace(/(<path>)\/v\d+\//gi, `$1/${cv}/`);
+      if (canonicalVersion) {
+        xml = xml.replace(/(<path>(?:GET|POST|PUT|PATCH|DELETE)\s+)\/v\d+\//gi, `$1/${canonicalVersion}/`);
+        xml = xml.replace(/(<path>)\/v\d+\//gi, `$1/${canonicalVersion}/`);
       }
 
       const inputTokens = finalMessage.usage.input_tokens;

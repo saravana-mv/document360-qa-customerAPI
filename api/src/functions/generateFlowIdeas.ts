@@ -238,21 +238,26 @@ export async function generateFlowIdeasHandler(
     .map((s) => `## ${s.name}\n\n${s.content}`)
     .join("\n\n---\n\n");
 
-  // Detect API version from spec file paths (e.g. /v3/projects/...)
-  const versionSet = new Set<string>();
-  const versionRe = /\/v(\d+)\//g;
-  for (const s of specContents) {
-    let m: RegExpExecArray | null;
-    while ((m = versionRe.exec(s.content)) !== null) {
-      versionSet.add(`v${m[1]}`);
-    }
+  // Detect API version — prefer folder path (unambiguous), fall back to spec content
+  let canonicalVersion: string | null = null;
+  if (versionFolder) {
+    const fm = versionFolder.match(/^v(\d+)$/i);
+    if (fm) canonicalVersion = `v${fm[1]}`;
   }
-  const detectedVersions = [...versionSet];
-  const versionDirective = detectedVersions.length === 1
-    ? `\n\n**CRITICAL — API VERSION**: This API uses ${detectedVersions[0]} endpoints EXCLUSIVELY. ALL paths — including prerequisite/setup/teardown steps — MUST use /${detectedVersions[0]}/ prefix. Do NOT use any other version (e.g. /v1/, /v2/) under any circumstances.`
-    : detectedVersions.length > 1
-      ? `\n\n**CRITICAL — API VERSION**: The provided specs use these API versions: ${detectedVersions.join(", ")}. Use ONLY these versions in your steps. Do NOT use any version not present in the specs.`
-      : "";
+  if (!canonicalVersion) {
+    const versionSet = new Set<string>();
+    const versionRe = /\/v(\d+)\//g;
+    for (const s of specContents) {
+      let m: RegExpExecArray | null;
+      while ((m = versionRe.exec(s.content)) !== null) {
+        versionSet.add(`v${m[1]}`);
+      }
+    }
+    if (versionSet.size === 1) canonicalVersion = [...versionSet][0];
+  }
+  const versionDirective = canonicalVersion
+    ? `\n\n**CRITICAL — API VERSION**: This API uses ${canonicalVersion} endpoints EXCLUSIVELY. ALL paths — including prerequisite/setup/teardown steps — MUST use /${canonicalVersion}/ prefix. Do NOT use any other version (e.g. /v1/, /v2/) under any circumstances.`
+    : "";
 
   const existingList = body.existingIdeas && body.existingIdeas.length > 0
     ? `\n\n## Already Generated Ideas (DO NOT repeat these)\n\n${body.existingIdeas.map((t, i) => `${i + 1}. ${t}`).join("\n")}`
@@ -356,12 +361,11 @@ export async function generateFlowIdeasHandler(
   // Post-process: fix wrong API version prefixes in step paths.
   // The AI sometimes uses memorised paths from training data (e.g. /v2/)
   // instead of the version found in the specs (e.g. /v3/).
-  if (detectedVersions.length === 1) {
-    const correctVersion = detectedVersions[0]; // e.g. "v3"
+  if (canonicalVersion) {
     for (const idea of ideas) {
       if (Array.isArray(idea.steps)) {
         idea.steps = idea.steps.map((step: string) =>
-          step.replace(/\/v\d+\//g, `/${correctVersion}/`)
+          step.replace(/\/v\d+\//g, `/${canonicalVersion}/`)
         );
       }
     }

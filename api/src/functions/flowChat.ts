@@ -248,27 +248,24 @@ async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<Http
     let reply = textBlock && textBlock.type === "text" ? textBlock.text : "";
 
     // Post-process: fix wrong API version prefixes in flowplan paths
-    const versionSet2 = new Set<string>();
-    const vRe = /\/v(\d+)\//g;
-    let vMatch: RegExpExecArray | null;
-    const searchTarget = specContext || reply;
-    while ((vMatch = vRe.exec(searchTarget)) !== null) {
-      versionSet2.add(`v${vMatch[1]}`);
+    // Prefer folder path (unambiguous) over scanning spec content
+    let chatCanonicalVersion: string | null = null;
+    if (versionFolder) {
+      const fm = versionFolder.match(/^v(\d+)$/i);
+      if (fm) chatCanonicalVersion = `v${fm[1]}`;
     }
-    // Only fix if specs use a single version (unambiguous)
-    if (specContext) {
+    if (!chatCanonicalVersion && specContext) {
       const specVersions = new Set<string>();
       const svRe = /\/v(\d+)\//g;
       let sv: RegExpExecArray | null;
       while ((sv = svRe.exec(specContext)) !== null) {
         specVersions.add(`v${sv[1]}`);
       }
-      if (specVersions.size === 1) {
-        const cv = [...specVersions][0];
-        // Fix paths like "POST /v2/..." or "/v2/..." inside flowplan JSON blocks
-        reply = reply.replace(/((?:GET|POST|PUT|PATCH|DELETE)\s+)\/v\d+\//gi, `$1/${cv}/`);
-        reply = reply.replace(/"path":\s*"\/v\d+\//g, `"path": "/${cv}/`);
-      }
+      if (specVersions.size === 1) chatCanonicalVersion = [...specVersions][0];
+    }
+    if (chatCanonicalVersion) {
+      reply = reply.replace(/((?:GET|POST|PUT|PATCH|DELETE)\s+)\/v\d+\//gi, `$1/${chatCanonicalVersion}/`);
+      reply = reply.replace(/"path":\s*"\/v\d+\//g, `"path": "/${chatCanonicalVersion}/`);
     }
 
     const inputTokens = response.usage.input_tokens;
