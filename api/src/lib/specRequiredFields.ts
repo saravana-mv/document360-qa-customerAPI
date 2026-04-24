@@ -22,6 +22,13 @@ interface FieldInfo {
   example?: unknown;
 }
 
+interface ItemSchema {
+  schemaName: string;
+  requiredFields: string[];
+  fields: FieldInfo[];
+  parentField: string; // e.g. "articles"
+}
+
 interface EndpointSummary {
   method: string;
   path: string;
@@ -33,6 +40,7 @@ interface EndpointSummary {
     requiredFields: string[];
     fields: FieldInfo[];
     examples: { name: string; value: unknown }[];
+    itemSchemas: ItemSchema[];
   } | null;
   successStatus: string;
   responseKeyFields: string[];
@@ -189,6 +197,37 @@ function parseEndpoint(
           }
         }
 
+        // Follow $ref in array items to capture nested schema fields
+        const itemSchemas: ItemSchema[] = [];
+        if (properties) {
+          for (const [fieldName, fieldDef] of Object.entries(properties)) {
+            if (fieldDef.type === "array" && fieldDef.items) {
+              const items = fieldDef.items as Record<string, unknown>;
+              if (items.$ref) {
+                const itemSchema = resolveRef(items.$ref as string, schemas);
+                if (itemSchema) {
+                  const itemRequired = (itemSchema.required as string[]) ?? [];
+                  const itemProps = itemSchema.properties as Record<string, Record<string, unknown>> | undefined;
+                  const itemFields: FieldInfo[] = [];
+                  if (itemProps) {
+                    for (const [fn, fd] of Object.entries(itemProps)) {
+                      itemFields.push({
+                        name: fn,
+                        type: extractFieldType(fd, schemas),
+                        required: itemRequired.includes(fn),
+                        description: ((fd.description as string) ?? "").slice(0, 150),
+                        example: fd.example,
+                      });
+                    }
+                  }
+                  const itemSchemaName = (items.$ref as string).split("/").pop() ?? "";
+                  itemSchemas.push({ schemaName: itemSchemaName, requiredFields: itemRequired, fields: itemFields, parentField: fieldName });
+                }
+              }
+            }
+          }
+        }
+
         // Extract examples
         const examples: { name: string; value: unknown }[] = [];
         const examplesObj = jsonContent.examples as Record<string, Record<string, unknown>> | undefined;
@@ -200,7 +239,7 @@ function parseEndpoint(
           }
         }
 
-        requestBody = { schemaName, requiredFields: required, fields, examples };
+        requestBody = { schemaName, requiredFields: required, fields, examples, itemSchemas };
       }
     }
   }
@@ -309,6 +348,25 @@ function formatEndpoint(ep: EndpointSummary): string {
     }
     lines.push("");
 
+    // Item schemas (for array properties like bulk endpoints)
+    if (rb.itemSchemas && rb.itemSchemas.length > 0) {
+      for (const item of rb.itemSchemas) {
+        lines.push(`### Array Item Schema: \`${item.parentField}\` → ${item.schemaName}`);
+        if (item.requiredFields.length > 0) {
+          lines.push(`**REQUIRED FIELDS (per item): ${item.requiredFields.map(f => `\`${f}\``).join(", ")}**`);
+        }
+        lines.push("");
+        lines.push("| Field | Type | Required | Description |");
+        lines.push("|-------|------|----------|-------------|");
+        for (const f of item.fields) {
+          const req = f.required ? "**YES**" : "no";
+          const desc = f.description.replace(/\|/g, "\\|");
+          lines.push(`| \`${f.name}\` | ${f.type} | ${req} | ${desc} |`);
+        }
+        lines.push("");
+      }
+    }
+
     // Examples
     if (rb.examples.length > 0) {
       lines.push("### Example Request Body");
@@ -403,12 +461,14 @@ export function extractRequiredFieldsSummary(specContext: string): string {
 /**
  * Extract common required field names from spec context.
  * Works with both raw OpenAPI JSON blocks AND distilled format.
+ * Follows $ref into array items and nested schemas to find deeply
+ * nested required fields (e.g. bulk endpoint → item schema → required).
  */
 export function extractCommonRequiredFields(specContext: string): string[] {
   const fieldFrequency: Record<string, number> = {};
 
-  // Try distilled format first: **REQUIRED FIELDS: `field1`, `field2`**
-  const distilledRe = /\*\*REQUIRED FIELDS:\s*(.+?)\*\*/g;
+  // Try distilled format: **REQUIRED FIELDS: `f1`, `f2`** and **REQUIRED FIELDS (per item): `f1`, `f2`**
+  const distilledRe = /\*\*REQUIRED FIELDS(?:\s*\(per item\))?:\s*(.+?)\*\*/g;
   let dm: RegExpExecArray | null;
   while ((dm = distilledRe.exec(specContext)) !== null) {
     const fields = dm[1].match(/`(\w+)`/g)?.map(f => f.replace(/`/g, "")) ?? [];
@@ -417,42 +477,43 @@ export function extractCommonRequiredFields(specContext: string): string[] {
     }
   }
 
-  // Also try raw OpenAPI JSON blocks (for backward compat / runtime distill)
+  // Also try field table rows: | `field_name` | type | **YES** | ...
+  const tableRowRe = /\|\s*`(\w+)`\s*\|[^|]*\|\s*\*\*YES\*\*\s*\|/g;
+  let tr: RegExpExecArray | null;
+  while ((tr = tableRowRe.exec(specContext)) !== null) {
+    fieldFrequency[tr[1]] = (fieldFrequency[tr[1]] || 0) + 1;
+  }
+
+  // Also try raw OpenAPI JSON blocks — follow $ref recursively
   if (Object.keys(fieldFrequency).length === 0) {
     const jsonBlockRe = /````json\s+(\w+)\s+(\S+)\n([\s\S]*?)````/g;
     let match: RegExpExecArray | null;
     while ((match = jsonBlockRe.exec(specContext)) !== null) {
       try {
         const spec = JSON.parse(match[3]);
-        const schemas = spec?.components?.schemas;
-        if (!schemas) continue;
-        const paths = spec?.paths;
-        if (!paths) continue;
-        for (const [, pathObj] of Object.entries(paths) as [string, Record<string, unknown>][]) {
-          for (const [, opObj] of Object.entries(pathObj) as [string, Record<string, unknown>][]) {
-            const op = opObj as Record<string, unknown>;
-            const reqBody = op.requestBody as Record<string, unknown> | undefined;
-            if (!reqBody) continue;
-            const content = reqBody.content as Record<string, Record<string, unknown>> | undefined;
-            if (!content) continue;
-            const jsonContent = content["application/json"];
-            if (!jsonContent) continue;
-            const schemaRef = jsonContent.schema as Record<string, string> | undefined;
-            if (!schemaRef?.$ref) continue;
-            const schemaName = schemaRef.$ref.split("/").pop();
-            if (!schemaName || !schemas[schemaName]) continue;
-            const schema = schemas[schemaName] as Record<string, unknown>;
-            const required = (schema.required as string[]) ?? [];
-            for (const f of required) {
-              fieldFrequency[f] = (fieldFrequency[f] || 0) + 1;
-            }
-          }
-        }
+        const schemas = spec?.components?.schemas ?? {};
+        collectAllRequiredFields(schemas, fieldFrequency);
       } catch { /* skip */ }
     }
   }
 
   return Object.entries(fieldFrequency)
-    .filter(([name]) => !["name", "title"].includes(name))
+    .filter(([name]) => !["name", "title", "articles"].includes(name))
     .map(([name]) => name);
+}
+
+/** Recursively collect required fields from all schemas, following $ref. */
+function collectAllRequiredFields(
+  schemas: Record<string, unknown>,
+  result: Record<string, number>,
+): void {
+  for (const [, schemaDef] of Object.entries(schemas)) {
+    const schema = schemaDef as Record<string, unknown>;
+    const required = schema.required as string[] | undefined;
+    if (required && Array.isArray(required)) {
+      for (const f of required) {
+        result[f] = (result[f] || 0) + 1;
+      }
+    }
+  }
 }

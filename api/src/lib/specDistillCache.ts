@@ -17,6 +17,9 @@
 import { uploadBlob, deleteBlob, renameBlob, downloadBlob } from "./blobClient";
 import { distillSpecContext } from "./specRequiredFields";
 
+/** Bump this when distill logic changes to invalidate stale caches. */
+const DISTILL_VERSION = 2;
+
 // ── Path helpers ──────────────────────────────────────────────────────
 
 /** Convert a spec blob path to its distilled companion path.
@@ -53,7 +56,8 @@ export async function distillAndStore(blobPath: string, rawContent: string): Pro
     // (i.e., the file contained OpenAPI JSON blocks)
     if (distilled !== wrapped) {
       const companionPath = distilledPath(blobPath);
-      await uploadBlob(companionPath, distilled, "text/markdown");
+      const versioned = `<!-- distill-v${DISTILL_VERSION} -->\n${distilled}`;
+      await uploadBlob(companionPath, versioned, "text/markdown");
     }
   } catch (e) {
     // Distillation is best-effort — don't block the upload
@@ -105,7 +109,12 @@ export async function readDistilledContent(blobPath: string): Promise<string> {
   // Try the pre-computed companion first
   try {
     const companionPath = distilledPath(blobPath);
-    return await downloadBlob(companionPath);
+    const cached = await downloadBlob(companionPath);
+    // Check version — stale caches are re-distilled
+    if (cached.startsWith(`<!-- distill-v${DISTILL_VERSION} -->`)) {
+      return cached;
+    }
+    // Stale version — fall through to re-distill
   } catch {
     // Companion doesn't exist — fall back to runtime distillation
   }
@@ -114,10 +123,10 @@ export async function readDistilledContent(blobPath: string): Promise<string> {
   const raw = await downloadBlob(blobPath);
   const distilled = distillSpecContext(raw);
 
-  // Store for next time (fire-and-forget)
+  // Store for next time (fire-and-forget) — distillAndStore adds version tag
   if (distilled !== raw) {
     distillAndStore(blobPath, raw).catch(() => {});
   }
 
-  return distilled !== raw ? distilled : raw;
+  return distilled !== raw ? `<!-- distill-v${DISTILL_VERSION} -->\n${distilled}` : raw;
 }
