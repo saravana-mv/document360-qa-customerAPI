@@ -365,10 +365,10 @@ function resolveParam(raw: string, ctx: TestContext, state: RunState): unknown {
 
 function resolveCtx(name: string, ctx: TestContext): unknown {
   if (name === "apiVersion") return ctx.apiVersion;
-  // Backward compat: map old ctx.projectId/versionId/langCode to proj.* variables
-  if (name === "projectId") return ctx.projectVariables?.["project_id"];
-  if (name === "versionId") return ctx.projectVariables?.["version_id"];
-  if (name === "langCode") return ctx.projectVariables?.["lang_code"];
+  // Backward compat: map old ctx.X to proj.* variables (try camelCase then snake_case)
+  if (name === "projectId") return ctx.projectVariables?.["projectId"] ?? ctx.projectVariables?.["project_id"];
+  if (name === "versionId") return ctx.projectVariables?.["versionId"] ?? ctx.projectVariables?.["version_id"];
+  if (name === "langCode") return ctx.projectVariables?.["langCode"] ?? ctx.projectVariables?.["lang_code"];
   return undefined;
 }
 

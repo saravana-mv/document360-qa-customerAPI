@@ -334,8 +334,11 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
 
   // Load and inject version-folder API rules (falls back to project-level)
   const versionFolder = extractVersionFolder(body.specFiles ?? []);
+  console.log(`[generateFlow] specFiles:`, body.specFiles, `→ versionFolder:`, versionFolder);
   const { rules: apiRules } = await loadApiRules(projectId, versionFolder ?? undefined);
+  console.log(`[generateFlow] apiRules loaded: ${apiRules.length} chars`);
   const projVars = await loadProjectVariables(projectId);
+  console.log(`[generateFlow] projVars:`, projVars.map(v => v.name));
   const userMessage = specContext
     ? `${body.prompt}${scopeNote}\n\n# Relevant API Specification\n\n${specContext}`
     : body.prompt;

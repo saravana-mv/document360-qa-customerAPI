@@ -41,12 +41,16 @@ export async function loadApiRules(projectId: string, versionFolder?: string): P
     // Try Skills.md first (preferred)
     try {
       const skillsPath = `${projectId}/${versionFolder}/Skills.md`;
+      console.log(`[apiRules] Loading Skills.md from: ${skillsPath}`);
       const md = await downloadBlob(skillsPath);
       if (md.trim()) {
+        console.log(`[apiRules] Skills.md loaded: ${md.length} chars`);
         const enumAliases = parseEnumAliasesFromMarkdown(md);
         return { rules: md, enumAliases };
       }
-    } catch {
+      console.log("[apiRules] Skills.md was empty");
+    } catch (e) {
+      console.log(`[apiRules] Skills.md not found at ${projectId}/${versionFolder}/Skills.md:`, (e as Error).message);
       // Skills.md doesn't exist — try _rules.json
     }
 

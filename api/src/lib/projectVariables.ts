@@ -31,9 +31,27 @@ export async function loadProjectVariables(projectId: string): Promise<ProjectVa
  */
 export function injectProjectVariables(basePrompt: string, variables: ProjectVariable[]): string {
   if (variables.length === 0) return basePrompt;
-  const lines = variables.map((v) => {
-    const hint = v.value ? ` (current value: "${v.value}")` : "";
-    return `- \`proj.${v.name}\` → use as \`{{proj.${v.name}}}\` in expressions or \`proj.${v.name}\` in pathParam values${hint}`;
+
+  const varList = variables.map((v) => {
+    const hint = v.value ? ` — current value: \`${v.value}\`` : "";
+    return `| \`proj.${v.name}\` | \`{{proj.${v.name}}}\` | \`proj.${v.name}\` |${hint} |`;
   });
-  return `${basePrompt}\n\n## Available Project Variables\n\nThe following project variables are defined. Use these EXACT names (case-sensitive) when referencing project variables — do NOT rename or convert them:\n\n${lines.join("\n")}`;
+
+  return `${basePrompt}
+
+## Available Project Variables — MANDATORY (read before writing ANY XML)
+
+**CRITICAL**: You MUST use the EXACT variable names listed below. These are the ONLY valid \`proj.*\` references. Do NOT invent, rename, abbreviate, expand, or convert the case of variable names. Using a variable name not in this list will cause a runtime failure.
+
+| Variable | In body/query expressions | In pathParam value | Notes |
+|----------|--------------------------|-------------------|-------|
+${varList.join("\n")}
+
+**Examples of CORRECT usage** (assuming a variable named \`projectId\`):
+\`\`\`xml
+<param name="project_id">proj.projectId</param>          <!-- ✅ correct -->
+<param name="project_id">proj.project_id</param>         <!-- ❌ WRONG — no such variable -->
+<param name="project_id">proj.projectID</param>          <!-- ❌ WRONG — case mismatch -->
+<param name="project_id">proj.myProjectId</param>        <!-- ❌ WRONG — invented name -->
+\`\`\``;
 }
