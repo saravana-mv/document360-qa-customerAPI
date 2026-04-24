@@ -92,12 +92,14 @@ The child elements of \`<step>\` must appear in this order:
 ### Body
 
 Wrap JSON in CDATA. Interpolation tokens (\`{{state.x}}\`, \`{{ctx.y}}\`, \`{{timestamp}}\`) are supported.
+**CRITICAL**: The JSON body MUST include ALL fields marked as \`required\` in the API spec's request schema. Read the spec carefully for required arrays and "(required)" annotations.
 
 \`\`\`xml
 <body><![CDATA[
 {
   "name": "[TEST] Example - {{timestamp}}",
-  "parent_id": "{{state.createdParentId}}"
+  "parent_id": "{{state.createdParentId}}",
+  "project_version_id": "{{proj.projectVersionId}}"
 }
 ]]></body>
 \`\`\`
@@ -199,17 +201,18 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 
 1. **STRICT SCOPE**: Only use API endpoints, methods, and paths explicitly described in the provided spec files. Do not invent endpoints.
 2. **Entity dependencies**: If the API has dependent entities (e.g., a child resource that requires a parent), create the prerequisites first and clean them up last. Check the spec for required fields and dependencies.
-3. **Teardown is MANDATORY for every flow**: Every flow — regardless of complexity — MUST end with teardown steps that delete ALL resources created during the flow. The testing environment must be left exactly as it was before the flow ran. Delete child resources before parent. Mark every teardown step with \`<flags teardown="true"/>\`.
-4. **State passing**: Use \`<capture variable="state.X" source="response.data.Y"/>\` then reference \`{{state.X}}\` in later steps.
-5. **Unique names**: For resource names, use \`[TEST] Something - {{timestamp}}\`.
-6. **Assertions**: Every step needs at least one \`<assertion type="status" code="…"/>\`. Write operations should also assert \`field-exists\` on the created resource id. **Read the spec file carefully** — use the exact status code and response structure documented there. Do NOT guess.
-7. **HTTP status codes**: Use these defaults unless the spec file explicitly states otherwise:
+3. **Request body MUST include ALL required fields**: When the spec file documents a request body schema, you MUST include EVERY field listed as \`required\`. Parse the schema carefully — look for \`required: [field1, field2, ...]\` arrays, "Required" labels, or "(required)" annotations next to properties. For each required field, use: a project variable (\`{{proj.X}}\`) if one matches, a state variable (\`{{state.X}}\`) captured from a prior step, or a sensible test value. Omitting a required field will cause the API call to fail at runtime — this is a critical error.
+4. **Teardown is MANDATORY for every flow**: Every flow — regardless of complexity — MUST end with teardown steps that delete ALL resources created during the flow. The testing environment must be left exactly as it was before the flow ran. Delete child resources before parent. Mark every teardown step with \`<flags teardown="true"/>\`.
+5. **State passing**: Use \`<capture variable="state.X" source="response.data.Y"/>\` then reference \`{{state.X}}\` in later steps.
+6. **Unique names**: For resource names, use \`[TEST] Something - {{timestamp}}\`.
+7. **Assertions**: Every step needs at least one \`<assertion type="status" code="…"/>\`. Write operations should also assert \`field-exists\` on the created resource id. **Read the spec file carefully** — use the exact status code and response structure documented there. Do NOT guess.
+8. **HTTP status codes**: Use these defaults unless the spec file explicitly states otherwise:
    - GET → \`200\`
    - POST (create) → \`201\`
    - PUT/PATCH (update) → \`200\`
    - DELETE → \`204\` (No Content) — the response body is typically EMPTY. Do not add body-level assertions on DELETE steps unless the spec explicitly documents a response body.
-8. **Spec-driven assertions**: When spec files are provided, read the documented response schema and status codes carefully. The spec is the source of truth.
-9. **Schema exactness**: Elements must appear in the order listed above. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status. Use \`field-exists\` / \`field-equals\` / \`array-not-empty\` — no other assertion types exist.
+9. **Spec-driven assertions**: When spec files are provided, read the documented response schema and status codes carefully. The spec is the source of truth.
+10. **Schema exactness**: Elements must appear in the order listed above. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status. Use \`field-exists\` / \`field-equals\` / \`array-not-empty\` — no other assertion types exist.
 
 ## Output format — MANDATORY
 

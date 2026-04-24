@@ -140,6 +140,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 7. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status assertions.
 8. **HTTP status codes**: Use these defaults unless the spec or project API rules state otherwise: GET → 200, POST (create) → 201, PUT/PATCH (update) → 200, DELETE → 204 (No Content). DELETE responses typically have an empty body — do not add body assertions on DELETE unless the spec says otherwise.
 9. If you see incorrect assertions in the existing XML, fix them as part of your edit.
+10. **Request body MUST include ALL required fields**: When the spec or API rules document a request body schema, every field listed as \`required\` must be present in the \`<body>\` CDATA. If the existing XML is missing required fields, add them as part of your edit. Use project variables (\`{{proj.X}}\`), state variables (\`{{state.X}}\`), or sensible test values.
 
 ## Output format — MANDATORY
 

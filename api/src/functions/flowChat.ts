@@ -69,6 +69,7 @@ When you have enough information to propose a plan, output it inside a JSON bloc
 - **Scope**: Only use endpoints from the provided spec files. Do not invent endpoints.
 - **HTTP methods**: Use the exact methods documented in the API spec (GET, POST, PUT, PATCH, DELETE).
 - **DELETE typically returns 204**: No body assertions on DELETE steps unless the spec says otherwise.
+- **Request body MUST include ALL required fields**: Parse the spec schema for \`required\` arrays / "(required)" labels. Every required field must appear in the plan's step body. Omitting a required field will cause the API call to fail at runtime.
 
 ### Conversation Guidelines
 
