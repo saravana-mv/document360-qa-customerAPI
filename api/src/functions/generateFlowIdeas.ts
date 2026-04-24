@@ -238,6 +238,9 @@ export async function generateFlowIdeasHandler(
     .map((s) => `## ${s.name}\n\n${s.content}`)
     .join("\n\n---\n\n");
 
+  // Resolve version folder early — needed for version detection and API rules
+  const versionFolder = extractVersionFolder(body.folderPath ?? "");
+
   // Detect API version — prefer folder path (unambiguous), fall back to spec content
   let canonicalVersion: string | null = null;
   if (versionFolder) {
@@ -273,7 +276,6 @@ export async function generateFlowIdeasHandler(
   const userMessage = `Analyze these API specifications and generate up to ${requestedCount} NEW test flow ideas.${scopeNote}${versionDirective}${existingList}\n\n## Spec Files\n\n${specText}`;
 
   // Load and inject version-folder API rules (falls back to project-level)
-  const versionFolder = extractVersionFolder(body.folderPath ?? "");
   const { rules: apiRules } = await loadApiRules(projectId, versionFolder ?? undefined);
   const projVars = await loadProjectVariables(projectId);
   const systemPrompt = injectProjectVariables(injectApiRules(SYSTEM_PROMPT, apiRules), projVars);
