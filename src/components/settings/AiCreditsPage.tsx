@@ -13,6 +13,14 @@ interface UserCreditRow {
   lastUsedAt?: string;
 }
 
+interface UserRecord {
+  id: string;
+  email: string;
+  displayName: string;
+  role: string;
+  status: string;
+}
+
 export function AiCreditsPage() {
   const projectId = useSetupStore((s) => s.selectedProjectId);
   const { projectCredits, userCredits, loadCredits } = useAiCreditsStore();
@@ -26,6 +34,9 @@ export function AiCreditsPage() {
   const [userRows, setUserRows] = useState<UserCreditRow[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
 
+  // Super owner emails for contact info
+  const [superOwnerEmails, setSuperOwnerEmails] = useState<string[]>([]);
+
   // Editing user budget
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [userBudgetInput, setUserBudgetInput] = useState("");
@@ -38,6 +49,22 @@ export function AiCreditsPage() {
   useEffect(() => {
     if (projectCredits) setBudgetInput(String(projectCredits.totalBudgetUsd));
   }, [projectCredits]);
+
+  // Load super owner emails
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/users");
+        if (!res.ok) return;
+        const all = (await res.json()) as UserRecord[];
+        const owners = all
+          .filter((u) => u.role === "owner" && u.status === "active")
+          .map((u) => u.email)
+          .filter(Boolean);
+        setSuperOwnerEmails(owners);
+      } catch { /* silent */ }
+    })();
+  }, []);
 
   const loadUserCredits = useCallback(async () => {
     if (!projectId || !isSuperOwner) return;
@@ -138,6 +165,18 @@ export function AiCreditsPage() {
         Manage AI credit budgets for this project. Credits are consumed by flow generation, editing, chat, and idea generation.
       </p>
 
+      {/* Contact super owners notice — shown to non-super-owners */}
+      {!isSuperOwner && superOwnerEmails.length > 0 && (
+        <div className="flex items-start gap-2.5 px-4 py-3 mb-6 rounded-lg border border-[#d1d9e0] bg-[#ddf4ff]">
+          <svg className="w-4 h-4 text-[#0969da] shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+          </svg>
+          <p className="text-sm text-[#1f2328]">
+            To increase your credit limit, contact a Super Owner: <span className="font-medium">{superOwnerEmails.join(", ")}</span>
+          </p>
+        </div>
+      )}
+
       {/* Project credits card */}
       <div className="border border-[#d1d9e0] rounded-lg bg-white mb-6">
         <div className="px-4 py-3 border-b border-[#d1d9e0] bg-[#f6f8fa] rounded-t-lg">
@@ -147,14 +186,14 @@ export function AiCreditsPage() {
           {projectCredits ? (
             <>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-[#656d76]">
+                <span className="text-sm text-[#656d76]">
                   {formatUsd(projectCredits.usedUsd)} used of {formatUsd(projectCredits.totalBudgetUsd)}
                 </span>
-                <span className="text-xs font-medium text-[#1f2328]">
+                <span className="text-sm font-medium text-[#1f2328]">
                   {formatUsd(projectCredits.remainingUsd)} remaining
                 </span>
               </div>
-              <div className="h-2 bg-[#eaeef2] rounded-full overflow-hidden mb-4">
+              <div className="h-2.5 bg-[#eaeef2] rounded-full overflow-hidden mb-4">
                 <div
                   className={`h-full rounded-full transition-all ${barColor(projPct)}`}
                   style={{ width: `${projPct}%` }}
@@ -170,12 +209,12 @@ export function AiCreditsPage() {
               {/* Budget editor — Super Owner only */}
               {isSuperOwner && (
                 <div className="mt-4 pt-4 border-t border-[#d1d9e0]">
-                  <label className="block text-xs font-medium text-[#1f2328] mb-1">
+                  <label className="block text-sm font-medium text-[#1f2328] mb-1.5">
                     Budget (USD)
                   </label>
                   <div className="flex items-center gap-2">
                     <div className="relative flex-1 max-w-[200px]">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#656d76]">$</span>
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-[#656d76]">$</span>
                       <input
                         type="number"
                         min="0"
@@ -188,12 +227,12 @@ export function AiCreditsPage() {
                     <button
                       onClick={handleSaveBudget}
                       disabled={saving}
-                      className="px-3 py-1.5 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-xs font-medium rounded-md transition-colors disabled:opacity-50 border border-[#1a7f37]/80"
+                      className="px-3 py-1.5 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 border border-[#1a7f37]/80"
                     >
                       {saving ? "Saving..." : "Update"}
                     </button>
                     {saveMsg && (
-                      <span className={`text-xs ${saveMsg === "Saved" ? "text-[#1a7f37]" : "text-[#d1242f]"}`}>
+                      <span className={`text-sm ${saveMsg === "Saved" ? "text-[#1a7f37]" : "text-[#d1242f]"}`}>
                         {saveMsg}
                       </span>
                     )}
@@ -202,7 +241,7 @@ export function AiCreditsPage() {
               )}
             </>
           ) : (
-            <p className="text-xs text-[#656d76]">Loading...</p>
+            <p className="text-sm text-[#656d76]">Loading...</p>
           )}
         </div>
       </div>
@@ -215,14 +254,14 @@ export function AiCreditsPage() {
           </div>
           <div className="p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-[#656d76]">
+              <span className="text-sm text-[#656d76]">
                 {formatUsd(userCredits.usedUsd)} used of {formatUsd(userCredits.totalBudgetUsd)}
               </span>
-              <span className="text-xs font-medium text-[#1f2328]">
+              <span className="text-sm font-medium text-[#1f2328]">
                 {formatUsd(userCredits.remainingUsd)} remaining
               </span>
             </div>
-            <div className="h-2 bg-[#eaeef2] rounded-full overflow-hidden mb-3">
+            <div className="h-2.5 bg-[#eaeef2] rounded-full overflow-hidden mb-3">
               <div
                 className={`h-full rounded-full transition-all ${barColor(userPct)}`}
                 style={{ width: `${userPct}%` }}
@@ -243,11 +282,11 @@ export function AiCreditsPage() {
           </div>
           <div className="p-4">
             {loadingUsers ? (
-              <p className="text-xs text-[#656d76]">Loading...</p>
+              <p className="text-sm text-[#656d76]">Loading...</p>
             ) : userRows.length === 0 ? (
-              <p className="text-xs text-[#656d76]">No user credit records yet. Credits are created on each user's first AI call.</p>
+              <p className="text-sm text-[#656d76]">No user credit records yet. Credits are created on each user's first AI call.</p>
             ) : (
-              <table className="w-full text-sm">
+              <table className="w-full">
                 <thead>
                   <tr className="text-xs text-[#656d76] border-b border-[#d1d9e0]">
                     <th className="text-left py-2 font-medium">User</th>
@@ -258,64 +297,70 @@ export function AiCreditsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {userRows.map((row) => (
-                    <tr key={row.userId} className="border-b border-[#d1d9e0] last:border-0">
-                      <td className="py-2 text-sm text-[#1f2328]">{row.displayName || row.userId}</td>
-                      <td className="py-2 text-sm text-right text-[#1f2328]">{formatUsd(row.usedUsd)}</td>
-                      <td className="py-2 text-sm text-right">
-                        {editingUser === row.userId ? (
-                          <div className="flex items-center justify-end gap-1">
-                            <input
-                              type="number"
-                              min="0"
-                              step="1"
-                              value={userBudgetInput}
-                              onChange={(e) => setUserBudgetInput(e.target.value)}
-                              className="w-20 px-2 py-1 text-xs border border-[#d1d9e0] rounded-md text-right focus:outline-none focus:ring-2 focus:ring-[#0969da]"
-                              autoFocus
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") handleSaveUserBudget(row.userId);
-                                if (e.key === "Escape") setEditingUser(null);
+                  {userRows.map((row) => {
+                    const pct = usagePercent(row.usedUsd, row.totalBudgetUsd);
+                    return (
+                      <tr key={row.userId} className="border-b border-[#d1d9e0] last:border-0">
+                        <td className="py-2.5 text-sm text-[#1f2328]">{row.displayName || row.userId}</td>
+                        <td className="py-2.5 text-sm text-right text-[#1f2328]">{formatUsd(row.usedUsd)}</td>
+                        <td className="py-2.5 text-sm text-right">
+                          {editingUser === row.userId ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <div className="relative">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-[#656d76]">$</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  value={userBudgetInput}
+                                  onChange={(e) => setUserBudgetInput(e.target.value)}
+                                  className="w-24 pl-5 pr-2 py-1 text-sm border border-[#d1d9e0] rounded-md text-right focus:outline-none focus:ring-2 focus:ring-[#0969da]"
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") handleSaveUserBudget(row.userId);
+                                    if (e.key === "Escape") setEditingUser(null);
+                                  }}
+                                />
+                              </div>
+                              <button
+                                onClick={() => handleSaveUserBudget(row.userId)}
+                                disabled={savingUser}
+                                className="px-2.5 py-1 bg-[#1a7f37] text-white text-sm font-medium rounded-md disabled:opacity-50 border border-[#1a7f37]/80"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setEditingUser(null)}
+                                className="px-2 py-1 text-sm text-[#656d76] hover:text-[#1f2328]"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              className="text-sm text-[#0969da] hover:underline"
+                              onClick={() => {
+                                setEditingUser(row.userId);
+                                setUserBudgetInput(String(row.totalBudgetUsd));
                               }}
+                              title="Click to edit budget"
+                            >
+                              {formatUsd(row.totalBudgetUsd)}
+                            </button>
+                          )}
+                        </td>
+                        <td className="py-2.5 text-sm text-right text-[#656d76]">{row.callCount}</td>
+                        <td className="py-2.5 text-right">
+                          <div className="w-16 h-1.5 bg-[#eaeef2] rounded-full overflow-hidden inline-block align-middle">
+                            <div
+                              className={`h-full rounded-full ${barColor(pct)}`}
+                              style={{ width: `${pct}%` }}
                             />
-                            <button
-                              onClick={() => handleSaveUserBudget(row.userId)}
-                              disabled={savingUser}
-                              className="px-2 py-1 bg-[#1a7f37] text-white text-xs rounded-md disabled:opacity-50"
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={() => setEditingUser(null)}
-                              className="px-2 py-1 text-xs text-[#656d76] hover:text-[#1f2328]"
-                            >
-                              Cancel
-                            </button>
                           </div>
-                        ) : (
-                          <span
-                            className="text-[#1f2328] cursor-pointer hover:text-[#0969da]"
-                            onClick={() => {
-                              setEditingUser(row.userId);
-                              setUserBudgetInput(String(row.totalBudgetUsd));
-                            }}
-                            title="Click to edit budget"
-                          >
-                            {formatUsd(row.totalBudgetUsd)}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2 text-sm text-right text-[#656d76]">{row.callCount}</td>
-                      <td className="py-2 text-right">
-                        <div className="w-16 h-1.5 bg-[#eaeef2] rounded-full overflow-hidden inline-block">
-                          <div
-                            className={`h-full rounded-full ${barColor(usagePercent(row.usedUsd, row.totalBudgetUsd))}`}
-                            style={{ width: `${usagePercent(row.usedUsd, row.totalBudgetUsd)}%` }}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
