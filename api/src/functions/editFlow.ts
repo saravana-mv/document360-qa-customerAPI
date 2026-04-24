@@ -197,20 +197,16 @@ async function editFlow(req: HttpRequest, _ctx: InvocationContext): Promise<Http
   try {
     const userMessage = `Here is the current flow XML:\n\n\`\`\`xml\n${body.xml}\n\`\`\`\n\nPlease apply the following changes:\n${body.prompt}`;
 
-    const XML_PREFILL = `<?xml version="1.0" encoding="UTF-8"?>`;
     const response = await client.messages.create({
       model,
       max_tokens: 8192,
       system: systemPrompt,
-      messages: [
-        { role: "user", content: userMessage },
-        { role: "assistant", content: XML_PREFILL },
-      ],
+      messages: [{ role: "user", content: userMessage }],
     });
 
     const textBlock = response.content.find((b) => b.type === "text");
     const rawXml = textBlock && textBlock.type === "text" ? textBlock.text : "";
-    const xml = cleanXmlResponse(XML_PREFILL + rawXml);
+    const xml = cleanXmlResponse(rawXml);
 
     const inputTokens = response.usage.input_tokens;
     const outputTokens = response.usage.output_tokens;

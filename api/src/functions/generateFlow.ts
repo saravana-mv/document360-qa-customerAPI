@@ -369,20 +369,12 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       async start(controller) {
         try {
           const systemPrompt = injectProjectVariables(injectApiRules(FLOW_SYSTEM_PROMPT, apiRules), projVars);
-          const XML_PREFILL = `<?xml version="1.0" encoding="UTF-8"?>`;
           const stream = client.messages.stream({
             model,
             max_tokens: 8192,
             system: systemPrompt,
-            messages: [
-              { role: "user", content: userMessage },
-              { role: "assistant", content: XML_PREFILL },
-            ],
+            messages: [{ role: "user", content: userMessage }],
           });
-
-          // Send the prefill as the first chunk so the client gets the full XML
-          const prefillChunk = `data: ${JSON.stringify({ text: XML_PREFILL })}\n\n`;
-          controller.enqueue(encoder.encode(prefillChunk));
 
           for await (const event of stream) {
             if (
@@ -435,21 +427,17 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     // Non-streaming: collect full response
     try {
       const systemPrompt = injectProjectVariables(injectApiRules(FLOW_SYSTEM_PROMPT, apiRules), projVars);
-      const XML_PREFILL = `<?xml version="1.0" encoding="UTF-8"?>`;
       const stream = client.messages.stream({
         model,
         max_tokens: 8192,
         system: systemPrompt,
-        messages: [
-          { role: "user", content: userMessage },
-          { role: "assistant", content: XML_PREFILL },
-        ],
+        messages: [{ role: "user", content: userMessage }],
       });
 
       const finalMessage = await stream.finalMessage();
       const textBlock = finalMessage.content.find((b) => b.type === "text");
       const rawXml = textBlock && textBlock.type === "text" ? textBlock.text : "";
-      const xml = cleanXmlResponse(XML_PREFILL + rawXml);
+      const xml = cleanXmlResponse(rawXml);
 
       const inputTokens = finalMessage.usage.input_tokens;
       const outputTokens = finalMessage.usage.output_tokens;

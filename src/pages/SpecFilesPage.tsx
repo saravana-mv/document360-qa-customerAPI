@@ -1178,9 +1178,13 @@ export function SpecFilesPage() {
 
   // ── Detail panel click handlers ───────────────────────────────────────────
 
+  const flowIdeaIds = new Set(
+    generatedFlows.filter(f => f.status === "done" || f.status === "error").map(f => f.ideaId)
+  );
+
   function handleClickIdea(id: string) {
-    // If this idea has a completed flow, auto-show the flow in detail panel
-    if (completedFlowIdeaIds.has(id)) {
+    // If this idea has a completed or errored flow, show the flow view (so errors are visible)
+    if (flowIdeaIds.has(id)) {
       setActiveFlowId(id);
       setActiveIdeaId(null);
     } else {
@@ -1478,6 +1482,9 @@ export function SpecFilesPage() {
           );
           setGeneratedFlows(localFlows);
           persistFlowsForPath(generationPath, localFlows);
+          // Auto-open the errored flow so the user sees the error message
+          setActiveFlowId(idea.id);
+          setActiveIdeaId(null);
           // Continue to next idea — don't stop the batch on individual failures
         }
 
