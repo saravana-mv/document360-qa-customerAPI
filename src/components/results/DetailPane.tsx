@@ -258,8 +258,81 @@ function DesignTab({ testId }: { testId: string }) {
     displayPath,
   );
 
+  // Detect missing project variables — collect from path, query, and body
+  const definedVarNames = new Set(variables.map((v) => v.name));
+  const missingVars: { name: string; source: string }[] = [];
+  const seenMissing = new Set<string>();
+
+  // From path params
+  for (const p of paramInfos) {
+    if (p.kind === "proj" && p.resolved === "(not configured)" && !seenMissing.has(p.expression)) {
+      const varName = p.expression.replace(/^\{\{proj\.|\}\}$/g, "");
+      missingVars.push({ name: varName, source: "path parameter" });
+      seenMissing.add(p.expression);
+    }
+  }
+
+  // From query params
+  if (def.queryParams) {
+    for (const [k, v] of Object.entries(def.queryParams)) {
+      if (v.startsWith("proj.")) {
+        const varName = v.slice("proj.".length);
+        if (!definedVarNames.has(varName) && !seenMissing.has(varName)) {
+          missingVars.push({ name: varName, source: `query param "${k}"` });
+          seenMissing.add(varName);
+        }
+      }
+    }
+  }
+
+  // From request body
+  if (def.sampleRequestBody !== undefined) {
+    const bodyStr = typeof def.sampleRequestBody === "string"
+      ? def.sampleRequestBody
+      : JSON.stringify(def.sampleRequestBody);
+    for (const m of bodyStr.matchAll(/\{\{proj\.(\w+)\}\}/g)) {
+      const varName = m[1];
+      if (!definedVarNames.has(varName) && !seenMissing.has(varName)) {
+        missingVars.push({ name: varName, source: "request body" });
+        seenMissing.add(varName);
+      }
+    }
+  }
+
   return (
     <div className="p-4 space-y-5 text-sm">
+
+      {/* Missing project variables warning */}
+      {missingVars.length > 0 && (
+        <div className="bg-[#ffebe9] border border-[#ffcecb] rounded-md px-3 py-2.5">
+          <div className="flex items-start gap-2">
+            <svg className="w-4 h-4 text-[#d1242f] shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+            </svg>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-[#d1242f] mb-1.5">
+                Undefined project variable{missingVars.length > 1 ? "s" : ""} — this step will fail at runtime
+              </p>
+              <div className="space-y-1 mb-2">
+                {missingVars.map((mv) => (
+                  <div key={mv.name} className="flex items-center gap-2 text-xs">
+                    <code className="font-mono text-[#d1242f] bg-white border border-[#ffcecb] px-1.5 py-0.5 rounded shrink-0">
+                      proj.{mv.name}
+                    </code>
+                    <span className="text-[#656d76]">in {mv.source}</span>
+                  </div>
+                ))}
+              </div>
+              <a
+                href="/settings"
+                className="text-xs text-[#0969da] hover:underline font-medium"
+              >
+                Add in Settings → Variables
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {def.description && (
         <div className="text-xs text-[#0969da] bg-[#ddf4ff] border border-[#b6e3ff] rounded-md px-3 py-2">

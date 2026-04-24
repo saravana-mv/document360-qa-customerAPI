@@ -2,11 +2,9 @@ import { useState, useEffect, useMemo } from "react";
 import { useRunnerStore } from "../../store/runner.store";
 import { useSetupStore } from "../../store/setup.store";
 import { useScenarioOrgStore } from "../../store/scenarioOrg.store";
-import { useProjectVariablesStore } from "../../store/projectVariables.store";
 import { getAllTests, getTestsByTag } from "../../lib/tests/registry";
 import { runTests } from "../../lib/tests/runner";
 import { buildTestContext } from "../../lib/tests/context";
-import { findMissingProjVars, type MissingVarInfo } from "../../lib/tests/validateProjVars";
 import { ProgressBar } from "./ProgressBar";
 import { Spinner } from "../common/Spinner";
 import { ConnectEndpointModal } from "../explorer/ConnectEndpointModal";
@@ -46,20 +44,6 @@ export function RunControls() {
   }, [allTests, versionConfigs]);
 
   const [connectVersion, setConnectVersion] = useState<string | null>(null);
-  const [missingVars, setMissingVars] = useState<MissingVarInfo[]>([]);
-  const projVariables = useProjectVariablesStore((s) => s.variables);
-
-  /** Check tests for undefined proj.* references. Returns true if OK to proceed. */
-  function validateProjVars(tests: TestDef[]): boolean {
-    const definedNames = new Set(projVariables.map((v) => v.name));
-    const missing = findMissingProjVars(tests, definedNames);
-    if (missing.length > 0) {
-      setMissingVars(missing);
-      return false;
-    }
-    setMissingVars([]);
-    return true;
-  }
 
   /** Build per-tag context overrides from version configs + scenario overrides.
    *  Priority: scenario override > version config > global defaults */
@@ -99,7 +83,6 @@ export function RunControls() {
       setConnectVersion(unconnectedVersions[0]);
       return;
     }
-    if (!validateProjVars(allTests)) return;
     runner.resetRun();
 
     const ctx = buildTestContext({
@@ -132,7 +115,6 @@ export function RunControls() {
     const selectedTests = allTests.filter((t) => ids.has(t.id));
     if (selectedTests.length === 0) return;
 
-    if (!validateProjVars(selectedTests)) return;
     runner.resetRun();
 
     const ctx = buildTestContext({
@@ -302,48 +284,6 @@ export function RunControls() {
             >
               Connect now
             </button>
-          </div>
-        </div>
-      )}
-      {/* Missing project variables warning */}
-      {missingVars.length > 0 && !runner.running && (
-        <div className="flex items-start gap-2 px-4 py-2.5 border-b border-[#d1d9e0] bg-[#ffebe9]">
-          <svg className="w-4 h-4 text-[#d1242f] shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-          </svg>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold text-[#d1242f] mb-1">
-              Missing project variables — cannot run
-            </p>
-            <p className="text-xs text-[#656d76] mb-2">
-              The following <code className="text-[#d1242f] bg-[#ffebe9] px-1 rounded">proj.*</code> variables are referenced in flow XML but not defined in Settings → Variables:
-            </p>
-            <div className="space-y-1 mb-2">
-              {missingVars.map((mv) => (
-                <div key={mv.varName} className="flex items-start gap-2 text-xs">
-                  <code className="font-mono text-[#d1242f] bg-white border border-[#ffcecb] px-1.5 py-0.5 rounded shrink-0">
-                    proj.{mv.varName}
-                  </code>
-                  <span className="text-[#656d76]">
-                    used by {mv.usedBy.length === 1 ? mv.usedBy[0] : `${mv.usedBy.length} scenarios`}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div className="flex items-center gap-2">
-              <a
-                href="/settings"
-                className="text-xs text-[#0969da] hover:underline font-medium"
-              >
-                Go to Settings → Variables
-              </a>
-              <button
-                onClick={() => setMissingVars([])}
-                className="text-xs text-[#656d76] hover:text-[#1f2328]"
-              >
-                Dismiss
-              </button>
-            </div>
           </div>
         </div>
       )}
