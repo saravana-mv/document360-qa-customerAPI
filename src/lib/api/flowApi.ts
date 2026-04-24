@@ -1,4 +1,5 @@
 import type { FlowUsage } from "./specFilesApi";
+import { getProjectHeaders } from "./projectHeader";
 
 export interface FlowXmlResult {
   xml: string;
@@ -26,7 +27,7 @@ export async function generateFlowXml(
 ): Promise<FlowXmlResult> {
   const res = await fetch(`/api/generate-flow`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getProjectHeaders() },
     body: JSON.stringify({ prompt, specFiles, stream: false, ...(model ? { model } : {}) }),
     signal,
   });
@@ -55,7 +56,7 @@ export async function editFlowXml(
 ): Promise<FlowXmlResult> {
   const res = await fetch(`/api/edit-flow`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getProjectHeaders() },
     body: JSON.stringify({ xml, prompt, ...(model ? { model } : {}), ...(versionFolder ? { versionFolder } : {}) }),
     signal,
   });
@@ -111,7 +112,7 @@ export async function generateFlowStream(
 ): Promise<void> {
   const res = await fetch(`/api/generate-flow`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getProjectHeaders() },
     body: JSON.stringify({ prompt, specFiles, stream: true, ...(model ? { model } : {}) }),
     signal,
   });
