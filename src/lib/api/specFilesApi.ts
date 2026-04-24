@@ -133,6 +133,19 @@ export async function updateSourceUrl(
   });
 }
 
+// ── Version History ──────────────────────────────────────────────────────────
+
+export interface SkillsVersion {
+  name: string;      // blob path for fetching content
+  timestamp: string;  // ISO timestamp
+  size: number;
+}
+
+export async function listSkillsVersions(name: string): Promise<SkillsVersion[]> {
+  const res = await apiFetch(`/api/spec-files/versions?name=${encodeURIComponent(name)}`);
+  return res.json() as Promise<SkillsVersion[]>;
+}
+
 // ── Flow Ideas (AI) ───────────────────────────────────────────────────────────
 
 export interface FlowIdea {
