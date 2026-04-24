@@ -125,9 +125,10 @@ async function executeStep(
     }
     resolvedPath = step.path.replace(/\{(\w+)\}/g, (_, name) => {
       if (resolvedPathParams[name] !== undefined) return resolvedPathParams[name];
-      if (name === "project_id") return ctx.projectId;
-      if (name === "version_id") return ctx.versionId;
-      throw new Error(`Path placeholder {${name}} has no value`);
+      // Auto-resolve unspecified path params from project variables
+      const projValue = ctx.projectVariables?.[name];
+      if (projValue !== undefined && projValue !== "") return projValue;
+      throw new Error(`Path placeholder {${name}} has no value — define it as a project variable`);
     });
     resolvedPath = rewriteApiVersion(resolvedPath, ctx.apiVersion);
 
@@ -293,7 +294,7 @@ function runAssertions(
     }
     // field-equals
     const actual = readPath(responseBody, a.field);
-    const emptyCtx: RunContext = { projectId: "", versionId: "", langCode: "", apiVersion: "", baseUrl: "", authMethod: "none" };
+    const emptyCtx: RunContext = { apiVersion: "", baseUrl: "", authMethod: "none" };
     const expected = coerce(substitute(a.value, emptyCtx, state));
     return {
       id: `field-equals-${a.field}`,

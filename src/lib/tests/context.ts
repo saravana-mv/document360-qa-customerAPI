@@ -5,9 +5,6 @@ import { useProjectVariablesStore } from "../../store/projectVariables.store";
 
 export interface BuildContextOptions {
   token: TokenSet;
-  projectId: string;
-  versionId: string;
-  langCode: string;
   apiVersion: string;
   baseUrl?: string;
   authType?: AuthType;
@@ -20,9 +17,6 @@ export interface BuildContextOptions {
 export function buildTestContext(opts: BuildContextOptions): TestContext {
   const projectVariables = useProjectVariablesStore.getState().asRecord();
   return {
-    projectId: opts.projectId,
-    versionId: opts.versionId,
-    langCode: opts.langCode,
     token: opts.token.access_token,
     baseUrl: (opts.baseUrl ?? useSetupStore.getState().baseUrl).replace(/\/+$/, ""),
     apiVersion: opts.apiVersion,

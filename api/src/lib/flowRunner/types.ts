@@ -44,9 +44,6 @@ export type ParsedAssertion =
 // ── Execution context (injected by the run-scenario endpoint) ───────────────
 
 export interface RunContext {
-  projectId: string;
-  versionId: string;
-  langCode: string;
   apiVersion: string;
   /** Absolute base URL for the upstream API. */
   baseUrl: string;

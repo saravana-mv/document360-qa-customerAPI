@@ -5,9 +5,6 @@ export type RollupStatus = "idle" | "running" | "pass" | "fail" | "partial";
 export type AuthType = "bearer" | "apikey_header" | "apikey_query" | "basic" | "cookie" | "oauth" | "none";
 
 export interface TestContext {
-  projectId: string;
-  versionId: string;
-  langCode: string;
   token: string;
   baseUrl: string;
   apiVersion: string; // e.g. "v3"

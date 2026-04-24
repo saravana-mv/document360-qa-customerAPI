@@ -715,7 +715,7 @@ export function SpecFilesPage() {
       await uploadSpecFile(`${folderPath}/.keep`, "");
       // Auto-create Skills.md for top-level version folders
       if (!folderPath.includes("/")) {
-        const skillsContent = `# API Skills — ${folderPath}\n\nDescribe your API's rules, quirks, and conventions below.\nThese are injected into AI prompts when generating ideas, flows, and edits.\n\n## API Rules\n\n<!-- Add rules here, e.g.:\n- NEVER use PUT — this API uses PATCH for all updates\n- DELETE returns 204 with no body\n-->\n\n## Enum Aliases\n\n\`\`\`\n<!-- name=value, one per line, e.g.:\ndraft=0\npublished=3\nmarkdown=0\nwysiwyg=1\n-->\n\`\`\`\n`;
+        const skillsContent = `# API Skills — ${folderPath}\n\nDescribe your API's rules, quirks, and conventions below.\nThese are injected into AI prompts when generating ideas, flows, and edits.\n\n## API Rules\n\n<!-- Add rules here, e.g.:\n- NEVER use PUT — this API uses PATCH for all updates\n- DELETE returns 204 with no body\n-->\n\n## Context Variables\n\nFlow XML uses \`{variable_name}\` in URL paths and \`proj.variableName\` in expressions.\nThese map to project variables defined in Settings → Variables.\n\nDefault mappings for this project:\n- \`{project_id}\` → use \`proj.project_id\`\n- \`{version_id}\` → use \`proj.version_id\`\n- \`{lang_code}\` → use \`proj.lang_code\`\n\nWhen generating flows, always use \`proj.*\` syntax for dynamic values.\nNever hardcode project-specific IDs in flow XML.\n\n## Enum Aliases\n\n\`\`\`\n<!-- name=value, one per line, e.g.:\ndraft=0\npublished=3\nmarkdown=0\nwysiwyg=1\n-->\n\`\`\`\n`;
         await uploadSpecFile(`${folderPath}/Skills.md`, skillsContent);
       }
       await loadFiles();

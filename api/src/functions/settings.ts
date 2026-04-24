@@ -22,8 +22,6 @@ interface SettingsDocument {
   id: string;          // "user_settings"
   userId: string;      // partition key — Entra OID
   selectedProjectId: string;
-  selectedVersionId: string;
-  langCode: string;
   baseUrl: string;
   apiVersion: string;
   aiModel: string;

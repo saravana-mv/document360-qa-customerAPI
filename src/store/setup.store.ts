@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Project, ProjectVersion } from "../types/api.types";
+import type { Project } from "../types/api.types";
 import { setApiBaseUrl, setApiVersion } from "../lib/api/client";
 import { loadSettings, saveSettings, migrateFromLocalStorage } from "../lib/api/settingsApi";
 
@@ -16,35 +16,22 @@ const DEFAULT_AI_MODEL: AiModelId = "claude-sonnet-4-6";
 
 interface SetupState {
   projects: Project[];
-  versions: ProjectVersion[];
   selectedProjectId: string;
-  selectedVersionId: string;
-  langCode: string;
   baseUrl: string;
   apiVersion: string;
   /** Model used for AI generation (flow ideas + flow XML). Persisted. */
   aiModel: AiModelId;
   loadingProjects: boolean;
-  loadingVersions: boolean;
   /** True while loading settings from server on first auth */
   settingsLoaded: boolean;
-  /** True once the user has explicitly saved project settings (or they were loaded from Cosmos).
-   *  Gates the scenario manager — prevents auto-navigating past the settings card on first sign-in. */
-  settingsConfirmed: boolean;
   error: string | null;
   setProjects: (projects: Project[]) => void;
-  setVersions: (versions: ProjectVersion[]) => void;
   selectProject: (id: string) => void;
-  selectVersion: (id: string) => void;
-  setLangCode: (lang: string) => void;
   setBaseUrl: (url: string) => void;
   setApiVersion: (version: string) => void;
   setAiModel: (model: AiModelId) => void;
   setLoadingProjects: (v: boolean) => void;
-  setLoadingVersions: (v: boolean) => void;
   setError: (error: string | null) => void;
-  /** Mark settings as explicitly confirmed by the user (Save button). */
-  confirmSettings: () => void;
   /** Call once after Entra auth is confirmed — loads settings from Cosmos */
   loadFromServer: () => Promise<void>;
 }
@@ -74,8 +61,6 @@ function persistLocal(state: Partial<SetupState>) {
   try {
     localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify({
       selectedProjectId: state.selectedProjectId ?? "",
-      selectedVersionId: state.selectedVersionId ?? "",
-      langCode: state.langCode ?? "en",
       baseUrl: state.baseUrl ?? DEFAULT_BASE_URL,
       apiVersion: state.apiVersion ?? DEFAULT_API_VERSION,
       aiModel: state.aiModel ?? DEFAULT_AI_MODEL,
@@ -86,8 +71,6 @@ function persistLocal(state: Partial<SetupState>) {
 function persistServer(state: Partial<SetupState>) {
   saveSettings({
     selectedProjectId: state.selectedProjectId ?? "",
-    selectedVersionId: state.selectedVersionId ?? "",
-    langCode: state.langCode ?? "en",
     baseUrl: state.baseUrl ?? DEFAULT_BASE_URL,
     apiVersion: state.apiVersion ?? DEFAULT_API_VERSION,
     aiModel: state.aiModel ?? DEFAULT_AI_MODEL,
@@ -101,33 +84,19 @@ function persist(state: Partial<SetupState>) {
 
 export const useSetupStore = create<SetupState>((set, get) => ({
   projects: [],
-  versions: [],
   selectedProjectId: (cached.selectedProjectId as string) || "",
-  selectedVersionId: (cached.selectedVersionId as string) || "",
-  langCode: (cached.langCode as string) || "en",
   baseUrl: initialBaseUrl,
   apiVersion: (cached.apiVersion as string) || DEFAULT_API_VERSION,
   aiModel: (AI_MODELS.some((m) => m.id === cached.aiModel) ? (cached.aiModel as AiModelId) : DEFAULT_AI_MODEL),
   loadingProjects: false,
-  loadingVersions: false,
   settingsLoaded: false,
-  settingsConfirmed: !!(cached.selectedVersionId),
   error: null,
 
   setProjects: (projects) => set({ projects }),
-  setVersions: (versions) => set({ versions }),
 
   selectProject: (id) => {
-    set({ selectedProjectId: id, selectedVersionId: "", versions: [] });
+    set({ selectedProjectId: id });
     persist({ ...get(), selectedProjectId: id });
-  },
-  selectVersion: (id) => {
-    set({ selectedVersionId: id });
-    persist({ ...get(), selectedVersionId: id });
-  },
-  setLangCode: (langCode) => {
-    set({ langCode });
-    persist({ ...get(), langCode });
   },
   setBaseUrl: (url) => {
     const cleaned = url.replace(/\/$/, "");
@@ -146,9 +115,7 @@ export const useSetupStore = create<SetupState>((set, get) => ({
   },
 
   setLoadingProjects: (v) => set({ loadingProjects: v }),
-  setLoadingVersions: (v) => set({ loadingVersions: v }),
   setError: (error) => set({ error }),
-  confirmSettings: () => set({ settingsConfirmed: true }),
 
   loadFromServer: async () => {
     try {
@@ -163,8 +130,6 @@ export const useSetupStore = create<SetupState>((set, get) => ({
 
       const updates: Partial<SetupState> = {};
       if (remote.selectedProjectId) updates.selectedProjectId = remote.selectedProjectId;
-      if (remote.selectedVersionId) updates.selectedVersionId = remote.selectedVersionId;
-      if (remote.langCode) updates.langCode = remote.langCode;
       if (remote.baseUrl) {
         updates.baseUrl = remote.baseUrl;
         setApiBaseUrl(remote.baseUrl);
@@ -177,8 +142,7 @@ export const useSetupStore = create<SetupState>((set, get) => ({
         updates.aiModel = remote.aiModel as AiModelId;
       }
 
-      const confirmed = !!updates.selectedVersionId || !!get().selectedVersionId;
-      set({ ...updates, settingsLoaded: true, settingsConfirmed: confirmed });
+      set({ ...updates, settingsLoaded: true });
       // Update local cache with server values
       persistLocal({ ...get(), ...updates });
     } catch (e) {

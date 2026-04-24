@@ -66,11 +66,11 @@ The child elements of \`<step>\` must appear in this order:
 
 \`\`\`xml
 <pathParams>
-  <param name="project_id">ctx.projectId</param>          <!-- value is TEXT, not attr -->
+  <param name="project_id">proj.project_id</param>        <!-- project variable -->
   <param name="resource_id">{{state.createdResourceId}}</param>
 </pathParams>
 <queryParams>
-  <param name="lang_code">ctx.langCode</param>
+  <param name="lang_code">proj.lang_code</param>
 </queryParams>
 \`\`\`
 
@@ -128,9 +128,9 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 
 ### Interpolation tokens (allowed in any text/attr value)
 
-- \`{{ctx.projectId}}\`, \`{{ctx.versionId}}\`, \`{{ctx.langCode}}\`, \`{{ctx.token}}\`, \`{{ctx.baseUrl}}\`
+- \`{{proj.variableName}}\` — project-level variable defined in Settings → Variables (e.g. proj.project_id, proj.lang_code)
+- \`{{ctx.apiVersion}}\`, \`{{ctx.baseUrl}}\` — runtime context (API version, base URL)
 - \`{{state.variableName}}\` — value captured from a previous step
-- \`{{proj.variableName}}\` — project-level variable defined in Settings → Variables
 - \`{{timestamp}}\` — Unix ms timestamp at execution time
 - \`{{!state.boolVar}}\` — logical NOT of a boolean state variable
 

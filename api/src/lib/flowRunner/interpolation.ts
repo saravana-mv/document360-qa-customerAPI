@@ -115,10 +115,11 @@ export function fieldExists(obj: unknown, path: string): boolean {
 // ── Template interpolation ──────────────────────────────────────────────────
 
 function resolveCtx(name: string, ctx: RunContext): unknown {
-  if (name === "projectId") return ctx.projectId;
-  if (name === "versionId") return ctx.versionId;
-  if (name === "langCode") return ctx.langCode;
   if (name === "apiVersion") return ctx.apiVersion;
+  // Backward compat: map old ctx.projectId/versionId/langCode to proj.* variables
+  if (name === "projectId") return ctx.projectVariables?.["project_id"];
+  if (name === "versionId") return ctx.projectVariables?.["version_id"];
+  if (name === "langCode") return ctx.projectVariables?.["lang_code"];
   return undefined;
 }
 

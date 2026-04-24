@@ -39,9 +39,9 @@ export function TestExplorer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flowsByName, flowsLoading]);
 
-  // Auto-load project info if settings are confirmed but project not yet loaded
+  // Auto-load project info if project not yet loaded
   useEffect(() => {
-    if (!setup.settingsConfirmed) return;
+    if (!setup.selectedProjectId) return;
     if (setup.selectedProjectId && setup.projects.length > 0) return;
     if (flowsLoading) return;
     let cancelled = false;

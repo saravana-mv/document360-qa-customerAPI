@@ -175,10 +175,10 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
     }
     resolvedPath = step.path.replace(/\{(\w+)\}/g, (_, name) => {
       if (resolvedPathParams[name] !== undefined) return resolvedPathParams[name];
-      // Auto-resolve unspecified ctx-style params from the test context.
-      if (name === "project_id") return ctx.projectId;
-      if (name === "version_id") return ctx.versionId;
-      throw new Error(`Path placeholder {${name}} has no value`);
+      // Auto-resolve unspecified path params from project variables (proj.*)
+      const projValue = ctx.projectVariables?.[name];
+      if (projValue !== undefined && projValue !== "") return projValue;
+      throw new Error(`Path placeholder {${name}} has no value — define it as a project variable`);
     });
     // Force the path to use the currently selected API version. Flow XML files
     // may hard-code /v2/ or /v3/ (for historical reasons); the selected
@@ -364,10 +364,11 @@ function resolveParam(raw: string, ctx: TestContext, state: RunState): unknown {
 }
 
 function resolveCtx(name: string, ctx: TestContext): unknown {
-  if (name === "projectId") return ctx.projectId;
-  if (name === "versionId") return ctx.versionId;
-  if (name === "langCode") return ctx.langCode;
   if (name === "apiVersion") return ctx.apiVersion;
+  // Backward compat: map old ctx.projectId/versionId/langCode to proj.* variables
+  if (name === "projectId") return ctx.projectVariables?.["project_id"];
+  if (name === "versionId") return ctx.projectVariables?.["version_id"];
+  if (name === "langCode") return ctx.projectVariables?.["lang_code"];
   return undefined;
 }
 
@@ -479,9 +480,7 @@ function makeCtxStub(): TestContext {
   // Used by toAssertionDef when substituting field-equals values; ctx.* refs
   // in assertion values are unusual but supported. State refs are the common
   // case and resolve from the runner state at check time.
-  return {
-    projectId: "", versionId: "", langCode: "", token: "", baseUrl: "", apiVersion: "",
-  };
+  return { token: "", baseUrl: "", apiVersion: "" };
 }
 
 function coerce(s: string): unknown {

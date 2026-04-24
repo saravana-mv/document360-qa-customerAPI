@@ -3,8 +3,6 @@
 
 export interface UserSettings {
   selectedProjectId: string;
-  selectedVersionId: string;
-  langCode: string;
   baseUrl: string;
   apiVersion: string;
   aiModel: string;

@@ -6,6 +6,7 @@ import { useRunnerStore } from "../../store/runner.store";
 import { useSpecStore } from "../../store/spec.store";
 import { useSetupStore } from "../../store/setup.store";
 import { useFlowStatusStore } from "../../store/flowStatus.store";
+import { useProjectVariablesStore } from "../../store/projectVariables.store";
 import { getTest } from "../../lib/tests/registry";
 import { rewriteApiVersion } from "../../lib/tests/flowXml/builder";
 import { getFlowFileContent, saveFlowFile, unlockFlow } from "../../lib/api/flowFilesApi";
@@ -163,7 +164,8 @@ function CopyableText({ value, mono = true, className = "" }: { value: string; m
 
 function DesignTab({ testId }: { testId: string }) {
   const def = getTest(testId);
-  const { selectedProjectId, selectedVersionId, apiVersion } = useSetupStore();
+  const { apiVersion } = useSetupStore();
+  const projectVars = useProjectVariablesStore((s) => s.asRecord());
   if (!def) return null;
 
   // Rewrite the leading /vN/ to the currently-selected API version so the
@@ -171,14 +173,11 @@ function DesignTab({ testId }: { testId: string }) {
   const displayPath = rewriteApiVersion(def.path, apiVersion);
   const pathTokens = displayPath.match(/\{[^}]+\}/g) ?? [];
 
-  // Ctx param values resolved from setup store (fallback for params without explicit metadata)
-  const ctxParamValues: Record<string, string> = {
-    "{id}":         selectedProjectId || "(not configured)",
-    "{projectId}":  selectedProjectId || "(not configured)",
-    "{project_id}": selectedProjectId || "(not configured)",
-    "{versionId}":  selectedVersionId || "(not configured)",
-    "{version_id}": selectedVersionId || "(not configured)",
-  };
+  // Build param values from project variables (generic — any {param_name} → proj.param_name)
+  const ctxParamValues: Record<string, string> = {};
+  for (const [key, val] of Object.entries(projectVars)) {
+    ctxParamValues[`{${key}}`] = val || "(not configured)";
+  }
 
   // Build resolved URL — ctx params get real values, state params keep their template string
   const resolvedPath = pathTokens.reduce((path, token) => {

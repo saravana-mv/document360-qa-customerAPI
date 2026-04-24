@@ -66,9 +66,6 @@ export function RunControls() {
       const sc = scenarioOrg.scenarioConfigs[flowPath];
       byTag[t.tag] = buildTestContext({
         token: PROXY_TOKEN,
-        projectId: setup.selectedProjectId,
-        versionId: setup.selectedVersionId,
-        langCode: setup.langCode,
         apiVersion: sc?.apiVersion || vc.apiVersion || setup.apiVersion,
         baseUrl: sc?.baseUrl || vc.baseUrl || undefined,
         authType: sc?.authType || vc.authType || "none",
@@ -90,9 +87,6 @@ export function RunControls() {
 
     const ctx = buildTestContext({
       token: PROXY_TOKEN,
-      projectId: setup.selectedProjectId,
-      versionId: setup.selectedVersionId,
-      langCode: setup.langCode,
       apiVersion: setup.apiVersion,
     });
 
@@ -117,9 +111,6 @@ export function RunControls() {
 
     const ctx = buildTestContext({
       token: PROXY_TOKEN,
-      projectId: setup.selectedProjectId,
-      versionId: setup.selectedVersionId,
-      langCode: setup.langCode,
       apiVersion: setup.apiVersion,
     });
 

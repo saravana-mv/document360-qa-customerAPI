@@ -99,17 +99,8 @@ async function handleRunScenario(req: HttpRequest, _ctx: InvocationContext): Pro
   const apiVersion = (typeof settings.apiVersion === "string" && settings.apiVersion)
     ? settings.apiVersion
     : "v2";
-  const langCode = (typeof settings.langCode === "string" && settings.langCode)
-    ? settings.langCode
-    : "en";
 
-  // Resolve versionId: prefer the real GUID from creator's settings,
-  // fall back to apiKeyDoc.versionId (which may be a label).
-  const versionId = (typeof settings.selectedVersionId === "string" && settings.selectedVersionId)
-    ? settings.selectedVersionId
-    : apiKeyDoc.versionId;
-
-  // Load project variables
+  // Load project variables (these now hold all dynamic values like project_id, version_id, etc.)
   let projectVariables: Record<string, string> | undefined;
   try {
     const settingsContainer = await getSettingsContainer();
@@ -121,9 +112,6 @@ async function handleRunScenario(req: HttpRequest, _ctx: InvocationContext): Pro
   } catch { /* proceed without project variables */ }
 
   const ctx: RunContext = {
-    projectId: apiKeyDoc.projectId,
-    versionId,
-    langCode,
     apiVersion,
     baseUrl,
     authMethod: apiKeyDoc.authMethod,
