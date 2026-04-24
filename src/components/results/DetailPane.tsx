@@ -162,11 +162,33 @@ function CopyableText({ value, mono = true, className = "" }: { value: string; m
 
 // ── Design Tab ───────────────────────────────────────────────────────────────
 
+/** Safely convert any value to a renderable string. Guards against objects
+ *  being passed as React children (React error #185). */
+function safeStr(v: unknown): string {
+  if (typeof v === "string") return v;
+  if (v === null || v === undefined) return "";
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  return JSON.stringify(v);
+}
+
 function DesignTab({ testId }: { testId: string }) {
   const def = getTest(testId);
   const { apiVersion } = useSetupStore();
   const projectVars = useProjectVariablesStore((s) => s.asRecord());
   if (!def) return null;
+
+  // DEBUG: detect non-string fields that will be rendered as text
+  for (const key of ["description", "method", "path", "tag", "entity", "id", "name"] as const) {
+    const val = (def as unknown as Record<string, unknown>)[key];
+    if (val !== undefined && val !== null && typeof val !== "string") {
+      console.error(`[DesignTab] def.${key} is ${typeof val}, not string:`, val);
+    }
+  }
+  if (def.queryParams) {
+    for (const [k, v] of Object.entries(def.queryParams)) {
+      if (typeof v !== "string") console.error(`[DesignTab] queryParam "${k}" is ${typeof v}:`, v);
+    }
+  }
 
   // Rewrite the leading /vN/ to the currently-selected API version so the
   // preview matches what the runner will actually hit.
@@ -192,7 +214,7 @@ function DesignTab({ testId }: { testId: string }) {
 
       {def.description && (
         <div className="text-xs text-[#0969da] bg-[#ddf4ff] border border-[#b6e3ff] rounded-md px-3 py-2">
-          {def.description}
+          {safeStr(def.description)}
         </div>
       )}
 
@@ -201,9 +223,9 @@ function DesignTab({ testId }: { testId: string }) {
         <Label>Endpoint</Label>
         <div className="flex items-center gap-1.5 group/ep font-mono text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-3 py-2">
           <span className={`font-bold mr-1 shrink-0 ${methodColor[def.method]?.split(" ")[0] ?? "text-[#656d76]"}`}>
-            {def.method}
+            {safeStr(def.method)}
           </span>
-          <span className="break-all flex-1">{displayPath}</span>
+          <span className="break-all flex-1">{safeStr(displayPath)}</span>
           <CopyButton value={`${def.method} ${displayPath}`} className="opacity-0 group-hover/ep:opacity-100 transition-opacity" />
         </div>
       </div>
@@ -225,14 +247,14 @@ function DesignTab({ testId }: { testId: string }) {
                   <div className="flex items-center gap-2 flex-wrap">
                     {/* Param token */}
                     <span className="font-mono text-[#0969da] bg-[#ddf4ff] border border-[#b6e3ff] px-2 py-0.5 rounded shrink-0">
-                      {token}
+                      {safeStr(token)}
                     </span>
                     <span className="text-[#afb8c1]">→</span>
                     {/* Value — with tooltip if state-based */}
                     {meta?.tooltip ? (
-                      <Tooltip text={meta.tooltip}>
+                      <Tooltip text={safeStr(meta.tooltip)}>
                         <span className="font-mono text-[#0969da] bg-[#ddf4ff] border border-[#b6e3ff] px-2 py-0.5 rounded cursor-help underline decoration-dotted underline-offset-2">
-                          {displayValue}
+                          {safeStr(displayValue)}
                         </span>
                       </Tooltip>
                     ) : (
@@ -241,7 +263,7 @@ function DesignTab({ testId }: { testId: string }) {
                           ? "text-[#9a6700] italic"
                           : "text-[#1f2328] bg-[#eef1f6]"
                       }`}>
-                        {displayValue}
+                        {safeStr(displayValue)}
                       </span>
                     )}
                     {!missing && <CopyButton value={displayValue} />}
@@ -257,7 +279,7 @@ function DesignTab({ testId }: { testId: string }) {
           {/* Resolved URL preview */}
           <div className="mt-2.5 flex items-center gap-1.5 group/url font-mono text-xs text-[#656d76] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-3 py-2">
             <span className="text-[#afb8c1] mr-0.5 shrink-0">→</span>
-            <span className="break-all flex-1">{resolvedPath}</span>
+            <span className="break-all flex-1">{safeStr(resolvedPath)}</span>
             <CopyButton value={resolvedPath} className="opacity-0 group-hover/url:opacity-100 transition-opacity" />
           </div>
         </div>
@@ -271,10 +293,10 @@ function DesignTab({ testId }: { testId: string }) {
             {Object.entries(def.queryParams).map(([k, v]) => (
               <div key={k} className="flex items-center gap-2 text-xs py-0.5 group/qp">
                 <span className="font-mono text-[#0969da] bg-[#ddf4ff] border border-[#b6e3ff] px-2 py-0.5 rounded shrink-0">
-                  {k}
+                  {safeStr(k)}
                 </span>
                 <span className="text-[#afb8c1]">=</span>
-                <span className="font-mono text-[#1f2328] flex-1">{v}</span>
+                <span className="font-mono text-[#1f2328] flex-1">{safeStr(v)}</span>
                 <CopyButton value={`${k}=${v}`} className="opacity-0 group-hover/qp:opacity-100 transition-opacity" />
               </div>
             ))}
@@ -298,7 +320,7 @@ function DesignTab({ testId }: { testId: string }) {
             {def.assertions.map((a) => (
               <div key={a.id} className="flex items-start gap-2 text-xs text-[#1f2328] px-3 py-2 bg-[#f6f8fa] border border-[#d1d9e0] rounded-md">
                 <span className="text-[#afb8c1] mt-0.5 shrink-0">◆</span>
-                <span className="flex-1">{a.description}</span>
+                <span className="flex-1">{safeStr(a.description)}</span>
               </div>
             ))}
           </div>
@@ -312,11 +334,11 @@ function DesignTab({ testId }: { testId: string }) {
 
       {/* Footer metadata */}
       <div className="border-t border-[#d1d9e0] pt-4 space-y-1.5 text-xs text-[#afb8c1]">
-        <div><span className="font-medium text-[#656d76]">Flow:</span> {def.tag}</div>
-        {def.entity && <div><span className="font-medium text-[#656d76]">Entity:</span> {def.entity}</div>}
+        <div><span className="font-medium text-[#656d76]">Flow:</span> {safeStr(def.tag)}</div>
+        {def.entity && <div><span className="font-medium text-[#656d76]">Entity:</span> {safeStr(def.entity)}</div>}
         <div className="flex items-center gap-1.5 group/id">
           <span className="font-medium text-[#656d76]">Scenario ID:</span>
-          <span className="font-mono">{def.id}</span>
+          <span className="font-mono">{safeStr(def.id)}</span>
           <CopyButton value={def.id} className="opacity-0 group-hover/id:opacity-100 transition-opacity" />
         </div>
       </div>
