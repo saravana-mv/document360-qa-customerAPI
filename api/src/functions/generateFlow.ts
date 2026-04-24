@@ -363,8 +363,21 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   const requiredFieldsSummary = specContext ? extractRequiredFieldsSummary(specContext) : "";
   console.log(`[generateFlow] specContext length: ${specContext.length}, requiredFieldsSummary length: ${requiredFieldsSummary.length}`);
   if (requiredFieldsSummary) console.log(`[generateFlow] requiredFieldsSummary:\n${requiredFieldsSummary.slice(0, 500)}`);
+
+  // Detect API version from spec context paths
+  const versionSet = new Set<string>();
+  const versionRe = /\/v(\d+)\//g;
+  let vm: RegExpExecArray | null;
+  while ((vm = versionRe.exec(specContext)) !== null) {
+    versionSet.add(`v${vm[1]}`);
+  }
+  const detectedVersions = [...versionSet];
+  const versionDirective = detectedVersions.length === 1
+    ? `\n\n**CRITICAL — API VERSION**: This API uses ${detectedVersions[0]} endpoints EXCLUSIVELY. ALL paths in your XML — including prerequisite/setup/teardown steps — MUST use /${detectedVersions[0]}/ prefix. Do NOT use any other version.`
+    : "";
+
   const userMessage = specContext
-    ? `${body.prompt}${scopeNote}\n\n# Relevant API Specification\n\n${specContext}${requiredFieldsSummary}`
+    ? `${body.prompt}${scopeNote}${versionDirective}\n\n# Relevant API Specification\n\n${specContext}${requiredFieldsSummary}`
     : body.prompt;
 
   const shouldStream = body.stream !== false; // default to streaming

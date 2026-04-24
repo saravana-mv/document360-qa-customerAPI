@@ -238,6 +238,22 @@ export async function generateFlowIdeasHandler(
     .map((s) => `## ${s.name}\n\n${s.content}`)
     .join("\n\n---\n\n");
 
+  // Detect API version from spec file paths (e.g. /v3/projects/...)
+  const versionSet = new Set<string>();
+  const versionRe = /\/v(\d+)\//g;
+  for (const s of specContents) {
+    let m: RegExpExecArray | null;
+    while ((m = versionRe.exec(s.content)) !== null) {
+      versionSet.add(`v${m[1]}`);
+    }
+  }
+  const detectedVersions = [...versionSet];
+  const versionDirective = detectedVersions.length === 1
+    ? `\n\n**CRITICAL — API VERSION**: This API uses ${detectedVersions[0]} endpoints EXCLUSIVELY. ALL paths — including prerequisite/setup/teardown steps — MUST use /${detectedVersions[0]}/ prefix. Do NOT use any other version (e.g. /v1/, /v2/) under any circumstances.`
+    : detectedVersions.length > 1
+      ? `\n\n**CRITICAL — API VERSION**: The provided specs use these API versions: ${detectedVersions.join(", ")}. Use ONLY these versions in your steps. Do NOT use any version not present in the specs.`
+      : "";
+
   const existingList = body.existingIdeas && body.existingIdeas.length > 0
     ? `\n\n## Already Generated Ideas (DO NOT repeat these)\n\n${body.existingIdeas.map((t, i) => `${i + 1}. ${t}`).join("\n")}`
     : "";
@@ -249,7 +265,7 @@ export async function generateFlowIdeasHandler(
   const requestedCount = typeof body.maxCount === "number" && body.maxCount > 0 && body.maxCount <= MAX_IDEAS_PER_RUN
     ? body.maxCount
     : MAX_IDEAS_PER_RUN;
-  const userMessage = `Analyze these API specifications and generate up to ${requestedCount} NEW test flow ideas.${scopeNote}${existingList}\n\n## Spec Files\n\n${specText}`;
+  const userMessage = `Analyze these API specifications and generate up to ${requestedCount} NEW test flow ideas.${scopeNote}${versionDirective}${existingList}\n\n## Spec Files\n\n${specText}`;
 
   // Load and inject version-folder API rules (falls back to project-level)
   const versionFolder = extractVersionFolder(body.folderPath ?? "");
