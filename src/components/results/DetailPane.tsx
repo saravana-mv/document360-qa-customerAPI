@@ -583,6 +583,13 @@ const categoryLabel: Record<string, string> = {
   other: "Other",
 };
 
+// ── Diagnosis cache — survives tab switches within the same session ──────────
+interface DiagnosisCache {
+  diagnosis: DebugDiagnosis;
+  costUsd: number;
+}
+const diagnosisCache = new Map<string, DiagnosisCache>();
+
 /** Parse numbered steps (e.g. "1. Do X 2. Do Y") into an ordered list. */
 function HowToFixSteps({ text }: { text: string }) {
   // Split on numbered prefixes like "1. ", "2. " etc. — handles both newline-separated and inline
@@ -599,17 +606,18 @@ function HowToFixSteps({ text }: { text: string }) {
 
 function DiagnoseTab({ testId }: { testId: string }) {
   const result = useRunnerStore((s) => s.testResults[testId]);
-  const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
-  const [diagnosis, setDiagnosis] = useState<DebugDiagnosis | null>(null);
-  const [costUsd, setCostUsd] = useState(0);
+  const cached = diagnosisCache.get(testId);
+  const [state, setState] = useState<"idle" | "loading" | "done" | "error">(cached ? "done" : "idle");
+  const [diagnosis, setDiagnosis] = useState<DebugDiagnosis | null>(cached?.diagnosis ?? null);
+  const [costUsd, setCostUsd] = useState(cached?.costUsd ?? 0);
   const [error, setError] = useState<string | null>(null);
   const [fixState, setFixState] = useState<"idle" | "fixing" | "done" | "error">("idle");
   const [fixError, setFixError] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [reportCopied, setReportCopied] = useState(false);
 
-  // Auto-trigger analysis when tab opens for the first time
-  const triggered = useRef(false);
+  // Auto-trigger analysis when tab opens for the first time (skip if cached)
+  const triggered = useRef(!!cached);
   useEffect(() => {
     if (!triggered.current && state === "idle") {
       triggered.current = true;
@@ -654,6 +662,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
 
       setDiagnosis(res.diagnosis);
       setCostUsd(res.usage.costUsd);
+      diagnosisCache.set(testId, { diagnosis: res.diagnosis, costUsd: res.usage.costUsd });
       useAiCostStore.getState().addAdhocCost(res.usage.costUsd);
       setState("done");
     } catch (e) {
@@ -846,11 +855,15 @@ function DiagnoseTab({ testId }: { testId: string }) {
           <div className="grid grid-cols-2 gap-2">
             <div>
               <span className="text-xs font-medium text-[#d1242f]">Before</span>
-              <pre className="mt-0.5 p-2 bg-[#ffebe9]/30 border border-[#ffcecb] rounded text-xs font-mono whitespace-pre-wrap overflow-x-auto">{diagnosis.suggestedFix.before}</pre>
+              <div className="mt-0.5 border border-[#ffcecb] rounded overflow-hidden">
+                <JsonCodeBlock value={diagnosis.suggestedFix.before} height="auto" />
+              </div>
             </div>
             <div>
               <span className="text-xs font-medium text-[#1a7f37]">After</span>
-              <pre className="mt-0.5 p-2 bg-[#dafbe1]/30 border border-[#aceebb] rounded text-xs font-mono whitespace-pre-wrap overflow-x-auto">{diagnosis.suggestedFix.after}</pre>
+              <div className="mt-0.5 border border-[#aceebb] rounded overflow-hidden">
+                <JsonCodeBlock value={diagnosis.suggestedFix.after} height="auto" />
+              </div>
             </div>
           </div>
         </div>
@@ -895,19 +908,25 @@ function DiagnoseTab({ testId }: { testId: string }) {
             {result?.requestBody !== undefined && (
               <div>
                 <span className="text-xs font-semibold text-[#656d76] block mb-1">Request Body</span>
-                <pre className="p-2 bg-[#f6f8fa] border border-[#d1d9e0] rounded text-xs font-mono whitespace-pre-wrap overflow-x-auto max-h-48 overflow-y-auto">{JSON.stringify(result.requestBody, null, 2)}</pre>
+                <div className="border border-[#d1d9e0] rounded overflow-hidden max-h-48">
+                  <JsonCodeBlock value={result.requestBody} height="auto" />
+                </div>
               </div>
             )}
             {result?.responseBody !== undefined && (
               <div>
                 <span className="text-xs font-semibold text-[#656d76] block mb-1">Response Body</span>
-                <pre className="p-2 bg-[#f6f8fa] border border-[#d1d9e0] rounded text-xs font-mono whitespace-pre-wrap overflow-x-auto max-h-48 overflow-y-auto">{JSON.stringify(result.responseBody, null, 2)}</pre>
+                <div className="border border-[#d1d9e0] rounded overflow-hidden max-h-48">
+                  <JsonCodeBlock value={result.responseBody} height="auto" />
+                </div>
               </div>
             )}
             {/* Raw diagnosis JSON */}
             <div>
               <span className="text-xs font-semibold text-[#656d76] block mb-1">Raw AI Response</span>
-              <pre className="p-2 bg-[#f6f8fa] border border-[#d1d9e0] rounded text-xs font-mono whitespace-pre-wrap overflow-x-auto max-h-48 overflow-y-auto">{JSON.stringify(diagnosis, null, 2)}</pre>
+              <div className="border border-[#d1d9e0] rounded overflow-hidden max-h-48">
+                <JsonCodeBlock value={diagnosis} height="auto" />
+              </div>
             </div>
           </div>
         )}
@@ -917,7 +936,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
       <div className="flex items-center gap-3 pt-1">
         <span className="text-xs text-[#afb8c1]">Cost: ${costUsd.toFixed(4)}</span>
         <button
-          onClick={() => { setState("idle"); triggered.current = false; void handleAnalyze(); }}
+          onClick={() => { diagnosisCache.delete(testId); setState("idle"); triggered.current = false; void handleAnalyze(); }}
           className="text-xs text-[#0969da] hover:underline cursor-pointer"
         >
           Re-analyze
