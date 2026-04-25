@@ -8,6 +8,8 @@ import { buildTestContext } from "../../lib/tests/context";
 import { ProgressBar } from "./ProgressBar";
 import { Spinner } from "../common/Spinner";
 import { ConnectEndpointModal } from "../explorer/ConnectEndpointModal";
+import { getOAuthStatus, refreshOAuth } from "../../lib/api/oauthApi";
+import type { OAuthStatus } from "../../lib/api/oauthApi";
 import type { TestContext } from "../../types/test.types";
 import type { TestDef } from "../../types/test.types";
 import type { TokenSet } from "../../types/auth.types";
@@ -42,6 +44,78 @@ export function RunControls() {
       return !vc.credentialConfigured;
     });
   }, [allTests, versionConfigs]);
+
+  // Track OAuth token status for versions with OAuth connections
+  const [oauthStatuses, setOauthStatuses] = useState<Record<string, OAuthStatus>>({});
+  const [refreshingConnection, setRefreshingConnection] = useState<string | null>(null);
+
+  const oauthVersions = useMemo(() => {
+    const result: Array<{ version: string; connectionId: string }> = [];
+    const versions = new Set<string>();
+    for (const t of allTests) {
+      if (!t.flowFileName) continue;
+      const idx = t.flowFileName.indexOf("/");
+      if (idx > 0) versions.add(t.flowFileName.slice(0, idx));
+    }
+    for (const v of versions) {
+      const vc = versionConfigs[v];
+      if (vc?.authType === "oauth" && vc.connectionId) {
+        result.push({ version: v, connectionId: vc.connectionId });
+      }
+    }
+    return result;
+  }, [allTests, versionConfigs]);
+
+  useEffect(() => {
+    if (oauthVersions.length === 0) { setOauthStatuses({}); return; }
+    let cancelled = false;
+
+    async function poll() {
+      const next: Record<string, OAuthStatus> = {};
+      await Promise.all(oauthVersions.map(async ({ version, connectionId }) => {
+        try {
+          next[version] = await getOAuthStatus(connectionId);
+        } catch {
+          next[version] = { authenticated: false, expired: true };
+        }
+      }));
+      if (!cancelled) setOauthStatuses(next);
+    }
+
+    void poll();
+    const interval = setInterval(poll, 60_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [oauthVersions]);
+
+  const expiredVersions = useMemo(() =>
+    oauthVersions
+      .filter(({ version }) => {
+        const s = oauthStatuses[version];
+        return s && (s.expired === true || !s.authenticated);
+      })
+      .map(({ version }) => version),
+    [oauthVersions, oauthStatuses],
+  );
+
+  const hasExpiredAuth = expiredVersions.length > 0;
+
+  async function handleRefreshToken() {
+    if (expiredVersions.length === 0) return;
+    const v = expiredVersions[0];
+    const ov = oauthVersions.find((o) => o.version === v);
+    if (!ov) return;
+    setRefreshingConnection(ov.connectionId);
+    try {
+      await refreshOAuth(ov.connectionId);
+      // Re-poll status after refresh
+      const status = await getOAuthStatus(ov.connectionId);
+      setOauthStatuses((prev) => ({ ...prev, [v]: status }));
+    } catch {
+      // Refresh failed — user needs to re-authenticate in Settings
+    } finally {
+      setRefreshingConnection(null);
+    }
+  }
 
   const [connectVersion, setConnectVersion] = useState<string | null>(null);
 
@@ -212,7 +286,8 @@ export function RunControls() {
       <div className="flex items-center gap-2 px-4 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa]">
         <button
           onClick={runAll}
-          disabled={runner.running}
+          disabled={runner.running || hasExpiredAuth}
+          title={hasExpiredAuth ? "OAuth token expired — refresh or reconnect before running" : undefined}
           className="px-2.5 py-1 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-xs font-medium rounded-md transition-colors disabled:opacity-50 flex items-center gap-1.5 border border-[#1a7f37]/80"
         >
           {runner.running && <Spinner size="sm" className="text-white" />}
@@ -220,7 +295,8 @@ export function RunControls() {
         </button>
         <button
           onClick={runSelected}
-          disabled={runner.running || (runner.selectedTags.size === 0 && runner.selectedTests.size === 0)}
+          disabled={runner.running || hasExpiredAuth || (runner.selectedTags.size === 0 && runner.selectedTests.size === 0)}
+          title={hasExpiredAuth ? "OAuth token expired — refresh or reconnect before running" : undefined}
           className="px-2.5 py-1 bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-xs font-medium rounded-md transition-colors disabled:opacity-50 border border-[#d1d9e0]"
         >
           Run selected
@@ -285,6 +361,37 @@ export function RunControls() {
               Connect now
             </button>
           </div>
+        </div>
+      )}
+      {/* Expired OAuth token warning */}
+      {!viewingHistory && !runner.running && hasExpiredAuth && (
+        <div className="flex items-start gap-2 px-4 py-2 border-b border-[#d1d9e0] bg-[#ffebe9]">
+          <svg className="w-4 h-4 text-[#d1242f] shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+          </svg>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-[#d1242f]">
+              OAuth token expired{expiredVersions.length === 1
+                ? ` for ${expiredVersions[0]}`
+                : ` for ${expiredVersions.join(", ")}`}
+            </p>
+            <p className="text-[11px] text-[#656d76] mt-0.5">
+              Reconnect or refresh the token before running scenarios.
+            </p>
+          </div>
+          <button
+            onClick={() => void handleRefreshToken()}
+            disabled={!!refreshingConnection}
+            className="px-2.5 py-1 bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-xs font-medium rounded-md transition-colors border border-[#d1d9e0] shrink-0 disabled:opacity-50"
+          >
+            {refreshingConnection ? "Refreshing..." : "Refresh token"}
+          </button>
+          <button
+            onClick={() => setConnectVersion(expiredVersions[0])}
+            className="px-2.5 py-1 bg-[#0969da] hover:bg-[#0860ca] text-white text-xs font-medium rounded-md transition-colors shrink-0"
+          >
+            Reconnect
+          </button>
         </div>
       )}
       {runner.running && (
