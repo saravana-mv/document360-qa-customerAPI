@@ -13,12 +13,20 @@ export interface SuggestedFix {
 }
 
 export interface DebugDiagnosis {
-  rootCause: string;
+  // New fields (v2)
+  summary: string;
+  whatWentWrong: string;
   category: "extra_field" | "missing_field" | "wrong_value" | "schema_mismatch" | "auth_error" | "upstream_error" | "other";
-  details: string;
+  canYouFixIt: boolean;
+  howToFix?: string | null;
+  fixPrompt?: string | null;
+  developerNote?: string;
   problematicFields?: ProblematicField[];
   suggestedFix?: SuggestedFix;
   confidence: "high" | "medium" | "low";
+  // Legacy fields (backward compat for cached responses)
+  rootCause?: string;
+  details?: string;
 }
 
 export interface DebugAnalyzeResult {

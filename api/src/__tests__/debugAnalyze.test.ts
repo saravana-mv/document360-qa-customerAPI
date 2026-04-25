@@ -37,9 +37,13 @@ jest.mock("@anthropic-ai/sdk", () => {
         content: [{
           type: "text",
           text: JSON.stringify({
-            rootCause: "Extra field in request body",
+            summary: "The request includes a field called 'project_version_id' that the API does not accept. Remove it from the request body to fix the error.",
+            whatWentWrong: "Extra field in request",
             category: "extra_field",
-            details: "The field project_version_id is not in the schema",
+            canYouFixIt: true,
+            howToFix: "1. Open the flow XML\n2. Find the PATCH /v3/categories/settings step\n3. Remove the project_version_id field from the request body",
+            fixPrompt: "In step 'PATCH category settings' (PATCH /v3/categories/settings), remove the project_version_id field from the request body",
+            developerNote: "The field project_version_id is not in the schema's properties list. The endpoint uses additionalProperties: false, so unknown fields cause a 500.",
             problematicFields: [{ field: "project_version_id", issue: "Not in schema", suggestion: "Remove it" }],
             confidence: "high",
           }),
@@ -124,8 +128,10 @@ describe("POST /api/debug-analyze", () => {
     expect(res.status).toBe(200);
     const parsed = JSON.parse(res.body as string);
     expect(parsed.diagnosis).toBeDefined();
-    expect(parsed.diagnosis.rootCause).toBeTruthy();
+    expect(parsed.diagnosis.summary).toBeTruthy();
     expect(parsed.diagnosis.category).toBe("extra_field");
+    expect(parsed.diagnosis.canYouFixIt).toBe(true);
+    expect(parsed.diagnosis.fixPrompt).toBeTruthy();
     expect(parsed.usage).toBeDefined();
     expect(parsed.usage.costUsd).toBeGreaterThan(0);
   });

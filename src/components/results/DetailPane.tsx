@@ -574,12 +574,12 @@ const confidenceBadge: Record<string, { cls: string; label: string }> = {
 };
 
 const categoryLabel: Record<string, string> = {
-  extra_field: "Extra Field",
-  missing_field: "Missing Field",
-  wrong_value: "Wrong Value",
-  schema_mismatch: "Schema Mismatch",
-  auth_error: "Auth Error",
-  upstream_error: "Upstream Error",
+  extra_field: "Extra field in request",
+  missing_field: "Missing required field",
+  wrong_value: "Wrong field value",
+  schema_mismatch: "Schema mismatch",
+  auth_error: "Authentication error",
+  upstream_error: "Server error",
   other: "Other",
 };
 
@@ -589,6 +589,10 @@ function DiagnoseTab({ testId }: { testId: string }) {
   const [diagnosis, setDiagnosis] = useState<DebugDiagnosis | null>(null);
   const [costUsd, setCostUsd] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [fixState, setFixState] = useState<"idle" | "fixing" | "done" | "error">("idle");
+  const [fixError, setFixError] = useState<string | null>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [reportCopied, setReportCopied] = useState(false);
 
   // Auto-trigger analysis when tab opens for the first time
   const triggered = useRef(false);
@@ -602,6 +606,8 @@ function DiagnoseTab({ testId }: { testId: string }) {
   async function handleAnalyze() {
     setState("loading");
     setError(null);
+    setFixState("idle");
+    setFixError(null);
 
     const testDef = getTest(testId);
     if (!testDef) {
@@ -643,6 +649,56 @@ function DiagnoseTab({ testId }: { testId: string }) {
     }
   }
 
+  async function handleFixIt() {
+    if (!diagnosis?.fixPrompt) return;
+    const testDef = getTest(testId);
+    if (!testDef) return;
+
+    setFixState("fixing");
+    setFixError(null);
+
+    const fileName = testDef.tag + ".flow.xml";
+    try {
+      const xml = await getFlowFileContent(fileName);
+      const edited = await editFlowXml(xml, diagnosis.fixPrompt);
+      const validation = validateFlowXml(edited.xml);
+      if (!validation.ok) {
+        setFixError("AI fix produced invalid XML. Please edit manually in the Flow XML tab.");
+        setFixState("error");
+        return;
+      }
+      await saveFlowFile(fileName, edited.xml);
+      await activateFlow(fileName);
+      await loadFlowsFromQueue();
+      buildParsedTagsFromRegistry();
+      setFixState("done");
+    } catch (e) {
+      setFixError(e instanceof Error ? e.message : String(e));
+      setFixState("error");
+    }
+  }
+
+  function buildDiagnosticReport(): string {
+    const testDef = getTest(testId);
+    const lines: string[] = [];
+    lines.push("## FlowForge Diagnostic Report");
+    if (testDef) lines.push(`**Step:** ${testDef.method} ${testDef.path}`);
+    if (result?.httpStatus) lines.push(`**HTTP Status:** ${result.httpStatus}`);
+    const summaryText = diagnosis?.summary ?? diagnosis?.rootCause ?? "";
+    lines.push(`**Summary:** ${summaryText}`);
+    if (diagnosis?.developerNote) lines.push(`**Developer Note:** ${diagnosis.developerNote}`);
+    if (result?.requestBody !== undefined) {
+      lines.push("", "### Request Body", "```json", JSON.stringify(result.requestBody, null, 2), "```");
+    }
+    if (result?.responseBody !== undefined) {
+      lines.push("", "### Response Body", "```json", JSON.stringify(result.responseBody, null, 2), "```");
+    }
+    if (diagnosis) {
+      lines.push("", "### Raw Diagnosis", "```json", JSON.stringify(diagnosis, null, 2), "```");
+    }
+    return lines.join("\n");
+  }
+
   if (state === "idle" || state === "loading") {
     return (
       <div className="flex flex-col items-center justify-center h-48 gap-3">
@@ -676,35 +732,73 @@ function DiagnoseTab({ testId }: { testId: string }) {
   if (!diagnosis) return null;
 
   const conf = confidenceBadge[diagnosis.confidence] ?? confidenceBadge.low;
-  const catLabel = categoryLabel[diagnosis.category] ?? diagnosis.category;
+  // Use new whatWentWrong field, fall back to categoryLabel for legacy responses
+  const issueLabel = diagnosis.whatWentWrong ?? categoryLabel[diagnosis.category] ?? diagnosis.category;
+  // Use summary, fall back to rootCause for legacy cached responses
+  const summaryText = diagnosis.summary ?? diagnosis.rootCause ?? "";
 
   return (
     <div className="p-4 space-y-4 text-sm">
 
-      {/* Summary bar */}
-      <div className="flex items-center gap-2 px-3 py-2.5 rounded-md bg-[#f6f8fa] border border-[#d1d9e0]">
-        <svg className="w-4 h-4 text-[#8250df] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
-        </svg>
-        <span className="text-sm font-semibold text-[#1f2328] flex-1">AI Diagnosis</span>
-        <span className={`text-[11px] px-1.5 py-0.5 rounded border ${conf.cls}`}>{conf.label}</span>
-        <span className="text-[11px] px-1.5 py-0.5 rounded border border-[#ffcecb] bg-[#ffebe9] text-[#d1242f]">{catLabel}</span>
-        <span className="text-[11px] text-[#afb8c1] ml-1">${costUsd.toFixed(4)}</span>
+      {/* A. Summary card */}
+      <div className="px-3 py-3 rounded-md bg-[#ddf4ff] border border-[#54aeff]">
+        <div className="flex items-center gap-2 mb-2">
+          <svg className="w-4 h-4 text-[#0969da] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+          </svg>
+          <span className="text-sm font-semibold text-[#1f2328]">AI Diagnosis</span>
+          <span className={`text-xs px-1.5 py-0.5 rounded border ${conf.cls}`}>{conf.label}</span>
+          <span className="text-xs px-1.5 py-0.5 rounded border border-[#54aeff] bg-[#ddf4ff] text-[#0969da]">{issueLabel}</span>
+        </div>
+        <p className="text-sm text-[#1f2328] leading-relaxed">{summaryText}</p>
       </div>
 
-      {/* Root Cause */}
-      <div className="px-3 py-2.5 bg-[#fff8c5] border border-[#f5e0a0] rounded-md">
-        <span className="text-xs font-semibold text-[#9a6700] uppercase tracking-wide block mb-1">Root Cause</span>
-        <p className="text-sm text-[#1f2328]">{diagnosis.rootCause}</p>
-      </div>
+      {/* B. What to do next */}
+      {diagnosis.canYouFixIt ? (
+        <div className="px-3 py-3 rounded-md bg-[#dafbe1] border border-[#aceebb]">
+          <span className="text-xs font-semibold text-[#1a7f37] uppercase tracking-wide block mb-1.5">How to fix</span>
+          <p className="text-sm text-[#1f2328] whitespace-pre-wrap leading-relaxed mb-3">{diagnosis.howToFix}</p>
+          {diagnosis.fixPrompt && (
+            <>
+              {fixState === "idle" && (
+                <button
+                  onClick={() => void handleFixIt()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#16653a] transition-colors cursor-pointer"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.049.58.025 1.193-.14 1.743" />
+                  </svg>
+                  Fix it automatically
+                </button>
+              )}
+              {fixState === "fixing" && (
+                <div className="flex items-center gap-2 text-sm text-[#656d76]">
+                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
+                  </svg>
+                  Applying fix...
+                </div>
+              )}
+              {fixState === "done" && (
+                <div className="flex items-center gap-1.5 text-sm text-[#1a7f37] font-medium">
+                  <span>✓</span> Flow XML fixed and saved. Re-run the scenario to verify.
+                </div>
+              )}
+              {fixState === "error" && (
+                <div className="text-sm text-[#d1242f]">{fixError}</div>
+              )}
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="px-3 py-3 rounded-md bg-[#fff8c5] border border-[#f5e0a0]">
+          <span className="text-xs font-semibold text-[#9a6700] uppercase tracking-wide block mb-1">Needs developer attention</span>
+          <p className="text-sm text-[#1f2328]">This issue can't be fixed by editing the flow XML. Use the "Copy diagnostic report" button below to share details with your development team.</p>
+        </div>
+      )}
 
-      {/* Details */}
-      <div>
-        <Label>Analysis Details</Label>
-        <p className="text-sm text-[#1f2328] whitespace-pre-wrap leading-relaxed">{diagnosis.details}</p>
-      </div>
-
-      {/* Problematic Fields */}
+      {/* C. Problematic Fields */}
       {diagnosis.problematicFields && diagnosis.problematicFields.length > 0 && (
         <div>
           <Label>Problematic Fields</Label>
@@ -731,26 +825,84 @@ function DiagnoseTab({ testId }: { testId: string }) {
         </div>
       )}
 
-      {/* Suggested Fix */}
+      {/* D. Suggested Fix before/after */}
       {diagnosis.suggestedFix && (
         <div>
           <Label>Suggested Fix</Label>
           <p className="text-sm text-[#1f2328] mb-2">{diagnosis.suggestedFix.description}</p>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <span className="text-[11px] font-medium text-[#d1242f]">Before</span>
+              <span className="text-xs font-medium text-[#d1242f]">Before</span>
               <pre className="mt-0.5 p-2 bg-[#ffebe9]/30 border border-[#ffcecb] rounded text-xs font-mono whitespace-pre-wrap overflow-x-auto">{diagnosis.suggestedFix.before}</pre>
             </div>
             <div>
-              <span className="text-[11px] font-medium text-[#1a7f37]">After</span>
+              <span className="text-xs font-medium text-[#1a7f37]">After</span>
               <pre className="mt-0.5 p-2 bg-[#dafbe1]/30 border border-[#aceebb] rounded text-xs font-mono whitespace-pre-wrap overflow-x-auto">{diagnosis.suggestedFix.after}</pre>
             </div>
           </div>
         </div>
       )}
 
-      {/* Re-analyze button */}
-      <div className="pt-1">
+      {/* E. Advanced: Full Diagnostic Data */}
+      <div className="border border-[#d1d9e0] rounded-md overflow-hidden">
+        <button
+          onClick={() => setAdvancedOpen(!advancedOpen)}
+          className="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium text-[#656d76] bg-[#f6f8fa] hover:bg-[#eaeef2] transition-colors cursor-pointer"
+        >
+          <svg className={`w-3.5 h-3.5 transition-transform ${advancedOpen ? "rotate-90" : ""}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+          </svg>
+          Advanced: Full Diagnostic Data
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              void navigator.clipboard.writeText(buildDiagnosticReport()).then(() => {
+                setReportCopied(true);
+                setTimeout(() => setReportCopied(false), 2000);
+              });
+            }}
+            className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded text-xs text-[#0969da] hover:bg-[#ddf4ff] transition-colors cursor-pointer"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+            </svg>
+            {reportCopied ? "Copied!" : "Copy diagnostic report"}
+          </button>
+        </button>
+        {advancedOpen && (
+          <div className="p-3 space-y-3 border-t border-[#d1d9e0]">
+            {/* Developer Note */}
+            {(diagnosis.developerNote ?? diagnosis.details) && (
+              <div>
+                <span className="text-xs font-semibold text-[#656d76] block mb-1">Developer Note</span>
+                <p className="text-xs text-[#1f2328] whitespace-pre-wrap leading-relaxed">{diagnosis.developerNote ?? diagnosis.details}</p>
+              </div>
+            )}
+            {/* Raw request/response */}
+            {result?.requestBody !== undefined && (
+              <div>
+                <span className="text-xs font-semibold text-[#656d76] block mb-1">Request Body</span>
+                <pre className="p-2 bg-[#f6f8fa] border border-[#d1d9e0] rounded text-xs font-mono whitespace-pre-wrap overflow-x-auto max-h-48 overflow-y-auto">{JSON.stringify(result.requestBody, null, 2)}</pre>
+              </div>
+            )}
+            {result?.responseBody !== undefined && (
+              <div>
+                <span className="text-xs font-semibold text-[#656d76] block mb-1">Response Body</span>
+                <pre className="p-2 bg-[#f6f8fa] border border-[#d1d9e0] rounded text-xs font-mono whitespace-pre-wrap overflow-x-auto max-h-48 overflow-y-auto">{JSON.stringify(result.responseBody, null, 2)}</pre>
+              </div>
+            )}
+            {/* Raw diagnosis JSON */}
+            <div>
+              <span className="text-xs font-semibold text-[#656d76] block mb-1">Raw AI Response</span>
+              <pre className="p-2 bg-[#f6f8fa] border border-[#d1d9e0] rounded text-xs font-mono whitespace-pre-wrap overflow-x-auto max-h-48 overflow-y-auto">{JSON.stringify(diagnosis, null, 2)}</pre>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* F. Footer — cost + re-analyze */}
+      <div className="flex items-center gap-3 pt-1">
+        <span className="text-xs text-[#afb8c1]">Cost: ${costUsd.toFixed(4)}</span>
         <button
           onClick={() => { setState("idle"); triggered.current = false; void handleAnalyze(); }}
           className="text-xs text-[#0969da] hover:underline cursor-pointer"
@@ -1429,7 +1581,7 @@ export function DetailPane({ testId, onClose }: DetailPaneProps) {
 
       {/* ── Tabs row — aligns with LHS h-9 toolbar ── */}
       <div className="flex items-center gap-1 px-4 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
-        {((["design", "run", ...((status === "fail" || status === "error") ? ["diagnose"] : []), ...(def.flowFileName ? ["xml"] : [])]) as Tab[]).map((tab) => (
+        {((["design", "run", ...(def.flowFileName ? ["xml"] : []), ...((status === "fail" || status === "error") ? ["diagnose"] : [])]) as Tab[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}

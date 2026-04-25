@@ -17,7 +17,9 @@ const DEFAULT_DEBUG_MODEL: ModelId = "claude-haiku-4-5-20251001";
 
 const MAX_SPEC_SCAN = 50;
 
-const DEBUG_SYSTEM_PROMPT = `You are an API debugging expert for the FlowForge test runner. Given a failed API test step, diagnose the root cause by cross-referencing the request against the endpoint's OpenAPI specification.
+const DEBUG_SYSTEM_PROMPT = `You are an API debugging assistant for the FlowForge test runner. Your audience is QA engineers with limited API or technical background. Write clearly and simply — avoid jargon.
+
+Given a failed API test step, diagnose the root cause by cross-referencing the request against the endpoint's OpenAPI specification.
 
 Common failure patterns:
 1. Extra fields in body (additionalProperties: false rejects unknown fields)
@@ -31,15 +33,25 @@ If an endpoint spec is provided, carefully compare every field in the request bo
 
 Output ONLY valid JSON (no markdown, no commentary):
 {
-  "rootCause": "1-2 sentence summary",
+  "summary": "Plain-English explanation a QA engineer can understand. 2-4 sentences. What happened, why it happened, and what to do next.",
+  "whatWentWrong": "Human-friendly label, e.g. 'Extra field in request', 'Missing required field', 'Wrong field type', 'Server error', 'Authentication failed'",
   "category": "extra_field|missing_field|wrong_value|schema_mismatch|auth_error|upstream_error|other",
-  "details": "Detailed explanation with reasoning",
+  "canYouFixIt": true,
+  "howToFix": "Step-by-step instructions for QA to fix in the flow XML. Set to null if a developer is needed instead.",
+  "fixPrompt": "Precise instruction for an AI to edit the flow XML. E.g. 'In step 3 (PATCH /v3/categories/settings), remove the project_version_id field from the request body'. Only present when canYouFixIt is true. Omit when canYouFixIt is false.",
+  "developerNote": "Technical root cause details for developers — schema details, field names, types, status codes",
   "problematicFields": [{ "field": "name", "issue": "why it's wrong", "suggestion": "how to fix" }],
   "suggestedFix": { "description": "what to change", "before": "snippet before", "after": "corrected snippet" },
   "confidence": "high|medium|low"
 }
 
-Omit problematicFields if none. Omit suggestedFix if not applicable.`;
+Rules:
+- "summary" replaces both rootCause and details — write ONE clear paragraph for QA.
+- "canYouFixIt" is true when the fix is a flow XML edit (extra/missing/wrong fields). False for upstream server bugs, auth issues, environment problems.
+- "howToFix" should be step-by-step (e.g. "1. Open the flow XML  2. Find step 3  3. Remove the project_version_id field from the request body"). Null when canYouFixIt is false.
+- "fixPrompt" must be a precise AI-ready instruction to edit the XML. Omit when canYouFixIt is false.
+- "developerNote" is technical — include schema details, field types, HTTP status analysis.
+- Omit problematicFields if none. Omit suggestedFix if not applicable.`;
 
 interface StepData {
   name: string;
@@ -228,9 +240,11 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
       diagnosis = JSON.parse(rawText);
     } catch {
       diagnosis = {
-        rootCause: rawText,
+        summary: rawText,
+        whatWentWrong: "Unknown",
         category: "other",
-        details: rawText,
+        canYouFixIt: false,
+        developerNote: rawText,
         confidence: "low",
       };
     }
