@@ -81,20 +81,23 @@ async function createConnection(req: HttpRequest): Promise<HttpResponseInit> {
   try {
     const projectId = getProjectId(req);
     const user = getUserInfo(req);
-    const body = (await req.json()) as Partial<ConnectionDoc> & { provider?: string };
+    const body = (await req.json()) as Partial<ConnectionDoc> & { provider?: string; draft?: boolean };
 
     if (!body.name?.trim()) return err(400, "name is required");
     const provider = (body.provider || "oauth2") as ConnectionProvider;
     if (!VALID_PROVIDERS.has(provider)) return err(400, `Invalid provider: ${body.provider}`);
 
-    if (provider === "oauth2") {
-      if (!body.authorizationUrl?.trim()) return err(400, "authorizationUrl is required");
-      if (!body.tokenUrl?.trim()) return err(400, "tokenUrl is required");
-      if (!body.clientId?.trim()) return err(400, "clientId is required");
-    } else {
-      if (!body.credential?.trim()) return err(400, "credential is required");
-      if (provider === "apikey_header" && !body.authHeaderName?.trim()) return err(400, "authHeaderName is required for API Key (Header)");
-      if (provider === "apikey_query" && !body.authQueryParam?.trim()) return err(400, "authQueryParam is required for API Key (Query)");
+    // draft=true skips credential/clientId validation (auto-detected from spec)
+    if (!body.draft) {
+      if (provider === "oauth2") {
+        if (!body.authorizationUrl?.trim()) return err(400, "authorizationUrl is required");
+        if (!body.tokenUrl?.trim()) return err(400, "tokenUrl is required");
+        if (!body.clientId?.trim()) return err(400, "clientId is required");
+      } else {
+        if (!body.credential?.trim()) return err(400, "credential is required");
+        if (provider === "apikey_header" && !body.authHeaderName?.trim()) return err(400, "authHeaderName is required for API Key (Header)");
+        if (provider === "apikey_query" && !body.authQueryParam?.trim()) return err(400, "authQueryParam is required for API Key (Query)");
+      }
     }
 
     const id = randomUUID();
@@ -107,16 +110,16 @@ async function createConnection(req: HttpRequest): Promise<HttpResponseInit> {
       name: body.name.trim(),
       provider,
       // OAuth fields
-      authorizationUrl: provider === "oauth2" ? body.authorizationUrl!.trim() : undefined,
-      tokenUrl: provider === "oauth2" ? body.tokenUrl!.trim() : undefined,
-      clientId: provider === "oauth2" ? body.clientId!.trim() : undefined,
+      authorizationUrl: provider === "oauth2" ? (body.authorizationUrl?.trim() || undefined) : undefined,
+      tokenUrl: provider === "oauth2" ? (body.tokenUrl?.trim() || undefined) : undefined,
+      clientId: provider === "oauth2" ? (body.clientId?.trim() || undefined) : undefined,
       clientSecret: provider === "oauth2" ? (body.clientSecret?.trim() || undefined) : undefined,
       scopes: provider === "oauth2" ? (body.scopes?.trim() ?? "") : undefined,
       redirectUri: provider === "oauth2" ? redirectUri : undefined,
       // Token fields
-      credential: provider !== "oauth2" ? body.credential!.trim() : undefined,
-      authHeaderName: provider === "apikey_header" ? body.authHeaderName!.trim() : undefined,
-      authQueryParam: provider === "apikey_query" ? body.authQueryParam!.trim() : undefined,
+      credential: provider !== "oauth2" ? (body.credential?.trim() || undefined) : undefined,
+      authHeaderName: provider === "apikey_header" ? (body.authHeaderName?.trim() || undefined) : undefined,
+      authQueryParam: provider === "apikey_query" ? (body.authQueryParam?.trim() || undefined) : undefined,
       createdAt: new Date().toISOString(),
       createdBy: user,
       updatedAt: new Date().toISOString(),

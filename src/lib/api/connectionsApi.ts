@@ -40,6 +40,8 @@ export interface CreateConnectionPayload {
   credential?: string;
   authHeaderName?: string;
   authQueryParam?: string;
+  /** Skip credential validation — auto-detected from spec, needs manual config */
+  draft?: boolean;
 }
 
 export type UpdateConnectionPayload = Partial<CreateConnectionPayload>;

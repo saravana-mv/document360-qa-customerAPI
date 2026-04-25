@@ -25,10 +25,26 @@ export interface SuggestedVariable {
   example?: string;
 }
 
+export type SuggestedConnectionProvider = "oauth2" | "bearer" | "apikey_header" | "apikey_query" | "basic" | "cookie";
+
+export interface SuggestedConnection {
+  name: string;
+  provider: SuggestedConnectionProvider;
+  description?: string;
+  // OAuth-specific
+  authorizationUrl?: string;
+  tokenUrl?: string;
+  scopes?: string;
+  // API Key
+  authHeaderName?: string;
+  authQueryParam?: string;
+}
+
 export interface SplitResult {
   files: SplitFile[];
   stats: SplitStats;
   suggestedVariables: SuggestedVariable[];
+  suggestedConnections: SuggestedConnection[];
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -399,6 +415,9 @@ export function splitSwagger(specJson: Record<string, unknown>): SplitResult {
   // Extract path parameters as suggested project variables
   const suggestedVariables = extractPathParameters(paths, spec);
 
+  // Extract security schemes as suggested connections
+  const suggestedConnections = extractSecuritySchemes(spec);
+
   return {
     files,
     stats: {
@@ -407,6 +426,7 @@ export function splitSwagger(specJson: Record<string, unknown>): SplitResult {
       skipped,
     },
     suggestedVariables,
+    suggestedConnections,
   };
 }
 
@@ -468,4 +488,103 @@ function extractPathParameters(
   }
 
   return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * Extract security schemes from the spec and map them to suggested connections.
+ */
+function extractSecuritySchemes(spec: Record<string, unknown>): SuggestedConnection[] {
+  const results: SuggestedConnection[] = [];
+
+  // OAS3: components.securitySchemes
+  const components = spec["components"] as Record<string, unknown> | undefined;
+  const oas3Schemes = components?.["securitySchemes"] as Record<string, Record<string, unknown>> | undefined;
+
+  // Swagger 2: securityDefinitions
+  const swagger2Defs = spec["securityDefinitions"] as Record<string, Record<string, unknown>> | undefined;
+
+  const schemes = oas3Schemes ?? swagger2Defs;
+  if (!schemes) return results;
+
+  for (const [schemeName, scheme] of Object.entries(schemes)) {
+    if (!scheme || typeof scheme !== "object") continue;
+    const type = scheme["type"] as string;
+
+    if (type === "oauth2") {
+      const conn: SuggestedConnection = {
+        name: schemeName,
+        provider: "oauth2",
+        description: scheme["description"] as string | undefined,
+      };
+
+      // OAS3: flows.authorizationCode / implicit / clientCredentials / password
+      const flows = scheme["flows"] as Record<string, Record<string, unknown>> | undefined;
+      if (flows) {
+        // Prefer authorizationCode, then implicit, then clientCredentials, then password
+        const flow = flows["authorizationCode"] ?? flows["implicit"] ?? flows["clientCredentials"] ?? flows["password"];
+        if (flow) {
+          conn.authorizationUrl = flow["authorizationUrl"] as string | undefined;
+          conn.tokenUrl = flow["tokenUrl"] as string | undefined;
+          const scopesObj = flow["scopes"] as Record<string, string> | undefined;
+          if (scopesObj) conn.scopes = Object.keys(scopesObj).join(" ");
+        }
+      } else {
+        // Swagger 2: flat structure
+        conn.authorizationUrl = scheme["authorizationUrl"] as string | undefined;
+        conn.tokenUrl = scheme["tokenUrl"] as string | undefined;
+        const scopesObj = scheme["scopes"] as Record<string, string> | undefined;
+        if (scopesObj) conn.scopes = Object.keys(scopesObj).join(" ");
+      }
+
+      results.push(conn);
+    } else if (type === "http") {
+      const httpScheme = (scheme["scheme"] as string)?.toLowerCase();
+      if (httpScheme === "bearer") {
+        results.push({
+          name: schemeName,
+          provider: "bearer",
+          description: scheme["description"] as string | undefined,
+        });
+      } else if (httpScheme === "basic") {
+        results.push({
+          name: schemeName,
+          provider: "basic",
+          description: scheme["description"] as string | undefined,
+        });
+      }
+    } else if (type === "apiKey") {
+      const location = scheme["in"] as string;
+      const paramName = scheme["name"] as string | undefined;
+      if (location === "header") {
+        results.push({
+          name: schemeName,
+          provider: "apikey_header",
+          description: scheme["description"] as string | undefined,
+          authHeaderName: paramName,
+        });
+      } else if (location === "query") {
+        results.push({
+          name: schemeName,
+          provider: "apikey_query",
+          description: scheme["description"] as string | undefined,
+          authQueryParam: paramName,
+        });
+      } else if (location === "cookie") {
+        results.push({
+          name: schemeName,
+          provider: "cookie",
+          description: scheme["description"] as string | undefined,
+        });
+      }
+    } else if (type === "basic") {
+      // Swagger 2 basic auth
+      results.push({
+        name: schemeName,
+        provider: "basic",
+        description: scheme["description"] as string | undefined,
+      });
+    }
+  }
+
+  return results;
 }

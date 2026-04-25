@@ -1,6 +1,15 @@
 import { useState, useMemo } from "react";
 import { Modal } from "../common/Modal";
-import type { SuggestedVariable } from "../../lib/api/specFilesApi";
+import type { SuggestedVariable, SuggestedConnection } from "../../lib/api/specFilesApi";
+
+const PROVIDER_LABELS: Record<string, string> = {
+  oauth2: "OAuth 2.0",
+  bearer: "Bearer Token",
+  apikey_header: "API Key (Header)",
+  apikey_query: "API Key (Query)",
+  basic: "Basic Auth",
+  cookie: "Cookie",
+};
 
 interface ImportResultModalProps {
   open: boolean;
@@ -8,7 +17,9 @@ interface ImportResultModalProps {
   stats: { endpoints: number; folders: number };
   suggestedVariables: SuggestedVariable[];
   existingVariableNames: Set<string>;
-  onDone: (selectedNames: string[]) => void;
+  suggestedConnections: SuggestedConnection[];
+  existingConnectionNames: Set<string>;
+  onDone: (selectedVarNames: string[], selectedConnections: SuggestedConnection[]) => void;
   onSkip: () => void;
 }
 
@@ -18,9 +29,12 @@ export function ImportResultModal({
   stats,
   suggestedVariables,
   existingVariableNames,
+  suggestedConnections,
+  existingConnectionNames,
   onDone,
   onSkip,
 }: ImportResultModalProps) {
+  // ── Variables ───────────────────────────────────────────────────────────────
   const newVars = useMemo(
     () => suggestedVariables.filter(v => !existingVariableNames.has(v.name)),
     [suggestedVariables, existingVariableNames],
@@ -30,10 +44,10 @@ export function ImportResultModal({
     [suggestedVariables, existingVariableNames],
   );
 
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(newVars.map(v => v.name)));
+  const [selectedVars, setSelectedVars] = useState<Set<string>>(() => new Set(newVars.map(v => v.name)));
 
-  const toggleOne = (name: string) => {
-    setSelected(prev => {
+  const toggleVar = (name: string) => {
+    setSelectedVars(prev => {
       const next = new Set(prev);
       if (next.has(name)) next.delete(name);
       else next.add(name);
@@ -41,13 +55,46 @@ export function ImportResultModal({
     });
   };
 
-  const toggleAll = () => {
-    if (selected.size === newVars.length) setSelected(new Set());
-    else setSelected(new Set(newVars.map(v => v.name)));
+  const toggleAllVars = () => {
+    if (selectedVars.size === newVars.length) setSelectedVars(new Set());
+    else setSelectedVars(new Set(newVars.map(v => v.name)));
   };
 
-  const selectedCount = selected.size;
+  // ── Connections ─────────────────────────────────────────────────────────────
+  const newConns = useMemo(
+    () => suggestedConnections.filter(c => !existingConnectionNames.has(c.name)),
+    [suggestedConnections, existingConnectionNames],
+  );
+  const existingConns = useMemo(
+    () => suggestedConnections.filter(c => existingConnectionNames.has(c.name)),
+    [suggestedConnections, existingConnectionNames],
+  );
+
+  const [selectedConns, setSelectedConns] = useState<Set<string>>(() => new Set(newConns.map(c => c.name)));
+
+  const toggleConn = (name: string) => {
+    setSelectedConns(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const toggleAllConns = () => {
+    if (selectedConns.size === newConns.length) setSelectedConns(new Set());
+    else setSelectedConns(new Set(newConns.map(c => c.name)));
+  };
+
+  // ── Counts ──────────────────────────────────────────────────────────────────
   const hasVariables = suggestedVariables.length > 0;
+  const hasConnections = suggestedConnections.length > 0;
+  const totalSelected = selectedVars.size + selectedConns.size;
+
+  const handleDone = () => {
+    const selConns = suggestedConnections.filter(c => selectedConns.has(c.name) && !existingConnectionNames.has(c.name));
+    onDone(Array.from(selectedVars), selConns);
+  };
 
   return (
     <Modal
@@ -63,14 +110,14 @@ export function ImportResultModal({
           >
             Skip
           </button>
-          {hasVariables && (
+          {(hasVariables || hasConnections) && (
             <button
-              onClick={() => onDone(Array.from(selected))}
-              disabled={selectedCount === 0}
+              onClick={handleDone}
+              disabled={totalSelected === 0}
               className="px-3 py-1.5 text-sm rounded-md text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ backgroundColor: selectedCount > 0 ? "#1a7f37" : "#8b949e" }}
+              style={{ backgroundColor: totalSelected > 0 ? "#1a7f37" : "#8b949e" }}
             >
-              {selectedCount > 0 ? `Save ${selectedCount} variable${selectedCount > 1 ? "s" : ""}` : "No variables selected"}
+              {totalSelected > 0 ? `Save ${totalSelected} item${totalSelected > 1 ? "s" : ""}` : "Nothing selected"}
             </button>
           )}
         </div>
@@ -86,6 +133,66 @@ export function ImportResultModal({
         </span>
       </div>
 
+      {/* Connections section */}
+      {hasConnections && (
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-[#1f2328]">Detected Authentication</h3>
+            {newConns.length > 0 && (
+              <button
+                onClick={toggleAllConns}
+                className="text-xs text-[#0969da] hover:underline"
+              >
+                {selectedConns.size === newConns.length ? "Deselect all" : "Select all"}
+              </button>
+            )}
+          </div>
+          {/* Warning banner */}
+          <div className="flex items-start gap-2 mb-3 px-3 py-2 rounded-md border border-[#d4a72c]" style={{ backgroundColor: "#fff8c5" }}>
+            <svg className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "#9a6700" }} viewBox="0 0 16 16" fill="currentColor">
+              <path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575ZM8 5a.75.75 0 0 0-.75.75v2.5a.75.75 0 0 0 1.5 0v-2.5A.75.75 0 0 0 8 5Zm1 6a1 1 0 1 0-2 0 1 1 0 0 0 2 0Z" />
+            </svg>
+            <span className="text-xs text-[#1f2328]">
+              Connections will be created without credentials. You must configure them in <strong>Settings &rarr; Connections</strong> before executing scenarios.
+            </span>
+          </div>
+          <div className="border border-[#d1d9e0] rounded-md overflow-hidden">
+            {newConns.map(c => (
+              <label
+                key={c.name}
+                className="flex items-center gap-3 px-3 py-2 hover:bg-[#f6f8fa] transition-colors cursor-pointer border-b border-[#d1d9e0] last:border-b-0"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedConns.has(c.name)}
+                  onChange={() => toggleConn(c.name)}
+                  className="rounded accent-[#0969da]"
+                />
+                <code className="text-sm font-mono text-[#1f2328] shrink-0">{c.name}</code>
+                <span className="text-xs text-[#656d76] truncate flex-1">{c.description ?? ""}</span>
+                <span className="text-xs text-[#656d76] shrink-0 px-1.5 py-0.5 rounded bg-[#f6f8fa] border border-[#d1d9e0]">
+                  {PROVIDER_LABELS[c.provider] ?? c.provider}
+                </span>
+              </label>
+            ))}
+            {existingConns.map(c => (
+              <label
+                key={c.name}
+                className="flex items-center gap-3 px-3 py-2 border-b border-[#d1d9e0] last:border-b-0 opacity-50 cursor-default"
+              >
+                <input type="checkbox" checked disabled className="rounded" />
+                <code className="text-sm font-mono text-[#656d76] shrink-0">{c.name}</code>
+                <span className="text-xs text-[#656d76] italic shrink-0">(already exists)</span>
+                <span className="flex-1" />
+                <span className="text-xs text-[#656d76] shrink-0 px-1.5 py-0.5 rounded bg-[#f6f8fa] border border-[#d1d9e0]">
+                  {PROVIDER_LABELS[c.provider] ?? c.provider}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Variables section */}
       {hasVariables && (
         <div>
@@ -93,11 +200,10 @@ export function ImportResultModal({
             <h3 className="text-sm font-medium text-[#1f2328]">Detected Path Parameters</h3>
             {newVars.length > 0 && (
               <button
-                onClick={toggleAll}
+                onClick={toggleAllVars}
                 className="text-xs text-[#0969da] hover:underline"
-                title={selected.size === newVars.length ? "Deselect all" : "Select all"}
               >
-                {selected.size === newVars.length ? "Deselect all" : "Select all"}
+                {selectedVars.size === newVars.length ? "Deselect all" : "Select all"}
               </button>
             )}
           </div>
@@ -112,8 +218,8 @@ export function ImportResultModal({
               >
                 <input
                   type="checkbox"
-                  checked={selected.has(v.name)}
-                  onChange={() => toggleOne(v.name)}
+                  checked={selectedVars.has(v.name)}
+                  onChange={() => toggleVar(v.name)}
                   className="rounded accent-[#0969da]"
                 />
                 <code className="text-sm font-mono text-[#1f2328] shrink-0">{v.name}</code>
@@ -141,9 +247,9 @@ export function ImportResultModal({
         </div>
       )}
 
-      {/* No variables */}
-      {!hasVariables && (
-        <p className="text-xs text-[#656d76]">No path parameters detected in this spec.</p>
+      {/* No detections at all */}
+      {!hasVariables && !hasConnections && (
+        <p className="text-xs text-[#656d76]">No path parameters or authentication schemes detected in this spec.</p>
       )}
     </Modal>
   );

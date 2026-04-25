@@ -156,10 +156,24 @@ export interface SuggestedVariable {
   example?: string;
 }
 
+export type SuggestedConnectionProvider = "oauth2" | "bearer" | "apikey_header" | "apikey_query" | "basic" | "cookie";
+
+export interface SuggestedConnection {
+  name: string;
+  provider: SuggestedConnectionProvider;
+  description?: string;
+  authorizationUrl?: string;
+  tokenUrl?: string;
+  scopes?: string;
+  authHeaderName?: string;
+  authQueryParam?: string;
+}
+
 export interface SplitSwaggerResult {
   files: string[];
   stats: { endpoints: number; folders: number; skipped: number };
   suggestedVariables?: SuggestedVariable[];
+  suggestedConnections?: SuggestedConnection[];
 }
 
 export async function splitSwagger(

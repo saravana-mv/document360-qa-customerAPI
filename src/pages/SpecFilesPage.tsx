@@ -52,9 +52,10 @@ import { useScenarioOrgStore } from "../store/scenarioOrg.store";
 import { useAiCostStore } from "../store/aiCost.store";
 import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
 import { NewVersionModal } from "../components/specfiles/NewVersionModal";
-import { splitSwagger, type SuggestedVariable } from "../lib/api/specFilesApi";
+import { splitSwagger, type SuggestedVariable, type SuggestedConnection } from "../lib/api/specFilesApi";
 import { ImportResultModal } from "../components/specfiles/ImportResultModal";
 import { useProjectVariablesStore } from "../store/projectVariables.store";
+import { useConnectionsStore } from "../store/connections.store";
 
 import { useSetupStore } from "../store/setup.store";
 import { detectEndpointFromSpec, type DetectedEndpoint } from "../lib/spec/autoDetectEndpoint";
@@ -178,6 +179,7 @@ export function SpecFilesPage() {
     folderName: string;
     stats: { endpoints: number; folders: number };
     suggestedVariables: SuggestedVariable[];
+    suggestedConnections: SuggestedConnection[];
   } | null>(null);
 
   // ── Multi-select state ─────────────────────────────────────────────────────
@@ -776,24 +778,32 @@ export function SpecFilesPage() {
         await loadFiles();
         setShowNewVersionModal(false);
         setError(null);
-        // Load project variables so modal can check existing names
-        await useProjectVariablesStore.getState().load();
+        // Load project variables + connections so modal can check existing names
+        await Promise.all([
+          useProjectVariablesStore.getState().load(),
+          useConnectionsStore.getState().load(),
+        ]);
         setImportResult({
           folderName,
           stats: result.stats,
           suggestedVariables: result.suggestedVariables ?? [],
+          suggestedConnections: result.suggestedConnections ?? [],
         });
       } else if (specUrl) {
         // Backend fetches URL, saves as _system/_swagger.json, and splits
         const result = await splitSwagger(folderName, { specUrl });
         await loadFiles();
         setShowNewVersionModal(false);
-        // Load project variables so modal can check existing names
-        await useProjectVariablesStore.getState().load();
+        // Load project variables + connections so modal can check existing names
+        await Promise.all([
+          useProjectVariablesStore.getState().load(),
+          useConnectionsStore.getState().load(),
+        ]);
         setImportResult({
           folderName,
           stats: result.stats,
           suggestedVariables: result.suggestedVariables ?? [],
+          suggestedConnections: result.suggestedConnections ?? [],
         });
       } else {
         // Just create the folder (already done above)
@@ -804,16 +814,37 @@ export function SpecFilesPage() {
     }
   }
 
-  async function handleImportDone(selectedNames: string[]) {
-    const store = useProjectVariablesStore.getState();
-    const existing = store.variables;
+  async function handleImportDone(selectedVarNames: string[], selectedConnections: SuggestedConnection[]) {
+    // Save project variables
+    const varStore = useProjectVariablesStore.getState();
+    const existing = varStore.variables;
     const existingNames = new Set(existing.map(v => v.name));
-    const newVars = selectedNames
+    const newVars = selectedVarNames
       .filter(n => !existingNames.has(n))
       .map(n => ({ name: n, value: "" }));
     if (newVars.length > 0) {
-      await store.save([...existing, ...newVars]);
+      await varStore.save([...existing, ...newVars]);
     }
+
+    // Create draft connections
+    const connStore = useConnectionsStore.getState();
+    for (const conn of selectedConnections) {
+      try {
+        await connStore.add({
+          name: conn.name,
+          provider: conn.provider,
+          draft: true,
+          ...(conn.authorizationUrl ? { authorizationUrl: conn.authorizationUrl } : {}),
+          ...(conn.tokenUrl ? { tokenUrl: conn.tokenUrl } : {}),
+          ...(conn.scopes ? { scopes: conn.scopes } : {}),
+          ...(conn.authHeaderName ? { authHeaderName: conn.authHeaderName } : {}),
+          ...(conn.authQueryParam ? { authQueryParam: conn.authQueryParam } : {}),
+        });
+      } catch {
+        // Connection creation failed — skip silently (user can create manually)
+      }
+    }
+
     setImportResult(null);
   }
 
@@ -2376,6 +2407,8 @@ export function SpecFilesPage() {
           stats={importResult.stats}
           suggestedVariables={importResult.suggestedVariables}
           existingVariableNames={new Set(useProjectVariablesStore.getState().variables.map(v => v.name))}
+          suggestedConnections={importResult.suggestedConnections}
+          existingConnectionNames={new Set(useConnectionsStore.getState().connections.map(c => c.name))}
           onDone={handleImportDone}
           onSkip={handleImportSkip}
         />
