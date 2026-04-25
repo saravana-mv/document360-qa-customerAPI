@@ -164,7 +164,7 @@ AI endpoints (`generateFlowIdeas`, `generateFlow`, `flowChat`, `debugAnalyze`) c
 Shared registry at `api/src/lib/modelPricing.ts`. Default: Sonnet 4.6 ($3/$15 per Mtok). Opus overkill for structured output.
 
 ### Spec Context Optimization
-Three tiers of spec context: **Raw** (source) → **Distilled** (~50-100 lines/endpoint, for flow generation, max 5 files/50k chars) → **Digest** (~2-3 lines/endpoint, for idea generation). `_digest.md` blob per version folder is a lightweight endpoint index grouped by resource. Folders with >20 specs (`DIGEST_THRESHOLD`) use digest; <=20 use full distilled specs. Digest auto-invalidated when spec files change, rebuilt on-demand during idea generation. Helper: `api/src/lib/specDigest.ts`. `filterRelevantSpecs()` on frontend for flow generation. Reduced cost from ~$0.70 to ~$0.05-0.10 per flow.
+Three tiers of spec context: **Raw** (source) → **Distilled** (~50-100 lines/endpoint, for flow generation, max 5 files/50k chars) → **Digest** (~2-3 lines/endpoint, for idea generation). `_digest.md` blob per version folder is a lightweight endpoint index grouped by resource. Folders with >20 specs (`DIGEST_THRESHOLD`) use digest; <=20 use full distilled specs. Digest auto-invalidated when spec files change. **Eagerly rebuilt during OpenAPI import** (`split-swagger` awaits `batchDistillAll` then calls `rebuildDigest`); lazy rebuild in `generateFlowIdeas` remains as fallback. Helper: `api/src/lib/specDigest.ts`. `filterRelevantSpecs()` on frontend for flow generation. Reduced cost from ~$0.70 to ~$0.05-0.10 per flow.
 
 ### No Regeneration Waste
 Never regenerate ideas or flows that already exist. Cache, lock completed items, skip in batch ops.

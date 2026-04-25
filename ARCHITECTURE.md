@@ -64,7 +64,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 src/components/
 ├── auth/           # EntraGate (SSO wrapper), ProjectGate (project selection guard), AccessGate (role check), LoginScreen, OAuthCallback
 ├── common/         # Layout, TopBar, SideNav, Modal, ContextMenu, XmlCodeBlock, XmlEditor, ResizeHandle, ProjectPicker
-├── specfiles/      # FileTree (with _system folder support: isSystem flag, lock icon, read-only), FlowChatPanel, FlowIdeasPanel, FlowsPanel, DetailPanel, ImportFromUrlModal, ImportResultModal (post-import stats + variable/connection auto-detect), FolderRulesPanel, NewVersionModal
+├── specfiles/      # FileTree (with _system folder support: isSystem flag, lock icon, read-only), FlowChatPanel, FlowIdeasPanel, FlowsPanel, DetailPanel, ImportFromUrlModal, ImportResultModal (post-import stats + variable/connection auto-detect + processing health banner), FolderRulesPanel, NewVersionModal
 ├── connections/    # ConnectionFormModal (provider-specific fields, ProviderBadge), ConnectionsPage
 ├── explorer/       # TestExplorer, VersionAccordion, ScenarioFolderTree, TagNode, ConnectEndpointModal (simplified: Base URL + Connection picker), ScenarioEnvOverrideModal
 ├── runner/         # RunControls, LiveLog, ProgressBar, RunHistory
@@ -78,7 +78,7 @@ All API calls go through `client.ts` which adds auth headers and rewrites `/vN/`
 
 | Module | Key Functions |
 |--------|---------------|
-| `specFilesApi.ts` | `listSpecFiles`, `importSpecFileFromUrl`, `syncSpecFiles`, `getSourcesManifest`, `updateSourceUrl`, `generateFlowIdeas`, `splitSwagger` — `SplitSwaggerResult` includes `suggestedVariables` (`SuggestedVariable[]`) and `suggestedConnections` (`SuggestedConnection[]`) |
+| `specFilesApi.ts` | `listSpecFiles`, `importSpecFileFromUrl`, `syncSpecFiles`, `getSourcesManifest`, `updateSourceUrl`, `generateFlowIdeas`, `splitSwagger` — `SplitSwaggerResult` includes `suggestedVariables` (`SuggestedVariable[]`), `suggestedConnections` (`SuggestedConnection[]`), and optional `processing` (`ProcessingReport`: distillation totals/errors + digest build status) |
 | `flowApi.ts` | `generateFlowXml` (AI generation from plan) |
 | `flowFilesApi.ts` | `saveFlowFile`, `deleteFlowFile`, `listFlowFiles`, `unlockFlow` |
 | `flowChatApi.ts` | `sendFlowChatMessage` (multi-turn conversation) |
@@ -162,7 +162,7 @@ tests/
 | `aiCredits` | `/api/ai-credits` | GET/PUT | Credit status (GET), update project budget (PUT `/project`), update user budget (PUT `/user/{userId}`), list user credits (GET `/users`) — Super Owner only for writes |
 | `projectVariables` | `/api/project-variables` | GET/PUT | Project-level key/value variables stored in `settings` container. GET returns all variables; PUT saves (qa_manager+). Audit action: `project.variables.update`. |
 | `specFilesRules` | `/api/spec-files/rules` | GET/PUT | Version-folder-scoped API rules and enum aliases stored as `_system/_rules.json` blobs (legacy `_rules.json` fallback on read). GET/PUT by folder path query param. |
-| `specFilesSplitSwagger` | `/api/spec-files/split-swagger` | POST | Split OpenAPI 3.x / Swagger 2.x JSON spec into per-endpoint .md files by tag. Stores original spec at `_system/_swagger.json` (with legacy fallback read). Resolves $refs, creates tag-based folders, uploads through `distillAndStore` pipeline. Returns `suggestedVariables` (path parameters) and `suggestedConnections` (security schemes) for auto-configuration. |
+| `specFilesSplitSwagger` | `/api/spec-files/split-swagger` | POST | Split OpenAPI 3.x / Swagger 2.x JSON spec into per-endpoint .md files by tag. Stores original spec at `_system/_swagger.json` (with legacy fallback read). Resolves $refs, creates tag-based folders, uploads through `distillAndStore` pipeline. Awaits `batchDistillAll` to collect per-file results, then eagerly calls `rebuildDigest()`. Returns `suggestedVariables` (path parameters), `suggestedConnections` (security schemes), and `processing` report (`{ distillation: { total, distilled, unchanged, errors, errorDetails }, digest: { built, error? } }`). |
 | `connections` | `/api/connections` | GET/POST/PUT/DELETE | Connection CRUD. Providers: `oauth2`, `bearer`, `apikey_header`, `apikey_query`, `basic`, `cookie`. `sanitize()` strips `clientSecret`/`credential`, returns `hasSecret`/`hasCredential`. Stored in `connections` Cosmos container. Supports `draft: true` flag for auto-detected connections (skips credential validation). |
 | `apiRules` | `/api/api-rules` | GET/PUT | **Deprecated (fallback only)** — Legacy per-project API rules in `settings` container. `loadApiRules` tries blob `_rules.json` first, falls back here. |
 
@@ -181,7 +181,7 @@ tests/
 | `aiCredits.ts` | `checkCredits()`, `recordUsage()`, `seedProjectCredits()`, `seedUserCredits()`, `updateProjectBudget()`, `updateUserBudget()` — credit enforcement for AI endpoints |
 | `auditLog.ts` | Fire-and-forget `audit()` function, writes to Cosmos `audit-log` container. Actions include `project.member_add`, `project.member_remove`, `project.member_role_change`, `project.variables.update`, `project.apiRules.update`. |
 | `apiRules.ts` | `loadApiRules(projectId, versionFolder?)` fetches API rules — tries `_system/_rules.json` first, falls back to legacy `_rules.json` then Cosmos; also loads `_system/_skills.md` (with legacy `Skills.md` fallback) and merges into rules context. `injectApiRules(systemPrompt, projectId, versionFolder?)` appends rules + lessons to AI system prompts; `extractVersionFolder(paths)` derives version folder from spec file paths. |
-| `specDigest.ts` | Scalable spec context for large projects. Three tiers: Raw → Distilled → Digest (~2-3 lines/endpoint). Builds `_system/_digest.md` blob per version folder (lightweight endpoint index grouped by resource). Filters out `_system/` files from digest builds. Threshold: >20 specs use digest. Auto-invalidated on spec file changes. |
+| `specDigest.ts` | Scalable spec context for large projects. Three tiers: Raw → Distilled → Digest (~2-3 lines/endpoint). Builds `_system/_digest.md` blob per version folder (lightweight endpoint index grouped by resource). Filters out `_system/` files from digest builds. Threshold: >20 specs use digest. Auto-invalidated on spec file changes. **Eagerly rebuilt during OpenAPI import** (split-swagger awaits distillation then calls `rebuildDigest`); lazy rebuild in `generateFlowIdeas` remains as fallback. |
 | `swaggerSplitter.ts` | Core OpenAPI/Swagger splitting logic: recursive $ref resolution (with circular detection), tag-to-folder kebab-case naming, method-to-filename with collision handling, Swagger 2.x→3.x normalization, per-endpoint markdown builder. `extractPathParameters()` extracts path params from all endpoints as `SuggestedVariable[]`. `extractSecuritySchemes()` extracts OAuth2/Bearer/API Key/Basic/Cookie auth from security definitions as `SuggestedConnection[]`. |
 
 ### Server-Side Flow Runner (`api/src/lib/flowRunner/`)
