@@ -16,7 +16,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
                                         + validation         Results (Cosmos)
 ```
 
-1. **Spec Import** — Upload markdown files or import from URLs (with sync-from-source)
+1. **Spec Import** — Upload markdown files, import from URLs (with sync-from-source), or split full OpenAPI/Swagger specs into per-endpoint files
 2. **Idea Generation** — Claude analyzes spec context (digest for large folders >20 specs, full distilled for small) and proposes test ideas
 3. **Flow Authoring** — Interactive chat or batch generation produces `.flow.xml` files, validated against XSD
 4. **Test Execution** — Activated flows are parsed into TestDef arrays at runtime (no code generation), executed with setup/teardown semantics
@@ -64,7 +64,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 src/components/
 ├── auth/           # EntraGate (SSO wrapper), ProjectGate (project selection guard), AccessGate (role check), LoginScreen, OAuthCallback
 ├── common/         # Layout, TopBar, SideNav, Modal, ContextMenu, XmlCodeBlock, XmlEditor, ResizeHandle, ProjectPicker
-├── specfiles/      # FileTree, FlowChatPanel, FlowIdeasPanel, FlowsPanel, DetailPanel, ImportFromUrlModal, FolderRulesPanel
+├── specfiles/      # FileTree, FlowChatPanel, FlowIdeasPanel, FlowsPanel, DetailPanel, ImportFromUrlModal, FolderRulesPanel, NewVersionModal
 ├── connections/    # ConnectionFormModal (provider-specific fields, ProviderBadge), ConnectionsPage
 ├── explorer/       # TestExplorer, VersionAccordion, ScenarioFolderTree, TagNode, ConnectEndpointModal (simplified: Base URL + Connection picker), ScenarioEnvOverrideModal
 ├── runner/         # RunControls, LiveLog, ProgressBar, RunHistory
@@ -78,7 +78,7 @@ All API calls go through `client.ts` which adds auth headers and rewrites `/vN/`
 
 | Module | Key Functions |
 |--------|---------------|
-| `specFilesApi.ts` | `listSpecFiles`, `importSpecFileFromUrl`, `syncSpecFiles`, `getSourcesManifest`, `updateSourceUrl`, `generateFlowIdeas` |
+| `specFilesApi.ts` | `listSpecFiles`, `importSpecFileFromUrl`, `syncSpecFiles`, `getSourcesManifest`, `updateSourceUrl`, `generateFlowIdeas`, `splitSwagger` |
 | `flowApi.ts` | `generateFlowXml` (AI generation from plan) |
 | `flowFilesApi.ts` | `saveFlowFile`, `deleteFlowFile`, `listFlowFiles`, `unlockFlow` |
 | `flowChatApi.ts` | `sendFlowChatMessage` (multi-turn conversation) |
@@ -160,6 +160,7 @@ tests/
 | `aiCredits` | `/api/ai-credits` | GET/PUT | Credit status (GET), update project budget (PUT `/project`), update user budget (PUT `/user/{userId}`), list user credits (GET `/users`) — Super Owner only for writes |
 | `projectVariables` | `/api/project-variables` | GET/PUT | Project-level key/value variables stored in `settings` container. GET returns all variables; PUT saves (qa_manager+). Audit action: `project.variables.update`. |
 | `specFilesRules` | `/api/spec-files/rules` | GET/PUT | Version-folder-scoped API rules and enum aliases stored as `_rules.json` blobs. GET/PUT by folder path query param. |
+| `specFilesSplitSwagger` | `/api/spec-files/split-swagger` | POST | Split OpenAPI 3.x / Swagger 2.x JSON spec into per-endpoint .md files by tag. Reads `_swagger.json` from blob or fetches from URL, resolves $refs, creates tag-based folders, uploads through `distillAndStore` pipeline. |
 | `connections` | `/api/connections` | GET/POST/PUT/DELETE | Connection CRUD. Providers: `oauth2`, `bearer`, `apikey_header`, `apikey_query`, `basic`, `cookie`. `sanitize()` strips `clientSecret`/`credential`, returns `hasSecret`/`hasCredential`. Stored in `connections` Cosmos container. |
 | `apiRules` | `/api/api-rules` | GET/PUT | **Deprecated (fallback only)** — Legacy per-project API rules in `settings` container. `loadApiRules` tries blob `_rules.json` first, falls back here. |
 
@@ -179,6 +180,7 @@ tests/
 | `auditLog.ts` | Fire-and-forget `audit()` function, writes to Cosmos `audit-log` container. Actions include `project.member_add`, `project.member_remove`, `project.member_role_change`, `project.variables.update`, `project.apiRules.update`. |
 | `apiRules.ts` | `loadApiRules(projectId, versionFolder?)` fetches API rules — tries blob `_rules.json` first (version-folder scoped), falls back to Cosmos; `injectApiRules(systemPrompt, projectId, versionFolder?)` appends rules to AI system prompts; `extractVersionFolder(paths)` derives version folder from spec file paths. |
 | `specDigest.ts` | Scalable spec context for large projects. Three tiers: Raw → Distilled → Digest (~2-3 lines/endpoint). Builds `_digest.md` blob per version folder (lightweight endpoint index grouped by resource). Threshold: >20 specs use digest. Auto-invalidated on spec file changes. |
+| `swaggerSplitter.ts` | Core OpenAPI/Swagger splitting logic: recursive $ref resolution (with circular detection), tag-to-folder kebab-case naming, method-to-filename with collision handling, Swagger 2.x→3.x normalization, per-endpoint markdown builder. |
 
 ### Server-Side Flow Runner (`api/src/lib/flowRunner/`)
 
@@ -220,6 +222,7 @@ spec-files/
 │   │   │   ├── _sources.json      # Manifest: { "create-article.md": { sourceUrl, importedAt, lastSyncedAt } }
 │   │   │   ├── _rules.json        # Version-folder API rules: { rules, enumAliases } — replaces project-level Cosmos storage
 │   │   │   ├── _digest.md        # Lightweight endpoint index (~2-3 lines/endpoint) for scalable idea generation
+│   │   │   ├── _swagger.json     # Original OpenAPI/Swagger spec (preserved when using split-swagger)
 │   │   │   └── _versions/         # Hidden from UI — auto-preserved on sync
 │   │   │       └── create-article.md.2025-02-15T14-30-45-123Z
 │   │   └── categories/

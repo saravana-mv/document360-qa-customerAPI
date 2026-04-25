@@ -19,14 +19,14 @@ FlowForge is a generic AI-assisted API testing platform. It lets QA teams import
 
 ### Data Layer
 - **Cosmos DB** (13 containers, all partitioned by `/projectId`): `flows`, `ideas`, `test-runs`, `settings` (`/userId`), `users` (`/tenantId`), `api-keys`, `audit-log`, `flow-chat-sessions`, `projects` (`/tenantId`), `project-members`, `ai-usage`, `connections`
-- **Blob Storage**: Only `spec-files` container remains (reference docs, `_sources.json` manifests, `_rules.json` per version folder, `_digest.md` per version folder). All blobs scoped under `{projectId}/` prefix for multi-tenant isolation.
+- **Blob Storage**: Only `spec-files` container remains (reference docs, `_sources.json` manifests, `_rules.json` per version folder, `_digest.md` per version folder, `_swagger.json` original spec per version folder). All blobs scoped under `{projectId}/` prefix for multi-tenant isolation.
 - **localStorage**: Pure UI state only (tree expansion, panel widths, breakpoints)
 
 ### Key Stores (Zustand)
 `auth.store` (Entra ID session), `setup.store` (project ID, base URL, API version, AI model), `user.store` (role), `project.store` (project list/selection), `flowStatus.store` (flow activation), `runner.store` (test execution), `scenarioOrg.store` (folder tree, versionConfigs, scenarioConfigs, detectedEndpoint), `aiCost.store` (spend tracking), `aiCredits.store` (credit budgets/usage), `breakpoints.store` (step pause/resume), `projectVariables.store` (project-level key/value variables), `connections.store` (connection CRUD, OAuth status polling, health checks)
 
 ### API Functions (`api/src/functions/`)
-25+ Azure Functions. All wrapped with `withAuth()`. Key routes: `/api/spec-files/*`, `/api/spec-files/rules`, `/api/flow-files`, `/api/flow-chat`, `/api/generate-flow-ideas`, `/api/generate-flow`, `/api/run-scenario`, `/api/proxy/*` (generic API proxy), `/api/active-tests`, `/api/test-runs`, `/api/users`, `/api/api-keys`, `/api/audit-log`, `/api/projects`, `/api/project-members`, `/api/ai-credits`, `/api/project-variables`, `/api/version-auth/credential`, `/api/api-rules`, `/api/connections`
+25+ Azure Functions. All wrapped with `withAuth()`. Key routes: `/api/spec-files/*`, `/api/spec-files/rules`, `/api/spec-files/split-swagger`, `/api/flow-files`, `/api/flow-chat`, `/api/generate-flow-ideas`, `/api/generate-flow`, `/api/run-scenario`, `/api/proxy/*` (generic API proxy), `/api/active-tests`, `/api/test-runs`, `/api/users`, `/api/api-keys`, `/api/audit-log`, `/api/projects`, `/api/project-members`, `/api/ai-credits`, `/api/project-variables`, `/api/version-auth/credential`, `/api/api-rules`, `/api/connections`
 
 ### Auth Flow
 Entra ID SSO → `EntraGate` auto-login → `ProjectGate` redirects to `/projects` if no project selected → `withAuth()` extracts OID/project from claims → `withProjectRole()` enforces per-project membership → credentials in Azure Table Storage → generic proxy at `/api/proxy/*` injects auth based on stored credential type (reads base URL from `X-FF-Base-Url`, connection from `X-FF-Connection-Id`) → browser never holds real API credentials

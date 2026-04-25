@@ -31,6 +31,7 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 ### Spec Manager
 - Upload, browse, and view API specification files (Markdown)
 - Import specs from external URLs with sync-from-source
+- **Full spec splitting** — Upload or import an OpenAPI 3.x / Swagger 2.x JSON spec and auto-split into per-endpoint .md files organized by tag-based folders (handles $ref resolution, collision avoidance, batch upload)
 - Drag-and-drop file/folder management with rename and move
 - Version history for synced files (`_versions/` subfolder)
 
