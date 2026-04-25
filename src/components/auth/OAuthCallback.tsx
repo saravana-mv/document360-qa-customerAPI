@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { loadConnectionId, handleConnectionCallback } from "../../lib/oauth/flow";
+import { loadConnectionId, loadReturnPath, handleConnectionCallback } from "../../lib/oauth/flow";
 import { Spinner } from "../common/Spinner";
 
 export function OAuthCallback() {
@@ -32,7 +32,8 @@ export function OAuthCallback() {
         setMessage("Exchanging authorization code...");
         const redirectUri = `${window.location.origin}/callback`;
         await handleConnectionCallback(code, state, connectionId, redirectUri);
-        navigate(`/settings/connections?connected=${connectionId}`);
+        const returnPath = loadReturnPath();
+        navigate(returnPath ?? `/settings/connections?connected=${connectionId}`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error("[OAuthCallback] connection exchange failed:", msg);

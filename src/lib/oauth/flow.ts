@@ -6,6 +6,7 @@ import {
 // ── Generic connection-based OAuth flow ──────────────────────────────────────
 
 const CONNECTION_ID_KEY = "oauth_connection_id";
+const RETURN_PATH_KEY = "oauth_return_path";
 
 /** Save the connection ID so the callback handler knows which connection to exchange for. */
 export function saveConnectionId(connectionId: string): void {
@@ -18,6 +19,17 @@ export function loadConnectionId(): string | null {
 
 export function clearConnectionId(): void {
   sessionStorage.removeItem(CONNECTION_ID_KEY);
+}
+
+/** Save the current path so the callback can return the user to where they were. */
+export function saveReturnPath(path: string): void {
+  sessionStorage.setItem(RETURN_PATH_KEY, path);
+}
+
+export function loadReturnPath(): string | null {
+  const p = sessionStorage.getItem(RETURN_PATH_KEY);
+  sessionStorage.removeItem(RETURN_PATH_KEY);
+  return p;
 }
 
 /**
@@ -36,6 +48,7 @@ export async function startConnectionAuthFlow(connection: {
 
   saveVerifier(verifier, state);
   saveConnectionId(connection.id);
+  saveReturnPath(window.location.pathname);
 
   const redirectUri = `${window.location.origin}/callback`;
 
