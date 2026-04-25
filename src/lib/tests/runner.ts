@@ -7,6 +7,8 @@ import { useFlowStatusStore } from "../../store/flowStatus.store";
 import { fetchFolderApiRules, fetchApiRules } from "../api/apiRulesApi";
 import { getSpecFileContent } from "../api/specFilesApi";
 import { setEnumAliases, parseEnumAliasesFromMarkdown } from "./flowXml/enumAliases";
+import { findMissingProjVars } from "./validateProjVars";
+import { useProjectVariablesStore } from "../../store/projectVariables.store";
 
 export interface RunOptions {
   tests: TestDef[];
@@ -103,6 +105,25 @@ async function runTag(tag: string, tests: TestDef[], ctx: TestContext): Promise<
 
   store.updateTagStatus(tag, "running");
   log("STARTED", "info", tag);
+
+  // Pre-flight: block execution if any steps reference undefined project variables
+  const definedVarNames = new Set(Object.keys(useProjectVariablesStore.getState().asRecord()));
+  const missingVars = findMissingProjVars(tests, definedVarNames);
+  if (missingVars.length > 0) {
+    const varList = missingVars.map((mv) => `proj.${mv.varName}`).join(", ");
+    const reason = `Undefined project variable${missingVars.length > 1 ? "s" : ""}: ${varList} — add in Settings → Variables`;
+    log(`✗ ${reason}`, "error", tag);
+    for (const test of tests) {
+      getStore().updateTestStatus(test.id, {
+        status: "error",
+        durationMs: 0,
+        failureReason: reason,
+        completedAt: Date.now(),
+      });
+    }
+    store.updateTagStatus(tag, "fail", 0);
+    return;
+  }
 
   let aborted = false;
   for (let i = 0; i < tests.length; i++) {
