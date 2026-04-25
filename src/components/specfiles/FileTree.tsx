@@ -11,6 +11,7 @@ export interface FileNode {
   path: string;
   size: number;
   httpMethod?: string;
+  isSystem?: boolean;
 }
 
 export interface FolderNode {
@@ -18,6 +19,7 @@ export interface FolderNode {
   name: string;
   path: string;
   children: TreeNode[];
+  isSystem?: boolean;
 }
 
 export type TreeNode = FileNode | FolderNode;
@@ -75,15 +77,37 @@ export function buildTree(files: SpecFileItem[]): TreeNode[] {
     level.push({ type: "file", name: filename, path: file.name, size: file.size, httpMethod: file.httpMethod });
   }
 
+  // Mark _system folders and their children as system nodes
+  markSystemNodes(root);
+
   return sortLevel(root);
+}
+
+/** Recursively mark _system folders and all their children as isSystem. */
+function markSystemNodes(nodes: TreeNode[]): void {
+  for (const node of nodes) {
+    if (node.type === "folder" && node.name === "_system") {
+      node.isSystem = true;
+      markAllChildren(node.children);
+    } else if (node.type === "folder") {
+      markSystemNodes(node.children);
+    }
+  }
+}
+
+function markAllChildren(nodes: TreeNode[]): void {
+  for (const node of nodes) {
+    node.isSystem = true;
+    if (node.type === "folder") markAllChildren(node.children);
+  }
 }
 
 function sortLevel(nodes: TreeNode[]): TreeNode[] {
   return nodes
     .sort((a, b) => {
-      // Skills.md always first — before folders and all other files
-      if (a.name === "Skills.md" && a.type === "file") return -1;
-      if (b.name === "Skills.md" && b.type === "file") return 1;
+      // _system folder always first
+      if (a.isSystem && !b.isSystem) return -1;
+      if (!a.isSystem && b.isSystem) return 1;
       if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
       return a.name.localeCompare(b.name);
     })
@@ -103,6 +127,10 @@ function parentOf(path: string): string {
  * targetFolderPath: "" = root, otherwise a folder path.
  */
 function canDrop(drag: TreeNode, targetFolderPath: string): boolean {
+  // Can't drag system nodes
+  if (drag.isSystem) return false;
+  // Can't drop into _system folder
+  if (targetFolderPath.endsWith("/_system") || targetFolderPath === "_system") return false;
   // Can't drop a folder into itself
   if (drag.type === "folder" && targetFolderPath === drag.path) return false;
   // Can't drop a folder into one of its own descendants
@@ -120,9 +148,9 @@ const METHOD_RANK: Record<string, number> = { GET: 0, POST: 1, PUT: 2, PATCH: 3,
 
 function sortChildren(nodes: TreeNode[], order: SortOrder): TreeNode[] {
   return [...nodes].sort((a, b) => {
-    // Skills.md always first — before folders and all other files
-    if (a.name === "Skills.md" && a.type === "file") return -1;
-    if (b.name === "Skills.md" && b.type === "file") return 1;
+    // _system folder always first
+    if (a.isSystem && !b.isSystem) return -1;
+    if (!a.isSystem && b.isSystem) return 1;
     // Folders before other files
     if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
     if (order === "method" && a.type === "file" && b.type === "file") {
@@ -164,8 +192,8 @@ function SyncSpinner() {
 }
 
 function FileIcon({ name, hasIdeas, isSourced }: { name: string; hasIdeas?: boolean; isSourced?: boolean }) {
-  // Skills.md — gear icon
-  if (name === "Skills.md")
+  // Skills file — gear icon
+  if (name === "_skills.md" || name === "Skills.md")
     return (
       <svg className="w-4 h-4 text-[#656d76] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
@@ -274,8 +302,9 @@ function FolderMenu({ isSelected, hasSourcedFiles, hasSpecFiles, currentSort, on
   );
 }
 
-/** Recursively count .md files under a folder node */
+/** Recursively count .md files under a folder node (excluding system files) */
 function countMdFiles(node: TreeNode): number {
+  if (node.isSystem) return 0;
   if (node.type === "file") return node.name.endsWith(".md") ? 1 : 0;
   return node.children.reduce((sum, child) => sum + countMdFiles(child), 0);
 }
@@ -350,8 +379,8 @@ function TreeNodeRow({
   return (
     <>
       <div
-        draggable={!isRenaming && !multiSelectActive}
-        onDragStart={(e) => { e.stopPropagation(); onDragStart(node); }}
+        draggable={!isRenaming && !multiSelectActive && !node.isSystem}
+        onDragStart={(e) => { e.stopPropagation(); if (node.isSystem) return; onDragStart(node); }}
         onDragOver={(e) => { e.stopPropagation(); onDragOver(e, node); }}
         onDrop={(e) => { e.stopPropagation(); onDrop(e, node); }}
         onDragEnd={(e) => { e.stopPropagation(); onDragEnd(); }}
@@ -414,6 +443,11 @@ function TreeNodeRow({
         {/* Icon */}
         {syncingPaths?.has(node.path) ? (
           <SyncSpinner />
+        ) : node.type === "folder" && node.isSystem ? (
+          /* Lock icon for _system folder */
+          <svg className={`w-4 h-4 shrink-0 ${isSelected && !isDropTarget ? "text-[#8b949e]" : "text-[#8b949e]"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+          </svg>
         ) : node.type === "folder" ? (
           <svg className={`w-4 h-4 shrink-0 ${isSelected && !isDropTarget ? "text-[#8b949e]" : "text-[#656d76]"}`} fill="currentColor" viewBox="0 0 20 20">
             <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
@@ -434,12 +468,12 @@ function TreeNodeRow({
             {node.type === "file" && node.httpMethod && (
               <HttpMethodTag method={node.httpMethod} />
             )}
-            <span className="truncate">{node.name}</span>
+            <span className={`truncate ${node.isSystem && !isSelected ? "text-[#8b949e]" : ""}`}>{node.name}</span>
           </span>
         )}
 
         {/* Actions */}
-        {!isRenaming && (
+        {!isRenaming && !node.isSystem && (
           <span className={`flex items-center gap-0.5 shrink-0 ${isSelected && !isDropTarget ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
             {node.type === "folder" ? (
               <FolderMenu
@@ -457,7 +491,7 @@ function TreeNodeRow({
                 onRename={() => onRenameStart(node.path)}
                 onDelete={() => onDeleteNode(node)}
               />
-            ) : node.name === "Skills.md" ? null : (
+            ) : (
               <ContextMenu
                 items={[
                   ...(sourcedPaths?.has(node.path) ? [{

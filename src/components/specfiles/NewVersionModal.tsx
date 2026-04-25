@@ -222,7 +222,7 @@ export function NewVersionModal({ open, onClose, onCreate }: NewVersionModalProp
         {importMode !== "none" && (
           <p className="text-xs text-[#656d76]">
             The spec will be split into individual per-endpoint .md files organized by tag folders.
-            The original file is preserved as <code className="bg-[#f6f8fa] px-1 rounded">_swagger.json</code>.
+            The original file is preserved as <code className="bg-[#f6f8fa] px-1 rounded">_system/_swagger.json</code>.
           </p>
         )}
 

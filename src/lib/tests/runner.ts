@@ -195,20 +195,30 @@ export async function runTests(options: RunOptions): Promise<void> {
   const { tests, context } = options;
   const store = getStore();
 
-  // Load enum aliases — try Skills.md → _rules.json → project-level Cosmos
+  // Load enum aliases — try _system/_skills.md → Skills.md (legacy) → _rules.json → project-level Cosmos
   try {
     const firstPath = tests[0]?.flowFileName ?? "";
     const versionFolder = firstPath.split("/")[0];
     let loaded = false;
     if (versionFolder) {
-      // Try Skills.md first
+      // Try _system/_skills.md first (new path)
       try {
-        const md = await getSpecFileContent(`${versionFolder}/Skills.md`);
+        const md = await getSpecFileContent(`${versionFolder}/_system/_skills.md`);
         if (md?.trim()) {
           const aliases = parseEnumAliasesFromMarkdown(md);
           if (aliases) { setEnumAliases(aliases); loaded = true; }
         }
-      } catch { /* Skills.md not found */ }
+      } catch { /* _skills.md not found */ }
+      // Try legacy Skills.md fallback
+      if (!loaded) {
+        try {
+          const md = await getSpecFileContent(`${versionFolder}/Skills.md`);
+          if (md?.trim()) {
+            const aliases = parseEnumAliasesFromMarkdown(md);
+            if (aliases) { setEnumAliases(aliases); loaded = true; }
+          }
+        } catch { /* Skills.md not found */ }
+      }
       // Try _rules.json fallback
       if (!loaded) {
         const { enumAliases } = await fetchFolderApiRules(versionFolder);

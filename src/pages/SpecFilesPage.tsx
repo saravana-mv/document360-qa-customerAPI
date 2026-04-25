@@ -11,6 +11,7 @@ import { FlowsPanel, type GeneratedFlow } from "../components/specfiles/FlowsPan
 import { DetailPanel } from "../components/specfiles/DetailPanel";
 import { FlowChatPanel } from "../components/specfiles/FlowChatPanel";
 import { SkillsEditor } from "../components/specfiles/SkillsEditor";
+import { JsonCodeBlock } from "../components/common/JsonCodeBlock";
 import {
   listSpecFiles,
   getSpecFileContent,
@@ -552,8 +553,9 @@ export function SpecFilesPage() {
     setMultiSelectedPaths(new Set());
     setSelectedPath(path);
     setSelectedFolderPath(null);
-    const isSkills = path.endsWith("/Skills.md");
-    setViewingContent(isSkills); // Auto-open editor for Skills.md
+    const isSystemFile = path.includes("/_system/");
+    const isSkills = path.endsWith("/_skills.md") || path.endsWith("/Skills.md");
+    setViewingContent(isSkills || isSystemFile); // Auto-open for Skills or any system file
     setEditingSourceUrl(false);
     loadWorkingSet(path);
     // Pre-load content for when user clicks the filename link
@@ -740,10 +742,10 @@ export function SpecFilesPage() {
     setError(null);
     try {
       await uploadSpecFile(`${folderPath}/.keep`, "");
-      // Auto-create Skills.md for top-level version folders
+      // Auto-create _skills.md under _system/ for top-level version folders
       if (!folderPath.includes("/")) {
         const skillsContent = `# API Skills — ${folderPath}\n\nDescribe your API's rules, quirks, and conventions below.\nThese are injected into AI prompts when generating ideas, flows, and edits.\n\n## API Rules\n\n<!-- Add rules here, e.g.:\n- NEVER use PUT — this API uses PATCH for all updates\n- DELETE returns 204 with no body\n-->\n\n## Context Variables\n\nFlow XML uses \`{variable_name}\` in URL paths and \`proj.variableName\` in expressions.\nThese map to project variables defined in Settings → Variables.\n\nDefault mappings for this project:\n- \`{project_id}\` → use \`proj.project_id\`\n- \`{version_id}\` → use \`proj.version_id\`\n- \`{lang_code}\` → use \`proj.lang_code\`\n\nWhen generating flows, always use \`proj.*\` syntax for dynamic values.\nNever hardcode project-specific IDs in flow XML.\n\n## Enum Aliases\n\n\`\`\`\n<!-- name=value, one per line, e.g.:\ndraft=0\npublished=3\nmarkdown=0\nwysiwyg=1\n-->\n\`\`\`\n`;
-        await uploadSpecFile(`${folderPath}/Skills.md`, skillsContent);
+        await uploadSpecFile(`${folderPath}/_system/_skills.md`, skillsContent);
       }
       await loadFiles();
     } catch (e) {
@@ -754,12 +756,12 @@ export function SpecFilesPage() {
   async function handleCreateVersion(folderName: string, specContent?: string, specUrl?: string) {
     setError(null);
     try {
-      // Create the folder with .keep + Skills.md (same as handleCreateFolder for root)
+      // Create the folder with .keep + _skills.md (same as handleCreateFolder for root)
       await handleCreateFolder(folderName);
 
       if (specContent) {
-        // Upload spec as _swagger.json
-        await uploadSpecFile(`${folderName}/_swagger.json`, specContent, "application/json");
+        // Upload spec as _system/_swagger.json
+        await uploadSpecFile(`${folderName}/_system/_swagger.json`, specContent, "application/json");
         // Split into per-endpoint .md files
         const result = await splitSwagger(folderName);
         await loadFiles();
@@ -768,7 +770,7 @@ export function SpecFilesPage() {
         setError(null);
         alert(`Created ${folderName} with ${result.stats.endpoints} endpoints in ${result.stats.folders} folders`);
       } else if (specUrl) {
-        // Backend fetches URL, saves as _swagger.json, and splits
+        // Backend fetches URL, saves as _system/_swagger.json, and splits
         const result = await splitSwagger(folderName, { specUrl });
         await loadFiles();
         setShowNewVersionModal(false);
@@ -2084,13 +2086,33 @@ export function SpecFilesPage() {
                 </div>
               )}
 
-              {/* Content area — Skills editor, markdown viewer, or workshop */}
-              {viewingContent && isFileContext && selectedPath?.endsWith("/Skills.md") ? (
-                /* Skills.md — editable CodeMirror markdown editor */
+              {/* Content area — Skills editor, JSON viewer, markdown viewer, or workshop */}
+              {viewingContent && isFileContext && (selectedPath?.endsWith("/_skills.md") || selectedPath?.endsWith("/Skills.md")) ? (
+                /* _skills.md — editable CodeMirror markdown editor */
                 loadingContent ? (
                   <div className="flex-1 flex items-center justify-center text-[#656d76] text-sm">Loading…</div>
                 ) : (
-                  <SkillsEditor path={selectedPath} content={content} onSaved={() => void loadFiles()} />
+                  <SkillsEditor path={selectedPath!} content={content} onSaved={() => void loadFiles()} />
+                )
+              ) : viewingContent && isFileContext && selectedPath?.includes("/_system/") && selectedPath?.endsWith(".json") ? (
+                /* System JSON files — read-only CodeMirror JSON viewer */
+                loadingContent ? (
+                  <div className="flex-1 flex items-center justify-center text-[#656d76] text-sm">Loading…</div>
+                ) : (
+                  <div className="flex-1 flex flex-col overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+                      <span className="text-sm font-medium text-[#1f2328]">{selectedPath!.split("/").pop()}</span>
+                      <div className="flex-1" />
+                      <button onClick={() => setViewingContent(false)} className="text-[#656d76] hover:text-[#1f2328] rounded p-1 hover:bg-[#eef1f6] transition-colors">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-auto">
+                      <JsonCodeBlock value={(() => { try { return JSON.parse(content); } catch { return content; } })()} height="100%" />
+                    </div>
+                  </div>
                 )
               ) : viewingContent && isFileContext ? (
                 /* Markdown content viewer (replaces workshop when filename link is clicked) */

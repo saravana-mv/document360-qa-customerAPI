@@ -78,10 +78,10 @@ async function getFileContent(req: HttpRequest, _ctx: InvocationContext): Promis
   }
 }
 
-/** Check if a filename (last segment) is Skills.md (case-insensitive). */
+/** Check if a filename (last segment) is _skills.md or legacy Skills.md (case-insensitive). */
 function isSkillsFile(name: string): boolean {
   const filename = name.split("/").pop() ?? "";
-  return filename.toLowerCase() === "skills.md";
+  return filename.toLowerCase() === "_skills.md" || filename.toLowerCase() === "skills.md";
 }
 
 /** Snapshot the current version of a Skills.md file before overwriting. */

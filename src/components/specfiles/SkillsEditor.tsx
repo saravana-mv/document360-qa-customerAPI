@@ -1,4 +1,4 @@
-// Editable markdown editor for Skills.md files using CodeMirror 6.
+// Editable markdown editor for _skills.md files using CodeMirror 6.
 // Provides syntax highlighting, line numbers, save functionality, and version history with diff.
 
 import { useState, useCallback, useEffect, useMemo } from "react";

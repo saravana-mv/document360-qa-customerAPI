@@ -51,7 +51,7 @@ function distillAll(items: Array<{ blobPath: string; content: string }>): void {
  *
  * Body: { folderPath: string; specUrl?: string; overwrite?: boolean }
  *
- * Reads `_swagger.json` from the version folder in blob storage (or fetches
+ * Reads `_system/_swagger.json` from the version folder in blob storage (or fetches
  * from specUrl), parses it, splits into per-endpoint .md files, and uploads
  * each one through the same pipeline as manual uploads.
  */
@@ -81,21 +81,28 @@ async function splitSwaggerHandler(req: HttpRequest, _ctx: InvocationContext): P
       }
       specContent = await result.response.text();
 
-      // Also save as _swagger.json
+      // Also save as _system/_swagger.json
       const swaggerBlobPath = projectId !== "unknown"
-        ? `${projectId}/${folderPath}/_swagger.json`
-        : `${folderPath}/_swagger.json`;
+        ? `${projectId}/${folderPath}/_system/_swagger.json`
+        : `${folderPath}/_system/_swagger.json`;
       await uploadBlob(swaggerBlobPath, specContent, "application/json");
     } else {
-      // Read _swagger.json from blob storage
-      const swaggerBlobPath = projectId !== "unknown"
+      // Read _system/_swagger.json from blob storage (fallback to legacy _swagger.json)
+      const newPath = projectId !== "unknown"
+        ? `${projectId}/${folderPath}/_system/_swagger.json`
+        : `${folderPath}/_system/_swagger.json`;
+      const legacyPath = projectId !== "unknown"
         ? `${projectId}/${folderPath}/_swagger.json`
         : `${folderPath}/_swagger.json`;
 
       try {
-        specContent = await downloadBlob(swaggerBlobPath);
+        specContent = await downloadBlob(newPath);
       } catch {
-        return err(404, `No _swagger.json found in ${folderPath}. Upload the spec file first.`);
+        try {
+          specContent = await downloadBlob(legacyPath);
+        } catch {
+          return err(404, `No _swagger.json found in ${folderPath}. Upload the spec file first.`);
+        }
       }
     }
 

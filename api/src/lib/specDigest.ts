@@ -19,7 +19,7 @@
 import { downloadBlob, uploadBlob, listBlobs, deleteBlob } from "./blobClient";
 import { readDistilledContent } from "./specDistillCache";
 
-const DIGEST_FILENAME = "_digest.md";
+const DIGEST_FILENAME = "_system/_digest.md";
 const DIGEST_VERSION = 1;
 const DIGEST_HEADER = `<!-- digest-v${DIGEST_VERSION} -->`;
 
@@ -132,6 +132,7 @@ export async function rebuildDigest(projectId: string, folderPath: string): Prom
     b.name.endsWith(".md") &&
     !b.name.includes("/_distilled/") &&
     !b.name.includes("/_versions/") &&
+    !b.name.includes("/_system/") &&
     !b.name.endsWith("/_digest.md") &&
     !b.name.endsWith("/.keep"),
   );

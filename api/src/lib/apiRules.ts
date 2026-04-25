@@ -33,25 +33,38 @@ function parseEnumAliasesFromMarkdown(md: string): string {
     .join("\n");
 }
 
-/** Load API rules. Tries Skills.md → _rules.json → project-level Cosmos. */
+/** Load API rules. Tries _system/_skills.md → Skills.md (legacy) → _rules.json → project-level Cosmos. */
 export async function loadApiRules(projectId: string, versionFolder?: string): Promise<{ rules: string; enumAliases: string }> {
   if (!projectId || projectId === "unknown") return { rules: "", enumAliases: "" };
 
   if (versionFolder) {
-    // Try Skills.md first (preferred)
+    // Try _system/_skills.md first (new path)
     try {
-      const skillsPath = `${projectId}/${versionFolder}/Skills.md`;
-      console.log(`[apiRules] Loading Skills.md from: ${skillsPath}`);
+      const skillsPath = `${projectId}/${versionFolder}/_system/_skills.md`;
+      console.log(`[apiRules] Loading _skills.md from: ${skillsPath}`);
       const md = await downloadBlob(skillsPath);
       if (md.trim()) {
-        console.log(`[apiRules] Skills.md loaded: ${md.length} chars`);
+        console.log(`[apiRules] _skills.md loaded: ${md.length} chars`);
         const enumAliases = parseEnumAliasesFromMarkdown(md);
         return { rules: md, enumAliases };
       }
-      console.log("[apiRules] Skills.md was empty");
+      console.log("[apiRules] _skills.md was empty");
     } catch (e) {
-      console.log(`[apiRules] Skills.md not found at ${projectId}/${versionFolder}/Skills.md:`, (e as Error).message);
-      // Skills.md doesn't exist — try _rules.json
+      console.log(`[apiRules] _skills.md not found at ${projectId}/${versionFolder}/_system/_skills.md:`, (e as Error).message);
+    }
+
+    // Fallback: legacy Skills.md (old projects)
+    try {
+      const skillsPath = `${projectId}/${versionFolder}/Skills.md`;
+      console.log(`[apiRules] Trying legacy Skills.md from: ${skillsPath}`);
+      const md = await downloadBlob(skillsPath);
+      if (md.trim()) {
+        console.log(`[apiRules] Legacy Skills.md loaded: ${md.length} chars`);
+        const enumAliases = parseEnumAliasesFromMarkdown(md);
+        return { rules: md, enumAliases };
+      }
+    } catch {
+      // Legacy Skills.md doesn't exist either
     }
 
     // Try legacy _rules.json

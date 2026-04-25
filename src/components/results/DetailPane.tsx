@@ -606,7 +606,7 @@ interface DiagnosisCache {
 }
 const diagnosisCache = new Map<string, DiagnosisCache>();
 
-/** Append a diagnostic lesson to the version folder's Skills.md so future AI
+/** Append a diagnostic lesson to the version folder's _skills.md so future AI
  *  flow generation and idea generation avoid the same mistake. */
 async function saveDiagnosticLesson(
   flowFileName: string,
@@ -618,7 +618,7 @@ async function saveDiagnosticLesson(
   const versionFolder = flowFileName.split("/")[0];
   if (!versionFolder) return;
 
-  const skillsPath = `${versionFolder}/Skills.md`;
+  const skillsPath = `${versionFolder}/_system/_skills.md`;
   const category = diagnosis.whatWentWrong ?? diagnosis.category ?? "unknown";
   const fields = diagnosis.problematicFields?.map((f) => f.field).join(", ") ?? "";
   const date = new Date().toISOString().slice(0, 10);
@@ -629,7 +629,10 @@ async function saveDiagnosticLesson(
   try {
     existing = await getSpecFileContent(skillsPath);
   } catch {
-    // Skills.md doesn't exist yet — will create
+    // _skills.md doesn't exist yet — try legacy Skills.md, or will create new
+    try {
+      existing = await getSpecFileContent(`${flowFileName.split("/")[0]}/Skills.md`);
+    } catch { /* neither exists — will create */ }
   }
 
   const SECTION_HEADER = "## Lessons Learned";
@@ -784,7 +787,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
       const built = buildParsedTagsFromRegistry();
       useSpecStore.getState().setSpec(null as never, built, null as never);
 
-      // Persist lesson to Skills.md so future AI generations avoid this mistake
+      // Persist lesson to _skills.md so future AI generations avoid this mistake
       try {
         if (diagnosis) await saveDiagnosticLesson(fileName, diagnosis, testDef.name, `${testDef.method} ${testDef.path}`);
       } catch (e) {

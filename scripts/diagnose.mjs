@@ -328,16 +328,22 @@ if (runs.length === 0) {
   }
 }
 
-// ── 5. Check Skills.md for existing lessons ──────────────────────────────────
+// ── 5. Check _skills.md for existing lessons ──────────────────────────────────
 
-section("5. Existing lessons (Skills.md)");
+section("5. Existing lessons (_skills.md)");
 
 const versionFolder = flowPath.split("/")[0];
 try {
-  const skills = await downloadBlob("spec-files", `${projectId}/${versionFolder}/Skills.md`);
+  const skills = await downloadBlob("spec-files", `${projectId}/${versionFolder}/_system/_skills.md`);
   console.log(skills);
 } catch {
-  console.log("  No Skills.md found for this version folder.");
+  // Fallback to legacy Skills.md
+  try {
+    const skills = await downloadBlob("spec-files", `${projectId}/${versionFolder}/Skills.md`);
+    console.log(skills);
+  } catch {
+    console.log("  No _skills.md found for this version folder.");
+  }
 }
 
 // ── 6. Summary ───────────────────────────────────────────────────────────────

@@ -203,7 +203,7 @@ export async function generateFlowIdeasHandler(
       return err(500, `Failed to list blobs: ${e instanceof Error ? e.message : String(e)}`);
     }
 
-    const mdBlobs = allBlobs.filter((b) => b.name.endsWith(".md") && !b.name.endsWith("/.keep") && !b.name.includes("/_distilled/") && !b.name.endsWith("/_digest.md"));
+    const mdBlobs = allBlobs.filter((b) => b.name.endsWith(".md") && !b.name.endsWith("/.keep") && !b.name.includes("/_distilled/") && !b.name.includes("/_system/"));
 
     if (mdBlobs.length === 0) {
       return ok({

@@ -25,7 +25,7 @@ async function invalidateDigest(blobPath: string): Promise<void> {
     if (/^v\d+$/i.test(parts[i])) { versionIdx = i; break; }
   }
   if (versionIdx < 0) return;
-  const digestPath = parts.slice(0, versionIdx + 1).join("/") + "/_digest.md";
+  const digestPath = parts.slice(0, versionIdx + 1).join("/") + "/_system/_digest.md";
   try { await deleteBlob(digestPath); } catch { /* may not exist */ }
 }
 
