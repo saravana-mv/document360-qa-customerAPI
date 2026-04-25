@@ -15,8 +15,15 @@
  *   cd api && node ../scripts/diagnose.mjs ebeb00a9-b3ef-45f4-9cde-7631d4bb9adb 3
  */
 
-import { CosmosClient } from "@azure/cosmos";
-import { BlobServiceClient } from "@azure/storage-blob";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
+
+// Resolve deps from api/node_modules regardless of cwd
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const require = createRequire(resolve(__dirname, "../api/node_modules/") + "/");
+const { CosmosClient } = require("@azure/cosmos");
+const { BlobServiceClient } = require("@azure/storage-blob");
 
 const COSMOS_CS = process.env.COSMOS_CONNECTION_STRING;
 const BLOB_CS = process.env.AZURE_STORAGE_CONNECTION_STRING;
@@ -88,18 +95,24 @@ console.log(`  Created by:  ${flowDoc.createdBy?.name ?? "unknown"}`);
 console.log(`  Updated at:  ${flowDoc.updatedAt ?? "unknown"}`);
 if (flowDoc.lockedBy) console.log(`  LOCKED by:   ${flowDoc.lockedBy.name}`);
 
-// ── 2. Download the flow XML ─────────────────────────────────────────────────
+// ── 2. Get the flow XML (stored inline in Cosmos doc) ────────────────────────
 
 section("2. Flow XML content");
 
 let flowXml;
-try {
-  const blobPath = `${projectId}/${flowPath}`;
-  flowXml = await downloadBlob("spec-files", blobPath);
-  console.log(`  Blob: spec-files/${blobPath} (${flowXml.length} chars)`);
-} catch (e) {
-  console.error(`  Failed to download flow XML: ${e.message}`);
-  process.exit(1);
+if (flowDoc.xml) {
+  flowXml = flowDoc.xml;
+  console.log(`  Source: Cosmos flows container (inline xml field, ${flowXml.length} chars)`);
+} else {
+  // Fallback: try blob storage (legacy)
+  try {
+    const blobPath = `${projectId}/${flowPath}`;
+    flowXml = await downloadBlob("spec-files", blobPath);
+    console.log(`  Source: Blob spec-files/${blobPath} (${flowXml.length} chars)`);
+  } catch (e) {
+    console.error(`  Failed to get flow XML: not in Cosmos doc and blob download failed: ${e.message}`);
+    process.exit(1);
+  }
 }
 
 // Parse steps from XML
@@ -163,24 +176,16 @@ let projectVars = {};
 try {
   const { resource } = await settingsContainer.item("project_variables", projectId).read();
   if (resource?.variables) {
-    projectVars = resource.variables;
-  }
-} catch { /* no vars doc */ }
-
-// Try project-variables container too
-try {
-  const pvContainer = db.container("project-variables");
-  const { resources: pvDocs } = await pvContainer?.items?.query?.({
-    query: 'SELECT * FROM c WHERE c.projectId=@pid',
-    parameters: [{ name: "@pid", value: projectId }],
-  })?.fetchAll?.() ?? { resources: [] };
-  if (pvDocs.length > 0) {
-    // merge
-    for (const doc of pvDocs) {
-      if (doc.key && doc.value !== undefined) projectVars[doc.key] = doc.value;
+    // Variables can be an array of {name, value} or a key-value map
+    if (Array.isArray(resource.variables)) {
+      for (const v of resource.variables) {
+        if (v.name && v.value !== undefined) projectVars[v.name] = v.value;
+      }
+    } else {
+      projectVars = resource.variables;
     }
   }
-} catch { /* container may not exist */ }
+} catch { /* no vars doc */ }
 
 console.log(`\n  Defined project variables:`);
 if (Object.keys(projectVars).length === 0) {
@@ -203,19 +208,35 @@ if (undefined_.length > 0) {
 
 section("4. Latest test run");
 
+const flowNameMatch = flowXml.match(/<flow[^>]*name="([^"]+)"/);
+const flowName = flowNameMatch ? flowNameMatch[1] : null;
+console.log(`  Flow name: ${flowName ?? "(not found)"}`);
+
 const runsContainer = db.container("test-runs");
-const { resources: runs } = await runsContainer.items.query({
+
+// Try to find runs for this specific scenario first, then fall back to project-wide
+const { resources: scenarioRuns } = await runsContainer.items.query({
+  query: 'SELECT * FROM c WHERE c.type="test_run" AND c.projectId=@pid AND c.scenarioId=@sid ORDER BY c.startedAt DESC OFFSET 0 LIMIT 3',
+  parameters: [{ name: "@pid", value: projectId }, { name: "@sid", value: scenarioId }],
+}, { partitionKey: projectId }).fetchAll();
+
+const { resources: projectRuns } = await runsContainer.items.query({
   query: 'SELECT * FROM c WHERE c.type="test_run" AND c.projectId=@pid ORDER BY c.startedAt DESC OFFSET 0 LIMIT 5',
   parameters: [{ name: "@pid", value: projectId }],
 }, { partitionKey: projectId }).fetchAll();
 
+const runs = scenarioRuns.length > 0 ? scenarioRuns : projectRuns;
+const runSource = scenarioRuns.length > 0 ? "scenario-specific" : "project-wide";
+
 if (runs.length === 0) {
   console.log("  No test runs found.");
 } else {
+  console.log(`  Found ${runs.length} ${runSource} run(s)`);
   const latestRun = runs[0];
-  console.log(`  Run ID:      ${latestRun.id}`);
-  console.log(`  Started:     ${latestRun.startedAt}`);
-  console.log(`  Completed:   ${latestRun.completedAt}`);
+  console.log(`  Run ID:       ${latestRun.id}`);
+  console.log(`  Source:        ${latestRun.source ?? "browser"}`);
+  console.log(`  Started:      ${latestRun.startedAt}`);
+  console.log(`  Completed:    ${latestRun.completedAt}`);
   console.log(`  Triggered by: ${latestRun.triggeredBy?.name ?? "unknown"}`);
 
   if (latestRun.summary) {
@@ -223,22 +244,48 @@ if (runs.length === 0) {
     console.log(JSON.stringify(latestRun.summary, null, 2));
   }
 
-  // Find test results for this scenario's tag
-  if (latestRun.testResults) {
-    section("4b. Test Results for this scenario");
-    const results = Object.entries(latestRun.testResults);
+  // API-originated runs store steps directly
+  if (latestRun.steps && Array.isArray(latestRun.steps)) {
+    section("4b. Step Results (API run)");
+    for (let i = 0; i < latestRun.steps.length; i++) {
+      const s = latestRun.steps[i];
+      const marker = s.status === "pass" ? "✓" : s.status === "fail" ? "✗" : "?";
+      console.log(`\n  Step ${i + 1}: ${marker} ${s.name ?? "(unnamed)"} — ${s.method ?? ""} ${s.path ?? ""}`);
+      console.log(`    Status: ${s.httpStatus ?? "N/A"} | Result: ${s.status}`);
+      if (s.failureReason) console.log(`    Failure: ${s.failureReason}`);
 
-    // Filter results that match this flow's tag (flow name from XML)
-    const flowNameMatch = flowXml.match(/<flow[^>]*name="([^"]+)"/);
-    const flowName = flowNameMatch ? flowNameMatch[1] : null;
-    console.log(`  Flow name: ${flowName ?? "(not found)"}`);
+      // If user asked for a specific step, show full details
+      if (stepNumber && i + 1 === stepNumber) {
+        section(`4b-detail. Step ${stepNumber} full data`);
+        console.log(JSON.stringify(s, null, 2));
+      }
+    }
+  }
+
+  // Browser-originated runs store tagResults/testResults
+  if (latestRun.tagResults) {
+    section("4b. Tag Results (browser run)");
+    const tagResults = typeof latestRun.tagResults === "object" ? latestRun.tagResults : {};
+
+    // Find entries matching this scenario
+    for (const [tag, result] of Object.entries(tagResults)) {
+      if (flowName && (tag.includes(flowName) || tag.includes(scenarioId))) {
+        console.log(`\n  [${tag}]`);
+        console.log(JSON.stringify(result, null, 2));
+      }
+    }
+  }
+
+  if (latestRun.testResults) {
+    section("4c. Test Results (browser run)");
+    const results = Object.entries(latestRun.testResults);
 
     const relevantResults = flowName
       ? results.filter(([key]) => key.includes(flowName) || key.includes(scenarioId))
       : results;
 
     if (relevantResults.length === 0) {
-      console.log("  No matching test results found. Showing all:");
+      console.log("  No matching test results found. Showing first 10:");
       for (const [key, val] of results.slice(0, 10)) {
         console.log(`\n  [${key}]`);
         console.log(JSON.stringify(val, null, 2));
@@ -246,14 +293,30 @@ if (runs.length === 0) {
     } else {
       for (const [key, val] of relevantResults) {
         console.log(`\n  [${key}]`);
-        console.log(JSON.stringify(val, null, 2));
+
+        // If testResults contain step-level data, highlight the failing step
+        if (val && typeof val === "object" && val.steps && Array.isArray(val.steps)) {
+          for (let i = 0; i < val.steps.length; i++) {
+            const s = val.steps[i];
+            const marker = s.status === "pass" ? "✓" : s.status === "fail" ? "✗" : "?";
+            console.log(`    Step ${i + 1}: ${marker} ${s.name ?? ""} — ${s.method ?? ""} ${s.path ?? ""} → HTTP ${s.httpStatus ?? "?"}`);
+            if (s.failureReason) console.log(`             Failure: ${s.failureReason}`);
+
+            if (stepNumber && i + 1 === stepNumber) {
+              console.log(`\n    ── Step ${stepNumber} FULL DATA ──`);
+              console.log(JSON.stringify(s, null, 2));
+            }
+          }
+        } else {
+          console.log(JSON.stringify(val, null, 2));
+        }
       }
     }
   }
 
   // Show relevant log entries
   if (latestRun.log && Array.isArray(latestRun.log)) {
-    section("4c. Run Log (last 30 entries)");
+    section("4d. Run Log (last 30 entries)");
     const logEntries = latestRun.log.slice(-30);
     for (const entry of logEntries) {
       if (typeof entry === "string") {
