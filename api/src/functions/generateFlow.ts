@@ -191,8 +191,7 @@ Wrap JSON in CDATA. Interpolation tokens (\`{{state.x}}\`, \`{{ctx.y}}\`, \`{{ti
 <body><![CDATA[
 {
   "name": "[TEST] Example - {{timestamp}}",
-  "parent_id": "{{state.createdParentId}}",
-  "project_version_id": "{{proj.projectVersionId}}"
+  "parent_id": "{{state.createdParentId}}"
 }
 ]]></body>
 \`\`\`
@@ -306,6 +305,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
    - DELETE → \`204\` (No Content) — the response body is typically EMPTY. Do not add body-level assertions on DELETE steps unless the spec explicitly documents a response body.
 9. **Spec-driven assertions**: When spec files are provided, read the documented response schema and status codes carefully. The spec is the source of truth.
 10. **Schema exactness**: Elements must appear in the order listed above. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status. Use \`field-exists\` / \`field-equals\` / \`array-not-empty\` — no other assertion types exist.
+11. **Request body fields MUST match the endpoint's schema**: Only include fields that are defined in the endpoint's request body schema. Do NOT add extra fields like \`project_version_id\` unless the spec explicitly lists them in the request body for that specific endpoint. Many APIs use \`additionalProperties: false\` and will reject or error on unknown fields. Also never send fields marked \`readOnly: true\` in request bodies — those are response-only fields.
 
 ## Output format — MANDATORY
 
