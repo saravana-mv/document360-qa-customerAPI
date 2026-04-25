@@ -49,6 +49,7 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 - Per-step breakpoint debugging (pause/resume)
 - Live execution console with step-grouped log output
 - Clickable run history with past result replay
+- **AI step debugging** — Analyze failed/errored steps with Claude Haiku, cross-referencing request/response against OpenAPI specs for inline diagnosis
 
 ### Connections & Connect Endpoint (Generic API Support)
 - Centralized connection management in Settings → Connections (all auth types)
@@ -197,7 +198,7 @@ Both environments follow the same build steps:
 │   ├── components/             # auth/, common/, specfiles/, explorer/, runner/, results/, setup/
 │   ├── store/                  # 15 Zustand stores
 │   ├── lib/
-│   │   ├── api/                # 22 API client modules
+│   │   ├── api/                # 23 API client modules
 │   │   ├── tests/              # Test execution engine + flow XML system
 │   │   ├── oauth/              # OAuth PKCE flow
 │   │   ├── flow/               # AI prompt builder
