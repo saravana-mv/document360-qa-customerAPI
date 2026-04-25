@@ -829,18 +829,13 @@ export function SpecFilesPage() {
           useProjectVariablesStore.getState().load(),
           useConnectionsStore.getState().load(),
         ]);
-        const vars = result.suggestedVariables ?? [];
         setImportResult({
           folderName,
           stats: result.stats,
-          suggestedVariables: vars,
+          suggestedVariables: result.suggestedVariables ?? [],
           suggestedConnections: result.suggestedConnections ?? [],
           processing: result.processing,
         });
-        // Rewrite _skills.md with real detected variables
-        if (vars.length > 0) {
-          uploadSpecFile(`${folderName}/_system/_skills.md`, buildSkillsTemplate(folderName, vars)).catch(() => {});
-        }
       } else if (specUrl) {
         // Backend fetches URL, saves as _system/_swagger.json, and splits
         const result = await splitSwagger(folderName, { specUrl });
@@ -851,18 +846,13 @@ export function SpecFilesPage() {
           useProjectVariablesStore.getState().load(),
           useConnectionsStore.getState().load(),
         ]);
-        const vars2 = result.suggestedVariables ?? [];
         setImportResult({
           folderName,
           stats: result.stats,
-          suggestedVariables: vars2,
+          suggestedVariables: result.suggestedVariables ?? [],
           suggestedConnections: result.suggestedConnections ?? [],
           processing: result.processing,
         });
-        // Rewrite _skills.md with real detected variables
-        if (vars2.length > 0) {
-          uploadSpecFile(`${folderName}/_system/_skills.md`, buildSkillsTemplate(folderName, vars2)).catch(() => {});
-        }
       } else {
         // Just create the folder (already done above)
         setShowNewVersionModal(false);
@@ -900,6 +890,17 @@ export function SpecFilesPage() {
         });
       } catch {
         // Connection creation failed — skip silently (user can create manually)
+      }
+    }
+
+    // Rewrite _skills.md with only the user-selected variables
+    if (importResult && selectedVarNames.length > 0) {
+      const selected = (importResult.suggestedVariables ?? []).filter(v => selectedVarNames.includes(v.name));
+      if (selected.length > 0) {
+        uploadSpecFile(
+          `${importResult.folderName}/_system/_skills.md`,
+          buildSkillsTemplate(importResult.folderName, selected),
+        ).catch(() => {});
       }
     }
 
