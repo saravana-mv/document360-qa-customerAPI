@@ -747,6 +747,51 @@ export function SpecFilesPage() {
     }
   }
 
+  // ── Skills template builder ─────────────────────────────────────────────
+
+  function buildSkillsTemplate(folderPath: string, variables?: SuggestedVariable[]): string {
+    const varLines = variables && variables.length > 0
+      ? variables.map(v => `- \`{${v.name}}\` → use \`proj.${v.name}\``).join("\n")
+      : "<!-- No path parameters detected. Add mappings after importing an OpenAPI spec. -->";
+
+    return [
+      `# API Skills — ${folderPath}`,
+      "",
+      "Describe your API's rules, quirks, and conventions below.",
+      "These are injected into AI prompts when generating ideas, flows, and edits.",
+      "",
+      "## API Rules",
+      "",
+      "<!-- Add rules here, e.g.:",
+      "- NEVER use PUT — this API uses PATCH for all updates",
+      "- DELETE returns 204 with no body",
+      "-->",
+      "",
+      "## Context Variables",
+      "",
+      "Flow XML uses `{variable_name}` in URL paths and `proj.variableName` in expressions.",
+      "These map to project variables defined in Settings → Variables.",
+      "",
+      "Default mappings for this project:",
+      varLines,
+      "",
+      "When generating flows, always use `proj.*` syntax for dynamic values.",
+      "Never hardcode project-specific IDs in flow XML.",
+      "",
+      "## Enum Aliases",
+      "",
+      "```",
+      "<!-- name=value, one per line, e.g.:",
+      "draft=0",
+      "published=3",
+      "markdown=0",
+      "wysiwyg=1",
+      "-->",
+      "```",
+      "",
+    ].join("\n");
+  }
+
   // ── CRUD handlers ─────────────────────────────────────────────────────────
 
   async function handleCreateFolder(folderPath: string) {
@@ -756,7 +801,7 @@ export function SpecFilesPage() {
       await uploadSpecFile(`${folderPath}/.keep`, "");
       // Auto-create _skills.md under _system/ for top-level version folders
       if (!folderPath.includes("/")) {
-        const skillsContent = `# API Skills — ${folderPath}\n\nDescribe your API's rules, quirks, and conventions below.\nThese are injected into AI prompts when generating ideas, flows, and edits.\n\n## API Rules\n\n<!-- Add rules here, e.g.:\n- NEVER use PUT — this API uses PATCH for all updates\n- DELETE returns 204 with no body\n-->\n\n## Context Variables\n\nFlow XML uses \`{variable_name}\` in URL paths and \`proj.variableName\` in expressions.\nThese map to project variables defined in Settings → Variables.\n\nDefault mappings for this project:\n- \`{project_id}\` → use \`proj.project_id\`\n- \`{version_id}\` → use \`proj.version_id\`\n- \`{lang_code}\` → use \`proj.lang_code\`\n\nWhen generating flows, always use \`proj.*\` syntax for dynamic values.\nNever hardcode project-specific IDs in flow XML.\n\n## Enum Aliases\n\n\`\`\`\n<!-- name=value, one per line, e.g.:\ndraft=0\npublished=3\nmarkdown=0\nwysiwyg=1\n-->\n\`\`\`\n`;
+        const skillsContent = buildSkillsTemplate(folderPath);
         await uploadSpecFile(`${folderPath}/_system/_skills.md`, skillsContent);
       }
       await loadFiles();
@@ -784,13 +829,18 @@ export function SpecFilesPage() {
           useProjectVariablesStore.getState().load(),
           useConnectionsStore.getState().load(),
         ]);
+        const vars = result.suggestedVariables ?? [];
         setImportResult({
           folderName,
           stats: result.stats,
-          suggestedVariables: result.suggestedVariables ?? [],
+          suggestedVariables: vars,
           suggestedConnections: result.suggestedConnections ?? [],
           processing: result.processing,
         });
+        // Rewrite _skills.md with real detected variables
+        if (vars.length > 0) {
+          uploadSpecFile(`${folderName}/_system/_skills.md`, buildSkillsTemplate(folderName, vars)).catch(() => {});
+        }
       } else if (specUrl) {
         // Backend fetches URL, saves as _system/_swagger.json, and splits
         const result = await splitSwagger(folderName, { specUrl });
@@ -801,13 +851,18 @@ export function SpecFilesPage() {
           useProjectVariablesStore.getState().load(),
           useConnectionsStore.getState().load(),
         ]);
+        const vars2 = result.suggestedVariables ?? [];
         setImportResult({
           folderName,
           stats: result.stats,
-          suggestedVariables: result.suggestedVariables ?? [],
+          suggestedVariables: vars2,
           suggestedConnections: result.suggestedConnections ?? [],
           processing: result.processing,
         });
+        // Rewrite _skills.md with real detected variables
+        if (vars2.length > 0) {
+          uploadSpecFile(`${folderName}/_system/_skills.md`, buildSkillsTemplate(folderName, vars2)).catch(() => {});
+        }
       } else {
         // Just create the folder (already done above)
         setShowNewVersionModal(false);
