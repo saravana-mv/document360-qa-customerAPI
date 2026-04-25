@@ -104,6 +104,9 @@ Three authoritative sources must stay in sync: `FLOW_SYSTEM_PROMPT` in `generate
 ### API Rules (Version-Folder Scoped)
 Per-version-folder configurable rules injected into all AI system prompts (flow generation, editing, ideas, chat). Stored as `_rules.json` blobs in `spec-files` container under the version folder path. Managed via `FolderRulesPanel` in Spec Manager (inline editor on top-level version folders). Includes free-text rules and enum alias definitions. Settings → General shows a deprecation notice for the old project-level API Rules card. Helper: `api/src/lib/apiRules.ts` (`loadApiRules(projectId, versionFolder?)` — tries blob first, falls back to Cosmos; `injectApiRules`; `extractVersionFolder`). AI functions extract version folder from spec file paths.
 
+### Diagnostic Lessons (Auto-Learned Skills)
+When the Diagnose tab's "Fix it" succeeds, a lesson is auto-appended to `{versionFolder}/Skills.md` in blob storage under a `## Lessons Learned` section. Each lesson records the endpoint, category, problematic fields, fix description, and date. Deduplication prevents the same endpoint+field combination from being recorded twice. `loadApiRules()` automatically picks up `Skills.md` content alongside `_rules.json`, so lessons are injected into all AI prompts (flow generation, ideas, chat, edit) without any extra wiring.
+
 ### API Version
 `apiVersion` in settings rewrites ALL `/vN/` request paths at runtime. No hardcoded version segments anywhere.
 

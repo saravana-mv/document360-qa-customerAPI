@@ -180,7 +180,7 @@ tests/
 | `modelPricing.ts` | `resolveModel()`, `computeCost()`, pricing for Opus/Sonnet/Haiku |
 | `aiCredits.ts` | `checkCredits()`, `recordUsage()`, `seedProjectCredits()`, `seedUserCredits()`, `updateProjectBudget()`, `updateUserBudget()` — credit enforcement for AI endpoints |
 | `auditLog.ts` | Fire-and-forget `audit()` function, writes to Cosmos `audit-log` container. Actions include `project.member_add`, `project.member_remove`, `project.member_role_change`, `project.variables.update`, `project.apiRules.update`. |
-| `apiRules.ts` | `loadApiRules(projectId, versionFolder?)` fetches API rules — tries blob `_rules.json` first (version-folder scoped), falls back to Cosmos; `injectApiRules(systemPrompt, projectId, versionFolder?)` appends rules to AI system prompts; `extractVersionFolder(paths)` derives version folder from spec file paths. |
+| `apiRules.ts` | `loadApiRules(projectId, versionFolder?)` fetches API rules — tries blob `_rules.json` first (version-folder scoped), falls back to Cosmos; also loads `Skills.md` (diagnostic lessons auto-saved on successful "Fix it") and merges into rules context. `injectApiRules(systemPrompt, projectId, versionFolder?)` appends rules + lessons to AI system prompts; `extractVersionFolder(paths)` derives version folder from spec file paths. |
 | `specDigest.ts` | Scalable spec context for large projects. Three tiers: Raw → Distilled → Digest (~2-3 lines/endpoint). Builds `_digest.md` blob per version folder (lightweight endpoint index grouped by resource). Threshold: >20 specs use digest. Auto-invalidated on spec file changes. |
 | `swaggerSplitter.ts` | Core OpenAPI/Swagger splitting logic: recursive $ref resolution (with circular detection), tag-to-folder kebab-case naming, method-to-filename with collision handling, Swagger 2.x→3.x normalization, per-endpoint markdown builder. |
 
@@ -223,6 +223,7 @@ spec-files/
 │   │   │   ├── create-article.md
 │   │   │   ├── _sources.json      # Manifest: { "create-article.md": { sourceUrl, importedAt, lastSyncedAt } }
 │   │   │   ├── _rules.json        # Version-folder API rules: { rules, enumAliases } — replaces project-level Cosmos storage
+│   │   │   ├── Skills.md         # Auto-saved diagnostic lessons (from successful "Fix it" in Diagnose tab) — picked up by loadApiRules() and injected into AI prompts
 │   │   │   ├── _digest.md        # Lightweight endpoint index (~2-3 lines/endpoint) for scalable idea generation
 │   │   │   ├── _swagger.json     # Original OpenAPI/Swagger spec (preserved when using split-swagger)
 │   │   │   └── _versions/         # Hidden from UI — auto-preserved on sync
