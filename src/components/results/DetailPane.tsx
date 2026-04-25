@@ -20,6 +20,7 @@ import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import type { TestStatus } from "../../types/test.types";
 import { analyzeFailure } from "../../lib/api/debugApi";
 import type { DebugDiagnosis } from "../../lib/api/debugApi";
+import { getSpecFileContent, uploadSpecFile } from "../../lib/api/specFilesApi";
 
 const XmlEditor = lazy(() => import("../common/XmlEditor").then(m => ({ default: m.XmlEditor })));
 
@@ -590,6 +591,51 @@ interface DiagnosisCache {
 }
 const diagnosisCache = new Map<string, DiagnosisCache>();
 
+/** Append a diagnostic lesson to the version folder's Skills.md so future AI
+ *  flow generation and idea generation avoid the same mistake. */
+async function saveDiagnosticLesson(
+  flowFileName: string,
+  diagnosis: DebugDiagnosis,
+  stepName: string,
+  endpoint: string,
+): Promise<void> {
+  // Extract version folder from flow file path (e.g. "V3/Categories/foo.flow.xml" → "V3")
+  const versionFolder = flowFileName.split("/")[0];
+  if (!versionFolder) return;
+
+  const skillsPath = `${versionFolder}/Skills.md`;
+  const category = diagnosis.whatWentWrong ?? diagnosis.category ?? "unknown";
+  const fields = diagnosis.problematicFields?.map((f) => f.field).join(", ") ?? "";
+  const date = new Date().toISOString().slice(0, 10);
+
+  const lesson = `- **${endpoint}** — ${category}${fields ? `: \`${fields}\`` : ""}. ${diagnosis.fixPrompt ?? diagnosis.summary ?? ""} _(${date}, step: ${stepName})_`;
+
+  let existing = "";
+  try {
+    existing = await getSpecFileContent(skillsPath);
+  } catch {
+    // Skills.md doesn't exist yet — will create
+  }
+
+  const SECTION_HEADER = "## Lessons Learned";
+  let updated: string;
+  if (existing.includes(SECTION_HEADER)) {
+    // Check for duplicate — skip if same endpoint+fields lesson already exists
+    const dedupeKey = `**${endpoint}**`;
+    const fieldKey = fields ? `\`${fields}\`` : "";
+    const lines = existing.split("\n");
+    const hasDuplicate = lines.some((l) => l.includes(dedupeKey) && (!fieldKey || l.includes(fieldKey)));
+    if (hasDuplicate) return;
+    // Append new lesson after the section header
+    updated = existing.replace(SECTION_HEADER, `${SECTION_HEADER}\n${lesson}`);
+  } else {
+    // Add the section at the end
+    updated = existing.trimEnd() + `\n\n${SECTION_HEADER}\n\nThese rules were auto-discovered from test failures. Follow them when generating flow XML.\n\n${lesson}\n`;
+  }
+
+  await uploadSpecFile(skillsPath, updated);
+}
+
 /** Parse numbered steps (e.g. "1. Do X 2. Do Y") into an ordered list. */
 function HowToFixSteps({ text }: { text: string }) {
   // Split on numbered prefixes like "1. ", "2. " etc. — handles both newline-separated and inline
@@ -693,6 +739,14 @@ function DiagnoseTab({ testId }: { testId: string }) {
       await activateFlow(fileName);
       await loadFlowsFromQueue();
       buildParsedTagsFromRegistry();
+
+      // Persist lesson to Skills.md so future AI generations avoid this mistake
+      try {
+        await saveDiagnosticLesson(fileName, diagnosis, testDef.name, `${testDef.method} ${testDef.path}`);
+      } catch (e) {
+        console.warn("[DiagnoseTab] Failed to save lesson:", e);
+      }
+
       setFixState("done");
     } catch (e) {
       setFixError(e instanceof Error ? e.message : String(e));
