@@ -583,6 +583,20 @@ const categoryLabel: Record<string, string> = {
   other: "Other",
 };
 
+/** Parse numbered steps (e.g. "1. Do X 2. Do Y") into an ordered list. */
+function HowToFixSteps({ text }: { text: string }) {
+  // Split on numbered prefixes like "1. ", "2. " etc. — handles both newline-separated and inline
+  const steps = text.split(/(?:^|\n|\s)(?=\d+\.\s)/).map(s => s.replace(/^\d+\.\s*/, "").trim()).filter(Boolean);
+  if (steps.length <= 1) {
+    return <p className="text-sm text-[#1f2328] leading-relaxed mb-3">{text}</p>;
+  }
+  return (
+    <ol className="text-sm text-[#1f2328] leading-relaxed mb-3 list-decimal list-inside space-y-1">
+      {steps.map((step, i) => <li key={i}>{step}</li>)}
+    </ol>
+  );
+}
+
 function DiagnoseTab({ testId }: { testId: string }) {
   const result = useRunnerStore((s) => s.testResults[testId]);
   const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -757,7 +771,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
       {diagnosis.canYouFixIt ? (
         <div className="px-3 py-3 rounded-md bg-[#dafbe1] border border-[#aceebb]">
           <span className="text-xs font-semibold text-[#1a7f37] uppercase tracking-wide block mb-1.5">How to fix</span>
-          <p className="text-sm text-[#1f2328] whitespace-pre-wrap leading-relaxed mb-3">{diagnosis.howToFix}</p>
+          <HowToFixSteps text={diagnosis.howToFix ?? ""} />
           {diagnosis.fixPrompt && (
             <>
               {fixState === "idle" && (
