@@ -92,6 +92,7 @@ No generic Tailwind colors (`text-blue-600`, `bg-purple-100`). Always use exact 
 
 ### Flow Dependencies (CRITICAL)
 - Flows that create dependent entities must set up prerequisites first and tear them down after (e.g., Create Category → Create Article → Delete Article → Delete Category).
+- Prerequisite endpoints may reside in **sibling resource folders** — cross-folder setup/teardown is expected even when generating from a single folder's specs.
 - Check for entity dependencies whenever writing new flows.
 
 ### Flow File Rules
