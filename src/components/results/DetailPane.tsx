@@ -633,8 +633,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
     // Optionally load flow XML for fix suggestions
     let flowXml: string | undefined;
     try {
-      const fileName = testDef.tag + ".flow.xml";
-      flowXml = await getFlowFileContent(fileName);
+      if (testDef.flowFileName) flowXml = await getFlowFileContent(testDef.flowFileName);
     } catch { /* ok without it */ }
 
     try {
@@ -666,12 +665,12 @@ function DiagnoseTab({ testId }: { testId: string }) {
   async function handleFixIt() {
     if (!diagnosis?.fixPrompt) return;
     const testDef = getTest(testId);
-    if (!testDef) return;
+    if (!testDef?.flowFileName) return;
 
     setFixState("fixing");
     setFixError(null);
 
-    const fileName = testDef.tag + ".flow.xml";
+    const fileName = testDef.flowFileName;
     try {
       const xml = await getFlowFileContent(fileName);
       const edited = await editFlowXml(xml, diagnosis.fixPrompt);
