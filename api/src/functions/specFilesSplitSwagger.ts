@@ -169,6 +169,7 @@ async function splitSwaggerHandler(req: HttpRequest, _ctx: InvocationContext): P
         folders: result.stats.folders,
         skipped: result.stats.skipped + skippedExisting,
       },
+      suggestedVariables: result.suggestedVariables,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

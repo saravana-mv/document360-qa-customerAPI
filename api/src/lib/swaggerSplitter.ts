@@ -17,9 +17,18 @@ export interface SplitStats {
   skipped: number;
 }
 
+export interface SuggestedVariable {
+  name: string;
+  description: string;
+  type: string;
+  format?: string;
+  example?: string;
+}
+
 export interface SplitResult {
   files: SplitFile[];
   stats: SplitStats;
+  suggestedVariables: SuggestedVariable[];
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -387,6 +396,9 @@ export function splitSwagger(specJson: Record<string, unknown>): SplitResult {
     }
   }
 
+  // Extract path parameters as suggested project variables
+  const suggestedVariables = extractPathParameters(paths, spec);
+
   return {
     files,
     stats: {
@@ -394,5 +406,66 @@ export function splitSwagger(specJson: Record<string, unknown>): SplitResult {
       folders: folderNames.size,
       skipped,
     },
+    suggestedVariables,
   };
+}
+
+/**
+ * Extract all path parameters from the spec and deduplicate them into
+ * suggested project variables.
+ */
+function extractPathParameters(
+  paths: Record<string, Record<string, unknown>>,
+  spec: Record<string, unknown>,
+): SuggestedVariable[] {
+  const seen = new Map<string, SuggestedVariable>();
+
+  for (const [, pathItem] of Object.entries(paths)) {
+    if (!pathItem || typeof pathItem !== "object") continue;
+
+    // Collect path-level + operation-level parameters
+    const paramSources: unknown[][] = [];
+    const pathParams = pathItem["parameters"] as unknown[] | undefined;
+    if (Array.isArray(pathParams)) paramSources.push(pathParams);
+
+    for (const method of HTTP_METHODS) {
+      const operation = pathItem[method] as Record<string, unknown> | undefined;
+      if (!operation) continue;
+      const opParams = operation["parameters"] as unknown[] | undefined;
+      if (Array.isArray(opParams)) paramSources.push(opParams);
+    }
+
+    for (const params of paramSources) {
+      for (const raw of params) {
+        let param = raw as Record<string, unknown>;
+        // Resolve $ref if needed
+        if (typeof param["$ref"] === "string") {
+          const resolved = resolvePointer(spec, param["$ref"] as string);
+          if (!resolved || typeof resolved !== "object") continue;
+          param = resolved as Record<string, unknown>;
+        }
+
+        if (param["in"] !== "path") continue;
+        const name = param["name"] as string | undefined;
+        if (!name || seen.has(name)) continue;
+
+        // OAS3: param.schema.type/format/example; Swagger 2: param.type/format/example
+        const schema = param["schema"] as Record<string, unknown> | undefined;
+        const type = (schema?.["type"] ?? param["type"] ?? "string") as string;
+        const format = (schema?.["format"] ?? param["format"]) as string | undefined;
+        const example = (schema?.["example"] ?? param["example"]) as string | undefined;
+        const description = (param["description"] as string) ?? name;
+
+        seen.set(name, {
+          name,
+          description,
+          type,
+          ...(format ? { format } : {}),
+          ...(example != null ? { example: String(example) } : {}),
+        });
+      }
+    }
+  }
+
+  return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
 }

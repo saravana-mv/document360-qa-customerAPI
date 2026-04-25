@@ -148,9 +148,18 @@ export async function listSkillsVersions(name: string): Promise<SkillsVersion[]>
 
 // ── Swagger Split ────────────────────────────────────────────────────────────
 
+export interface SuggestedVariable {
+  name: string;
+  description: string;
+  type: string;
+  format?: string;
+  example?: string;
+}
+
 export interface SplitSwaggerResult {
   files: string[];
   stats: { endpoints: number; folders: number; skipped: number };
+  suggestedVariables?: SuggestedVariable[];
 }
 
 export async function splitSwagger(

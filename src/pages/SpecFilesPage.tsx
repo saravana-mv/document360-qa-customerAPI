@@ -52,7 +52,9 @@ import { useScenarioOrgStore } from "../store/scenarioOrg.store";
 import { useAiCostStore } from "../store/aiCost.store";
 import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
 import { NewVersionModal } from "../components/specfiles/NewVersionModal";
-import { splitSwagger } from "../lib/api/specFilesApi";
+import { splitSwagger, type SuggestedVariable } from "../lib/api/specFilesApi";
+import { ImportResultModal } from "../components/specfiles/ImportResultModal";
+import { useProjectVariablesStore } from "../store/projectVariables.store";
 
 import { useSetupStore } from "../store/setup.store";
 import { detectEndpointFromSpec, type DetectedEndpoint } from "../lib/spec/autoDetectEndpoint";
@@ -170,6 +172,13 @@ export function SpecFilesPage() {
     onRetry: (token: string) => void;
   } | null>(null);
   const [syncFolderPath, setSyncFolderPath] = useState<string | null>(null);
+
+  // ── Import result modal state ──────────────────────────────────────────────
+  const [importResult, setImportResult] = useState<{
+    folderName: string;
+    stats: { endpoints: number; folders: number };
+    suggestedVariables: SuggestedVariable[];
+  } | null>(null);
 
   // ── Multi-select state ─────────────────────────────────────────────────────
   const [multiSelectedPaths, setMultiSelectedPaths] = useState<Set<string>>(new Set());
@@ -766,15 +775,26 @@ export function SpecFilesPage() {
         const result = await splitSwagger(folderName);
         await loadFiles();
         setShowNewVersionModal(false);
-        // Show success toast via error banner (green would be better but reuse what we have)
         setError(null);
-        alert(`Created ${folderName} with ${result.stats.endpoints} endpoints in ${result.stats.folders} folders`);
+        // Load project variables so modal can check existing names
+        await useProjectVariablesStore.getState().load();
+        setImportResult({
+          folderName,
+          stats: result.stats,
+          suggestedVariables: result.suggestedVariables ?? [],
+        });
       } else if (specUrl) {
         // Backend fetches URL, saves as _system/_swagger.json, and splits
         const result = await splitSwagger(folderName, { specUrl });
         await loadFiles();
         setShowNewVersionModal(false);
-        alert(`Created ${folderName} with ${result.stats.endpoints} endpoints in ${result.stats.folders} folders`);
+        // Load project variables so modal can check existing names
+        await useProjectVariablesStore.getState().load();
+        setImportResult({
+          folderName,
+          stats: result.stats,
+          suggestedVariables: result.suggestedVariables ?? [],
+        });
       } else {
         // Just create the folder (already done above)
         setShowNewVersionModal(false);
@@ -782,6 +802,23 @@ export function SpecFilesPage() {
     } catch (e) {
       throw e; // Let the modal handle the error display
     }
+  }
+
+  async function handleImportDone(selectedNames: string[]) {
+    const store = useProjectVariablesStore.getState();
+    const existing = store.variables;
+    const existingNames = new Set(existing.map(v => v.name));
+    const newVars = selectedNames
+      .filter(n => !existingNames.has(n))
+      .map(n => ({ name: n, value: "" }));
+    if (newVars.length > 0) {
+      await store.save([...existing, ...newVars]);
+    }
+    setImportResult(null);
+  }
+
+  function handleImportSkip() {
+    setImportResult(null);
   }
 
   async function handleUpload(name: string, fileContent: string, contentType: string) {
@@ -2330,6 +2367,19 @@ export function SpecFilesPage() {
         onClose={() => setShowNewVersionModal(false)}
         onCreate={handleCreateVersion}
       />
+
+      {/* Import result modal */}
+      {importResult && (
+        <ImportResultModal
+          open={true}
+          folderName={importResult.folderName}
+          stats={importResult.stats}
+          suggestedVariables={importResult.suggestedVariables}
+          existingVariableNames={new Set(useProjectVariablesStore.getState().variables.map(v => v.name))}
+          onDone={handleImportDone}
+          onSkip={handleImportSkip}
+        />
+      )}
 
       {/* Upload modal */}
       {uploadFolderPath !== null && (
