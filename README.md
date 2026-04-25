@@ -14,10 +14,10 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 |---------|--------|
 | Frontend | React 19 + Vite 8 + TypeScript 5.9 |
 | Styling | Tailwind CSS v4 (GitHub Primer design language) |
-| State | Zustand (14 stores) |
+| State | Zustand (15 stores) |
 | Routing | React Router v7 (BrowserRouter) |
 | Backend | Azure Functions v4 (Node.js, esbuild bundled) |
-| Database | Azure Cosmos DB (serverless, 12 containers) |
+| Database | Azure Cosmos DB (serverless, 13 containers) |
 | File Storage | Azure Blob Storage (spec files only) |
 | Auth | Entra ID (Azure AD) SSO + generic OAuth/credential proxy |
 | AI | Anthropic Claude API (Sonnet 4.6 default, Opus 4.6, Haiku 4.5) |
@@ -49,10 +49,11 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 - Live execution console with step-grouped log output
 - Clickable run history with past result replay
 
-### Connect Endpoint (Generic API Support)
-- Connect any REST endpoint via cURL paste (auto-detects config) or manual form
-- Supported auth types: Bearer, API Key (header/query), Basic, Cookie, OAuth, None
-- Credentials stored server-side — browser never holds API secrets
+### Connections & Connect Endpoint (Generic API Support)
+- Centralized connection management in Settings → Connections (all auth types)
+- Supported providers: OAuth 2.0, Bearer, API Key (header/query), Basic, Cookie
+- Credentials stored server-side — browser never holds API secrets (`hasCredential` flag only)
+- Simplified Connect Endpoint modal: Base URL, API Version, Connection picker
 - Version accordion shows connection status badge ("Not connected" / endpoint label)
 - Run gating — prompts Connect Endpoint modal if version not connected
 - **OpenAPI auto-detection** — Automatically detects endpoint config from uploaded/imported OpenAPI 3.x / Swagger 2.x specs, shown as pre-fill in Connect modal
@@ -62,8 +63,8 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 - Entra ID SSO (single-tenant) with role-based access
 - Five roles: Owner (Super) > Project Owner > QA Manager > QA Engineer > Member
 - Per-project membership with `ProjectGate` route guard
-- Per-version generic auth via Connections (any supported auth type) — credentials stored server-side
-- Generic proxy (`/api/proxy/*`) injects appropriate auth header/query based on stored credential type and connection
+- Centralized Connections (Settings → Connections) supporting all auth types — credentials stored server-side
+- Generic proxy (`/api/proxy/*`) injects appropriate auth based on connection provider type via `X-FF-Connection-Id` lookup
 
 ### Public API
 - `POST /api/run-scenario` with `X-API-Key` authentication
@@ -193,7 +194,7 @@ Both environments follow the same build steps:
 ├── src/                        # React frontend
 │   ├── pages/                  # ProjectSelectionPage, SpecFilesPage, TestPage, SettingsPage, etc.
 │   ├── components/             # auth/, common/, specfiles/, explorer/, runner/, results/, setup/
-│   ├── store/                  # 14 Zustand stores
+│   ├── store/                  # 15 Zustand stores
 │   ├── lib/
 │   │   ├── api/                # 22 API client modules
 │   │   ├── tests/              # Test execution engine + flow XML system

@@ -17,7 +17,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 ```
 
 1. **Spec Import** — Upload markdown files or import from URLs (with sync-from-source)
-2. **Idea Generation** — Claude analyzes spec context (max 5 files, 50k chars) and proposes test ideas
+2. **Idea Generation** — Claude analyzes spec context (digest for large folders >20 specs, full distilled for small) and proposes test ideas
 3. **Flow Authoring** — Interactive chat or batch generation produces `.flow.xml` files, validated against XSD
 4. **Test Execution** — Activated flows are parsed into TestDef arrays at runtime (no code generation), executed with setup/teardown semantics
 
@@ -32,8 +32,9 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 | Project Selection | `src/pages/ProjectSelectionPage.tsx` | Full-screen tile grid — first screen after login, create project, team/personal visibility |
 | Spec Manager | `src/pages/SpecFilesPage.tsx` | Central hub — spec files, AI workshop (ideas + flows), flow chat panel |
 | Scenario Manager | `src/pages/TestPage.tsx` | Version accordions, folder tree, test runner, run history |
-| Settings | `src/pages/SettingsPage.tsx` | Tabs: General, API Keys (qa_manager+), Variables (qa_manager+), Members (project_owner+), Users (owner), Audit Log (qa_manager+) |
+| Settings | `src/pages/SettingsPage.tsx` | Tabs: General, API Keys (qa_manager+), Variables (qa_manager+), Connections (qa_manager+), Members (project_owner+), Users (owner), Audit Log (qa_manager+) |
 | Variables | `src/pages/ProjectVariablesPage.tsx` | Project-level key/value variables (qa_manager+), `proj.varName` interpolation |
+| Connections | `src/pages/ConnectionsPage.tsx` | Centralized connection management — all auth types with provider badges, OAuth status indicators |
 | Members | `src/pages/MembersPage.tsx` | Per-project member list, add/remove members, role assignment |
 | Audit Log | `src/pages/AuditLogPage.tsx` | Full audit viewer with filters and pagination |
 | Users | `src/pages/UsersPage.tsx` | Team management, role assignment |
@@ -55,6 +56,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 | `project.store` | `projects`, `selectedProject`, `loading` | Project list, selection, CRUD. ProjectPicker in TopBar. |
 | `entraAuth.store` | `tenant`, `clientId`, `redirectUri` | Entra ID configuration. |
 | `projectVariables.store` | `variables`, `loading` | Project-level key/value pairs. Loaded from `/api/project-variables`. Used as `proj.varName` in flow interpolation and `{name}` path parameter resolution. |
+| `connections.store` | `connections`, `authStatus`, `healthChecks`, `loading` | Connection CRUD via `/api/connections`. `fetchAllStatuses()` polls OAuth connections only (token-based don't need status). Health check support. |
 
 ### Component Organization
 
@@ -63,7 +65,8 @@ src/components/
 ├── auth/           # EntraGate (SSO wrapper), ProjectGate (project selection guard), AccessGate (role check), LoginScreen, OAuthCallback
 ├── common/         # Layout, TopBar, SideNav, Modal, ContextMenu, XmlCodeBlock, XmlEditor, ResizeHandle, ProjectPicker
 ├── specfiles/      # FileTree, FlowChatPanel, FlowIdeasPanel, FlowsPanel, DetailPanel, ImportFromUrlModal, FolderRulesPanel
-├── explorer/       # TestExplorer, VersionAccordion, ScenarioFolderTree, TagNode, ConnectEndpointModal, ScenarioEnvOverrideModal
+├── connections/    # ConnectionFormModal (provider-specific fields, ProviderBadge), ConnectionsPage
+├── explorer/       # TestExplorer, VersionAccordion, ScenarioFolderTree, TagNode, ConnectEndpointModal (simplified: Base URL + Connection picker), ScenarioEnvOverrideModal
 ├── runner/         # RunControls, LiveLog, ProgressBar, RunHistory
 ├── results/        # ResultsPanel, DetailPane, SummaryDrawer, DiffModal
 └── setup/          # SetupPanel, ApiKeysCard
@@ -91,6 +94,7 @@ All API calls go through `client.ts` which adds auth headers and rewrites `/vN/`
 | `aiCreditsApi.ts` | `getCredits`, `updateProjectBudget`, `updateUserBudget`, `listUserCredits` |
 | `projectVariablesApi.ts` | `getProjectVariables`, `saveProjectVariables` |
 | `apiRulesApi.ts` | `getApiRules`, `saveApiRules`, `fetchFolderApiRules(folder)`, `saveFolderApiRules(folder, data)` |
+| `connectionsApi.ts` | `listConnections`, `createConnection`, `updateConnection`, `deleteConnection` — `ConnectionProvider` type, `Connection` interface with optional OAuth fields and `hasCredential` |
 
 ### Test Execution Engine (`src/lib/tests/`)
 
@@ -156,6 +160,7 @@ tests/
 | `aiCredits` | `/api/ai-credits` | GET/PUT | Credit status (GET), update project budget (PUT `/project`), update user budget (PUT `/user/{userId}`), list user credits (GET `/users`) — Super Owner only for writes |
 | `projectVariables` | `/api/project-variables` | GET/PUT | Project-level key/value variables stored in `settings` container. GET returns all variables; PUT saves (qa_manager+). Audit action: `project.variables.update`. |
 | `specFilesRules` | `/api/spec-files/rules` | GET/PUT | Version-folder-scoped API rules and enum aliases stored as `_rules.json` blobs. GET/PUT by folder path query param. |
+| `connections` | `/api/connections` | GET/POST/PUT/DELETE | Connection CRUD. Providers: `oauth2`, `bearer`, `apikey_header`, `apikey_query`, `basic`, `cookie`. `sanitize()` strips `clientSecret`/`credential`, returns `hasSecret`/`hasCredential`. Stored in `connections` Cosmos container. |
 | `apiRules` | `/api/api-rules` | GET/PUT | **Deprecated (fallback only)** — Legacy per-project API rules in `settings` container. `loadApiRules` tries blob `_rules.json` first, falls back here. |
 
 ### Shared Libraries (`api/src/lib/`)
@@ -164,7 +169,7 @@ tests/
 |--------|---------|
 | `auth.ts` | `withAuth()` wrapper, `withProjectRole()` per-project access control, `getUserInfo(req)`, `getProjectId(req)`, `lookupProjectMember()`, `isSuperOwner()` — extracts Entra ID claims |
 | `apiKeyAuth.ts` | `validateApiKey()` for public API endpoints |
-| `cosmosClient.ts` | Lazy-init Cosmos client + `ensureContainer()` for all 12 containers |
+| `cosmosClient.ts` | Lazy-init Cosmos client + `ensureContainer()` for all 13 containers |
 | `blobClient.ts` | Azure Blob Storage (upload, download, list, delete, exists) |
 | `browserFetch.ts` | `fetchWithCookieJar()` + browser User-Agent headers for Cloudflare-fronted URLs |
 | `oauthTokenStore.ts` | Azure Table Storage for OAuth tokens (`oauthtokens` table) + `getValidOAuthToken()` with auto-refresh |
@@ -173,6 +178,7 @@ tests/
 | `aiCredits.ts` | `checkCredits()`, `recordUsage()`, `seedProjectCredits()`, `seedUserCredits()`, `updateProjectBudget()`, `updateUserBudget()` — credit enforcement for AI endpoints |
 | `auditLog.ts` | Fire-and-forget `audit()` function, writes to Cosmos `audit-log` container. Actions include `project.member_add`, `project.member_remove`, `project.member_role_change`, `project.variables.update`, `project.apiRules.update`. |
 | `apiRules.ts` | `loadApiRules(projectId, versionFolder?)` fetches API rules — tries blob `_rules.json` first (version-folder scoped), falls back to Cosmos; `injectApiRules(systemPrompt, projectId, versionFolder?)` appends rules to AI system prompts; `extractVersionFolder(paths)` derives version folder from spec file paths. |
+| `specDigest.ts` | Scalable spec context for large projects. Three tiers: Raw → Distilled → Digest (~2-3 lines/endpoint). Builds `_digest.md` blob per version folder (lightweight endpoint index grouped by resource). Threshold: >20 specs use digest. Auto-invalidated on spec file changes. |
 
 ### Server-Side Flow Runner (`api/src/lib/flowRunner/`)
 
@@ -201,6 +207,7 @@ Used by the Public API (`/api/run-scenario`) to execute flows without a browser:
 | `projects` | `/tenantId` | `{ id, tenantId, name, description?, visibility (team/personal), memberCount, createdBy, createdAt, status, ... }` |
 | `project-members` | `/projectId` | `{ id, projectId, userId, role (project_owner/qa_manager/qa_engineer/member), addedBy, addedAt, ... }` |
 | `ai-usage` | `/projectId` | `project_credits`: `{ id, projectId, type, budgetUsd, usedUsd, ... }` / `user_credits`: `{ id, projectId, type, userId, budgetUsd, usedUsd, ... }` |
+| `connections` | `/projectId` | `{ id, projectId, name, provider ("oauth2"\|"bearer"\|"apikey_header"\|"apikey_query"\|"basic"\|"cookie"), credential? (server-only), authHeaderName?, authQueryParam?, clientId?, authUrl?, tokenUrl?, scopes?, hasSecret, hasCredential, ... }` |
 
 ### Blob Storage Layout
 
@@ -212,6 +219,7 @@ spec-files/
 │   │   │   ├── create-article.md
 │   │   │   ├── _sources.json      # Manifest: { "create-article.md": { sourceUrl, importedAt, lastSyncedAt } }
 │   │   │   ├── _rules.json        # Version-folder API rules: { rules, enumAliases } — replaces project-level Cosmos storage
+│   │   │   ├── _digest.md        # Lightweight endpoint index (~2-3 lines/endpoint) for scalable idea generation
 │   │   │   └── _versions/         # Hidden from UI — auto-preserved on sync
 │   │   │       └── create-article.md.2025-02-15T14-30-45-123Z
 │   │   └── categories/
@@ -230,16 +238,18 @@ Browser → SWA /.auth/login/aad → Microsoft login → SWA sets cookie
        → getUserInfo() returns { oid, name, email }
 ```
 
-### API Proxy (Generic Auth Injection)
+### API Proxy (Connection-Based Auth Injection)
 ```
-Browser → ConnectEndpointModal (cURL paste / manual form / auto-detected from OpenAPI spec) → POST /api/version-auth/credential
-       → Credential stored in Azure Table Storage (keyed by OID + version)
-       → Auth types: bearer | apikey_header | apikey_query | basic | cookie | oauth | none
+Settings → Connections → ConnectionFormModal (all auth types) → POST /api/connections
+       → Connection doc stored in Cosmos `connections` container (credential server-only)
+       → Providers: oauth2 | bearer | apikey_header | apikey_query | basic | cookie
+ConnectEndpointModal (simplified) → Base URL + API Version + Connection picker
        → GET /api/proxy/{path} → proxy reads X-FF-Base-Url + X-FF-Connection-Id headers
-       → Reads stored credential → injects appropriate auth
+       → Looks up connection doc from Cosmos (cross-partition query)
+       → Injects auth based on provider: bearer→header, apikey_header→custom header,
+         apikey_query→URL param, basic→header, cookie→header, oauth2→token with auto-refresh
        → Forwards to target API endpoint
-       → OAuth connections use X-FF-Connection-Id to look up token with auto-refresh (oauthTokenStore)
-       → builder.ts sends X-FF-Auth-Type header to tell proxy which injection to use
+       → Legacy per-user credential path (Azure Table Storage) preserved as fallback
 ```
 
 ### Public API Auth

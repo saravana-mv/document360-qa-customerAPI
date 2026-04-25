@@ -15,24 +15,27 @@ FlowForge is a generic AI-assisted API testing platform. It lets QA teams import
 - **Project Selection** (`src/pages/ProjectSelectionPage.tsx`) — Full-screen project tile grid (first screen after login), create project, visibility toggle
 - **Spec Manager** (`src/pages/SpecFilesPage.tsx`) — Spec files, AI ideas, flow XML authoring, interactive flow chat
 - **Scenario Manager** (`src/pages/TestPage.tsx`) — Version-based test tree, runner, run history, breakpoints
-- **Settings** (`src/pages/SettingsPage.tsx`) — General, API Keys, Variables, Members, Users, Audit Log (role-gated tabs)
+- **Settings** (`src/pages/SettingsPage.tsx`) — General, API Keys, Variables, Connections, Members, Users, Audit Log (role-gated tabs)
 
 ### Data Layer
-- **Cosmos DB** (12 containers, all partitioned by `/projectId`): `flows`, `ideas`, `test-runs`, `settings` (`/userId`), `users` (`/tenantId`), `api-keys`, `audit-log`, `flow-chat-sessions`, `projects` (`/tenantId`), `project-members`, `ai-usage`
-- **Blob Storage**: Only `spec-files` container remains (reference docs, `_sources.json` manifests, `_rules.json` per version folder). All blobs scoped under `{projectId}/` prefix for multi-tenant isolation.
+- **Cosmos DB** (13 containers, all partitioned by `/projectId`): `flows`, `ideas`, `test-runs`, `settings` (`/userId`), `users` (`/tenantId`), `api-keys`, `audit-log`, `flow-chat-sessions`, `projects` (`/tenantId`), `project-members`, `ai-usage`, `connections`
+- **Blob Storage**: Only `spec-files` container remains (reference docs, `_sources.json` manifests, `_rules.json` per version folder, `_digest.md` per version folder). All blobs scoped under `{projectId}/` prefix for multi-tenant isolation.
 - **localStorage**: Pure UI state only (tree expansion, panel widths, breakpoints)
 
 ### Key Stores (Zustand)
-`auth.store` (Entra ID session), `setup.store` (project ID, base URL, API version, AI model), `user.store` (role), `project.store` (project list/selection), `flowStatus.store` (flow activation), `runner.store` (test execution), `scenarioOrg.store` (folder tree, versionConfigs, scenarioConfigs, detectedEndpoint), `aiCost.store` (spend tracking), `aiCredits.store` (credit budgets/usage), `breakpoints.store` (step pause/resume), `projectVariables.store` (project-level key/value variables)
+`auth.store` (Entra ID session), `setup.store` (project ID, base URL, API version, AI model), `user.store` (role), `project.store` (project list/selection), `flowStatus.store` (flow activation), `runner.store` (test execution), `scenarioOrg.store` (folder tree, versionConfigs, scenarioConfigs, detectedEndpoint), `aiCost.store` (spend tracking), `aiCredits.store` (credit budgets/usage), `breakpoints.store` (step pause/resume), `projectVariables.store` (project-level key/value variables), `connections.store` (connection CRUD, OAuth status polling, health checks)
 
 ### API Functions (`api/src/functions/`)
-25+ Azure Functions. All wrapped with `withAuth()`. Key routes: `/api/spec-files/*`, `/api/spec-files/rules`, `/api/flow-files`, `/api/flow-chat`, `/api/generate-flow-ideas`, `/api/generate-flow`, `/api/run-scenario`, `/api/proxy/*` (generic API proxy), `/api/active-tests`, `/api/test-runs`, `/api/users`, `/api/api-keys`, `/api/audit-log`, `/api/projects`, `/api/project-members`, `/api/ai-credits`, `/api/project-variables`, `/api/version-auth/credential`, `/api/api-rules`
+25+ Azure Functions. All wrapped with `withAuth()`. Key routes: `/api/spec-files/*`, `/api/spec-files/rules`, `/api/flow-files`, `/api/flow-chat`, `/api/generate-flow-ideas`, `/api/generate-flow`, `/api/run-scenario`, `/api/proxy/*` (generic API proxy), `/api/active-tests`, `/api/test-runs`, `/api/users`, `/api/api-keys`, `/api/audit-log`, `/api/projects`, `/api/project-members`, `/api/ai-credits`, `/api/project-variables`, `/api/version-auth/credential`, `/api/api-rules`, `/api/connections`
 
 ### Auth Flow
 Entra ID SSO → `EntraGate` auto-login → `ProjectGate` redirects to `/projects` if no project selected → `withAuth()` extracts OID/project from claims → `withProjectRole()` enforces per-project membership → credentials in Azure Table Storage → generic proxy at `/api/proxy/*` injects auth based on stored credential type (reads base URL from `X-FF-Base-Url`, connection from `X-FF-Connection-Id`) → browser never holds real API credentials
 
-### Connect Endpoint (Generic Auth)
-Versions are connected to any API endpoint via `ConnectEndpointModal` (cURL paste or manual form). Supported `AuthType` values: `"bearer"` | `"apikey_header"` | `"apikey_query"` | `"basic"` | `"cookie"` | `"oauth"` | `"none"`. Credentials stored server-side via `/api/version-auth/credential`. Generic proxy (`/api/proxy/*`) injects the appropriate auth header/query param based on stored type. `cURL parser` (`src/lib/curlParser.ts`) auto-detects endpoint config from pasted cURL commands.
+### Connections (Generic Auth)
+Connections are managed centrally in Settings → Connections (`ConnectionsPage`, `ConnectionFormModal`). Supported provider types: `"oauth2"` | `"bearer"` | `"apikey_header"` | `"apikey_query"` | `"basic"` | `"cookie"`. Each connection stores its credential server-side (never returned to browser; `sanitize()` strips secrets, returns `hasSecret`/`hasCredential` booleans). Connections are stored in the `connections` Cosmos container. `connections.store.ts` manages CRUD and OAuth status polling (only OAuth connections are polled).
+
+### Connect Endpoint Modal
+`ConnectEndpointModal` (`src/components/explorer/ConnectEndpointModal.tsx`) is simplified to just Base URL, API Version, and a Connection picker dropdown (shows all connection types with status indicators). Label is auto-derived from the selected connection's name. Generic proxy (`/api/proxy/*`) injects auth based on the connection's provider type (looks up connection doc from Cosmos via `X-FF-Connection-Id` header). Legacy per-user credential path (Azure Table Storage) preserved as fallback when no connectionId.
 
 ### OpenAPI Auto-Detection
 `autoDetectEndpoint.ts` (`src/lib/spec/autoDetectEndpoint.ts`) detects endpoint config (base URL, auth type) from uploaded/imported OpenAPI 3.x and Swagger 2.x spec files. When detection succeeds, a blue notification banner appears in Spec Manager with an "Apply" action. Detected config is stored in `scenarioOrg.store.detectedEndpoint` for cross-page access and shown in `ConnectEndpointModal` as a pre-fill option.
@@ -152,7 +155,7 @@ AI endpoints (`generateFlowIdeas`, `generateFlow`, `flowChat`) check project/use
 Shared registry at `api/src/lib/modelPricing.ts`. Default: Sonnet 4.6 ($3/$15 per Mtok). Opus overkill for structured output.
 
 ### Spec Context Optimization
-Max 5 files, 50k chars sent to AI. `filterRelevantSpecs()` on frontend. Reduced cost from ~$0.70 to ~$0.05–0.10 per flow.
+Three tiers of spec context: **Raw** (source) → **Distilled** (~50-100 lines/endpoint, for flow generation, max 5 files/50k chars) → **Digest** (~2-3 lines/endpoint, for idea generation). `_digest.md` blob per version folder is a lightweight endpoint index grouped by resource. Folders with >20 specs (`DIGEST_THRESHOLD`) use digest; <=20 use full distilled specs. Digest auto-invalidated when spec files change, rebuilt on-demand during idea generation. Helper: `api/src/lib/specDigest.ts`. `filterRelevantSpecs()` on frontend for flow generation. Reduced cost from ~$0.70 to ~$0.05-0.10 per flow.
 
 ### No Regeneration Waste
 Never regenerate ideas or flows that already exist. Cache, lock completed items, skip in batch ops.
