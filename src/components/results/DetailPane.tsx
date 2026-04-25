@@ -584,6 +584,11 @@ const categoryLabel: Record<string, string> = {
   other: "Other",
 };
 
+/** Pretty-print a JSON string (or pass through non-JSON text). */
+function prettyJson(s: string): string {
+  try { return JSON.stringify(JSON.parse(s), null, 2); } catch { return s; }
+}
+
 // ── Diagnosis cache — survives tab switches within the same session ──────────
 interface DiagnosisCache {
   diagnosis: DebugDiagnosis;
@@ -901,24 +906,16 @@ function DiagnoseTab({ testId }: { testId: string }) {
         </div>
       )}
 
-      {/* D. Suggested Fix before/after */}
+      {/* D. Suggested Fix diff */}
       {diagnosis.suggestedFix && (
         <div>
           <Label>Suggested Fix</Label>
           <p className="text-sm text-[#1f2328] mb-2">{diagnosis.suggestedFix.description}</p>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <span className="text-xs font-medium text-[#d1242f]">Before</span>
-              <div className="mt-0.5 border border-[#ffcecb] rounded overflow-hidden">
-                <JsonCodeBlock value={diagnosis.suggestedFix.before} height="auto" />
-              </div>
-            </div>
-            <div>
-              <span className="text-xs font-medium text-[#1a7f37]">After</span>
-              <div className="mt-0.5 border border-[#aceebb] rounded overflow-hidden">
-                <JsonCodeBlock value={diagnosis.suggestedFix.after} height="auto" />
-              </div>
-            </div>
+          <div className="border border-[#d1d9e0] rounded-md overflow-hidden max-h-64">
+            <XmlDiffView
+              original={prettyJson(diagnosis.suggestedFix.before)}
+              modified={prettyJson(diagnosis.suggestedFix.after)}
+            />
           </div>
         </div>
       )}
