@@ -80,10 +80,15 @@ export function SetupPanel() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
                 </svg>
               </div>
-              <div>
+              <div className="flex-1">
                 <h3 className="text-base font-semibold text-[#1f2328]">Reset project?</h3>
                 <p className="text-sm text-[#656d76]">This cannot be undone.</p>
               </div>
+              <button onClick={() => setShowResetConfirm(false)} className="p-1 rounded-md text-[#656d76] hover:text-[#1f2328] hover:bg-[#f6f8fa] transition-colors self-start">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
             <p className="text-sm text-[#656d76] mb-5 leading-relaxed">
               All flows, ideas, active tests, and test run history will be permanently deleted.

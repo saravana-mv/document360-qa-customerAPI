@@ -441,8 +441,13 @@ export function GlobalSettingsPage() {
       {showInvite && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowInvite(false)}>
           <div className="bg-white rounded-lg shadow-xl border border-[#d1d9e0] w-[420px] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-[#d1d9e0]">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#d1d9e0]">
               <span className="text-base font-semibold text-[#1f2328]">Invite Super Owner</span>
+              <button onClick={() => setShowInvite(false)} className="p-1 rounded-md text-[#656d76] hover:text-[#1f2328] hover:bg-[#f6f8fa] transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
             <div className="px-4 py-4 space-y-3">
               <p className="text-xs text-[#656d76]">This person will have access to all projects and global settings.</p>
