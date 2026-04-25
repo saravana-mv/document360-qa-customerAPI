@@ -83,10 +83,10 @@ export function buildTree(files: SpecFileItem[]): TreeNode[] {
   return sortLevel(root);
 }
 
-/** Recursively mark _system folders and all their children as isSystem. */
+/** Recursively mark _system and _distilled folders and all their children as isSystem. */
 function markSystemNodes(nodes: TreeNode[]): void {
   for (const node of nodes) {
-    if (node.type === "folder" && node.name === "_system") {
+    if (node.type === "folder" && (node.name === "_system" || node.name === "_distilled")) {
       node.isSystem = true;
       markAllChildren(node.children);
     } else if (node.type === "folder") {
