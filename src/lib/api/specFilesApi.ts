@@ -169,11 +169,26 @@ export interface SuggestedConnection {
   authQueryParam?: string;
 }
 
+export interface ProcessingReport {
+  distillation: {
+    total: number;
+    distilled: number;
+    unchanged: number;
+    errors: number;
+    errorDetails: Array<{ file: string; error: string }>;
+  };
+  digest: {
+    built: boolean;
+    error?: string;
+  };
+}
+
 export interface SplitSwaggerResult {
   files: string[];
   stats: { endpoints: number; folders: number; skipped: number };
   suggestedVariables?: SuggestedVariable[];
   suggestedConnections?: SuggestedConnection[];
+  processing?: ProcessingReport;
 }
 
 export async function splitSwagger(

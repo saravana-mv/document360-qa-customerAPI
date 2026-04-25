@@ -2,7 +2,8 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import { downloadBlob, uploadBlob } from "../lib/blobClient";
 import { withAuth, getUserInfo, getProjectId } from "../lib/auth";
 import { audit } from "../lib/auditLog";
-import { distillAndStore } from "../lib/specDistillCache";
+import { distillAndStoreWithResult } from "../lib/specDistillCache";
+import { rebuildDigest } from "../lib/specDigest";
 import { splitSwagger } from "../lib/swaggerSplitter";
 import { browserFetch } from "../lib/browserFetch";
 
@@ -39,11 +40,37 @@ async function batchUpload(
   }
 }
 
-/** Fire-and-forget distillation for all uploaded files. */
-function distillAll(items: Array<{ blobPath: string; content: string }>): void {
-  for (const { blobPath, content } of items) {
-    distillAndStore(blobPath, content).catch(() => {});
+interface DistillResult {
+  file: string;
+  status: "distilled" | "unchanged" | "error";
+  error?: string;
+}
+
+/** Awaited batch distillation that collects per-file results. */
+async function batchDistillAll(
+  items: Array<{ blobPath: string; content: string }>,
+  batchSize: number,
+): Promise<DistillResult[]> {
+  const results: DistillResult[] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResults = await Promise.all(
+      batch.map(async ({ blobPath, content }): Promise<DistillResult> => {
+        try {
+          const status = await distillAndStoreWithResult(blobPath, content);
+          return { file: blobPath, status };
+        } catch (e) {
+          return {
+            file: blobPath,
+            status: "error",
+            error: e instanceof Error ? e.message : String(e),
+          };
+        }
+      }),
+    );
+    results.push(...batchResults);
   }
+  return results;
 }
 
 /**
@@ -151,8 +178,22 @@ async function splitSwaggerHandler(req: HttpRequest, _ctx: InvocationContext): P
     // Upload in batches of 10
     await batchUpload(uploads, 10);
 
-    // Fire-and-forget distillation
-    distillAll(uploads);
+    // Awaited distillation with per-file results
+    const distillResults = await batchDistillAll(uploads, 10);
+    const distilled = distillResults.filter(r => r.status === "distilled").length;
+    const unchanged = distillResults.filter(r => r.status === "unchanged").length;
+    const distillErrors = distillResults.filter(r => r.status === "error");
+
+    // Eagerly build digest index
+    let digestBuilt = false;
+    let digestError: string | undefined;
+    try {
+      await rebuildDigest(projectId, folderPath);
+      digestBuilt = true;
+    } catch (e) {
+      digestError = e instanceof Error ? e.message : String(e);
+      console.warn("[split-swagger] digest rebuild failed:", e);
+    }
 
     // Audit log
     const user = getUserInfo(req);
@@ -171,6 +212,19 @@ async function splitSwaggerHandler(req: HttpRequest, _ctx: InvocationContext): P
       },
       suggestedVariables: result.suggestedVariables,
       suggestedConnections: result.suggestedConnections,
+      processing: {
+        distillation: {
+          total: distillResults.length,
+          distilled,
+          unchanged,
+          errors: distillErrors.length,
+          errorDetails: distillErrors.map(r => ({ file: r.file, error: r.error ?? "Unknown error" })),
+        },
+        digest: {
+          built: digestBuilt,
+          ...(digestError ? { error: digestError } : {}),
+        },
+      },
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

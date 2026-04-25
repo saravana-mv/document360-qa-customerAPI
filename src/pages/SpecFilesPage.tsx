@@ -52,7 +52,7 @@ import { useScenarioOrgStore } from "../store/scenarioOrg.store";
 import { useAiCostStore } from "../store/aiCost.store";
 import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
 import { NewVersionModal } from "../components/specfiles/NewVersionModal";
-import { splitSwagger, type SuggestedVariable, type SuggestedConnection } from "../lib/api/specFilesApi";
+import { splitSwagger, type SuggestedVariable, type SuggestedConnection, type ProcessingReport } from "../lib/api/specFilesApi";
 import { ImportResultModal } from "../components/specfiles/ImportResultModal";
 import { useProjectVariablesStore } from "../store/projectVariables.store";
 import { useConnectionsStore } from "../store/connections.store";
@@ -180,6 +180,7 @@ export function SpecFilesPage() {
     stats: { endpoints: number; folders: number };
     suggestedVariables: SuggestedVariable[];
     suggestedConnections: SuggestedConnection[];
+    processing?: ProcessingReport;
   } | null>(null);
 
   // ── Multi-select state ─────────────────────────────────────────────────────
@@ -788,6 +789,7 @@ export function SpecFilesPage() {
           stats: result.stats,
           suggestedVariables: result.suggestedVariables ?? [],
           suggestedConnections: result.suggestedConnections ?? [],
+          processing: result.processing,
         });
       } else if (specUrl) {
         // Backend fetches URL, saves as _system/_swagger.json, and splits
@@ -804,6 +806,7 @@ export function SpecFilesPage() {
           stats: result.stats,
           suggestedVariables: result.suggestedVariables ?? [],
           suggestedConnections: result.suggestedConnections ?? [],
+          processing: result.processing,
         });
       } else {
         // Just create the folder (already done above)
@@ -2399,6 +2402,7 @@ export function SpecFilesPage() {
           open={true}
           folderName={importResult.folderName}
           stats={importResult.stats}
+          processing={importResult.processing}
           suggestedVariables={importResult.suggestedVariables}
           existingVariableNames={new Set(useProjectVariablesStore.getState().variables.map(v => v.name))}
           suggestedConnections={importResult.suggestedConnections}

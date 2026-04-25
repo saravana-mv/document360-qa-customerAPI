@@ -112,6 +112,34 @@ export async function renameDistilled(oldBlobPath: string, newBlobPath: string):
   invalidateDigest(oldBlobPath).catch(() => {});
 }
 
+/**
+ * Distill and store, returning the outcome instead of swallowing errors.
+ * Returns "distilled" if the companion blob was created, "unchanged" if
+ * the file had no OpenAPI JSON blocks, or throws on failure.
+ */
+export async function distillAndStoreWithResult(
+  blobPath: string,
+  rawContent: string,
+): Promise<"distilled" | "unchanged"> {
+  if (!blobPath.endsWith(".md")) return "unchanged";
+  if (blobPath.includes("/_distilled/")) return "unchanged";
+  if (blobPath.includes("/_versions/")) return "unchanged";
+  if (blobPath.includes("/_sources.json")) return "unchanged";
+
+  const filename = blobPath.split("/").pop() ?? blobPath;
+  const wrapped = `## ${filename}\n\n${rawContent}`;
+  const distilled = distillSpecContext(wrapped);
+
+  if (distilled !== wrapped) {
+    const companionPath = distilledPath(blobPath);
+    const versioned = `<!-- distill-v${DISTILL_VERSION} -->\n${distilled}`;
+    await uploadBlob(companionPath, versioned, "text/markdown");
+    invalidateDigest(blobPath).catch(() => {});
+    return "distilled";
+  }
+  return "unchanged";
+}
+
 // ── Reader ────────────────────────────────────────────────────────────
 
 /**

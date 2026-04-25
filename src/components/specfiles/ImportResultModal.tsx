@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { Modal } from "../common/Modal";
-import type { SuggestedVariable, SuggestedConnection } from "../../lib/api/specFilesApi";
+import type { SuggestedVariable, SuggestedConnection, ProcessingReport } from "../../lib/api/specFilesApi";
 
 const PROVIDER_LABELS: Record<string, string> = {
   oauth2: "OAuth 2.0",
@@ -15,6 +15,7 @@ interface ImportResultModalProps {
   open: boolean;
   folderName: string;
   stats: { endpoints: number; folders: number };
+  processing?: ProcessingReport;
   suggestedVariables: SuggestedVariable[];
   existingVariableNames: Set<string>;
   suggestedConnections: SuggestedConnection[];
@@ -27,6 +28,7 @@ export function ImportResultModal({
   open,
   folderName,
   stats,
+  processing,
   suggestedVariables,
   existingVariableNames,
   suggestedConnections,
@@ -132,6 +134,68 @@ export function ImportResultModal({
           Created <strong>{folderName}</strong> with {stats.endpoints} endpoint{stats.endpoints !== 1 ? "s" : ""} in {stats.folders} folder{stats.folders !== 1 ? "s" : ""}
         </span>
       </div>
+
+      {/* Processing health */}
+      {processing && (() => {
+        const { distillation, digest } = processing;
+        const hasErrors = distillation.errors > 0;
+        const hasWarnings = !hasErrors && (distillation.unchanged > 0 || !digest.built);
+        const allGreen = !hasErrors && !hasWarnings;
+
+        if (allGreen) {
+          return (
+            <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-md" style={{ backgroundColor: "#dafbe1" }}>
+              <svg className="w-4 h-4 shrink-0" style={{ color: "#1a7f37" }} viewBox="0 0 16 16" fill="currentColor">
+                <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
+              </svg>
+              <span className="text-xs text-[#1f2328]">
+                All {distillation.distilled} endpoint{distillation.distilled !== 1 ? "s" : ""} processed. Digest index built.
+              </span>
+            </div>
+          );
+        }
+
+        if (hasWarnings) {
+          return (
+            <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-md" style={{ backgroundColor: "#fff8c5" }}>
+              <svg className="w-4 h-4 shrink-0" style={{ color: "#9a6700" }} viewBox="0 0 16 16" fill="currentColor">
+                <path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575ZM8 5a.75.75 0 0 0-.75.75v2.5a.75.75 0 0 0 1.5 0v-2.5A.75.75 0 0 0 8 5Zm1 6a1 1 0 1 0-2 0 1 1 0 0 0 2 0Z" />
+              </svg>
+              <span className="text-xs text-[#1f2328]">
+                {distillation.distilled} of {distillation.total} file{distillation.total !== 1 ? "s" : ""} distilled.{" "}
+                {!digest.built ? "Digest will build on first use." : "Digest index built."}
+              </span>
+            </div>
+          );
+        }
+
+        // Errors
+        return (
+          <div className="mb-4 rounded-md" style={{ backgroundColor: "#ffebe9" }}>
+            <div className="flex items-center gap-2 px-3 py-2">
+              <svg className="w-4 h-4 shrink-0" style={{ color: "#d1242f" }} viewBox="0 0 16 16" fill="currentColor">
+                <path d="M2.343 13.657A8 8 0 1 1 13.66 2.343 8 8 0 0 1 2.343 13.657ZM6.03 4.97a.751.751 0 0 0-1.042.018.751.751 0 0 0-.018 1.042L6.94 8 4.97 9.97a.749.749 0 0 0 .326 1.275.749.749 0 0 0 .734-.215L8 9.06l1.97 1.97a.749.749 0 0 0 1.275-.326.749.749 0 0 0-.215-.734L9.06 8l1.97-1.97a.749.749 0 0 0-.326-1.275.749.749 0 0 0-.734.215L8 6.94Z" />
+              </svg>
+              <span className="text-xs text-[#1f2328]">
+                {distillation.distilled} of {distillation.total} distilled. {distillation.errors} file{distillation.errors !== 1 ? "s" : ""} failed.
+                {!digest.built ? " Digest will build on first use." : ""}
+              </span>
+            </div>
+            {distillation.errorDetails.length > 0 && (
+              <details className="px-3 pb-2">
+                <summary className="text-xs text-[#656d76] cursor-pointer hover:text-[#1f2328]">Show errors</summary>
+                <ul className="mt-1 space-y-0.5">
+                  {distillation.errorDetails.map((d, i) => (
+                    <li key={i} className="text-xs text-[#656d76] font-mono truncate">
+                      {d.file.split("/").pop()}: {d.error}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Connections section */}
       {hasConnections && (
