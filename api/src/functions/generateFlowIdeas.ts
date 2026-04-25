@@ -2,6 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import Anthropic from "@anthropic-ai/sdk";
 import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { readDistilledContent } from "../lib/specDistillCache";
+import { readDigest, rebuildDigest } from "../lib/specDigest";
 import { DEFAULT_IDEAS_MODEL, resolveModel, priceFor, computeCost } from "../lib/modelPricing";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { checkCredits, recordUsage } from "../lib/aiCredits";
@@ -24,6 +25,8 @@ const CHARS_PER_TOKEN = 3.5;  // conservative estimate
 const MAX_OUTPUT_TOKENS = 4096;
 const DEFAULT_BUDGET_USD = 1.0;
 const MAX_FILES = 50;
+/** Folders with more than this many specs use the lightweight digest */
+const DIGEST_THRESHOLD = 20;
 
 const MAX_IDEAS_PER_RUN = 10;
 
@@ -160,6 +163,7 @@ export async function generateFlowIdeasHandler(
   // ── Resolve spec files based on context (explicit paths, single file, or folder) ──
   let specContents: { name: string; content: string }[];
   let filesAnalyzed = 0;
+  let useDigest = false;
 
   if (hasExplicitFiles) {
     // Explicit file paths — read exactly those files (multi-select context)
@@ -199,7 +203,7 @@ export async function generateFlowIdeasHandler(
       return err(500, `Failed to list blobs: ${e instanceof Error ? e.message : String(e)}`);
     }
 
-    const mdBlobs = allBlobs.filter((b) => b.name.endsWith(".md") && !b.name.endsWith("/.keep") && !b.name.includes("/_distilled/"));
+    const mdBlobs = allBlobs.filter((b) => b.name.endsWith(".md") && !b.name.endsWith("/.keep") && !b.name.includes("/_distilled/") && !b.name.endsWith("/_digest.md"));
 
     if (mdBlobs.length === 0) {
       return ok({
@@ -218,20 +222,32 @@ export async function generateFlowIdeasHandler(
 
     filesAnalyzed = mdBlobs.length;
 
-    if (mdBlobs.length > MAX_FILES) {
-      return err(422, `Folder contains ${mdBlobs.length} .md files (max ${MAX_FILES}). Use a subfolder or reduce file count.`);
-    }
-
-    try {
-      const projPrefix = projectId !== "unknown" ? projectId + "/" : "";
-      specContents = await Promise.all(
-        mdBlobs.map(async (b) => ({
-          name: projPrefix && b.name.startsWith(projPrefix) ? b.name.slice(projPrefix.length) : b.name,
-          content: await readDistilledContent(b.name),
-        }))
-      );
-    } catch (e) {
-      return err(500, `Failed to read spec files: ${e instanceof Error ? e.message : String(e)}`);
+    if (mdBlobs.length > DIGEST_THRESHOLD) {
+      // Large folder — use lightweight digest instead of reading every file
+      useDigest = true;
+      let digest = await readDigest(projectId, contextPath);
+      if (!digest) {
+        // Build digest on-demand (first time or stale)
+        try {
+          digest = await rebuildDigest(projectId, contextPath);
+        } catch (e) {
+          return err(500, `Failed to build spec digest: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      specContents = [{ name: "API Endpoint Digest", content: digest }];
+    } else {
+      // Small folder — read full distilled specs (existing behavior)
+      try {
+        const projPrefix = projectId !== "unknown" ? projectId + "/" : "";
+        specContents = await Promise.all(
+          mdBlobs.map(async (b) => ({
+            name: projPrefix && b.name.startsWith(projPrefix) ? b.name.slice(projPrefix.length) : b.name,
+            content: await readDistilledContent(b.name),
+          }))
+        );
+      } catch (e) {
+        return err(500, `Failed to read spec files: ${e instanceof Error ? e.message : String(e)}`);
+      }
     }
   }
 
@@ -337,6 +353,7 @@ export async function generateFlowIdeasHandler(
     costUsd,
     filesAnalyzed,
     totalSpecCharacters: specText.length,
+    usedDigest: useDigest,
   };
 
   // ── Parse response ──
