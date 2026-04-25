@@ -13,7 +13,7 @@ FlowForge is a generic AI-assisted API testing platform. It lets QA teams import
 
 ### Pages
 - **Project Selection** (`src/pages/ProjectSelectionPage.tsx`) — Full-screen project tile grid (first screen after login), create project, visibility toggle
-- **Spec Manager** (`src/pages/SpecFilesPage.tsx`) — Spec files, AI ideas, flow XML authoring, interactive flow chat
+- **Spec Manager** (`src/pages/SpecFilesPage.tsx`) — Spec files, AI ideas, flow XML authoring, interactive flow chat. `ImportResultModal` after OpenAPI import shows stats + auto-detected path parameters (as project variable suggestions) and security schemes (as draft connection suggestions).
 - **Scenario Manager** (`src/pages/TestPage.tsx`) — Version-based test tree, runner, run history, breakpoints
 - **Settings** (`src/pages/SettingsPage.tsx`) — General, API Keys, Variables, Connections, Members, Users, Audit Log (role-gated tabs)
 
@@ -32,7 +32,7 @@ FlowForge is a generic AI-assisted API testing platform. It lets QA teams import
 Entra ID SSO → `EntraGate` auto-login → `ProjectGate` redirects to `/projects` if no project selected → `withAuth()` extracts OID/project from claims → `withProjectRole()` enforces per-project membership → credentials in Azure Table Storage → generic proxy at `/api/proxy/*` injects auth based on stored credential type (reads base URL from `X-FF-Base-Url`, connection from `X-FF-Connection-Id`) → browser never holds real API credentials
 
 ### Connections (Generic Auth)
-Connections are managed centrally in Settings → Connections (`ConnectionsPage`, `ConnectionFormModal`). Supported provider types: `"oauth2"` | `"bearer"` | `"apikey_header"` | `"apikey_query"` | `"basic"` | `"cookie"`. Each connection stores its credential server-side (never returned to browser; `sanitize()` strips secrets, returns `hasSecret`/`hasCredential` booleans). Connections are stored in the `connections` Cosmos container. `connections.store.ts` manages CRUD and OAuth status polling (only OAuth connections are polled).
+Connections are managed centrally in Settings → Connections (`ConnectionsPage`, `ConnectionFormModal`). Supported provider types: `"oauth2"` | `"bearer"` | `"apikey_header"` | `"apikey_query"` | `"basic"` | `"cookie"`. Each connection stores its credential server-side (never returned to browser; `sanitize()` strips secrets, returns `hasSecret`/`hasCredential` booleans). Connections are stored in the `connections` Cosmos container. `connections.store.ts` manages CRUD and OAuth status polling (only OAuth connections are polled). **Draft connections**: Auto-detected connections from OpenAPI security schemes are created with `draft: true`, which skips credential validation (credentials must be filled in later via Settings → Connections).
 
 ### Connect Endpoint Modal
 `ConnectEndpointModal` (`src/components/explorer/ConnectEndpointModal.tsx`) is simplified to just Base URL, API Version, and a Connection picker dropdown (shows all connection types with status indicators). Label is auto-derived from the selected connection's name. Generic proxy (`/api/proxy/*`) injects auth based on the connection's provider type (looks up connection doc from Cosmos via `X-FF-Connection-Id` header). Legacy per-user credential path (Azure Table Storage) preserved as fallback when no connectionId.
@@ -74,6 +74,9 @@ No generic Tailwind colors (`text-blue-600`, `bg-purple-100`). Always use exact 
 - Tree icons: Greyscale only, `w-4 h-4`
 - Context menus: "..." ellipsis trigger, grey icons, GitHub dropdown. No inline action icons.
 - Toggle buttons (select/expand all): Icon buttons with title tooltips, not text links
+
+### Modals
+- Every modal and confirmation dialog **must have an X close button** in the header. No modal should be dismissable only via Cancel/action buttons.
 
 ### React State
 - **Never seed `useState` from module-level constants** — always call loader inside initializer: `useState(() => loadFromStorage())`
@@ -140,6 +143,9 @@ Never call `loadFlowsFromQueue` in a loop after parallel saves. Batch all saves,
 
 ### Enum Aliases
 Some APIs return enum fields as integers at runtime (spec uses strings). `enumAliases.ts` + bidirectional `jsonEqual` handles name↔ordinal. Aliases are configurable per version folder via API Rules (`_system/_rules.json` in blob storage). Both browser and server runners load aliases from version folder context at startup via `setEnumAliases(raw)` which parses `name=value` format.
+
+### Spec Distillation Backtick Format
+Distilled spec markdown uses 4-backtick fenced blocks (````json) as the canonical format. `specRequiredFields.ts` regex accepts both 3 and 4 backticks for backward compatibility. If the distillation output looks wrong, check `DISTILL_VERSION` in `specDistillCache.ts` — bumping it forces re-distillation of all cached specs.
 
 ### Debugging 500s
 For Azure Functions 500 with empty body: enable **Application Insights first** before theorizing. It reveals runtime exceptions invisible to browser.
