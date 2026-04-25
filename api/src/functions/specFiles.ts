@@ -46,8 +46,8 @@ async function listFiles(req: HttpRequest, _ctx: InvocationContext): Promise<Htt
       ? (userPrefix ? `${projectId}/${userPrefix}` : `${projectId}/`)
       : userPrefix;
     const allBlobs = await listBlobs(blobPrefix);
-    // Filter out internal blobs (_distilled/ companions)
-    const blobs = allBlobs.filter(b => !b.name.includes("/_distilled/"));
+    // Filter out internal blobs (_distilled/ companions, _digest.md)
+    const blobs = allBlobs.filter(b => !b.name.includes("/_distilled/") && !b.name.endsWith("/_digest.md"));
     // Strip project prefix from names so frontend sees clean paths
     if (projectId !== "unknown") {
       const prefix = projectId + "/";
