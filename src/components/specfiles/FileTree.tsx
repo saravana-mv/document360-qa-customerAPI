@@ -582,13 +582,14 @@ interface FileTreeProps {
   onSyncFolder: (folderPath: string) => void;
   onGenerateFlowIdeas: (path: string, count: number) => void;
   onRefresh: () => void;
+  onNewVersion: () => void;
 }
 
 export function FileTree({
   files, loading, selectedPath, selectedFolderPath, pathsWithIdeas, sourcedPaths, syncingPaths,
   multiSelectedPaths, onSelectFile, onSelectFolder, onMultiSelect, onSelectAll, onClearMultiSelect, onBulkDelete,
   onCreateFolder, onDeleteFile, onDeleteFolder, onRenameFile,
-  onUploadFiles, onImportFromUrl, onSyncFile, onSyncFolder, onGenerateFlowIdeas, onRefresh,
+  onUploadFiles, onImportFromUrl, onSyncFile, onSyncFolder, onGenerateFlowIdeas, onRefresh, onNewVersion,
 }: FileTreeProps) {
   const tree = buildTree(files);
 
@@ -674,10 +675,6 @@ export function FileTree({
       if (next.has(path)) next.delete(path); else next.add(path);
       return next;
     });
-  }
-
-  function startRootFolder() {
-    setCreatingUnder("__root__");
   }
 
   function startSubfolder(parentPath: string) {
@@ -913,7 +910,7 @@ export function FileTree({
               </svg>
             </button>
             <button
-              onClick={startRootFolder}
+              onClick={onNewVersion}
               title="New API Version"
               className="flex items-center gap-1 text-[11px] text-[#656d76] hover:text-[#1f2328] hover:bg-[#eef1f6] rounded-md px-1.5 py-1 transition-colors"
             >
@@ -957,20 +954,6 @@ export function FileTree({
           <div className="text-center py-8 px-4 space-y-1">
             <p className="text-[#656d76]">No files yet.</p>
             <p className="text-[#656d76]">Use <strong>New API Version</strong> to get started.</p>
-          </div>
-        )}
-
-        {/* Root-level inline folder create */}
-        {creatingUnder === "__root__" && (
-          <div className="flex items-center gap-1 py-0.5 pr-1 mx-1 pl-1">
-            <span className="w-3 shrink-0" />
-            <svg className="w-4 h-4 shrink-0 text-[#656d76]" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
-            </svg>
-            <InlineInput
-              onCommit={(name) => void handleCreateCommit("__root__", name)}
-              onCancel={() => setCreatingUnder(null)}
-            />
           </div>
         )}
 

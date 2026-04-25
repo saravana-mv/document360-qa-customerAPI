@@ -50,6 +50,8 @@ import { useFlowStatusStore } from "../store/flowStatus.store";
 import { useScenarioOrgStore } from "../store/scenarioOrg.store";
 import { useAiCostStore } from "../store/aiCost.store";
 import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
+import { NewVersionModal } from "../components/specfiles/NewVersionModal";
+import { splitSwagger } from "../lib/api/specFilesApi";
 
 import { useSetupStore } from "../store/setup.store";
 import { detectEndpointFromSpec, type DetectedEndpoint } from "../lib/spec/autoDetectEndpoint";
@@ -150,6 +152,7 @@ export function SpecFilesPage() {
   const [error, setError] = useState<string | null>(null);
   const [uploadFolderPath, setUploadFolderPath] = useState<string | null>(null);
   const [importUrlFolderPath, setImportUrlFolderPath] = useState<string | null>(null);
+  const [showNewVersionModal, setShowNewVersionModal] = useState(false);
   const [sourcesManifest, setSourcesManifest] = useState<Record<string, SourceEntry>>({});
   const sourcedPaths = useMemo(() => new Set(Object.keys(sourcesManifest)), [sourcesManifest]);
 
@@ -745,6 +748,37 @@ export function SpecFilesPage() {
       await loadFiles();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function handleCreateVersion(folderName: string, specContent?: string, specUrl?: string) {
+    setError(null);
+    try {
+      // Create the folder with .keep + Skills.md (same as handleCreateFolder for root)
+      await handleCreateFolder(folderName);
+
+      if (specContent) {
+        // Upload spec as _swagger.json
+        await uploadSpecFile(`${folderName}/_swagger.json`, specContent, "application/json");
+        // Split into per-endpoint .md files
+        const result = await splitSwagger(folderName);
+        await loadFiles();
+        setShowNewVersionModal(false);
+        // Show success toast via error banner (green would be better but reuse what we have)
+        setError(null);
+        alert(`Created ${folderName} with ${result.stats.endpoints} endpoints in ${result.stats.folders} folders`);
+      } else if (specUrl) {
+        // Backend fetches URL, saves as _swagger.json, and splits
+        const result = await splitSwagger(folderName, { specUrl });
+        await loadFiles();
+        setShowNewVersionModal(false);
+        alert(`Created ${folderName} with ${result.stats.endpoints} endpoints in ${result.stats.folders} folders`);
+      } else {
+        // Just create the folder (already done above)
+        setShowNewVersionModal(false);
+      }
+    } catch (e) {
+      throw e; // Let the modal handle the error display
     }
   }
 
@@ -1908,6 +1942,7 @@ export function SpecFilesPage() {
             onSyncFolder={(folderPath) => void handleSyncFolder(folderPath)}
             onGenerateFlowIdeas={(path, count) => void handleGenerateFlowIdeas(path, count)}
             onRefresh={loadFiles}
+            onNewVersion={() => setShowNewVersionModal(true)}
           />
         </aside>
         <ResizeHandle width={treeWidth} onResize={setTreeWidth} minWidth={160} maxWidth={400} />
@@ -2266,6 +2301,13 @@ export function SpecFilesPage() {
           )}
         </div>
       </div>
+
+      {/* New Version modal */}
+      <NewVersionModal
+        open={showNewVersionModal}
+        onClose={() => setShowNewVersionModal(false)}
+        onCreate={handleCreateVersion}
+      />
 
       {/* Upload modal */}
       {uploadFolderPath !== null && (

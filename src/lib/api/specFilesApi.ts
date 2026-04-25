@@ -146,6 +146,29 @@ export async function listSkillsVersions(name: string): Promise<SkillsVersion[]>
   return res.json() as Promise<SkillsVersion[]>;
 }
 
+// ── Swagger Split ────────────────────────────────────────────────────────────
+
+export interface SplitSwaggerResult {
+  files: string[];
+  stats: { endpoints: number; folders: number; skipped: number };
+}
+
+export async function splitSwagger(
+  folderPath: string,
+  options?: { specUrl?: string; overwrite?: boolean },
+): Promise<SplitSwaggerResult> {
+  const res = await apiFetch("/api/spec-files/split-swagger", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      folderPath,
+      ...(options?.specUrl ? { specUrl: options.specUrl } : {}),
+      ...(options?.overwrite ? { overwrite: options.overwrite } : {}),
+    }),
+  });
+  return res.json() as Promise<SplitSwaggerResult>;
+}
+
 // ── Flow Ideas (AI) ───────────────────────────────────────────────────────────
 
 export interface FlowIdea {
