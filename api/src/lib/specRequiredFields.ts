@@ -79,8 +79,8 @@ function extractFieldType(fieldDef: Record<string, unknown>, schemas: Record<str
  * the massive JSON with structured, readable summaries.
  */
 export function distillSpecContext(specContext: string): string {
-  // Match the OpenAPI JSON blocks:  ````json METHOD /path\n{...}````
-  const jsonBlockRe = /````json\s+(\w+)\s+(\S+)\n([\s\S]*?)````/g;
+  // Match the OpenAPI JSON blocks:  ```json or ````json METHOD /path\n{...}``` or ````
+  const jsonBlockRe = /`{3,4}json\s+(\w+)\s+(\S+)\n([\s\S]*?)`{3,4}/g;
 
   // First pass: collect all distilled endpoints
   const endpoints: EndpointSummary[] = [];

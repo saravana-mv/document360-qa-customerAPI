@@ -321,7 +321,7 @@ export function buildEndpointMarkdown(
   const jsonBlock = JSON.stringify(miniSpec, null, 2);
   const nameWithoutExt = filename.replace(/\.md$/, "");
 
-  return `## ${nameWithoutExt}.md\n\n\`\`\`json ${method.toUpperCase()} ${path}\n${jsonBlock}\n\`\`\`\n`;
+  return `## ${nameWithoutExt}.md\n\n\`\`\`\`json ${method.toUpperCase()} ${path}\n${jsonBlock}\n\`\`\`\`\n`;
 }
 
 // ── Swagger 2.x → 3.x normalization ─────────────────────────────────────────
