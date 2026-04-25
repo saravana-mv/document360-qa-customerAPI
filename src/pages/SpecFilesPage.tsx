@@ -2170,12 +2170,6 @@ export function SpecFilesPage() {
                   <div className="flex-1 flex flex-col overflow-hidden">
                     <div className="flex items-center gap-2 px-4 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
                       <span className="text-sm font-medium text-[#1f2328]">{selectedPath!.split("/").pop()}</span>
-                      <div className="flex-1" />
-                      <button onClick={() => setViewingContent(false)} className="text-[#656d76] hover:text-[#1f2328] rounded p-1 hover:bg-[#eef1f6] transition-colors">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                        </svg>
-                      </button>
                     </div>
                     <div className="flex-1 overflow-auto">
                       <JsonCodeBlock value={(() => { try { return JSON.parse(content); } catch { return content; } })()} height="100%" />
@@ -2187,7 +2181,7 @@ export function SpecFilesPage() {
                 loadingContent ? (
                   <div className="flex-1 flex items-center justify-center text-[#656d76] text-sm">Loading…</div>
                 ) : (
-                  <MarkdownViewer path={selectedPath!} content={content} onClose={() => setViewingContent(false)} />
+                  <MarkdownViewer path={selectedPath!} content={content} onClose={selectedPath?.includes("/_system/") ? undefined : () => setViewingContent(false)} />
                 )
               ) : showWorkshop ? (
                 /* Workshop layout — full-width Ideas panel when no ideas, 3-column when ideas exist */
