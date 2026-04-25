@@ -3,6 +3,7 @@ import { runAssertions } from "./assertions";
 import { useRunnerStore } from "../../store/runner.store";
 import { isBreakpointSet } from "../../store/breakpoints.store";
 import { saveTestRun } from "../api/testRunsApi";
+import { useFlowStatusStore } from "../../store/flowStatus.store";
 import { fetchFolderApiRules, fetchApiRules } from "../api/apiRulesApi";
 import { getSpecFileContent } from "../api/specFilesApi";
 import { setEnumAliases, parseEnumAliasesFromMarkdown } from "./flowXml/enumAliases";
@@ -227,6 +228,14 @@ export async function runTests(options: RunOptions): Promise<void> {
 
   // Persist run to Cosmos DB (fire-and-forget — don't block UI)
   const finalState = getStore();
+
+  // Collect scenarioId mappings for server-side diagnosis lookups
+  const flowStatus = useFlowStatusStore.getState().byName;
+  const scenarioIds: Record<string, string> = {};
+  for (const [fileName, entry] of Object.entries(flowStatus)) {
+    if (entry.scenarioId) scenarioIds[fileName] = entry.scenarioId;
+  }
+
   saveTestRun({
     id: `run:${crypto.randomUUID()}`,
     startedAt: new Date(startedAt).toISOString(),
@@ -235,6 +244,7 @@ export async function runTests(options: RunOptions): Promise<void> {
     tagResults: { ...finalState.tagResults },
     testResults: { ...finalState.testResults },
     log: finalState.log.slice(0, 500),
+    scenarioIds,
   }).catch((e) => console.warn("[runner] Failed to save test run:", e));
 
   options.onComplete?.();

@@ -6,6 +6,9 @@ import type { ModelId } from "../lib/modelPricing";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { checkCredits, recordUsage } from "../lib/aiCredits";
 import { readDistilledContent } from "../lib/specDistillCache";
+import { resolveScenario, ScenarioNotFoundError } from "../lib/flowRunner/scenarioResolver";
+import { parseFlowXml } from "../lib/flowRunner/parser";
+import { getTestRunsContainer } from "../lib/cosmosClient";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -66,9 +69,108 @@ interface StepData {
 }
 
 interface DebugAnalyzeBody {
-  step: StepData;
+  step?: StepData;
   flowXml?: string;
   model?: string;
+  // Minimal mode — backend resolves everything from Cosmos
+  scenarioId?: string;
+  stepNumber?: number;
+}
+
+/** Slugify a flow name into a stable ID prefix (same logic as builder.ts). */
+function slug(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "flow";
+}
+
+/**
+ * Find step result data from the most recent test run for a given flow.
+ * Checks both browser (testResults) and API (steps) run formats.
+ */
+async function findStepResult(
+  projectId: string,
+  flowName: string,
+  stepNumber: number,
+): Promise<{ stepData: StepData; flowXml?: string } | null> {
+  const container = await getTestRunsContainer();
+  const flowSlug = slug(flowName);
+  const testIdKey = `xml:${flowSlug}.s${stepNumber}`;
+
+  const { resources: runs } = await container.items
+    .query<{
+      testResults?: Record<string, {
+        status: string;
+        httpStatus?: number;
+        failureReason?: string;
+        requestUrl?: string;
+        requestBody?: unknown;
+        responseBody?: unknown;
+        assertionResults?: Array<{ id?: string; description: string; passed: boolean }>;
+      }>;
+      steps?: Array<{
+        number: number;
+        name: string;
+        status: string;
+        httpStatus?: number;
+        durationMs: number;
+        failureReason?: string;
+        assertionResults: Array<{ id?: string; description: string; passed: boolean }>;
+        requestUrl?: string;
+        requestBody?: unknown;
+        responseBody?: unknown;
+      }>;
+    }>({
+      query:
+        "SELECT c.testResults, c.steps FROM c WHERE c.type='test_run' AND c.projectId=@pid ORDER BY c.startedAt DESC OFFSET 0 LIMIT 5",
+      parameters: [{ name: "@pid", value: projectId }],
+    }, { partitionKey: projectId })
+    .fetchAll();
+
+  for (const run of runs) {
+    // Browser run format: testResults keyed by testId
+    if (run.testResults?.[testIdKey]) {
+      const r = run.testResults[testIdKey];
+      return {
+        stepData: {
+          name: testIdKey,
+          method: "", // will be filled by caller from parsed flow
+          path: "",
+          requestUrl: r.requestUrl,
+          requestBody: r.requestBody,
+          responseBody: r.responseBody,
+          httpStatus: r.httpStatus,
+          failureReason: r.failureReason,
+          assertionResults: r.assertionResults?.map((a) => ({
+            description: a.description,
+            passed: a.passed,
+          })),
+        },
+      };
+    }
+    // API run format: steps array indexed by number
+    if (run.steps) {
+      const s = run.steps.find((st) => st.number === stepNumber);
+      if (s) {
+        return {
+          stepData: {
+            name: s.name,
+            method: "",
+            path: "",
+            requestUrl: s.requestUrl,
+            requestBody: s.requestBody,
+            responseBody: s.responseBody,
+            httpStatus: s.httpStatus,
+            failureReason: s.failureReason,
+            assertionResults: s.assertionResults?.map((a) => ({
+              description: a.description,
+              passed: a.passed,
+            })),
+          },
+        };
+      }
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -147,14 +249,6 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
     };
   }
 
-  if (!body.step || !body.step.method || !body.step.path) {
-    return {
-      status: 400,
-      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-      body: JSON.stringify({ error: "step with method and path is required" }),
-    };
-  }
-
   let projectId: string;
   try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
 
@@ -181,8 +275,80 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
     }
   }
 
+  // ── Minimal mode: scenarioId + stepNumber → resolve everything server-side ──
+  let step: StepData;
+  let flowXml: string | undefined;
   const model = resolveModel(body.model, DEFAULT_DEBUG_MODEL);
-  const { step, flowXml } = body;
+
+  if (body.scenarioId && typeof body.stepNumber === "number") {
+    if (projectId === "unknown") {
+      return {
+        status: 400,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        body: JSON.stringify({ error: "projectId is required for minimal mode" }),
+      };
+    }
+
+    // 1. Resolve flow XML from Cosmos
+    let xml: string;
+    try {
+      const resolved = await resolveScenario(body.scenarioId, projectId);
+      xml = resolved.xml;
+      flowXml = xml;
+    } catch (e) {
+      if (e instanceof ScenarioNotFoundError) {
+        return {
+          status: 404,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          body: JSON.stringify({ error: e.message }),
+        };
+      }
+      throw e;
+    }
+
+    // 2. Parse flow XML to extract step metadata
+    const parsed = parseFlowXml(xml);
+    const parsedStep = parsed.steps[body.stepNumber - 1];
+    if (!parsedStep) {
+      return {
+        status: 400,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          error: `Step ${body.stepNumber} not found (flow has ${parsed.steps.length} steps)`,
+        }),
+      };
+    }
+
+    // 3. Find latest test run with step results
+    const found = await findStepResult(projectId, parsed.name, body.stepNumber);
+    if (!found) {
+      return {
+        status: 404,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          error: "No test run found for this scenario. Run it first, then diagnose.",
+        }),
+      };
+    }
+
+    // 4. Assemble step data — merge parsed flow metadata with run results
+    step = {
+      ...found.stepData,
+      name: parsedStep.name,
+      method: parsedStep.method,
+      path: parsedStep.path,
+    };
+  } else if (body.step && body.step.method && body.step.path) {
+    // ── Full payload mode (existing behavior) ──
+    step = body.step;
+    flowXml = body.flowXml;
+  } else {
+    return {
+      status: 400,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      body: JSON.stringify({ error: "Either scenarioId+stepNumber or step with method and path is required" }),
+    };
+  }
 
   // Try to find matching spec
   const specContent = await findMatchingSpec(projectId, step.method, step.path);

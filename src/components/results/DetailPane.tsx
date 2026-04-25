@@ -18,7 +18,7 @@ import { loadFlowsFromQueue } from "../../lib/tests/flowXml/loader";
 import { activateFlow } from "../../lib/tests/flowXml/activeTests";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import type { TestStatus } from "../../types/test.types";
-import { analyzeFailure } from "../../lib/api/debugApi";
+import { analyzeFailure, analyzeFailureByScenario } from "../../lib/api/debugApi";
 import type { DebugDiagnosis } from "../../lib/api/debugApi";
 import { getSpecFileContent, uploadSpecFile } from "../../lib/api/specFilesApi";
 
@@ -695,27 +695,40 @@ function DiagnoseTab({ testId }: { testId: string }) {
       return;
     }
 
-    // Optionally load flow XML for fix suggestions
-    let flowXml: string | undefined;
     try {
-      if (testDef.flowFileName) flowXml = await getFlowFileContent(testDef.flowFileName);
-    } catch { /* ok without it */ }
+      // Try minimal mode: extract stepNumber from testId and look up scenarioId
+      const stepMatch = testId.match(/\.s(\d+)$/);
+      const stepNumber = stepMatch ? parseInt(stepMatch[1], 10) : null;
+      const scenarioId = testDef.flowFileName
+        ? useFlowStatusStore.getState().byName[testDef.flowFileName]?.scenarioId
+        : undefined;
 
-    try {
-      const res = await analyzeFailure({
-        step: {
-          name: testDef.name,
-          method: testDef.method,
-          path: testDef.path,
-          requestUrl: result?.requestUrl,
-          requestBody: result?.requestBody,
-          responseBody: result?.responseBody,
-          httpStatus: result?.httpStatus,
-          failureReason: result?.failureReason,
-          assertionResults: result?.assertionResults?.map((a) => ({ description: a.description, passed: a.passed })),
-        },
-        flowXml,
-      });
+      let res;
+      if (scenarioId && stepNumber) {
+        // Minimal mode — backend pulls everything from Cosmos
+        res = await analyzeFailureByScenario({ scenarioId, stepNumber });
+      } else {
+        // Fallback — full payload mode
+        let flowXml: string | undefined;
+        try {
+          if (testDef.flowFileName) flowXml = await getFlowFileContent(testDef.flowFileName);
+        } catch { /* ok without it */ }
+
+        res = await analyzeFailure({
+          step: {
+            name: testDef.name,
+            method: testDef.method,
+            path: testDef.path,
+            requestUrl: result?.requestUrl,
+            requestBody: result?.requestBody,
+            responseBody: result?.responseBody,
+            httpStatus: result?.httpStatus,
+            failureReason: result?.failureReason,
+            assertionResults: result?.assertionResults?.map((a) => ({ description: a.description, passed: a.passed })),
+          },
+          flowXml,
+        });
+      }
 
       setDiagnosis(res.diagnosis);
       setCostUsd(res.usage.costUsd);

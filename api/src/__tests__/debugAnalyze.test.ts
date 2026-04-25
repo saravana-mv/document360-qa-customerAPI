@@ -30,6 +30,48 @@ jest.mock("../lib/aiCredits", () => ({
   recordUsage: jest.fn().mockResolvedValue(undefined),
 }));
 
+const SAMPLE_FLOW_XML = `<?xml version="1.0" encoding="UTF-8"?>
+<flow xmlns="https://flowforge.io/qa/flow/v1">
+  <name>Test Flow</name>
+  <entity>Test</entity>
+  <steps>
+    <step number="1">
+      <name>GET items</name>
+      <method>GET</method>
+      <path>/v3/items</path>
+    </step>
+    <step number="2">
+      <name>POST item</name>
+      <method>POST</method>
+      <path>/v3/items</path>
+    </step>
+  </steps>
+</flow>`;
+
+const mockResolveScenario = jest.fn();
+jest.mock("../lib/flowRunner/scenarioResolver", () => ({
+  resolveScenario: (...args: unknown[]) => mockResolveScenario(...args),
+  ScenarioNotFoundError: class extends Error {
+    constructor(id: string) { super(`Scenario not found: ${id}`); this.name = "ScenarioNotFoundError"; }
+  },
+}));
+
+jest.mock("../lib/flowRunner/parser", () => {
+  const actual = jest.requireActual("../lib/flowRunner/parser");
+  return actual;
+});
+
+const mockTestRunsQuery = jest.fn();
+jest.mock("../lib/cosmosClient", () => ({
+  getTestRunsContainer: jest.fn().mockResolvedValue({
+    items: {
+      query: () => ({
+        fetchAll: () => mockTestRunsQuery(),
+      }),
+    },
+  }),
+}));
+
 jest.mock("@anthropic-ai/sdk", () => {
   return jest.fn().mockImplementation(() => ({
     messages: {
@@ -92,11 +134,11 @@ describe("POST /api/debug-analyze", () => {
     process.env = originalEnv;
   });
 
-  test("returns 400 when step data is missing", async () => {
+  test("returns 400 when neither scenarioId nor step is provided", async () => {
     const res = await debugAnalyze(mockRequest("POST", {}) as any, ctx);
     expect(res.status).toBe(400);
     const parsed = JSON.parse(res.body as string);
-    expect(parsed.error).toMatch(/step.*required/i);
+    expect(parsed.error).toMatch(/scenarioId.*stepNumber|step.*method.*path/i);
   });
 
   test("returns 400 when step has no method", async () => {
@@ -136,6 +178,14 @@ describe("POST /api/debug-analyze", () => {
     expect(parsed.usage.costUsd).toBeGreaterThan(0);
   });
 
+  test("returns 400 when step has no path", async () => {
+    const res = await debugAnalyze(
+      mockRequest("POST", { step: { name: "test", method: "GET" } }) as any,
+      ctx,
+    );
+    expect(res.status).toBe(400);
+  });
+
   test("strips markdown code fences from AI response", async () => {
     const Anthropic = require("@anthropic-ai/sdk");
     const fencedJson = "```json\n" + JSON.stringify({
@@ -169,5 +219,124 @@ describe("POST /api/debug-analyze", () => {
     expect(parsed.diagnosis.summary).toBe("Extra field detected");
     expect(parsed.diagnosis.canYouFixIt).toBe(true);
     expect(parsed.diagnosis.category).toBe("extra_field");
+  });
+});
+
+describe("POST /api/debug-analyze — minimal mode", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv, ANTHROPIC_API_KEY: "test-key" };
+    mockResolveScenario.mockReset();
+    mockTestRunsQuery.mockReset();
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  test("returns 200 with diagnosis when scenarioId + stepNumber provided", async () => {
+    mockResolveScenario.mockResolvedValue({
+      xml: SAMPLE_FLOW_XML,
+      fileName: "V3/test-flow.flow.xml",
+      projectId: "test-project",
+    });
+    mockTestRunsQuery.mockResolvedValue({
+      resources: [{
+        testResults: {
+          "xml:test-flow.s1": {
+            status: "fail",
+            httpStatus: 500,
+            failureReason: "Expected 200, got 500",
+            requestBody: { bad: "field" },
+            responseBody: { error: "Server Error" },
+            assertionResults: [{ description: "Status 200", passed: false }],
+          },
+        },
+      }],
+    });
+
+    const res = await debugAnalyze(
+      mockRequest("POST", {
+        scenarioId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        stepNumber: 1,
+      }) as any,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const parsed = JSON.parse(res.body as string);
+    expect(parsed.diagnosis).toBeDefined();
+    expect(parsed.usage).toBeDefined();
+  });
+
+  test("returns 404 when scenario not found", async () => {
+    const { ScenarioNotFoundError } = require("../lib/flowRunner/scenarioResolver");
+    mockResolveScenario.mockRejectedValue(new ScenarioNotFoundError("bad-id"));
+
+    const res = await debugAnalyze(
+      mockRequest("POST", {
+        scenarioId: "bad-id",
+        stepNumber: 1,
+      }) as any,
+      ctx,
+    );
+    expect(res.status).toBe(404);
+    const parsed = JSON.parse(res.body as string);
+    expect(parsed.error).toMatch(/scenario not found/i);
+  });
+
+  test("returns 400 when step out of range", async () => {
+    mockResolveScenario.mockResolvedValue({
+      xml: SAMPLE_FLOW_XML,
+      fileName: "V3/test-flow.flow.xml",
+      projectId: "test-project",
+    });
+
+    const res = await debugAnalyze(
+      mockRequest("POST", {
+        scenarioId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        stepNumber: 99,
+      }) as any,
+      ctx,
+    );
+    expect(res.status).toBe(400);
+    const parsed = JSON.parse(res.body as string);
+    expect(parsed.error).toMatch(/step 99 not found/i);
+  });
+
+  test("returns 404 when no test run found", async () => {
+    mockResolveScenario.mockResolvedValue({
+      xml: SAMPLE_FLOW_XML,
+      fileName: "V3/test-flow.flow.xml",
+      projectId: "test-project",
+    });
+    mockTestRunsQuery.mockResolvedValue({ resources: [] });
+
+    const res = await debugAnalyze(
+      mockRequest("POST", {
+        scenarioId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        stepNumber: 1,
+      }) as any,
+      ctx,
+    );
+    expect(res.status).toBe(404);
+    const parsed = JSON.parse(res.body as string);
+    expect(parsed.error).toMatch(/no test run found/i);
+  });
+
+  test("falls through to full-payload mode when scenarioId absent", async () => {
+    const res = await debugAnalyze(
+      mockRequest("POST", {
+        step: {
+          name: "PATCH test",
+          method: "PATCH",
+          path: "/v3/test",
+        },
+      }) as any,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    // resolveScenario should NOT have been called
+    expect(mockResolveScenario).not.toHaveBeenCalled();
   });
 });

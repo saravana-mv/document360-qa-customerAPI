@@ -55,6 +55,32 @@ export interface DebugAnalyzeRequest {
   model?: string;
 }
 
+export interface DebugAnalyzeMinimalRequest {
+  scenarioId: string;
+  stepNumber: number;
+  model?: string;
+}
+
+export async function analyzeFailureByScenario(
+  request: DebugAnalyzeMinimalRequest,
+): Promise<DebugAnalyzeResult> {
+  const projectHeaders = tryGetProjectHeaders();
+  const res = await fetch("/api/debug-analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...projectHeaders },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) {
+    let msg = res.statusText;
+    try {
+      const body = await res.clone().json() as { error?: string };
+      if (body.error) msg = body.error;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  return res.json() as Promise<DebugAnalyzeResult>;
+}
+
 export async function analyzeFailure(request: DebugAnalyzeRequest): Promise<DebugAnalyzeResult> {
   const projectHeaders = tryGetProjectHeaders();
   const res = await fetch("/api/debug-analyze", {

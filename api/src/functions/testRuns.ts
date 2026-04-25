@@ -29,11 +29,12 @@ async function saveRun(req: HttpRequest): Promise<HttpResponseInit> {
       tagResults: unknown;
       testResults: unknown;
       log: unknown[];
+      scenarioIds?: Record<string, string>;
     };
     if (!body.id) return err(400, "id is required");
 
     const container = await getTestRunsContainer();
-    const doc = {
+    const doc: Record<string, unknown> = {
       id: body.id,
       projectId,
       type: "test_run",
@@ -45,6 +46,9 @@ async function saveRun(req: HttpRequest): Promise<HttpResponseInit> {
       testResults: body.testResults,
       log: Array.isArray(body.log) ? body.log.slice(0, 500) : [], // cap at 500
     };
+    if (body.scenarioIds && Object.keys(body.scenarioIds).length > 0) {
+      doc.scenarioIds = body.scenarioIds;
+    }
 
     await container.items.upsert(doc);
     return ok({ saved: true, id: body.id });

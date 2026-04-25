@@ -69,6 +69,7 @@ export async function saveTestRun(run: {
   tagResults: Record<string, TagResult>;
   testResults: Record<string, TestResult>;
   log: LogEntry[];
+  scenarioIds?: Record<string, string>;
 }): Promise<void> {
   await apiFetch("/api/test-runs", {
     method: "POST",
