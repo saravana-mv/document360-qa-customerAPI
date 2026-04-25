@@ -735,7 +735,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
         setFixState("error");
         return;
       }
-      await saveFlowFile(fileName, edited.xml);
+      await saveFlowFile(fileName, edited.xml, true);
       await activateFlow(fileName);
       await loadFlowsFromQueue();
       buildParsedTagsFromRegistry();
