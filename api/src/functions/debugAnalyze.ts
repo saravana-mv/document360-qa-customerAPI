@@ -233,7 +233,10 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
     });
 
     const textBlock = response.content.find((b) => b.type === "text");
-    const rawText = textBlock && textBlock.type === "text" ? textBlock.text : "{}";
+    let rawText = textBlock && textBlock.type === "text" ? textBlock.text : "{}";
+
+    // Strip markdown code fences that models sometimes add despite instructions
+    rawText = rawText.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
 
     let diagnosis: Record<string, unknown>;
     try {

@@ -135,4 +135,39 @@ describe("POST /api/debug-analyze", () => {
     expect(parsed.usage).toBeDefined();
     expect(parsed.usage.costUsd).toBeGreaterThan(0);
   });
+
+  test("strips markdown code fences from AI response", async () => {
+    const Anthropic = require("@anthropic-ai/sdk");
+    const fencedJson = "```json\n" + JSON.stringify({
+      summary: "Extra field detected",
+      whatWentWrong: "Extra field in request",
+      category: "extra_field",
+      canYouFixIt: true,
+      howToFix: "Remove the field",
+      fixPrompt: "Remove project_version_id",
+      developerNote: "Field not in schema",
+      confidence: "high",
+    }) + "\n```";
+
+    // Override the shared mock's create method for this test
+    const mockCreate = jest.fn().mockResolvedValue({
+      content: [{ type: "text", text: fencedJson }],
+      usage: { input_tokens: 300, output_tokens: 150 },
+    });
+    Anthropic.mockImplementationOnce(() => ({
+      messages: { create: mockCreate },
+    }));
+
+    const res = await debugAnalyze(
+      mockRequest("POST", {
+        step: { name: "test", method: "PATCH", path: "/v3/categories/settings" },
+      }) as any,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const parsed = JSON.parse(res.body as string);
+    expect(parsed.diagnosis.summary).toBe("Extra field detected");
+    expect(parsed.diagnosis.canYouFixIt).toBe(true);
+    expect(parsed.diagnosis.category).toBe("extra_field");
+  });
 });
