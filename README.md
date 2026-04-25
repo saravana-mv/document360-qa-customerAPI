@@ -49,7 +49,7 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 - Per-step breakpoint debugging (pause/resume)
 - Live execution console with step-grouped log output
 - Clickable run history with past result replay
-- **AI step debugging** — Analyze failed/errored steps with Claude Haiku, cross-referencing request/response against OpenAPI specs for inline diagnosis with structured output (summary, root cause, fix guidance) and **"Fix it automatically"** button that applies AI-suggested XML fixes, validates, saves, and reactivates the flow. Successful fixes auto-save lessons to `Skills.md` per version folder — these are automatically injected into all AI prompts so the same mistakes are not repeated.
+- **AI step debugging** — Analyze failed/errored steps with Claude Haiku, cross-referencing request/response against OpenAPI specs for inline diagnosis with structured output (summary, root cause, fix guidance) and **"Fix it automatically"** button that applies AI-suggested XML fixes, validates, saves, and reactivates the flow. Successful fixes auto-save lessons to `_system/_skills.md` per version folder — these are automatically injected into all AI prompts so the same mistakes are not repeated.
 
 ### Connections & Connect Endpoint (Generic API Support)
 - Centralized connection management in Settings → Connections (all auth types)
@@ -81,7 +81,8 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 - Multi-project support with full-screen Project Selection page (tile grid, create, team/personal visibility)
 - Per-project membership management via Settings > Members tab (add/remove members, assign roles)
 - Project-level variables (`proj.varName`) — shared key/value pairs interpolated at runtime in both browser and server runners; also used to resolve `{any_name}` path parameters in flow XML (e.g., `{project_id}` maps to `proj.project_id`)
-- **API Rules (version-folder scoped)** — per-version-folder configurable rules and enum aliases (stored as `_rules.json` in blob storage), injected into AI prompts; enum aliases loaded at runtime by both browser and server runners; inline editor in Spec Manager on top-level version folders
+- **API Rules (version-folder scoped)** — per-version-folder configurable rules and enum aliases (stored as `_system/_rules.json` in blob storage), injected into AI prompts; enum aliases loaded at runtime by both browser and server runners; inline editor in Spec Manager on top-level version folders
+- **System files** — Each version folder has a `_system/` subfolder for internal files (`_rules.json`, `_skills.md`, `_digest.md`, `_swagger.json`), rendered with lock icon and muted styling in the file tree (read-only, no drag-drop)
 - Project reset (owner only — wipes flows, ideas, runs)
 
 ### Deployment Intelligence

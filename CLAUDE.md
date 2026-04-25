@@ -19,7 +19,7 @@ FlowForge is a generic AI-assisted API testing platform. It lets QA teams import
 
 ### Data Layer
 - **Cosmos DB** (13 containers, all partitioned by `/projectId`): `flows`, `ideas`, `test-runs`, `settings` (`/userId`), `users` (`/tenantId`), `api-keys`, `audit-log`, `flow-chat-sessions`, `projects` (`/tenantId`), `project-members`, `ai-usage`, `connections`
-- **Blob Storage**: Only `spec-files` container remains (reference docs, `_sources.json` manifests, `_rules.json` per version folder, `_digest.md` per version folder, `_swagger.json` original spec per version folder). All blobs scoped under `{projectId}/` prefix for multi-tenant isolation.
+- **Blob Storage**: Only `spec-files` container remains (reference docs, `_sources.json` manifests). Each version folder has a `_system/` subfolder containing internal files: `_rules.json` (API rules + enum aliases), `_skills.md` (diagnostic lessons), `_digest.md` (spec digest), `_swagger.json` (original spec). The `_system` folder and its children are marked `isSystem` in the file tree (rendered first, lock icon, muted text, no context menu, no drag-drop). System `.json` files open in a read-only CodeMirror JSON viewer. All blobs scoped under `{projectId}/` prefix for multi-tenant isolation.
 - **localStorage**: Pure UI state only (tree expansion, panel widths, breakpoints)
 
 ### Key Stores (Zustand)
@@ -102,10 +102,10 @@ No generic Tailwind colors (`text-blue-600`, `bg-purple-100`). Always use exact 
 Three authoritative sources must stay in sync: `FLOW_SYSTEM_PROMPT` in `generateFlow.ts`, `flow.xsd`, `parser.ts`. Common AI mistakes: wrong element names (`<assert>` vs `<assertion>`), wrong attributes (`value` vs `code` on status), steps not in `<steps>` wrapper. Flow XML namespace: `https://flowforge.io/qa/flow/v1`.
 
 ### API Rules (Version-Folder Scoped)
-Per-version-folder configurable rules injected into all AI system prompts (flow generation, editing, ideas, chat). Stored as `_rules.json` blobs in `spec-files` container under the version folder path. Managed via `FolderRulesPanel` in Spec Manager (inline editor on top-level version folders). Includes free-text rules and enum alias definitions. Settings → General shows a deprecation notice for the old project-level API Rules card. Helper: `api/src/lib/apiRules.ts` (`loadApiRules(projectId, versionFolder?)` — tries blob first, falls back to Cosmos; `injectApiRules`; `extractVersionFolder`). AI functions extract version folder from spec file paths.
+Per-version-folder configurable rules injected into all AI system prompts (flow generation, editing, ideas, chat). Stored as `_system/_rules.json` blobs in `spec-files` container under the version folder path. Managed via `FolderRulesPanel` in Spec Manager (inline editor on top-level version folders). Includes free-text rules and enum alias definitions. Settings → General shows a deprecation notice for the old project-level API Rules card. Helper: `api/src/lib/apiRules.ts` (`loadApiRules(projectId, versionFolder?)` — tries `_system/` path first, falls back to legacy paths then Cosmos; `injectApiRules`; `extractVersionFolder`). AI functions extract version folder from spec file paths.
 
 ### Diagnostic Lessons (Auto-Learned Skills)
-When the Diagnose tab's "Fix it" succeeds, a lesson is auto-appended to `{versionFolder}/Skills.md` in blob storage under a `## Lessons Learned` section. Each lesson records the endpoint, category, problematic fields, fix description, and date. Deduplication prevents the same endpoint+field combination from being recorded twice. `loadApiRules()` automatically picks up `Skills.md` content alongside `_rules.json`, so lessons are injected into all AI prompts (flow generation, ideas, chat, edit) without any extra wiring.
+When the Diagnose tab's "Fix it" succeeds, a lesson is auto-appended to `{versionFolder}/_system/_skills.md` in blob storage under a `## Lessons Learned` section. Each lesson records the endpoint, category, problematic fields, fix description, and date. Deduplication prevents the same endpoint+field combination from being recorded twice. `loadApiRules()` automatically picks up `_system/_skills.md` content (with legacy `Skills.md` fallback) alongside `_rules.json`, so lessons are injected into all AI prompts (flow generation, ideas, chat, edit) without any extra wiring.
 
 ### API Version
 `apiVersion` in settings rewrites ALL `/vN/` request paths at runtime. No hardcoded version segments anywhere.
@@ -139,7 +139,7 @@ Must wait for `useFlowStatusStore` to finish loading before building `parsedTags
 Never call `loadFlowsFromQueue` in a loop after parallel saves. Batch all saves, activate all, then load once.
 
 ### Enum Aliases
-Some APIs return enum fields as integers at runtime (spec uses strings). `enumAliases.ts` + bidirectional `jsonEqual` handles name↔ordinal. Aliases are configurable per version folder via API Rules (`_rules.json` in blob storage). Both browser and server runners load aliases from version folder context at startup via `setEnumAliases(raw)` which parses `name=value` format.
+Some APIs return enum fields as integers at runtime (spec uses strings). `enumAliases.ts` + bidirectional `jsonEqual` handles name↔ordinal. Aliases are configurable per version folder via API Rules (`_system/_rules.json` in blob storage). Both browser and server runners load aliases from version folder context at startup via `setEnumAliases(raw)` which parses `name=value` format.
 
 ### Debugging 500s
 For Azure Functions 500 with empty body: enable **Application Insights first** before theorizing. It reveals runtime exceptions invisible to browser.

@@ -64,7 +64,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 src/components/
 ├── auth/           # EntraGate (SSO wrapper), ProjectGate (project selection guard), AccessGate (role check), LoginScreen, OAuthCallback
 ├── common/         # Layout, TopBar, SideNav, Modal, ContextMenu, XmlCodeBlock, XmlEditor, ResizeHandle, ProjectPicker
-├── specfiles/      # FileTree, FlowChatPanel, FlowIdeasPanel, FlowsPanel, DetailPanel, ImportFromUrlModal, FolderRulesPanel, NewVersionModal
+├── specfiles/      # FileTree (with _system folder support: isSystem flag, lock icon, read-only), FlowChatPanel, FlowIdeasPanel, FlowsPanel, DetailPanel, ImportFromUrlModal, FolderRulesPanel, NewVersionModal
 ├── connections/    # ConnectionFormModal (provider-specific fields, ProviderBadge), ConnectionsPage
 ├── explorer/       # TestExplorer, VersionAccordion, ScenarioFolderTree, TagNode, ConnectEndpointModal (simplified: Base URL + Connection picker), ScenarioEnvOverrideModal
 ├── runner/         # RunControls, LiveLog, ProgressBar, RunHistory
@@ -112,7 +112,7 @@ tests/
     ├── loader.ts       # Load flows from Cosmos active queue
     ├── validate.ts     # XSD schema validation
     ├── activeTests.ts  # Cosmos activation/deactivation
-    ├── enumAliases.ts  # Bidirectional enum name ↔ ordinal mapping (configurable per version folder via _rules.json)
+    ├── enumAliases.ts  # Bidirectional enum name ↔ ordinal mapping (configurable per version folder via _system/_rules.json)
     └── types.ts        # FlowElement, FlowStep, FlowAssertion, etc.
 ```
 
@@ -161,8 +161,8 @@ tests/
 | `resetProject` | `/api/reset-project` | POST | Owner-only project wipe |
 | `aiCredits` | `/api/ai-credits` | GET/PUT | Credit status (GET), update project budget (PUT `/project`), update user budget (PUT `/user/{userId}`), list user credits (GET `/users`) — Super Owner only for writes |
 | `projectVariables` | `/api/project-variables` | GET/PUT | Project-level key/value variables stored in `settings` container. GET returns all variables; PUT saves (qa_manager+). Audit action: `project.variables.update`. |
-| `specFilesRules` | `/api/spec-files/rules` | GET/PUT | Version-folder-scoped API rules and enum aliases stored as `_rules.json` blobs. GET/PUT by folder path query param. |
-| `specFilesSplitSwagger` | `/api/spec-files/split-swagger` | POST | Split OpenAPI 3.x / Swagger 2.x JSON spec into per-endpoint .md files by tag. Reads `_swagger.json` from blob or fetches from URL, resolves $refs, creates tag-based folders, uploads through `distillAndStore` pipeline. |
+| `specFilesRules` | `/api/spec-files/rules` | GET/PUT | Version-folder-scoped API rules and enum aliases stored as `_system/_rules.json` blobs (legacy `_rules.json` fallback on read). GET/PUT by folder path query param. |
+| `specFilesSplitSwagger` | `/api/spec-files/split-swagger` | POST | Split OpenAPI 3.x / Swagger 2.x JSON spec into per-endpoint .md files by tag. Stores original spec at `_system/_swagger.json` (with legacy fallback read). Resolves $refs, creates tag-based folders, uploads through `distillAndStore` pipeline. |
 | `connections` | `/api/connections` | GET/POST/PUT/DELETE | Connection CRUD. Providers: `oauth2`, `bearer`, `apikey_header`, `apikey_query`, `basic`, `cookie`. `sanitize()` strips `clientSecret`/`credential`, returns `hasSecret`/`hasCredential`. Stored in `connections` Cosmos container. |
 | `apiRules` | `/api/api-rules` | GET/PUT | **Deprecated (fallback only)** — Legacy per-project API rules in `settings` container. `loadApiRules` tries blob `_rules.json` first, falls back here. |
 
@@ -180,8 +180,8 @@ tests/
 | `modelPricing.ts` | `resolveModel()`, `computeCost()`, pricing for Opus/Sonnet/Haiku |
 | `aiCredits.ts` | `checkCredits()`, `recordUsage()`, `seedProjectCredits()`, `seedUserCredits()`, `updateProjectBudget()`, `updateUserBudget()` — credit enforcement for AI endpoints |
 | `auditLog.ts` | Fire-and-forget `audit()` function, writes to Cosmos `audit-log` container. Actions include `project.member_add`, `project.member_remove`, `project.member_role_change`, `project.variables.update`, `project.apiRules.update`. |
-| `apiRules.ts` | `loadApiRules(projectId, versionFolder?)` fetches API rules — tries blob `_rules.json` first (version-folder scoped), falls back to Cosmos; also loads `Skills.md` (diagnostic lessons auto-saved on successful "Fix it") and merges into rules context. `injectApiRules(systemPrompt, projectId, versionFolder?)` appends rules + lessons to AI system prompts; `extractVersionFolder(paths)` derives version folder from spec file paths. |
-| `specDigest.ts` | Scalable spec context for large projects. Three tiers: Raw → Distilled → Digest (~2-3 lines/endpoint). Builds `_digest.md` blob per version folder (lightweight endpoint index grouped by resource). Threshold: >20 specs use digest. Auto-invalidated on spec file changes. |
+| `apiRules.ts` | `loadApiRules(projectId, versionFolder?)` fetches API rules — tries `_system/_rules.json` first, falls back to legacy `_rules.json` then Cosmos; also loads `_system/_skills.md` (with legacy `Skills.md` fallback) and merges into rules context. `injectApiRules(systemPrompt, projectId, versionFolder?)` appends rules + lessons to AI system prompts; `extractVersionFolder(paths)` derives version folder from spec file paths. |
+| `specDigest.ts` | Scalable spec context for large projects. Three tiers: Raw → Distilled → Digest (~2-3 lines/endpoint). Builds `_system/_digest.md` blob per version folder (lightweight endpoint index grouped by resource). Filters out `_system/` files from digest builds. Threshold: >20 specs use digest. Auto-invalidated on spec file changes. |
 | `swaggerSplitter.ts` | Core OpenAPI/Swagger splitting logic: recursive $ref resolution (with circular detection), tag-to-folder kebab-case naming, method-to-filename with collision handling, Swagger 2.x→3.x normalization, per-endpoint markdown builder. |
 
 ### Server-Side Flow Runner (`api/src/lib/flowRunner/`)
@@ -222,10 +222,11 @@ spec-files/
 │   │   ├── articles/
 │   │   │   ├── create-article.md
 │   │   │   ├── _sources.json      # Manifest: { "create-article.md": { sourceUrl, importedAt, lastSyncedAt } }
-│   │   │   ├── _rules.json        # Version-folder API rules: { rules, enumAliases } — replaces project-level Cosmos storage
-│   │   │   ├── Skills.md         # Auto-saved diagnostic lessons (from successful "Fix it" in Diagnose tab) — picked up by loadApiRules() and injected into AI prompts
-│   │   │   ├── _digest.md        # Lightweight endpoint index (~2-3 lines/endpoint) for scalable idea generation
-│   │   │   ├── _swagger.json     # Original OpenAPI/Swagger spec (preserved when using split-swagger)
+│   │   │   ├── _system/           # Internal system files (isSystem flag in tree — lock icon, muted, no context menu, no drag-drop)
+│   │   │   │   ├── _rules.json    # Version-folder API rules: { rules, enumAliases }
+│   │   │   │   ├── _skills.md     # Auto-saved diagnostic lessons (from successful "Fix it") — injected into AI prompts
+│   │   │   │   ├── _digest.md     # Lightweight endpoint index (~2-3 lines/endpoint) for scalable idea generation
+│   │   │   │   └── _swagger.json  # Original OpenAPI/Swagger spec (preserved when using split-swagger)
 │   │   │   └── _versions/         # Hidden from UI — auto-preserved on sync
 │   │   │       └── create-article.md.2025-02-15T14-30-45-123Z
 │   │   └── categories/
