@@ -20,6 +20,7 @@ import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import type { TestStatus } from "../../types/test.types";
 import { analyzeFailure, analyzeFailureByScenario } from "../../lib/api/debugApi";
 import type { DebugDiagnosis } from "../../lib/api/debugApi";
+import { suggestSimilarVar } from "../../lib/tests/validateProjVars";
 import { getSpecFileContent, uploadSpecFile } from "../../lib/api/specFilesApi";
 
 const XmlEditor = lazy(() => import("../common/XmlEditor").then(m => ({ default: m.XmlEditor })));
@@ -317,14 +318,22 @@ function DesignTab({ testId }: { testId: string }) {
                 Undefined project variable{missingVars.length > 1 ? "s" : ""} — this step will fail at runtime
               </p>
               <div className="space-y-1 mb-2">
-                {missingVars.map((mv) => (
-                  <div key={mv.name} className="flex items-center gap-2 text-xs">
-                    <code className="font-mono text-[#d1242f] bg-white border border-[#ffcecb] px-1.5 py-0.5 rounded shrink-0">
-                      proj.{mv.name}
-                    </code>
-                    <span className="text-[#656d76]">in {mv.source}</span>
-                  </div>
-                ))}
+                {missingVars.map((mv) => {
+                  const suggestion = suggestSimilarVar(mv.name, definedVarNames);
+                  return (
+                    <div key={mv.name} className="flex items-center gap-2 text-xs flex-wrap">
+                      <code className="font-mono text-[#d1242f] bg-white border border-[#ffcecb] px-1.5 py-0.5 rounded shrink-0">
+                        proj.{mv.name}
+                      </code>
+                      <span className="text-[#656d76]">in {mv.source}</span>
+                      {suggestion && (
+                        <span className="text-[#9a6700]">
+                          — did you mean <code className="font-mono font-semibold">proj.{suggestion}</code>?
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
               <a
                 href="/settings"
@@ -670,6 +679,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [fixState, setFixState] = useState<"idle" | "fixing" | "done" | "error">("idle");
   const [fixError, setFixError] = useState<string | null>(null);
+  const [fixIndex, setFixIndex] = useState(0);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [reportCopied, setReportCopied] = useState(false);
 
@@ -741,8 +751,9 @@ function DiagnoseTab({ testId }: { testId: string }) {
     }
   }
 
-  async function handleFixIt() {
-    if (!diagnosis?.fixPrompt) return;
+  async function handleFixIt(promptOverride?: string) {
+    const prompt = promptOverride ?? diagnosis?.fixPrompt;
+    if (!prompt) return;
     const testDef = getTest(testId);
     if (!testDef?.flowFileName) return;
 
@@ -752,7 +763,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
     const fileName = testDef.flowFileName;
     try {
       const xml = await getFlowFileContent(fileName);
-      const edited = await editFlowXml(xml, diagnosis.fixPrompt);
+      const edited = await editFlowXml(xml, prompt);
 
       // Track AI edit cost
       if (edited.usage) {
@@ -775,7 +786,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
 
       // Persist lesson to Skills.md so future AI generations avoid this mistake
       try {
-        await saveDiagnosticLesson(fileName, diagnosis, testDef.name, `${testDef.method} ${testDef.path}`);
+        if (diagnosis) await saveDiagnosticLesson(fileName, diagnosis, testDef.name, `${testDef.method} ${testDef.path}`);
       } catch (e) {
         console.warn("[DiagnoseTab] Failed to save lesson:", e);
       }
@@ -866,44 +877,95 @@ function DiagnoseTab({ testId }: { testId: string }) {
       </div>
 
       {/* B. What to do next */}
-      {diagnosis.canYouFixIt ? (
-        <div className="px-3 py-3 rounded-md bg-[#dafbe1] border border-[#aceebb]">
-          <span className="text-xs font-semibold text-[#1a7f37] uppercase tracking-wide block mb-1.5">How to fix</span>
-          <HowToFixSteps text={diagnosis.howToFix ?? ""} />
-          {diagnosis.fixPrompt && (
-            <>
-              {fixState === "idle" && (
-                <button
-                  onClick={() => void handleFixIt()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#16653a] transition-colors cursor-pointer"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.049.58.025 1.193-.14 1.743" />
-                  </svg>
-                  Fix it automatically
-                </button>
-              )}
-              {fixState === "fixing" && (
-                <div className="flex items-center gap-2 text-sm text-[#656d76]">
-                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
-                  </svg>
-                  Applying fix...
+      {diagnosis.canYouFixIt ? (() => {
+        // Build list of actionable fixes — per-field fixes take priority over the single fixPrompt
+        const fixes: Array<{ label: string; description: string; prompt: string }> = [];
+        if (diagnosis.problematicFields && diagnosis.problematicFields.length > 0) {
+          for (const f of diagnosis.problematicFields) {
+            const prompt = f.fixPrompt ?? `In the flow XML, fix the "${f.field}" field: ${f.suggestion}`;
+            fixes.push({ label: f.field, description: `${f.issue} — ${f.suggestion}`, prompt });
+          }
+        }
+        // Fall back to single fixPrompt if no per-field fixes
+        if (fixes.length === 0 && diagnosis.fixPrompt) {
+          fixes.push({ label: "Fix", description: diagnosis.howToFix ?? "", prompt: diagnosis.fixPrompt });
+        }
+        const total = fixes.length;
+        const safeIdx = Math.min(fixIndex, total - 1);
+        const current = fixes[safeIdx];
+
+        return (
+          <div className="px-3 py-3 rounded-md bg-[#dafbe1] border border-[#aceebb]">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-xs font-semibold text-[#1a7f37] uppercase tracking-wide">How to fix</span>
+              {total > 1 && (
+                <div className="flex items-center gap-1 ml-auto">
+                  <button
+                    onClick={() => { setFixIndex(Math.max(0, safeIdx - 1)); if (fixState === "done") setFixState("idle"); }}
+                    disabled={safeIdx === 0}
+                    className="p-0.5 rounded hover:bg-[#aceebb]/50 disabled:opacity-30 cursor-pointer disabled:cursor-default"
+                    title="Previous fix"
+                  >
+                    <svg className="w-3.5 h-3.5 text-[#1a7f37]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                    </svg>
+                  </button>
+                  <span className="text-xs font-medium text-[#1a7f37] tabular-nums">{safeIdx + 1} of {total}</span>
+                  <button
+                    onClick={() => { setFixIndex(Math.min(total - 1, safeIdx + 1)); if (fixState === "done") setFixState("idle"); }}
+                    disabled={safeIdx === total - 1}
+                    className="p-0.5 rounded hover:bg-[#aceebb]/50 disabled:opacity-30 cursor-pointer disabled:cursor-default"
+                    title="Next fix"
+                  >
+                    <svg className="w-3.5 h-3.5 text-[#1a7f37]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                    </svg>
+                  </button>
                 </div>
               )}
-              {fixState === "done" && (
-                <div className="flex items-center gap-1.5 text-sm text-[#1a7f37] font-medium">
-                  <span>✓</span> Flow XML fixed and saved. Re-run the scenario to verify.
-                </div>
-              )}
-              {fixState === "error" && (
-                <div className="text-sm text-[#d1242f]">{fixError}</div>
-              )}
-            </>
-          )}
-        </div>
-      ) : (
+            </div>
+            {current && (
+              <>
+                {total > 1 && (
+                  <p className="text-xs font-mono text-[#1a7f37] mb-1">
+                    <span className="font-semibold">{current.label}</span>: {current.description}
+                  </p>
+                )}
+                {total === 1 && diagnosis.howToFix && <HowToFixSteps text={diagnosis.howToFix} />}
+                {fixState === "idle" && (
+                  <button
+                    onClick={() => void handleFixIt(current.prompt)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#16653a] transition-colors cursor-pointer"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.049.58.025 1.193-.14 1.743" />
+                    </svg>
+                    {total > 1 ? `Fix "${current.label}"` : "Fix it automatically"}
+                  </button>
+                )}
+                {fixState === "fixing" && (
+                  <div className="flex items-center gap-2 text-sm text-[#656d76]">
+                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
+                    </svg>
+                    Applying fix...
+                  </div>
+                )}
+                {fixState === "done" && (
+                  <div className="flex items-center gap-1.5 text-sm text-[#1a7f37] font-medium">
+                    <span>✓</span> Flow XML fixed and saved.{total > 1 ? " Navigate to next fix or re-run the scenario." : " Re-run the scenario to verify."}
+                  </div>
+                )}
+                {fixState === "error" && (
+                  <div className="text-sm text-[#d1242f]">{fixError}</div>
+                )}
+              </>
+            )}
+            {!current && diagnosis.howToFix && <HowToFixSteps text={diagnosis.howToFix} />}
+          </div>
+        );
+      })() : (
         <div className="px-3 py-3 rounded-md bg-[#fff8c5] border border-[#f5e0a0]">
           <span className="text-xs font-semibold text-[#9a6700] uppercase tracking-wide block mb-1">Needs developer attention</span>
           <p className="text-sm text-[#1f2328]">This issue can't be fixed by editing the flow XML. Use the "Copy diagnostic report" button below to share details with your development team.</p>

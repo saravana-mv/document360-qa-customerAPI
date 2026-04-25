@@ -7,7 +7,7 @@ import { useFlowStatusStore } from "../../store/flowStatus.store";
 import { fetchFolderApiRules, fetchApiRules } from "../api/apiRulesApi";
 import { getSpecFileContent } from "../api/specFilesApi";
 import { setEnumAliases, parseEnumAliasesFromMarkdown } from "./flowXml/enumAliases";
-import { findMissingProjVars } from "./validateProjVars";
+import { findMissingProjVars, suggestSimilarVar } from "./validateProjVars";
 import { useProjectVariablesStore } from "../../store/projectVariables.store";
 
 export interface RunOptions {
@@ -143,7 +143,11 @@ async function runTag(tag: string, tests: TestDef[], ctx: TestContext): Promise<
     // Block steps with undefined project variables — mark as error without sending request
     const missingForStep = stepsWithMissingVars.get(test.id);
     if (missingForStep) {
-      const varList = missingForStep.map((v) => `proj.${v}`).join(", ");
+      const parts = missingForStep.map((v) => {
+        const suggestion = suggestSimilarVar(v, definedVarNames);
+        return suggestion ? `proj.${v} (did you mean proj.${suggestion}?)` : `proj.${v}`;
+      });
+      const varList = parts.join(", ");
       const reason = `Undefined project variable${missingForStep.length > 1 ? "s" : ""}: ${varList} — add in Settings → Variables`;
       getStore().updateTestStatus(test.id, {
         status: "error",

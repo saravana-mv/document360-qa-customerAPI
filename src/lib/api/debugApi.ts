@@ -4,6 +4,7 @@ export interface ProblematicField {
   field: string;
   issue: string;
   suggestion: string;
+  fixPrompt?: string;
 }
 
 export interface SuggestedFix {

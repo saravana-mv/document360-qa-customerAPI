@@ -3,6 +3,69 @@
 
 import type { TestDef } from "../../types/test.types";
 
+/**
+ * Suggest the closest defined variable name for a misspelled reference.
+ * Uses a combination of substring matching and Levenshtein distance.
+ * Returns null if no close match is found (distance > 50% of longer name).
+ */
+export function suggestSimilarVar(
+  undefinedVar: string,
+  definedNames: Set<string>,
+): string | null {
+  if (definedNames.size === 0) return null;
+
+  const lower = undefinedVar.toLowerCase();
+  let best: string | null = null;
+  let bestScore = Infinity;
+
+  for (const name of definedNames) {
+    const nameLower = name.toLowerCase();
+
+    // Exact case-insensitive match — shouldn't happen (would be defined), but safety
+    if (lower === nameLower) return name;
+
+    // One contains the other (e.g. "projectVersionId" contains "versionId")
+    if (lower.includes(nameLower) || nameLower.includes(lower)) {
+      const dist = levenshtein(lower, nameLower);
+      if (dist < bestScore) { bestScore = dist; best = name; }
+      continue;
+    }
+
+    // Levenshtein distance
+    const dist = levenshtein(lower, nameLower);
+    if (dist < bestScore) { bestScore = dist; best = name; }
+  }
+
+  // Only suggest if distance is within 50% of the longer string length
+  const maxLen = Math.max(undefinedVar.length, best?.length ?? 0);
+  if (best && bestScore <= Math.ceil(maxLen * 0.5)) return best;
+  return null;
+}
+
+/** Simple Levenshtein distance (adequate for short variable names). */
+function levenshtein(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+
+  // Single-row DP
+  let prev = Array.from({ length: n + 1 }, (_, i) => i);
+  for (let i = 1; i <= m; i++) {
+    const curr = [i];
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(
+        curr[j - 1] + 1,       // insert
+        prev[j] + 1,            // delete
+        prev[j - 1] + cost,     // replace
+      );
+    }
+    prev = curr;
+  }
+  return prev[n];
+}
+
 /** Extract all unique proj.* variable names referenced in a set of test definitions. */
 export function extractProjVarRefs(tests: TestDef[]): Set<string> {
   const refs = new Set<string>();
