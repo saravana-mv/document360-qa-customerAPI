@@ -106,23 +106,14 @@ async function runTag(tag: string, tests: TestDef[], ctx: TestContext): Promise<
   store.updateTagStatus(tag, "running");
   log("STARTED", "info", tag);
 
-  // Pre-flight: block execution if any steps reference undefined project variables
+  // Pre-flight: identify steps that reference undefined project variables
   const definedVarNames = new Set(Object.keys(useProjectVariablesStore.getState().asRecord()));
-  const missingVars = findMissingProjVars(tests, definedVarNames);
-  if (missingVars.length > 0) {
-    const varList = missingVars.map((mv) => `proj.${mv.varName}`).join(", ");
-    const reason = `Undefined project variable${missingVars.length > 1 ? "s" : ""}: ${varList} — add in Settings → Variables`;
-    log(`✗ ${reason}`, "error", tag);
-    for (const test of tests) {
-      getStore().updateTestStatus(test.id, {
-        status: "error",
-        durationMs: 0,
-        failureReason: reason,
-        completedAt: Date.now(),
-      });
+  const stepsWithMissingVars = new Map<string, string[]>(); // testId → missing var names
+  for (const test of tests) {
+    const missing = findMissingProjVars([test], definedVarNames);
+    if (missing.length > 0) {
+      stepsWithMissingVars.set(test.id, missing.map((mv) => mv.varName));
     }
-    store.updateTagStatus(tag, "fail", 0);
-    return;
   }
 
   let aborted = false;
@@ -148,6 +139,21 @@ async function runTag(tag: string, tests: TestDef[], ctx: TestContext): Promise<
         log("Skipped (cancelled)", "warn", tag, test.id, test.name);
         continue;
       }
+    }
+    // Block steps with undefined project variables — mark as error without sending request
+    const missingForStep = stepsWithMissingVars.get(test.id);
+    if (missingForStep) {
+      const varList = missingForStep.map((v) => `proj.${v}`).join(", ");
+      const reason = `Undefined project variable${missingForStep.length > 1 ? "s" : ""}: ${varList} — add in Settings → Variables`;
+      getStore().updateTestStatus(test.id, {
+        status: "error",
+        durationMs: 0,
+        failureReason: reason,
+        completedAt: Date.now(),
+      });
+      log(`✗ ${reason}`, "error", tag, test.id, test.name);
+      if (!aborted) aborted = true;
+      continue;
     }
     await executeTest(test, ctx, state);
     const result = getStore().testResults[test.id];
