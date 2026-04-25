@@ -64,7 +64,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 src/components/
 ├── auth/           # EntraGate (SSO wrapper), ProjectGate (project selection guard), AccessGate (role check), LoginScreen, OAuthCallback
 ├── common/         # Layout, TopBar, SideNav, Modal, ContextMenu, XmlCodeBlock, XmlEditor, ResizeHandle, ProjectPicker
-├── specfiles/      # FileTree (with _system folder support: isSystem flag, lock icon, read-only), FlowChatPanel, FlowIdeasPanel, FlowsPanel, DetailPanel, ImportFromUrlModal, ImportResultModal (post-import stats + variable/connection auto-detect + processing health banner), FolderRulesPanel, NewVersionModal
+├── specfiles/      # FileTree (with _system and _distilled folder support: isSystem flag, lock icon, read-only), FlowChatPanel, FlowIdeasPanel, FlowsPanel, DetailPanel, ImportFromUrlModal, ImportResultModal (post-import stats + variable/connection auto-detect + processing health banner), FolderRulesPanel, NewVersionModal
 ├── connections/    # ConnectionFormModal (provider-specific fields, ProviderBadge), ConnectionsPage
 ├── explorer/       # TestExplorer, VersionAccordion, ScenarioFolderTree, TagNode, ConnectEndpointModal (simplified: Base URL + Connection picker), ScenarioEnvOverrideModal
 ├── runner/         # RunControls, LiveLog, ProgressBar, RunHistory
@@ -132,7 +132,7 @@ tests/
 
 | Function | Route | Methods | Purpose |
 |----------|-------|---------|---------|
-| `specFiles` | `/api/spec-files` | GET/POST/PUT/DELETE | Spec file CRUD + content download |
+| `specFiles` | `/api/spec-files` | GET/POST/PUT/DELETE | Spec file CRUD + content download. Listing remaps `_distilled/` blobs into `_system/_distilled/` virtual paths; read requests reverse-map back to actual blob locations. Returns 404 (not 500) for missing blobs. |
 | `specFilesImportUrl` | `/api/spec-files/import-url` | POST | Import from external URL (cookie jar + browser headers) |
 | `specFilesSync` | `/api/spec-files/sync` | POST | Re-fetch URL-sourced files |
 | `specFilesSources` | `/api/spec-files/sources` | GET/PUT | Read/update `_sources.json` manifests |
@@ -222,11 +222,14 @@ spec-files/
 │   │   ├── articles/
 │   │   │   ├── create-article.md
 │   │   │   ├── _sources.json      # Manifest: { "create-article.md": { sourceUrl, importedAt, lastSyncedAt } }
+│   │   │   ├── _distilled/        # Distilled spec blobs (actual storage location, per-resource subfolder)
+│   │   │   │   └── create.md      # Distilled version of create-article.md
 │   │   │   ├── _system/           # Internal system files (isSystem flag in tree — lock icon, muted, no context menu, no drag-drop)
 │   │   │   │   ├── _rules.json    # Version-folder API rules: { rules, enumAliases }
 │   │   │   │   ├── _skills.md     # Auto-saved diagnostic lessons (from successful "Fix it") — injected into AI prompts
 │   │   │   │   ├── _digest.md     # Lightweight endpoint index (~2-3 lines/endpoint) for scalable idea generation
-│   │   │   │   └── _swagger.json  # Original OpenAPI/Swagger spec (preserved when using split-swagger)
+│   │   │   │   ├── _swagger.json  # Original OpenAPI/Swagger spec (preserved when using split-swagger)
+│   │   │   │   └── _distilled/    # Virtual folder — remaps _distilled/ blobs from resource subfolders for browsing in file tree
 │   │   │   └── _versions/         # Hidden from UI — auto-preserved on sync
 │   │   │       └── create-article.md.2025-02-15T14-30-45-123Z
 │   │   └── categories/

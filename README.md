@@ -84,7 +84,7 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 - Per-project membership management via Settings > Members tab (add/remove members, assign roles)
 - Project-level variables (`proj.varName`) — shared key/value pairs interpolated at runtime in both browser and server runners; also used to resolve `{any_name}` path parameters in flow XML (e.g., `{project_id}` maps to `proj.project_id`)
 - **API Rules (version-folder scoped)** — per-version-folder configurable rules and enum aliases (stored as `_system/_rules.json` in blob storage), injected into AI prompts; enum aliases loaded at runtime by both browser and server runners; inline editor in Spec Manager on top-level version folders
-- **System files** — Each version folder has a `_system/` subfolder for internal files (`_rules.json`, `_skills.md`, `_digest.md`, `_swagger.json`), rendered with lock icon and muted styling in the file tree (read-only, no drag-drop)
+- **System files** — Each version folder has a `_system/` subfolder for internal files (`_rules.json`, `_skills.md`, `_digest.md`, `_swagger.json`) plus a `_system/_distilled/` virtual folder that remaps distilled spec blobs for browsing. All system nodes are rendered with lock icon and muted styling in the file tree (read-only, no drag-drop)
 - Project reset (owner only — wipes flows, ideas, runs)
 
 ### Deployment Intelligence
