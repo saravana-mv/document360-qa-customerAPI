@@ -593,6 +593,7 @@ function prettyJson(s: string): string {
 interface DiagnosisCache {
   diagnosis: DebugDiagnosis;
   costUsd: number;
+  fingerprint: string; // httpStatus:failureReason — invalidate when a new run changes the result
 }
 const diagnosisCache = new Map<string, DiagnosisCache>();
 
@@ -657,10 +658,15 @@ function HowToFixSteps({ text }: { text: string }) {
 
 function DiagnoseTab({ testId }: { testId: string }) {
   const result = useRunnerStore((s) => s.testResults[testId]);
+
+  // Invalidate cache if a newer run produced different results
+  const resultFingerprint = result ? `${result.httpStatus}:${result.failureReason ?? ""}` : "";
   const cached = diagnosisCache.get(testId);
-  const [state, setState] = useState<"idle" | "loading" | "done" | "error">(cached ? "done" : "idle");
-  const [diagnosis, setDiagnosis] = useState<DebugDiagnosis | null>(cached?.diagnosis ?? null);
-  const [costUsd, setCostUsd] = useState(cached?.costUsd ?? 0);
+  const cacheValid = cached && cached.fingerprint === resultFingerprint;
+
+  const [state, setState] = useState<"idle" | "loading" | "done" | "error">(cacheValid ? "done" : "idle");
+  const [diagnosis, setDiagnosis] = useState<DebugDiagnosis | null>(cacheValid ? cached.diagnosis : null);
+  const [costUsd, setCostUsd] = useState(cacheValid ? cached.costUsd : 0);
   const [error, setError] = useState<string | null>(null);
   const [fixState, setFixState] = useState<"idle" | "fixing" | "done" | "error">("idle");
   const [fixError, setFixError] = useState<string | null>(null);
@@ -668,7 +674,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
   const [reportCopied, setReportCopied] = useState(false);
 
   // Auto-trigger analysis when tab opens for the first time (skip if cached)
-  const triggered = useRef(!!cached);
+  const triggered = useRef(!!cacheValid);
   useEffect(() => {
     if (!triggered.current && state === "idle") {
       triggered.current = true;
@@ -713,7 +719,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
 
       setDiagnosis(res.diagnosis);
       setCostUsd(res.usage.costUsd);
-      diagnosisCache.set(testId, { diagnosis: res.diagnosis, costUsd: res.usage.costUsd });
+      diagnosisCache.set(testId, { diagnosis: res.diagnosis, costUsd: res.usage.costUsd, fingerprint: resultFingerprint });
       useAiCostStore.getState().addAdhocCost(res.usage.costUsd);
       setState("done");
     } catch (e) {
@@ -734,16 +740,25 @@ function DiagnoseTab({ testId }: { testId: string }) {
     try {
       const xml = await getFlowFileContent(fileName);
       const edited = await editFlowXml(xml, diagnosis.fixPrompt);
+
+      // Track AI edit cost
+      if (edited.usage) {
+        useAiCostStore.getState().addAdhocCost(edited.usage.costUsd);
+      }
+
       const validation = validateFlowXml(edited.xml);
       if (!validation.ok) {
         setFixError("AI fix produced invalid XML. Please edit manually in the Flow XML tab.");
         setFixState("error");
         return;
       }
+
+      // Save, activate, and fully reload — mirrors FlowXmlTab.handleSave
       await saveFlowFile(fileName, edited.xml, true);
       await activateFlow(fileName);
       await loadFlowsFromQueue();
-      buildParsedTagsFromRegistry();
+      const built = buildParsedTagsFromRegistry();
+      useSpecStore.getState().setSpec(null as never, built, null as never);
 
       // Persist lesson to Skills.md so future AI generations avoid this mistake
       try {
@@ -751,6 +766,9 @@ function DiagnoseTab({ testId }: { testId: string }) {
       } catch (e) {
         console.warn("[DiagnoseTab] Failed to save lesson:", e);
       }
+
+      // Clear diagnosis cache so re-analyze will see updated state
+      diagnosisCache.delete(testId);
 
       setFixState("done");
     } catch (e) {
