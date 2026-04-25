@@ -49,7 +49,7 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 - Per-step breakpoint debugging (pause/resume)
 - Live execution console with step-grouped log output
 - Clickable run history with past result replay
-- **AI step debugging** — Analyze failed/errored steps with Claude Haiku, cross-referencing request/response against OpenAPI specs for inline diagnosis
+- **AI step debugging** — Analyze failed/errored steps with Claude Haiku, cross-referencing request/response against OpenAPI specs for inline diagnosis with structured output (summary, root cause, fix guidance) and **"Fix it automatically"** button that applies AI-suggested XML fixes, validates, saves, and reactivates the flow
 
 ### Connections & Connect Endpoint (Generic API Support)
 - Centralized connection management in Settings → Connections (all auth types)

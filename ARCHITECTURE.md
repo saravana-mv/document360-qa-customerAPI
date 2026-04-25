@@ -95,7 +95,7 @@ All API calls go through `client.ts` which adds auth headers and rewrites `/vN/`
 | `projectVariablesApi.ts` | `getProjectVariables`, `saveProjectVariables` |
 | `apiRulesApi.ts` | `getApiRules`, `saveApiRules`, `fetchFolderApiRules(folder)`, `saveFolderApiRules(folder, data)` |
 | `connectionsApi.ts` | `listConnections`, `createConnection`, `updateConnection`, `deleteConnection` — `ConnectionProvider` type, `Connection` interface with optional OAuth fields and `hasCredential` |
-| `debugApi.ts` | `analyzeFailedStep` — sends failed step request/response to `/api/debug-analyze` for AI-powered diagnosis |
+| `debugApi.ts` | `analyzeFailedStep` — sends failed step request/response to `/api/debug-analyze` for AI-powered diagnosis. Returns structured `DebugDiagnosis` with `summary`, `whatWentWrong`, `canYouFixIt`, `howToFix`, `fixPrompt`, `developerNote`. DiagnoseTab offers "Fix it automatically" (editFlowXml → validate → save → activate → reload pipeline). |
 
 ### Test Execution Engine (`src/lib/tests/`)
 
@@ -143,7 +143,7 @@ tests/
 | `generateFlowIdeas` | `/api/generate-flow-ideas` | POST | AI idea generation from spec context |
 | `generateFlow` | `/api/generate-flow` | POST | AI XML generation from confirmed plan |
 | `editFlow` | `/api/edit-flow` | POST | AI-assisted flow editing |
-| `debugAnalyze` | `/api/debug-analyze` | POST | AI step debugging — analyzes failed test steps using Claude Haiku by cross-referencing request/response against OpenAPI specs |
+| `debugAnalyze` | `/api/debug-analyze` | POST | AI step debugging — analyzes failed test steps using Claude Haiku. Returns structured JSON: `summary`, `whatWentWrong`, `canYouFixIt`, `howToFix`, `fixPrompt`, `developerNote`. DiagnoseTab supports auto-fix via edit→validate→save→activate pipeline. |
 | `activeTests` | `/api/active-tests` | GET/PUT/POST | Manage active flow set |
 | `testRuns` | `/api/test-runs` | GET/POST | Persist/query run results |
 | `runScenario` | `/api/run-scenario` | POST | **Public API**: Server-side test execution |
