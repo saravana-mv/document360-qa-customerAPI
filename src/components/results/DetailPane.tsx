@@ -18,6 +18,8 @@ import { loadFlowsFromQueue } from "../../lib/tests/flowXml/loader";
 import { activateFlow } from "../../lib/tests/flowXml/activeTests";
 import { buildParsedTagsFromRegistry } from "../../lib/tests/buildParsedTags";
 import type { TestStatus } from "../../types/test.types";
+import { analyzeFailure } from "../../lib/api/debugApi";
+import type { DebugDiagnosis } from "../../lib/api/debugApi";
 
 const XmlEditor = lazy(() => import("../common/XmlEditor").then(m => ({ default: m.XmlEditor })));
 
@@ -563,6 +565,205 @@ function Accordion({
   );
 }
 
+// ── AI Debug Analysis ────────────────────────────────────────────────────────
+
+const confidenceBadge: Record<string, { cls: string; label: string }> = {
+  high:   { cls: "text-[#1a7f37] bg-[#dafbe1] border-[#aceebb]", label: "High confidence" },
+  medium: { cls: "text-[#9a6700] bg-[#fff8c5] border-[#f5e0a0]", label: "Medium confidence" },
+  low:    { cls: "text-[#656d76] bg-[#f6f8fa] border-[#d1d9e0]", label: "Low confidence" },
+};
+
+const categoryLabel: Record<string, string> = {
+  extra_field: "Extra Field",
+  missing_field: "Missing Field",
+  wrong_value: "Wrong Value",
+  schema_mismatch: "Schema Mismatch",
+  auth_error: "Auth Error",
+  upstream_error: "Upstream Error",
+  other: "Other",
+};
+
+function DebugAnalysisSection({ testId, result }: {
+  testId: string;
+  result: { requestUrl?: string; requestBody?: unknown; responseBody?: unknown; httpStatus?: number; failureReason?: string; assertionResults?: Array<{ id: string; description: string; passed: boolean }> };
+}) {
+  const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [diagnosis, setDiagnosis] = useState<DebugDiagnosis | null>(null);
+  const [costUsd, setCostUsd] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleAnalyze() {
+    setState("loading");
+    setError(null);
+
+    const testDef = getTest(testId);
+    if (!testDef) {
+      setError("Test definition not found");
+      setState("error");
+      return;
+    }
+
+    // Optionally load flow XML for fix suggestions
+    let flowXml: string | undefined;
+    try {
+      const fileName = testDef.tag + ".flow.xml";
+      flowXml = await getFlowFileContent(fileName);
+    } catch { /* ok without it */ }
+
+    try {
+      const res = await analyzeFailure({
+        step: {
+          name: testDef.name,
+          method: testDef.method,
+          path: testDef.path,
+          requestUrl: result.requestUrl,
+          requestBody: result.requestBody,
+          responseBody: result.responseBody,
+          httpStatus: result.httpStatus,
+          failureReason: result.failureReason,
+          assertionResults: result.assertionResults?.map((a) => ({ description: a.description, passed: a.passed })),
+        },
+        flowXml,
+      });
+
+      setDiagnosis(res.diagnosis);
+      setCostUsd(res.usage.costUsd);
+      useAiCostStore.getState().addAdhocCost(res.usage.costUsd);
+      setState("done");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setState("error");
+    }
+  }
+
+  if (state === "idle") {
+    return (
+      <div className="pt-2">
+        <button
+          onClick={handleAnalyze}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#16653a] transition-colors cursor-pointer"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M7.998 0a.75.75 0 0 1 .533.217l2.25 2.134a.75.75 0 0 1-1.032 1.088L8.75 2.49v4.76a.75.75 0 0 1-1.5 0V2.49L6.251 3.44a.75.75 0 1 1-1.032-1.088L7.47.217A.75.75 0 0 1 7.998 0ZM3.5 9a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-1.5 0v-2.5A.75.75 0 0 1 3.5 9Zm3.75.75a.75.75 0 0 0-1.5 0v2.5a.75.75 0 0 0 1.5 0v-2.5ZM10.5 9a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 .75-.75Zm2.25.75a.75.75 0 0 0-1.5 0v2.5a.75.75 0 0 0 1.5 0v-2.5ZM2 14.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5Z" />
+          </svg>
+          Analyze with AI
+        </button>
+      </div>
+    );
+  }
+
+  if (state === "loading") {
+    return (
+      <div className="pt-2 flex items-center gap-2 text-sm text-[#656d76]">
+        <svg className="w-4 h-4 animate-spin" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="8" cy="8" r="6" opacity="0.25" />
+          <path d="M8 2a6 6 0 0 1 6 6" strokeLinecap="round" />
+        </svg>
+        Analyzing failure...
+      </div>
+    );
+  }
+
+  if (state === "error") {
+    return (
+      <div className="pt-2 space-y-2">
+        <div className="px-3 py-2 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-xs text-[#d1242f]">
+          Analysis failed: {error}
+        </div>
+        <button
+          onClick={handleAnalyze}
+          className="text-xs text-[#0969da] hover:underline cursor-pointer"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  // state === "done"
+  if (!diagnosis) return null;
+
+  const conf = confidenceBadge[diagnosis.confidence] ?? confidenceBadge.low;
+  const catLabel = categoryLabel[diagnosis.category] ?? diagnosis.category;
+
+  return (
+    <div className="pt-2 space-y-3">
+      <div className="border border-[#d1d9e0] rounded-md overflow-hidden">
+        {/* Header */}
+        <div className="px-3 py-2 bg-[#f6f8fa] border-b border-[#d1d9e0] flex items-center gap-2">
+          <span className="text-sm font-semibold text-[#1f2328]">AI Diagnosis</span>
+          <span className={`text-[11px] px-1.5 py-0.5 rounded border ${conf.cls}`}>{conf.label}</span>
+          <span className="text-[11px] px-1.5 py-0.5 rounded border border-[#ffcecb] bg-[#ffebe9] text-[#d1242f]">{catLabel}</span>
+        </div>
+
+        <div className="p-3 space-y-3">
+          {/* Root Cause */}
+          <div>
+            <span className="text-xs font-semibold text-[#656d76] uppercase tracking-wide">Root Cause</span>
+            <p className="text-sm text-[#1f2328] mt-0.5">{diagnosis.rootCause}</p>
+          </div>
+
+          {/* Details */}
+          <div>
+            <span className="text-xs font-semibold text-[#656d76] uppercase tracking-wide">Details</span>
+            <p className="text-sm text-[#1f2328] mt-0.5 whitespace-pre-wrap">{diagnosis.details}</p>
+          </div>
+
+          {/* Problematic Fields */}
+          {diagnosis.problematicFields && diagnosis.problematicFields.length > 0 && (
+            <div>
+              <span className="text-xs font-semibold text-[#656d76] uppercase tracking-wide">Problematic Fields</span>
+              <div className="mt-1 border border-[#d1d9e0] rounded-md overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-[#f6f8fa] text-left">
+                      <th className="px-3 py-1.5 font-medium text-[#656d76]">Field</th>
+                      <th className="px-3 py-1.5 font-medium text-[#656d76]">Issue</th>
+                      <th className="px-3 py-1.5 font-medium text-[#656d76]">Fix</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#d1d9e0]">
+                    {diagnosis.problematicFields.map((f, i) => (
+                      <tr key={i} className="bg-[#ffebe9]/30">
+                        <td className="px-3 py-1.5 font-mono text-[#d1242f]">{f.field}</td>
+                        <td className="px-3 py-1.5 text-[#1f2328]">{f.issue}</td>
+                        <td className="px-3 py-1.5 text-[#1a7f37]">{f.suggestion}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Suggested Fix */}
+          {diagnosis.suggestedFix && (
+            <div>
+              <span className="text-xs font-semibold text-[#656d76] uppercase tracking-wide">Suggested Fix</span>
+              <p className="text-sm text-[#1f2328] mt-0.5">{diagnosis.suggestedFix.description}</p>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-[11px] font-medium text-[#d1242f]">Before</span>
+                  <pre className="mt-0.5 p-2 bg-[#ffebe9]/30 border border-[#ffcecb] rounded text-xs font-mono whitespace-pre-wrap overflow-x-auto">{diagnosis.suggestedFix.before}</pre>
+                </div>
+                <div>
+                  <span className="text-[11px] font-medium text-[#1a7f37]">After</span>
+                  <pre className="mt-0.5 p-2 bg-[#dafbe1]/30 border border-[#aceebb] rounded text-xs font-mono whitespace-pre-wrap overflow-x-auto">{diagnosis.suggestedFix.after}</pre>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-3 py-1.5 bg-[#f6f8fa] border-t border-[#d1d9e0] text-[11px] text-[#656d76]">
+          Analysis cost: ${costUsd.toFixed(4)} (Haiku)
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Run Tab ──────────────────────────────────────────────────────────────────
 
 function RunTab({ testId }: { testId: string }) {
@@ -713,6 +914,11 @@ function RunTab({ testId }: { testId: string }) {
             ))}
           </div>
         </div>
+      )}
+
+      {/* AI Debug Analysis */}
+      {(status === "fail" || status === "error") && (
+        <DebugAnalysisSection testId={testId} result={result} />
       )}
     </div>
   );
