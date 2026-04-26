@@ -308,6 +308,10 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 9. **Spec-driven assertions**: When spec files are provided, read the documented response schema and status codes carefully. The spec is the source of truth.
 10. **Schema exactness**: Elements must appear in the order listed above. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status. Use \`field-exists\` / \`field-equals\` / \`array-not-empty\` — no other assertion types exist.
 11. **Request body fields MUST match the endpoint's schema**: Only include fields that are defined in the endpoint's request body schema. Do NOT add extra fields like \`project_version_id\` unless the spec explicitly lists them in the request body for that specific endpoint. Many APIs use \`additionalProperties: false\` and will reject or error on unknown fields. Also never send fields marked \`readOnly: true\` in request bodies — those are response-only fields.
+12. **Cross-step data flow — CAPTURE fields needed by downstream steps (CRITICAL)**: Before writing any step, scan ALL later steps' request body schemas for required fields. If a later step requires a field (e.g., \`version_number\`, \`slug\`, \`status\`) that appears in an earlier step's RESPONSE schema, you MUST:
+   - Add a \`<capture variable="state.fieldName" source="response.data.fieldName"/>\` to the earlier step
+   - Use \`{{state.fieldName}}\` in the later step's request body
+   This is especially critical for action endpoints (publish, fork, approve) that require fields from the entity creation response. Example: if POST /articles returns \`version_number\` in the response and POST /articles/{id}/publish requires \`version_number\` in its body, capture it from the create step and use \`{{state.versionNumber}}\` in the publish step.
 
 ## Output format — MANDATORY
 

@@ -23,9 +23,14 @@ ${steps}`;
  * Parse idea steps to find exactly the spec files needed for each endpoint.
  *
  * Each step like "POST /v3/projects/{project_id}/categories" is parsed to
- * extract the HTTP method and resource name, then matched against available
- * spec filenames by (action, resource) pair. This gives precise results
- * (typically 4-6 files) instead of flooding the AI with irrelevant specs.
+ * extract the HTTP method, resource name, and optional action sub-path,
+ * then matched against available spec filenames. This gives precise results
+ * (typically 4-8 files) instead of flooding the AI with irrelevant specs.
+ *
+ * Handles:
+ * - Standard CRUD: POST /articles → create-article.md
+ * - Action endpoints: POST /articles/{id}/publish → publish-article.md
+ * - Bulk operations: POST /articles/bulk/publish → bulk-publish-article.md
  */
 export function filterRelevantSpecs(idea: FlowIdea, allSpecFiles: string[]): string[] {
   const needed = new Set<string>();
@@ -41,7 +46,7 @@ export function filterRelevantSpecs(idea: FlowIdea, allSpecFiles: string[]): str
 
   for (const step of idea.steps) {
     // Parse: "POST /v3/projects/{project_id}/categories (description)"
-    // or:   "GET /v3/projects/{project_id}/articles/{article_id}"
+    // or:   "POST /v3/projects/{project_id}/articles/{article_id}/publish"
     const stepMatch = step.match(/(GET|POST|PUT|PATCH|DELETE)\s+(\/\S+)/i);
     if (!stepMatch) continue;
 
@@ -52,15 +57,33 @@ export function filterRelevantSpecs(idea: FlowIdea, allSpecFiles: string[]): str
     const segments = path.split("/").filter(
       (s) => s && !s.startsWith("{") && !/^v\d+$/i.test(s) && s !== "projects"
     );
-    // "/v3/projects/{id}/categories"       → ["categories"]
-    // "/v3/projects/{id}/articles/bulk"     → ["articles", "bulk"]
-    // "/v3/projects/{id}/articles/{art_id}" → ["articles"]
+    // "/v3/projects/{id}/categories"                → ["categories"]
+    // "/v3/projects/{id}/articles/bulk"              → ["articles", "bulk"]
+    // "/v3/projects/{id}/articles/{art_id}"          → ["articles"]
+    // "/v3/projects/{id}/articles/{art_id}/publish"  → ["articles", "publish"]
+    // "/v3/projects/{id}/articles/bulk/publish"      → ["articles", "bulk", "publish"]
 
     const resource = segments[0]?.toLowerCase();
     if (!resource) continue;
 
     const isBulk = segments.includes("bulk");
-    const actions = methodToActions[method] ?? [];
+
+    // Detect action sub-paths: the last segment after a path param or "bulk"
+    // e.g. /articles/{id}/publish → action = "publish"
+    // e.g. /articles/bulk/publish → action = "publish"
+    const lastSegment = segments[segments.length - 1]?.toLowerCase();
+    const isActionEndpoint = segments.length >= 2 && lastSegment !== resource && lastSegment !== "bulk";
+    const actionName = isActionEndpoint ? lastSegment : null;
+
+    // Build the set of filename prefixes to match
+    let actions: string[];
+    if (actionName) {
+      // Action endpoint: POST /articles/{id}/publish → look for "publish-"
+      // Also include bulk variant if applicable
+      actions = isBulk ? [`bulk-${actionName}-`] : [`${actionName}-`];
+    } else {
+      actions = methodToActions[method] ?? [];
+    }
 
     // Find the best matching spec file
     for (const file of allSpecFiles) {
@@ -73,11 +96,17 @@ export function filterRelevantSpecs(idea: FlowIdea, allSpecFiles: string[]): str
       // Match action prefix to method, respecting bulk vs single
       for (const action of actions) {
         const isBulkAction = action.startsWith("bulk-");
-        if (isBulk !== isBulkAction) continue;
+        if (isBulk !== isBulkAction && !isActionEndpoint) continue;
         if (filename.startsWith(action)) {
           needed.add(file);
           break;
         }
+      }
+
+      // Fallback: if no action matched yet and this is an action endpoint,
+      // try matching the action name anywhere in the filename
+      if (actionName && !needed.has(file) && filename.includes(actionName)) {
+        needed.add(file);
       }
     }
   }
@@ -102,6 +131,25 @@ export function filterRelevantSpecs(idea: FlowIdea, allSpecFiles: string[]): str
         needed.add(file);
       }
     }
+
+    // Also include create specs from the SAME resource folder when we have
+    // action endpoints. E.g., if we matched publish-article.md, also include
+    // create-article.md so the AI can see the response schema for captures.
+    for (const file of allSpecFiles) {
+      if (needed.has(file)) continue;
+      const lower = file.toLowerCase();
+      const filename = lower.split("/").pop() ?? "";
+      // Check if this file is a create spec for a resource we already have
+      if (filename.startsWith("create-")) {
+        for (const folder of primaryFolders) {
+          if (lower.includes(folder.toLowerCase() + "/")) {
+            needed.add(file);
+            break;
+          }
+        }
+      }
+    }
+
     return Array.from(needed);
   }
 
