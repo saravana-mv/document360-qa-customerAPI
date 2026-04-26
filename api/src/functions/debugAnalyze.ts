@@ -59,6 +59,15 @@ You MUST follow these rules strictly. Violating them produces dangerous false di
 - Check required vs optional fields
 - Verify data types match
 
+## Cross-step analysis (CRITICAL for multi-step flows):
+When specs for ALL flow steps are provided, analyze the data flow between steps:
+- Check if the failing step requires fields that should have been captured from a PRIOR step's response
+- Look at the response schema of prior steps to identify capturable fields (e.g., \`version_number\`, \`id\`, etc.)
+- If the failing step needs a field that exists in a prior step's response but is NOT being captured, your fix MUST:
+  1. Add a \`<capture>\` to the prior step to extract that field into \`{{state.xxx}}\`
+  2. Add the field to the failing step's request body using \`{{state.xxx}}\`
+- The \`fixPrompt\` must describe BOTH changes (capture in prior step + use in failing step)
+
 ## When endpoint specification is NOT provided:
 - State clearly: "The endpoint specification was not available for this diagnosis"
 - Only analyze the HTTP status code and response body
@@ -330,16 +339,21 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
     };
   }
 
-  // Load full AI context: spec, rules, project variables, dependencies
+  // Load full AI context: spec for ALL flow steps, rules, project variables, dependencies
   const ctx = await loadAiContext({
     projectId,
     endpointHint: { method: step.method, path: step.path },
+    flowXml,
   });
 
   // Build user message
   const parts: string[] = [];
 
-  if (ctx.specContext) {
+  // When we have multi-step specs, include ALL step specs so the AI has cross-step awareness
+  const flowStepContext = ctx.formatFlowStepSpecs(body.stepNumber);
+  if (flowStepContext) {
+    parts.push(flowStepContext);
+  } else if (ctx.specContext) {
     parts.push(`## Endpoint Specification (source: ${ctx.specSource})\n\n${ctx.specContext}`);
   } else {
     parts.push(`## Endpoint Specification\n\n**NOT AVAILABLE** — The specification for ${step.method} ${step.path} could not be found. Do NOT guess or assume what fields this endpoint accepts. Limit your analysis to the HTTP status code and response body only. Set confidence to "low".`);
@@ -439,6 +453,8 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
           hasApiRules: !!ctx.rules,
           hasProjectVars: ctx.projectVariables.length > 0,
           hasDependencies: !!ctx.dependencyInfo,
+          flowStepSpecsLoaded: ctx.flowStepSpecs.length,
+          flowStepSpecsFound: ctx.flowStepSpecs.filter(s => s.spec !== null).length,
           model,
         },
       }),

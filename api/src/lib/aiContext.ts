@@ -11,6 +11,7 @@ import { loadApiRules, injectApiRules, extractVersionFolder } from "./apiRules";
 import { loadProjectVariables, injectProjectVariables } from "./projectVariables";
 import { loadOrRebuildDependencies } from "./specDependencies";
 import { readDistilledContent } from "./specDistillCache";
+import { parseFlowXml } from "./flowRunner/parser";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -21,11 +22,27 @@ export interface AiContextOptions {
   specFiles?: string[];
   /** Single-endpoint lookup (editFlow fix-it, debugAnalyze) */
   endpointHint?: { method: string; path: string };
+  /**
+   * Flow XML string — when provided, loads specs for ALL steps in the flow.
+   * This gives the AI cross-step awareness: it can see what fields prior steps
+   * return (for captures) and what fields later steps require (for dependencies).
+   */
+  flowXml?: string;
   /** What to load (all default true) */
   loadRules?: boolean;
   loadVariables?: boolean;
   loadDependencies?: boolean;
   loadSpec?: boolean;
+}
+
+/** Spec loaded for one step in a multi-step flow */
+export interface StepSpec {
+  stepNumber: number;
+  name: string;
+  method: string;
+  path: string;
+  spec: string | null;
+  specSource: "distilled" | "raw" | "none";
 }
 
 export interface AiContext {
@@ -35,10 +52,14 @@ export interface AiContext {
   dependencyInfo: string | null;
   specContext: string;
   specSource: "distilled" | "raw" | "none";
+  /** Specs for ALL steps in the flow (when flowXml was provided) */
+  flowStepSpecs: StepSpec[];
   /** Chain all injections onto a base system prompt */
   enrichSystemPrompt(basePrompt: string): string;
   /** Format spec + deps for user message injection */
   formatUserContext(): string;
+  /** Format all flow step specs as context (for diagnosis/fix-it) */
+  formatFlowStepSpecs(failingStepNumber?: number): string;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────
@@ -129,6 +150,55 @@ export async function findMatchingSpec(
   return null;
 }
 
+// ── Multi-step spec loading ─────────────────────────────────────────────
+
+/** Normalize path for comparison (strip version, lowercase, wildcard params). */
+function normalizePath(p: string): string {
+  return p.replace(/^\/v\d+/i, "").replace(/\{[^}]+\}/g, "{*}").toLowerCase();
+}
+
+/**
+ * Parse flow XML and load specs for every unique step endpoint.
+ * Deduplicates by method+path so the same endpoint isn't loaded twice.
+ */
+async function loadFlowStepSpecs(
+  projectId: string,
+  flowXml: string,
+): Promise<StepSpec[]> {
+  let parsed;
+  try {
+    parsed = parseFlowXml(flowXml);
+  } catch {
+    return [];
+  }
+
+  // Deduplicate by normalized method+path
+  const seen = new Map<string, { content: string; source: "distilled" | "raw" } | null>();
+  const results: StepSpec[] = [];
+
+  for (const step of parsed.steps) {
+    const key = `${step.method.toUpperCase()}:${normalizePath(step.path)}`;
+
+    if (!seen.has(key)) {
+      // Load spec for this endpoint
+      const match = await findMatchingSpec(projectId, step.method, step.path);
+      seen.set(key, match);
+    }
+
+    const cached = seen.get(key) ?? null;
+    results.push({
+      stepNumber: step.number,
+      name: step.name,
+      method: step.method,
+      path: step.path,
+      spec: cached?.content ?? null,
+      specSource: cached?.source ?? "none",
+    });
+  }
+
+  return results;
+}
+
 // ── Main context loader ────────────────────────────────────────────────
 
 /**
@@ -182,8 +252,32 @@ export async function loadAiContext(opts: AiContextOptions): Promise<AiContext> 
   // Load spec context
   let specContext = "";
   let specSource: "distilled" | "raw" | "none" = "none";
+  let flowStepSpecs: StepSpec[] = [];
 
-  if (doSpec && endpointHint) {
+  if (doSpec && opts.flowXml) {
+    // Multi-step mode: parse flow XML, load specs for ALL steps
+    flowStepSpecs = await loadFlowStepSpecs(projectId, opts.flowXml);
+    // Primary spec = the endpointHint step (if provided), otherwise first step with a spec
+    if (endpointHint) {
+      const match = flowStepSpecs.find(
+        s => s.method.toUpperCase() === endpointHint.method.toUpperCase() &&
+             normalizePath(s.path) === normalizePath(endpointHint.path),
+      );
+      if (match?.spec) {
+        specContext = match.spec;
+        specSource = match.specSource;
+      }
+    }
+    // If endpointHint didn't match, fall back to single-endpoint lookup
+    if (!specContext && endpointHint) {
+      const match = await findMatchingSpec(projectId, endpointHint.method, endpointHint.path);
+      if (match) {
+        specContext = match.content;
+        specSource = match.source;
+      }
+    }
+  } else if (doSpec && endpointHint) {
+    // Single-endpoint mode (backward compatible)
     const match = await findMatchingSpec(projectId, endpointHint.method, endpointHint.path);
     if (match) {
       specContext = match.content;
@@ -192,7 +286,6 @@ export async function loadAiContext(opts: AiContextOptions): Promise<AiContext> 
   }
   // Note: specFiles-based loading is NOT handled here — generateFlow/flowChat
   // have their own buildSpecContext with truncation, digest fallback, etc.
-  // This module handles endpoint-hint lookups only (editFlow fix-it, debugAnalyze).
 
   return {
     rules,
@@ -201,6 +294,7 @@ export async function loadAiContext(opts: AiContextOptions): Promise<AiContext> 
     dependencyInfo,
     specContext,
     specSource,
+    flowStepSpecs,
 
     enrichSystemPrompt(basePrompt: string): string {
       let prompt = basePrompt;
@@ -221,6 +315,23 @@ export async function loadAiContext(opts: AiContextOptions): Promise<AiContext> 
         parts.push(dependencyInfo);
       }
       return parts.join("\n\n");
+    },
+
+    formatFlowStepSpecs(failingStepNumber?: number): string {
+      if (flowStepSpecs.length === 0) return "";
+      const sections: string[] = [];
+      sections.push("## API Specifications for All Flow Steps\n");
+      sections.push("Use these specs to understand what each step sends, what it returns, and what fields are available for capture.\n");
+      for (const ss of flowStepSpecs) {
+        const isFailing = failingStepNumber !== undefined && ss.stepNumber === failingStepNumber;
+        const label = isFailing ? " ← FAILING STEP" : "";
+        if (ss.spec) {
+          sections.push(`### Step ${ss.stepNumber}: ${ss.method} ${ss.path}${label}\n\n${ss.spec}`);
+        } else {
+          sections.push(`### Step ${ss.stepNumber}: ${ss.method} ${ss.path}${label}\n\n(Spec not available)`);
+        }
+      }
+      return sections.join("\n\n");
     },
   };
 }

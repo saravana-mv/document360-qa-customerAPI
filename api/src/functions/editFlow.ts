@@ -142,6 +142,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 8. **HTTP status codes**: Use these defaults unless the spec or project API rules state otherwise: GET → 200, POST (create) → 201, PUT/PATCH (update) → 200, DELETE → 204 (No Content). DELETE responses typically have an empty body — do not add body assertions on DELETE unless the spec says otherwise.
 9. If you see incorrect assertions in the existing XML, fix them as part of your edit.
 10. **Request body MUST include ALL required fields**: When the spec or API rules document a request body schema, every field listed as \`required\` must be present in the \`<body>\` CDATA. If the existing XML is missing required fields, add them as part of your edit. Use project variables (\`{{proj.X}}\`), state variables (\`{{state.X}}\`), or sensible test values.
+11. **Cross-step data flow (CRITICAL)**: When specs for multiple steps are provided, analyze the data flow between steps. If a later step requires a field (e.g., \`version_number\`) that is available in a prior step's response, you MUST: (a) add a \`<capture>\` to the prior step to extract the field into \`{{state.xxx}}\`, and (b) use \`{{state.xxx}}\` in the later step's body. Always check the response schema of prior steps for fields needed downstream.
 
 ## Output format — MANDATORY
 
@@ -188,7 +189,7 @@ async function editFlow(req: HttpRequest, _ctx: InvocationContext): Promise<Http
   const client = new Anthropic({ apiKey });
   const model = resolveModel(body.model, DEFAULT_FLOW_MODEL);
 
-  // Load AI context — when method/path provided (Fix-it path), include spec + deps
+  // Load AI context — when method/path provided (Fix-it path), include specs for ALL steps
   let projectId: string;
   try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
   const versionFolder = body.versionFolder?.trim() || null;
@@ -197,16 +198,20 @@ async function editFlow(req: HttpRequest, _ctx: InvocationContext): Promise<Http
     projectId,
     versionFolder,
     endpointHint: hasEndpointHint ? { method: body.method!, path: body.path! } : undefined,
+    flowXml: hasEndpointHint ? body.xml : undefined,
     loadSpec: hasEndpointHint,
     loadDependencies: hasEndpointHint,
   });
   const systemPrompt = ctx.enrichSystemPrompt(FLOW_EDIT_SYSTEM_PROMPT);
 
   try {
-    // When spec context is available (Fix-it path), inject it into the user message
-    const specSection = ctx.specContext
-      ? `\n\n## Endpoint Specification (source: ${ctx.specSource})\n\n${ctx.specContext}`
-      : "";
+    // When flow step specs are available (Fix-it path), inject ALL step specs
+    const flowStepContext = ctx.formatFlowStepSpecs();
+    const specSection = flowStepContext
+      ? `\n\n${flowStepContext}`
+      : ctx.specContext
+        ? `\n\n## Endpoint Specification (source: ${ctx.specSource})\n\n${ctx.specContext}`
+        : "";
     const depsSection = ctx.dependencyInfo ? `\n\n${ctx.dependencyInfo}` : "";
     const userMessage = `Here is the current flow XML:\n\n\`\`\`xml\n${body.xml}\n\`\`\`${specSection}${depsSection}\n\nPlease apply the following changes:\n${body.prompt}`;
 
