@@ -115,7 +115,7 @@
     <xs:simpleContent>
       <!--
         The param value — a literal string or an interpolation token.
-        Examples:  ctx.projectId   |   {{state.firstVersionNumber}}
+        Examples:  {{proj.projectId}}   |   {{state.firstVersionNumber}}
       -->
       <xs:extension base="xs:string">
         <!-- Parameter name as it appears in the URL template or query string -->

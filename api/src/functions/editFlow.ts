@@ -71,11 +71,11 @@ The child elements of \`<step>\` must appear in this order:
 
 \`\`\`xml
 <pathParams>
-  <param name="myParam">proj.myVariable</param>            <!-- project variable (no {{ }} wrapper for pathParam values) -->
-  <param name="resource_id">{{state.createdResourceId}}</param>  <!-- state variable -->
+  <param name="myParam">{{proj.myVariable}}</param>
+  <param name="resource_id">{{state.createdResourceId}}</param>
 </pathParams>
 <queryParams>
-  <param name="some_param">proj.someVariable</param>
+  <param name="some_param">{{proj.someVariable}}</param>
 </queryParams>
 \`\`\`
 
@@ -121,7 +121,9 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 **Teardown is set via \`<flags teardown="true"/>\` — NOT as an attribute on \`<step>\`.**
 **For steps that test unauthenticated access (expecting 401), set \`<flags noAuth="true"/>\` to omit the Authorization header.**
 
-### Interpolation tokens (allowed in any text/attr value)
+### Interpolation tokens — ALWAYS use \`{{…}}\` syntax
+
+**CRITICAL**: ALL variable references MUST use \`{{…}}\` mustache braces — in pathParams, queryParams, body, assertions, everywhere. Never use bare \`proj.xxx\` or \`state.xxx\` without braces.
 
 - \`{{proj.variableName}}\` — project-level variable defined in Settings → Variables. Use the EXACT names from the "Available Project Variables" section.
 - \`{{ctx.apiVersion}}\`, \`{{ctx.baseUrl}}\` — runtime context (API version, base URL)

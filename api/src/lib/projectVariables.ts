@@ -34,24 +34,24 @@ export function injectProjectVariables(basePrompt: string, variables: ProjectVar
 
   const varList = variables.map((v) => {
     const hint = v.value ? ` — current value: \`${v.value}\`` : "";
-    return `| \`proj.${v.name}\` | \`{{proj.${v.name}}}\` | \`proj.${v.name}\` |${hint} |`;
+    return `| \`{{proj.${v.name}}}\` |${hint} |`;
   });
 
   return `${basePrompt}
 
 ## Available Project Variables — MANDATORY (read before writing ANY XML)
 
-**CRITICAL**: You MUST use the EXACT variable names listed below. These are the ONLY valid \`proj.*\` references. Do NOT invent, rename, abbreviate, expand, or convert the case of variable names. Using a variable name not in this list will cause a runtime failure.
+**CRITICAL**: You MUST use the EXACT variable names listed below with \`{{…}}\` braces. These are the ONLY valid \`proj.*\` references. Do NOT invent, rename, abbreviate, expand, or convert the case of variable names. Using a variable name not in this list will cause a runtime failure.
 
-| Variable | In body/query expressions | In pathParam value | Notes |
-|----------|--------------------------|-------------------|-------|
+| Variable | Notes |
+|----------|-------|
 ${varList.join("\n")}
 
 **Examples of CORRECT usage** (assuming a variable named \`projectId\`):
 \`\`\`xml
-<param name="project_id">proj.projectId</param>          <!-- ✅ correct -->
-<param name="project_id">proj.project_id</param>         <!-- ❌ WRONG — no such variable -->
-<param name="project_id">proj.projectID</param>          <!-- ❌ WRONG — case mismatch -->
-<param name="project_id">proj.myProjectId</param>        <!-- ❌ WRONG — invented name -->
+<param name="project_id">{{proj.projectId}}</param>      <!-- ✅ correct -->
+<param name="project_id">proj.projectId</param>          <!-- ❌ WRONG — missing {{…}} braces -->
+<param name="project_id">{{proj.project_id}}</param>     <!-- ❌ WRONG — no such variable -->
+<param name="project_id">{{proj.projectID}}</param>      <!-- ❌ WRONG — case mismatch -->
 \`\`\``;
 }

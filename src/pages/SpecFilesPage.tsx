@@ -751,7 +751,7 @@ export function SpecFilesPage() {
 
   function buildSkillsTemplate(folderPath: string, variables?: SuggestedVariable[]): string {
     const varLines = variables && variables.length > 0
-      ? variables.map(v => `- \`{${v.name}}\` → use \`proj.${v.name}\``).join("\n")
+      ? variables.map(v => `- \`{${v.name}}\` → use \`{{proj.${v.name}}}\``).join("\n")
       : "<!-- No path parameters detected. Add mappings after importing an OpenAPI spec. -->";
 
     return [
@@ -777,13 +777,13 @@ export function SpecFilesPage() {
       "",
       "## Context Variables",
       "",
-      "Flow XML uses `{variable_name}` in URL paths and `proj.variableName` in expressions.",
+      "Flow XML uses `{variable_name}` in URL paths and `{{proj.variableName}}` in expressions.",
       "These map to project variables defined in Settings → Variables.",
       "",
       "Default mappings for this project:",
       varLines,
       "",
-      "When generating flows, always use `proj.*` syntax for dynamic values.",
+      "When generating flows, always use `{{proj.*}}` syntax (with mustache braces) for dynamic values.",
       "Never hardcode project-specific IDs in flow XML.",
       "",
       "## Enum Aliases",
