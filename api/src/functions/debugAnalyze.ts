@@ -6,6 +6,7 @@ import type { ModelId } from "../lib/modelPricing";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { checkCredits, recordUsage } from "../lib/aiCredits";
 import { readDistilledContent } from "../lib/specDistillCache";
+import { loadApiRules, extractVersionFolder } from "../lib/apiRules";
 import { resolveScenario, ScenarioNotFoundError } from "../lib/flowRunner/scenarioResolver";
 import { parseFlowXml } from "../lib/flowRunner/parser";
 import { getTestRunsContainer } from "../lib/cosmosClient";
@@ -174,14 +175,17 @@ async function findStepResult(
 }
 
 /**
- * Try to find the matching distilled spec for a given method + path.
- * Scans blobs in the version folder and checks for METHOD /path pattern.
+ * Try to find the matching spec for a given method + path.
+ * First tries distilled content (compact), then falls back to raw spec
+ * (full OpenAPI JSON with complete body schemas).
+ *
+ * Returns { content, source } where source indicates what was found.
  */
 async function findMatchingSpec(
   projectId: string,
   method: string,
   path: string,
-): Promise<string | null> {
+): Promise<{ content: string; source: "distilled" | "raw" } | null> {
   // Extract version prefix (e.g., /v3/... -> V3)
   const versionMatch = path.match(/^\/(v\d+)\//i);
   if (!versionMatch) return null;
@@ -192,7 +196,7 @@ async function findMatchingSpec(
   try {
     const blobs = await listBlobs(prefix);
     const mdBlobs = blobs
-      .filter((b) => b.name.endsWith(".md") && !b.name.includes("_digest") && !b.name.includes("_distilled/"))
+      .filter((b) => b.name.endsWith(".md") && !b.name.includes("_digest") && !b.name.includes("_distilled/") && !b.name.includes("/_system/"))
       .slice(0, MAX_SPEC_SCAN);
 
     // Try httpMethod metadata first (fast path)
@@ -202,21 +206,59 @@ async function findMatchingSpec(
     // Strip version prefix from path for matching: /v3/foo/bar -> /foo/bar
     const pathWithoutVersion = path.replace(/^\/v\d+/i, "");
 
-    for (const blob of methodMatches.length > 0 ? methodMatches : mdBlobs) {
+    // Normalize path params for matching: /articles/{article_id}/publish
+    // should match /articles/{id}/publish or any {param} variant
+    const pathPattern = path.replace(/\{[^}]+\}/g, "{*}");
+    const pathPatternWithoutVersion = pathWithoutVersion.replace(/\{[^}]+\}/g, "{*}");
+
+    const searchBlobs = methodMatches.length > 0 ? methodMatches : mdBlobs;
+
+    for (const blob of searchBlobs) {
       try {
+        // Try distilled content first (compact, has body field tables)
         const content = await readDistilledContent(blob.name);
-        // Check if this spec contains the matching endpoint
+        const contentUpper = content.toUpperCase();
+
+        // Check both exact and normalized patterns
         const patterns = [
           `${methodUpper} ${path}`,
           `${methodUpper} ${pathWithoutVersion}`,
           `${methodUpper} /${versionFolder.toLowerCase()}${pathWithoutVersion}`,
         ];
-        const contentUpper = content.toUpperCase();
+
         if (patterns.some((p) => contentUpper.includes(p.toUpperCase()))) {
-          return content;
+          return { content, source: "distilled" };
+        }
+
+        // Try with normalized path params (replace specific param names with wildcards)
+        const normalizedContent = content.replace(/\{[^}]+\}/g, "{*}").toUpperCase();
+        if (normalizedContent.includes(`${methodUpper} ${pathPattern}`.toUpperCase()) ||
+            normalizedContent.includes(`${methodUpper} ${pathPatternWithoutVersion}`.toUpperCase())) {
+          return { content, source: "distilled" };
         }
       } catch {
         // Skip unreadable blobs
+      }
+    }
+
+    // Fallback: try raw spec files (full OpenAPI JSON — has complete body schemas)
+    for (const blob of searchBlobs) {
+      try {
+        const raw = await downloadBlob(blob.name);
+        const rawUpper = raw.toUpperCase();
+        const normalizedRaw = raw.replace(/\{[^}]+\}/g, "{*}").toUpperCase();
+
+        const patterns = [
+          `${methodUpper} ${path}`,
+          `${methodUpper} ${pathWithoutVersion}`,
+        ];
+
+        if (patterns.some((p) => rawUpper.includes(p.toUpperCase())) ||
+            normalizedRaw.includes(`${methodUpper} ${pathPattern}`.toUpperCase())) {
+          return { content: raw, source: "raw" };
+        }
+      } catch {
+        // Skip
       }
     }
   } catch {
@@ -351,13 +393,28 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
   }
 
   // Try to find matching spec
-  const specContent = await findMatchingSpec(projectId, step.method, step.path);
+  const specMatch = await findMatchingSpec(projectId, step.method, step.path);
+
+  // Load API rules (skills, custom rules) for additional context
+  const versionMatch2 = step.path.match(/^\/(v\d+)\//i);
+  const versionFolder = versionMatch2 ? versionMatch2[1].toUpperCase() : "";
+  let apiRulesContext = "";
+  if (projectId !== "unknown" && versionFolder) {
+    try {
+      const { rules } = await loadApiRules(projectId, versionFolder);
+      if (rules) apiRulesContext = `\n\n## API Rules & Skills\n\n${rules}`;
+    } catch { /* ignore */ }
+  }
 
   // Build user message
   const parts: string[] = [];
 
-  if (specContent) {
-    parts.push(`## Endpoint Specification\n\n${specContent}`);
+  if (specMatch) {
+    parts.push(`## Endpoint Specification (source: ${specMatch.source})\n\n${specMatch.content}`);
+  }
+
+  if (apiRulesContext) {
+    parts.push(apiRulesContext);
   }
 
   parts.push(`## Failed Step: ${step.name}\n`);
@@ -435,6 +492,12 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
       body: JSON.stringify({
         diagnosis,
         usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, costUsd },
+        _debug: {
+          specFound: !!specMatch,
+          specSource: specMatch?.source ?? null,
+          hasApiRules: !!apiRulesContext,
+          model,
+        },
       }),
     };
   } catch (e) {
