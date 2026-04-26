@@ -67,7 +67,7 @@ src/components/
 ├── specfiles/      # FileTree (with _system and _distilled folder support: isSystem flag, lock icon, read-only), FlowChatPanel, FlowIdeasPanel, FlowsPanel, DetailPanel, ImportFromUrlModal, ImportResultModal (post-import stats + variable/connection auto-detect + processing health banner), FolderRulesPanel, NewVersionModal
 ├── connections/    # ConnectionFormModal (provider-specific fields, ProviderBadge), ConnectionsPage
 ├── explorer/       # TestExplorer, VersionAccordion, ScenarioFolderTree, TagNode, ConnectEndpointModal (simplified: Base URL + Connection picker), ScenarioEnvOverrideModal
-├── runner/         # RunControls, LiveLog, ProgressBar, RunHistory
+├── runner/         # RunControls (pre-run variable validation + run buttons), LiveLog, ProgressBar, RunHistory
 ├── results/        # ResultsPanel, DetailPane, SummaryDrawer, DiffModal
 └── setup/          # SetupPanel, ApiKeysCard
 ```
@@ -105,6 +105,7 @@ tests/
 ├── runner.ts           # Execution loop: setup → execute → teardown (with pause/resume)
 ├── context.ts          # Runtime context (auth type/tokens/headers, captures, project variables) — buildTestContext takes options object. Path params resolve generically from `{{proj.*}}` variables.
 ├── assertions.ts       # status, field-exists, field-equals, field-contains, etc.
+├── validateProjVars.ts # Design-time validation: findMissingProjVars (undefined) + findEmptyProjVars (blank values)
 ├── buildParsedTags.ts  # Build tag tree from registry for TestExplorer
 └── flowXml/
     ├── parser.ts       # Parse .flow.xml → TestDef[]
@@ -321,6 +322,9 @@ All spec-file blob operations are scoped with a `{projectId}/` prefix. Azure Fun
 
 ### Scenario Environment Override Hierarchy
 Test context is built with a 3-tier merge: scenario-level overrides (from `scenarioConfigs`) > version-level config (from `versionConfigs`) > global defaults. `buildContextByTag` in `RunControls` performs the merge at runtime. `ScenarioEnvOverrideModal` (TagNode context menu) edits per-scenario overrides. Server-side `scenarioOrg.ts` persists `scenarioConfigs` alongside folders/placements.
+
+### Pre-Run Variable Validation
+`RunControls` performs design-time validation on every render: `findMissingProjVars()` detects `{{proj.*}}` references with no matching variable definition, and `findEmptyProjVars()` detects defined variables with empty/blank values. If any issues are found, a red error banner lists the problematic variables (with "not defined" / empty labels) and links to "Settings → Variables". Run buttons are disabled until all variables have values.
 
 ### OpenAPI Auto-Detection
 `autoDetectEndpoint.ts` parses uploaded/imported spec files for `servers[].url` (OpenAPI 3.x) or `host`+`basePath` (Swagger 2.x) and security scheme definitions. Detected config stored in `scenarioOrg.store.detectedEndpoint` and surfaced as a blue banner in Spec Manager + pre-fill in `ConnectEndpointModal`.

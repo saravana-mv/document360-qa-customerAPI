@@ -48,6 +48,7 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 ### Scenario Manager
 - Version-based accordion layout with folder trees
 - Drag-and-drop scenario organization (qa_manager role)
+- **Pre-run variable validation** — Missing or empty project variables detected before execution; red error banner with "Settings → Variables" link, run buttons disabled until resolved
 - Per-step breakpoint debugging (pause/resume)
 - Live execution console with step-grouped log output
 - Clickable run history with past result replay
