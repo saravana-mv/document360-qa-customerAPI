@@ -210,6 +210,31 @@ export async function splitSwagger(
   return res.json() as Promise<SplitSwaggerResult>;
 }
 
+// ── Regenerate System Files ───────────────────────────────────────────────────
+
+export interface RegenerateSystemResult {
+  distillation: {
+    total: number;
+    distilled: number;
+    unchanged: number;
+    errors: number;
+    errorDetails: Array<{ file: string; error: string }>;
+  };
+  digest: { built: boolean; error?: string };
+  dependencies: { built: boolean; error?: string };
+}
+
+export async function regenerateSystemFiles(
+  folderPath: string,
+): Promise<RegenerateSystemResult> {
+  const res = await apiFetch("/api/spec-files/regenerate-system", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ folderPath }),
+  });
+  return res.json() as Promise<RegenerateSystemResult>;
+}
+
 // ── Flow Ideas (AI) ───────────────────────────────────────────────────────────
 
 export interface FlowIdea {

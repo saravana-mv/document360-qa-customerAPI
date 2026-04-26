@@ -52,7 +52,7 @@ import { useScenarioOrgStore } from "../store/scenarioOrg.store";
 import { useAiCostStore } from "../store/aiCost.store";
 import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
 import { NewVersionModal } from "../components/specfiles/NewVersionModal";
-import { splitSwagger, type SuggestedVariable, type SuggestedConnection, type ProcessingReport } from "../lib/api/specFilesApi";
+import { splitSwagger, regenerateSystemFiles, type SuggestedVariable, type SuggestedConnection, type ProcessingReport } from "../lib/api/specFilesApi";
 import { ImportResultModal } from "../components/specfiles/ImportResultModal";
 import { useProjectVariablesStore } from "../store/projectVariables.store";
 import { useConnectionsStore } from "../store/connections.store";
@@ -165,6 +165,8 @@ export function SpecFilesPage() {
   const [sourceUrlDraft, setSourceUrlDraft] = useState("");
   // Paths currently being synced (for spinner indicators)
   const [syncingPaths, setSyncingPaths] = useState<Set<string>>(new Set());
+  // Paths currently regenerating system files
+  const [regeneratingPaths, setRegeneratingPaths] = useState<Set<string>>(new Set());
 
   // ── Source access token (persisted in-memory for sync/import) ──────────────
   const [sourceAccessToken, setSourceAccessToken] = useState("");
@@ -1099,6 +1101,26 @@ export function SpecFilesPage() {
   function handleSyncFolder(folderPath: string) {
     // Open the sync modal — it handles progress, auth, and retry
     setSyncFolderPath(folderPath);
+  }
+
+  async function handleRegenerateSystem(folderPath: string) {
+    setRegeneratingPaths((prev) => new Set([...prev, folderPath]));
+    try {
+      const result = await regenerateSystemFiles(folderPath);
+      const parts: string[] = [];
+      parts.push(`Distilled: ${result.distillation.distilled}/${result.distillation.total} files`);
+      if (result.digest.built) parts.push("Digest rebuilt");
+      else if (result.digest.error) parts.push(`Digest failed: ${result.digest.error}`);
+      if (result.dependencies.built) parts.push("Dependencies rebuilt");
+      else if (result.dependencies.error) parts.push(`Dependencies: ${result.dependencies.error}`);
+      if (result.distillation.errors > 0) parts.push(`${result.distillation.errors} distillation errors`);
+      alert(`System files regenerated\n\n${parts.join("\n")}`);
+      await loadFiles();
+    } catch (e) {
+      alert(`Regeneration failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setRegeneratingPaths((prev) => { const next = new Set(prev); next.delete(folderPath); return next; });
+    }
   }
 
   /** Called by SyncFolderModal for individual file sync. */
@@ -2081,6 +2103,8 @@ export function SpecFilesPage() {
             onImportFromUrl={(folderPath) => setImportUrlFolderPath(folderPath)}
             onSyncFile={(folderPath, filename) => void handleSyncFile(folderPath, filename)}
             onSyncFolder={(folderPath) => void handleSyncFolder(folderPath)}
+            onRegenerateSystem={(folderPath) => void handleRegenerateSystem(folderPath)}
+            regeneratingPaths={regeneratingPaths}
             onGenerateFlowIdeas={(path, count) => void handleGenerateFlowIdeas(path, count)}
             onRefresh={loadFiles}
             onNewVersion={() => setShowNewVersionModal(true)}
