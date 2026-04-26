@@ -17,7 +17,7 @@ import type { TokenSet } from "../../types/auth.types";
 import { useSpecStore } from "../../store/spec.store";
 import { useProjectVariablesStore } from "../../store/projectVariables.store";
 import { findEmptyProjVars, findMissingProjVars } from "../../lib/tests/validateProjVars";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 // Entra gates access; the proxy handles real credentials server-side.
 const PROXY_TOKEN: TokenSet = { access_token: "proxied", token_type: "Bearer" };
@@ -125,7 +125,6 @@ export function RunControls() {
 
   // Check for missing or empty project variables referenced by test flows
   const projVars = useProjectVariablesStore((s) => s.variables);
-  const navigate = useNavigate();
   const varProblems = useMemo(() => {
     if (allTests.length === 0) return [];
     const definedNames = new Set(projVars.map(v => v.name));
@@ -406,12 +405,12 @@ export function RunControls() {
                 </p>
               ))}
             </div>
-            <button
-              onClick={() => navigate("/settings/connections")}
-              className="text-xs text-[#0969da] hover:underline mt-1"
+            <Link
+              to="/settings/connections"
+              className="text-xs text-[#0969da] hover:underline mt-1 inline-block"
             >
               Configure in Settings → Connections
-            </button>
+            </Link>
           </div>
         </div>
       )}
@@ -439,12 +438,12 @@ export function RunControls() {
                 </span>
               ))}
             </div>
-            <button
-              onClick={() => navigate("/settings/variables")}
-              className="text-xs text-[#0969da] hover:underline mt-1"
+            <Link
+              to="/settings/variables"
+              className="text-xs text-[#0969da] hover:underline mt-1 inline-block"
             >
               Configure in Settings → Variables
-            </button>
+            </Link>
           </div>
         </div>
       )}
