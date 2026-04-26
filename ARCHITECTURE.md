@@ -55,7 +55,7 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
 | `aiCredits.store` | `projectCredits`, `userCredits`, `loading` | Loads project + user credit budgets/usage from `/api/ai-credits`. Refreshed after cost events. |
 | `project.store` | `projects`, `selectedProject`, `loading` | Project list, selection, CRUD. ProjectPicker in TopBar. |
 | `entraAuth.store` | `tenant`, `clientId`, `redirectUri` | Entra ID configuration. |
-| `projectVariables.store` | `variables`, `loading` | Project-level key/value pairs. Loaded from `/api/project-variables`. Used as `proj.varName` in flow interpolation and `{name}` path parameter resolution. |
+| `projectVariables.store` | `variables`, `loading` | Project-level key/value pairs. Loaded from `/api/project-variables`. Used as `{{proj.varName}}` in flow XML interpolation and `{name}` path parameter resolution. |
 | `connections.store` | `connections`, `authStatus`, `healthChecks`, `loading` | Connection CRUD via `/api/connections`. `fetchAllStatuses()` polls OAuth connections only (token-based don't need status). Health check support. |
 
 ### Component Organization
@@ -103,7 +103,7 @@ All API calls go through `client.ts` which adds auth headers and rewrites `/vN/`
 tests/
 ├── registry.ts         # Global test registry (getAllTests, registerTest)
 ├── runner.ts           # Execution loop: setup → execute → teardown (with pause/resume)
-├── context.ts          # Runtime context (auth type/tokens/headers, captures, project variables) — buildTestContext takes options object. Path params resolve generically from `proj.*` variables.
+├── context.ts          # Runtime context (auth type/tokens/headers, captures, project variables) — buildTestContext takes options object. Path params resolve generically from `{{proj.*}}` variables.
 ├── assertions.ts       # status, field-exists, field-equals, field-contains, etc.
 ├── buildParsedTags.ts  # Build tag tree from registry for TestExplorer
 └── flowXml/
@@ -121,7 +121,7 @@ tests/
 2. `parser.ts` parses XML into `FlowElement` tree
 3. `builder.ts` converts to `TestDef` with assertions, captures, flags
 4. `registry.ts` stores definitions
-5. `runner.ts` executes: merges scenario env overrides into context, resolves `{{state.*}}` and `{{proj.*}}` (project variables) interpolation, resolves `{any_name}` path params from `proj.*` variables, runs HTTP calls via generic proxy (with `X-FF-Auth-Type` / `X-FF-Base-Url` / `X-FF-Connection-Id` headers), evaluates assertions
+5. `runner.ts` executes: merges scenario env overrides into context, resolves `{{state.*}}`, `{{proj.*}}`, and `{{ctx.*}}` interpolation uniformly (all use mustache braces), resolves `{any_name}` path params from `{{proj.*}}` variables, runs HTTP calls via generic proxy (with `X-FF-Auth-Type` / `X-FF-Base-Url` / `X-FF-Connection-Id` headers), evaluates assertions
 6. Teardown steps run even if prior steps fail
 
 ---
@@ -192,7 +192,7 @@ Used by the Public API (`/api/run-scenario`) to execute flows without a browser:
 |--------|---------|
 | `parser.ts` | Parse flow XML into step instructions |
 | `executor.ts` | Execute steps (HTTP calls, assertions, captures) |
-| `interpolation.ts` | Replace `{{state.key}}` and `{{proj.*}}` placeholders. `ctx.projectId`/`ctx.versionId`/`ctx.langCode` are backward-compatible aliases for `proj.project_id`/`proj.version_id`/`proj.lang_code`. |
+| `interpolation.ts` | Replace `{{state.key}}`, `{{proj.*}}`, and `{{ctx.*}}` placeholders (all use mustache `{{…}}` syntax uniformly). `ctx.projectId`/`ctx.versionId`/`ctx.langCode` are backward-compatible aliases for `proj.project_id`/`proj.version_id`/`proj.lang_code`. Runtime `resolveParam()` still accepts bare `proj.xxx` for backward compatibility with existing flows. |
 | `scenarioResolver.ts` | Resolve scenario GUID → flow XML from Cosmos |
 | `types.ts` | `RunContext` (token, baseUrl, apiVersion, auth fields, projectVariables — no D360-specific fields), `ScenarioResult`, step types |
 

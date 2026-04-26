@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-FlowForge is a generic AI-assisted API testing platform. It lets QA teams import API specs, connect any REST endpoint (with flexible auth), generate test flow ideas and XML definitions using Claude, execute tests against live endpoints, and track results — all from a single web app. Fully generic — no vendor-specific context in the test execution pipeline. Path parameters in flow XML (e.g., `{project_id}`) resolve from `proj.*` project variables at runtime.
+FlowForge is a generic AI-assisted API testing platform. It lets QA teams import API specs, connect any REST endpoint (with flexible auth), generate test flow ideas and XML definitions using Claude, execute tests against live endpoints, and track results — all from a single web app. Fully generic — no vendor-specific context in the test execution pipeline. Path parameters in flow XML (e.g., `{project_id}`) resolve from `{{proj.*}}` project variables at runtime.
 
 **Stack:** React 19 + Vite 8 + Tailwind v4 + Zustand | Azure Functions v4 (Node.js) + Cosmos DB | Entra ID auth | Anthropic Claude API
 **Deployed:** Azure Static Web Apps — Staging: `https://purple-mud-0bc0f5203.7.azurestaticapps.net` | Production: `https://delightful-smoke-0a3c52a03.7.azurestaticapps.net`
@@ -104,6 +104,9 @@ No generic Tailwind colors (`text-blue-600`, `bg-purple-100`). Always use exact 
 
 ### Flow XML Schema
 Three authoritative sources must stay in sync: `FLOW_SYSTEM_PROMPT` in `generateFlow.ts`, `flow.xsd`, `parser.ts`. Common AI mistakes: wrong element names (`<assert>` vs `<assertion>`), wrong attributes (`value` vs `code` on status), steps not in `<steps>` wrapper. Flow XML namespace: `https://flowforge.io/qa/flow/v1`.
+
+### Variable Syntax — Mustache Braces (CRITICAL)
+ALL variable references in flow XML must use `{{…}}` mustache syntax everywhere — `{{proj.xxx}}`, `{{state.xxx}}`, `{{ctx.xxx}}`. This applies uniformly to pathParams, queryParams, body content, and assertions. Never use bare `proj.xxx` without braces in flow XML. Runtime `resolveParam()` still accepts bare `proj.xxx` for backward compatibility with existing flows, but all new flows and AI-generated XML must use `{{…}}`.
 
 ### API Rules (Version-Folder Scoped)
 Per-version-folder configurable rules injected into all AI system prompts (flow generation, editing, ideas, chat). Stored as `_system/_rules.json` blobs in `spec-files` container under the version folder path. Managed via `FolderRulesPanel` in Spec Manager (inline editor on top-level version folders). Includes free-text rules and enum alias definitions. Settings → General shows a deprecation notice for the old project-level API Rules card. Helper: `api/src/lib/apiRules.ts` (`loadApiRules(projectId, versionFolder?)` — tries `_system/` path first, falls back to legacy paths then Cosmos; `injectApiRules`; `extractVersionFolder`). AI functions extract version folder from spec file paths.
