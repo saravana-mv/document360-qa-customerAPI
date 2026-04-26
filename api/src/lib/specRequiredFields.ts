@@ -900,3 +900,105 @@ export function injectCrossStepCaptures(
 
   return result;
 }
+
+// ── Spec-Aware Required Field Injection ──────────────────────────────
+
+const DEFAULT_TEST_VALUES: Record<string, string> = {
+  title: "[TEST] {{timestamp}}",
+  name: "[TEST] {{timestamp}}",
+  content: "Test content - {{timestamp}}",
+  description: "Test description",
+  body: "Test body content",
+  email: "test-{{timestamp}}@example.com",
+  url: "https://example.com/test",
+  slug: "test-{{timestamp}}",
+};
+
+/**
+ * Deterministic post-processor: for each POST/PUT/PATCH step, read the
+ * matching spec's REQUIRED fields and inject any that the AI omitted.
+ *
+ * Unlike `injectMissingRequiredFields` (which only handles ID/version fields),
+ * this handles ALL required fields including entity-specific ones like `title`.
+ */
+export function injectSpecRequiredFields(
+  xml: string,
+  specContext: string,
+  projectVariables: { name: string; value: string }[],
+): string {
+  if (!specContext) return xml;
+  const specEndpoints = parseSpecEndpoints(specContext);
+  if (specEndpoints.length === 0) return xml;
+  const xmlSteps = parseXmlSteps(xml);
+  if (xmlSteps.length === 0) return xml;
+
+  let result = xml;
+  const injections: { stepIdx: number; field: string; value: string }[] = [];
+
+  for (let i = 0; i < xmlSteps.length; i++) {
+    const step = xmlSteps[i];
+    if (!["POST", "PUT", "PATCH"].includes(step.method)) continue;
+    const normStep = normalizePath(step.path);
+    const spec = specEndpoints.find(ep =>
+      ep.method === step.method && normalizePath(ep.path) === normStep
+    );
+    if (!spec || spec.requiredRequestFields.length === 0) continue;
+    const cdataBody = step.fullMatch.match(/<body><!\[CDATA\[([\s\S]*?)\]\]><\/body>/)?.[1] ?? "";
+    if (!cdataBody.trim().startsWith("{")) continue;
+
+    for (const field of spec.requiredRequestFields) {
+      if (cdataBody.includes(`"${field}"`)) continue;
+      if (/^project_id$/i.test(field)) continue;
+      let value: string;
+      const camel = toCamelCase(field);
+      const matchedVar = projectVariables.find(v =>
+        v.name === field || v.name === camel ||
+        v.name.toLowerCase() === field.toLowerCase() ||
+        v.name.toLowerCase() === camel.toLowerCase()
+      );
+      if (matchedVar) {
+        value = `{{proj.${matchedVar.name}}}`;
+      } else if (result.includes(`state.${camel}`) || result.includes(`state.${field}`)) {
+        value = `{{state.${camel}}}`;
+      } else if (DEFAULT_TEST_VALUES[field]) {
+        value = DEFAULT_TEST_VALUES[field];
+      } else {
+        value = `test-${field}-{{timestamp}}`;
+      }
+      injections.push({ stepIdx: i, field, value });
+    }
+  }
+
+  if (injections.length === 0) return xml;
+  console.log(`[injectSpecRequiredFields] Injecting ${injections.length} missing required fields:`,
+    injections.map(j => `step ${j.stepIdx}: ${j.field}=${j.value}`).join(", "));
+
+  const byStep = new Map<number, typeof injections>();
+  for (const inj of injections) {
+    const list = byStep.get(inj.stepIdx) ?? [];
+    list.push(inj);
+    byStep.set(inj.stepIdx, list);
+  }
+  const sortedSteps = [...byStep.keys()].sort((a, b) => b - a);
+  for (const stepIdx of sortedSteps) {
+    const fields = byStep.get(stepIdx)!;
+    let stepXml = xmlSteps[stepIdx].fullMatch;
+    const cdataRe = /(<body><!\[CDATA\[)([\s\S]*?)(\]\]><\/body>)/;
+    const cdataMatch = stepXml.match(cdataRe);
+    if (!cdataMatch) continue;
+    const bodyText = cdataMatch[2];
+    const lastBrace = bodyText.lastIndexOf("}");
+    if (lastBrace < 0) continue;
+    const additions = fields.map(f => `  "${f.field}": "${f.value}"`).join(",\n");
+    const beforeBrace = bodyText.slice(0, lastBrace).trimEnd();
+    const needsComma = beforeBrace.length > 0 && !beforeBrace.endsWith("{") && !beforeBrace.endsWith(",");
+    const separator = needsComma ? ",\n" : "\n";
+    const newBody = beforeBrace + separator + additions + "\n" + bodyText.slice(lastBrace).trimStart();
+    stepXml = stepXml.replace(cdataRe, `$1${newBody}$3`);
+    const pos = result.indexOf(xmlSteps[stepIdx].fullMatch);
+    if (pos >= 0) {
+      result = result.slice(0, pos) + stepXml + result.slice(pos + xmlSteps[stepIdx].fullMatch.length);
+    }
+  }
+  return result;
+}

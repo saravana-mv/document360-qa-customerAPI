@@ -5,7 +5,7 @@ import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPrici
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { checkCredits, recordUsage } from "../lib/aiCredits";
 import { extractVersionFolder } from "../lib/apiRules";
-import { extractCommonRequiredFields, analyzeCrossStepDependencies, injectCrossStepCaptures } from "../lib/specRequiredFields";
+import { extractCommonRequiredFields, analyzeCrossStepDependencies, injectCrossStepCaptures, injectSpecRequiredFields } from "../lib/specRequiredFields";
 import { readDistilledContent } from "../lib/specDistillCache";
 import { loadAiContext } from "../lib/aiContext";
 import { getIdeasContainer } from "../lib/cosmosClient";
@@ -689,6 +689,8 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
           xml = injectCrossStepCaptures(xml, specContext, projVars);
           // Missing required fields SECOND (fills remaining gaps with proj vars)
           xml = injectMissingRequiredFields(xml, commonFields, projVarMap);
+          // Spec-aware required fields THIRD (catches ALL remaining required fields like title, name)
+          xml = injectSpecRequiredFields(xml, specContext, projVars);
 
           // Send the corrected XML so the frontend can replace the raw streamed text
           const correctedData = `data: ${JSON.stringify({ corrected: xml })}\n\n`;
@@ -758,6 +760,8 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       xml = injectCrossStepCaptures(xml, specContext, projVars);
       // Missing required fields SECOND (fills remaining gaps with proj vars)
       xml = injectMissingRequiredFields(xml, commonFields, projVarMap);
+      // Spec-aware required fields THIRD (catches ALL remaining required fields like title, name)
+      xml = injectSpecRequiredFields(xml, specContext, projVars);
 
       const inputTokens = finalMessage.usage.input_tokens;
       const outputTokens = finalMessage.usage.output_tokens;
