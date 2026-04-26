@@ -133,3 +133,38 @@ export function findMissingProjVars(
 
   return missing.sort((a, b) => a.varName.localeCompare(b.varName));
 }
+
+export interface EmptyVarInfo {
+  varName: string;
+  usedBy: string[]; // flow names that reference it
+}
+
+/**
+ * Find project variables that are referenced by tests but have empty values.
+ * Variables that are completely undefined are reported by findMissingProjVars;
+ * this catches the case where the variable exists but has no value assigned.
+ */
+export function findEmptyProjVars(
+  tests: TestDef[],
+  variables: Array<{ name: string; value: string }>,
+): EmptyVarInfo[] {
+  const emptyNames = new Set(variables.filter(v => !v.value.trim()).map(v => v.name));
+  if (emptyNames.size === 0) return [];
+
+  const refsByVar = new Map<string, Set<string>>();
+  for (const def of tests) {
+    const refs = extractProjVarRefs([def]);
+    for (const varName of refs) {
+      if (emptyNames.has(varName)) {
+        if (!refsByVar.has(varName)) refsByVar.set(varName, new Set());
+        refsByVar.get(varName)!.add(def.tag);
+      }
+    }
+  }
+
+  const empty: EmptyVarInfo[] = [];
+  for (const [varName, tags] of refsByVar) {
+    empty.push({ varName, usedBy: Array.from(tags) });
+  }
+  return empty.sort((a, b) => a.varName.localeCompare(b.varName));
+}
