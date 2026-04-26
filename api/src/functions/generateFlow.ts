@@ -690,7 +690,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
           // Missing required fields SECOND (fills remaining gaps with proj vars)
           xml = injectMissingRequiredFields(xml, commonFields, projVarMap);
           // Spec-aware required fields THIRD (catches ALL remaining required fields like title, name)
-          xml = injectSpecRequiredFields(xml, specContext, projVars);
+          try { xml = injectSpecRequiredFields(xml, specContext, projVars); } catch (e) { console.warn("[generateFlow] injectSpecRequiredFields failed:", e); }
 
           // Send the corrected XML so the frontend can replace the raw streamed text
           const correctedData = `data: ${JSON.stringify({ corrected: xml })}\n\n`;
@@ -786,8 +786,9 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      console.error("[generateFlow] Error:", msg, e instanceof Error ? e.stack : "");
       return {
-        status: 500,
+        status: 502,
         headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
         body: JSON.stringify({ error: msg }),
       };
