@@ -666,7 +666,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
           xml,
           usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, costUsd },
           ...(failedFiles.length > 0 ? { warning: `${failedFiles.length} of ${specFiles.length} spec files could not be read. Flow may be missing required fields.`, failedFiles } : {}),
-          _debug: { projectId, commonFields, projVarMap, specFilesReceived: specFiles.length, specContextLength: specContext.length },
+          _debug: { projectId, commonFields, projVarMap, specFilesReceived: specFiles.length, specFilesRequested: specFiles, specContextLength: specContext.length },
         }),
       };
     } catch (e) {
