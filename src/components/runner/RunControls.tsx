@@ -61,16 +61,23 @@ export function RunControls() {
   const [healthCheckDone, setHealthCheckDone] = useState(false);
   const connections = useConnectionsStore((s) => s.connections);
 
-  useEffect(() => {
-    if (allTests.length === 0) { setConnectionIssues([]); setHealthCheckDone(true); return; }
-
-    // Collect unique versions and their connections
-    const versionSet = new Set<string>();
+  // Stabilise the version list so the health-check effect doesn't re-fire
+  // on every render (getAllTests() returns a new array reference each time).
+  const testVersionsKey = useMemo(() => {
+    const vs = new Set<string>();
     for (const t of allTests) {
       if (!t.flowFileName) continue;
       const idx = t.flowFileName.indexOf("/");
-      if (idx > 0) versionSet.add(t.flowFileName.slice(0, idx));
+      if (idx > 0) vs.add(t.flowFileName.slice(0, idx));
     }
+    return Array.from(vs).sort().join(",");
+  }, [allTests]);
+
+  useEffect(() => {
+    if (!testVersionsKey) { setConnectionIssues([]); setHealthCheckDone(true); return; }
+
+    // Collect unique versions from the stable key
+    const versionSet = new Set(testVersionsKey.split(","));
 
     let cancelled = false;
 
@@ -119,7 +126,7 @@ export function RunControls() {
     setHealthCheckDone(false);
     void check();
     return () => { cancelled = true; };
-  }, [allTests, versionConfigs, connections]);
+  }, [testVersionsKey, versionConfigs, connections]);
 
   const hasConnectionIssues = connectionIssues.length > 0;
 
