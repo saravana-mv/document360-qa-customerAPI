@@ -326,8 +326,8 @@ export function RunControls() {
       <div className="flex items-center gap-2 px-4 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa]">
         <button
           onClick={runAll}
-          disabled={runner.running || hasExpiredAuth || hasVarProblems}
-          title={hasVarProblems ? "Project variables missing values — configure in Settings → Variables" : hasExpiredAuth ? "OAuth token expired — reconnect before running" : undefined}
+          disabled={runner.running || hasExpiredAuth || hasVarProblems || unconnectedVersions.length > 0}
+          title={hasVarProblems ? "Project variables missing values — configure in Settings → Variables" : unconnectedVersions.length > 0 ? "Endpoint not connected — connect before running" : hasExpiredAuth ? "OAuth token expired — reconnect before running" : undefined}
           className="px-2.5 py-1 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-xs font-medium rounded-md transition-colors disabled:opacity-50 flex items-center gap-1.5 border border-[#1a7f37]/80"
         >
           {runner.running && <Spinner size="sm" className="text-white" />}
@@ -335,8 +335,8 @@ export function RunControls() {
         </button>
         <button
           onClick={runSelected}
-          disabled={runner.running || hasExpiredAuth || hasVarProblems || (runner.selectedTags.size === 0 && runner.selectedTests.size === 0)}
-          title={hasVarProblems ? "Project variables missing values — configure in Settings → Variables" : hasExpiredAuth ? "OAuth token expired — reconnect before running" : undefined}
+          disabled={runner.running || hasExpiredAuth || hasVarProblems || unconnectedVersions.length > 0 || (runner.selectedTags.size === 0 && runner.selectedTests.size === 0)}
+          title={hasVarProblems ? "Project variables missing values — configure in Settings → Variables" : unconnectedVersions.length > 0 ? "Endpoint not connected — connect before running" : hasExpiredAuth ? "OAuth token expired — reconnect before running" : undefined}
           className="px-2.5 py-1 bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-xs font-medium rounded-md transition-colors disabled:opacity-50 border border-[#d1d9e0]"
         >
           Run selected
