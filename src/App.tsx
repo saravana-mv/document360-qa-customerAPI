@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { lazy, Suspense, useEffect } from "react";
 import { useAuthStore } from "./store/auth.store";
+import { useEntraAuthStore } from "./store/entraAuth.store";
 import { OAuthCallback } from "./components/auth/OAuthCallback";
 import { TestPage } from "./pages/TestPage";
 import { Spinner } from "./components/common/Spinner";
@@ -77,9 +78,11 @@ function AppRoutes() {
     }
 
     // Global handler: any 401 from the API client means the session is stale.
+    // Re-check Entra session — if expired, EntraGate will redirect to login.
     const onExpired = () => {
-      console.warn("[session-expired] event fired — logging out. Stack:", new Error().stack);
+      console.warn("[session-expired] event fired — re-checking Entra session");
       useAuthStore.getState().logout();
+      void useEntraAuthStore.getState().check();
     };
     window.addEventListener("session-expired", onExpired);
     return () => window.removeEventListener("session-expired", onExpired);

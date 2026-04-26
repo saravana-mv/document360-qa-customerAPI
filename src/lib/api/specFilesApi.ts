@@ -16,6 +16,9 @@ async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
     headers: { ...projectHeaders, ...init?.headers },
   };
   const res = await fetch(url, merged);
+  if (res.status === 401) {
+    window.dispatchEvent(new CustomEvent("session-expired"));
+  }
   if (!res.ok) {
     let msg = res.statusText;
     try {
