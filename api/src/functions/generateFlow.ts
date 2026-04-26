@@ -8,6 +8,8 @@ import { extractVersionFolder } from "../lib/apiRules";
 import { extractCommonRequiredFields, analyzeCrossStepDependencies, injectCrossStepCaptures } from "../lib/specRequiredFields";
 import { readDistilledContent } from "../lib/specDistillCache";
 import { loadAiContext } from "../lib/aiContext";
+import { getIdeasContainer } from "../lib/cosmosClient";
+import { filterRelevantSpecs } from "../lib/specFileSelection";
 
 /** Strip markdown fences AND any preamble text before the XML declaration. */
 function cleanXmlResponse(raw: string): string {
@@ -390,8 +392,86 @@ function truncateContext(sections: string[]): string {
 }
 
 
+/** Cosmos ID encoding for ideas — matches ideas.ts convention */
+function ideasDocId(folderPath: string): string {
+  return "ideas:" + folderPath.replace(/\//g, "|");
+}
+
+/**
+ * Server-side spec file resolution: look up the idea from Cosmos DB,
+ * list available spec blobs for the version folder, and run
+ * filterRelevantSpecs to select the right files.
+ *
+ * This eliminates the need for the client to send 50+ file paths and
+ * avoids the class of bugs where the client sends wrong/stale paths.
+ */
+async function resolveSpecFilesFromIdea(
+  projectId: string,
+  ideaId: string,
+  versionFolder: string,
+  folderPath?: string,
+): Promise<string[]> {
+  // 1. Find the idea in Cosmos DB
+  const container = await getIdeasContainer();
+  let idea: { steps: string[]; entities: string[]; description: string } | null = null;
+
+  if (folderPath) {
+    // Direct lookup — we know the folder path
+    try {
+      const { resource } = await container.item(ideasDocId(folderPath), projectId).read<{
+        ideas: { id: string; steps: string[]; entities: string[]; description: string }[];
+      }>();
+      if (resource?.ideas) {
+        idea = resource.ideas.find(i => i.id === ideaId) ?? null;
+      }
+    } catch { /* doc may not exist */ }
+  }
+
+  if (!idea) {
+    // Broader search: query all idea docs in this project for the ideaId
+    const query = {
+      query: "SELECT * FROM c WHERE c.projectId = @pid AND c.type = 'ideas'",
+      parameters: [{ name: "@pid", value: projectId }],
+    };
+    const { resources } = await container.items.query<{
+      ideas: { id: string; steps: string[]; entities: string[]; description: string }[];
+    }>(query).fetchAll();
+    for (const doc of resources) {
+      const found = doc.ideas?.find(i => i.id === ideaId);
+      if (found) { idea = found; break; }
+    }
+  }
+
+  if (!idea) {
+    throw new Error(`Idea ${ideaId} not found in project ${projectId}`);
+  }
+
+  // 2. List all .md spec files under the version folder
+  const prefix = projectId !== "unknown"
+    ? `${projectId}/${versionFolder}/`
+    : `${versionFolder}/`;
+  const blobs = await listBlobs(prefix);
+  const allMdFiles = blobs
+    .filter(b => b.name.endsWith(".md"))
+    .map(b => {
+      // Strip projectId prefix so paths match what filterRelevantSpecs expects
+      // e.g. "proj123/V3/articles/create.md" → "V3/articles/create.md"
+      return projectId !== "unknown" && b.name.startsWith(projectId + "/")
+        ? b.name.slice(projectId.length + 1)
+        : b.name;
+    });
+
+  console.log(`[generateFlow] Blob listing for ${prefix}: ${allMdFiles.length} .md files`);
+
+  // 3. Run server-side spec selection
+  const selected = filterRelevantSpecs(idea, allMdFiles);
+  console.log(`[generateFlow] filterRelevantSpecs selected ${selected.length} from ${allMdFiles.length}:`, selected);
+
+  return selected;
+}
+
 /** POST /api/generate-flow
- *  Body: { prompt: string; specFiles?: string[]; stream?: boolean }
+ *  Body: { prompt: string; specFiles?: string[]; ideaId?: string; versionFolder?: string; stream?: boolean }
  *  Response: SSE stream of text chunks, or JSON { xml: string }
  */
 async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
@@ -406,7 +486,18 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     };
   }
 
-  let body: { prompt: string; specFiles?: string[]; stream?: boolean; model?: string };
+  let body: {
+    prompt: string;
+    specFiles?: string[];
+    stream?: boolean;
+    model?: string;
+    /** When provided, server resolves spec files from the idea's steps + blob listing */
+    ideaId?: string;
+    /** Version folder (e.g. "V3") — required when using ideaId for server-side spec selection */
+    versionFolder?: string;
+    /** Folder path where the idea is stored (e.g. "V3/articles") */
+    folderPath?: string;
+  };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -453,11 +544,28 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       console.warn("[generateFlow] credit check failed, proceeding anyway:", e);
     }
   }
-  // buildSpecContext now reads pre-distilled versions (cached at upload time)
-  // Filter out system/distilled companion paths — only raw spec files should be passed
-  const specFiles = (body.specFiles ?? []).filter(
-    (f: string) => !f.includes("/_system/") && !f.includes("/_distilled/")
-  );
+  // ── Resolve spec files ──
+  // Server-side selection: look up idea from Cosmos, list blobs, run filterRelevantSpecs
+  // Falls back to client-provided specFiles for backward compatibility
+  let specFiles: string[];
+  if (body.ideaId && body.versionFolder) {
+    try {
+      specFiles = await resolveSpecFilesFromIdea(
+        projectId, body.ideaId, body.versionFolder, body.folderPath,
+      );
+      console.log(`[generateFlow] Server-side spec selection: ${specFiles.length} files from idea ${body.ideaId}`, specFiles);
+    } catch (e) {
+      console.warn(`[generateFlow] Server-side spec resolution failed, falling back to client specFiles:`, e);
+      specFiles = (body.specFiles ?? []).filter(
+        (f: string) => !f.includes("/_system/") && !f.includes("/_distilled/")
+      );
+    }
+  } else {
+    // Legacy path: client sends specFiles directly
+    specFiles = (body.specFiles ?? []).filter(
+      (f: string) => !f.includes("/_system/") && !f.includes("/_distilled/")
+    );
+  }
   const { context: specContext, failedFiles } = await buildSpecContext(specFiles, projectId);
 
   // Fail early if ALL requested spec files couldn't be read
@@ -480,7 +588,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       : "";
 
   // Load AI context (rules, variables, dependencies) via shared module
-  const versionFolder = extractVersionFolder(body.specFiles ?? []);
+  const versionFolder = body.versionFolder || extractVersionFolder(body.specFiles ?? []);
   const ctx = await loadAiContext({
     projectId, versionFolder,
     loadSpec: false, // spec loaded separately via buildSpecContext above
@@ -669,7 +777,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
           xml,
           usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, costUsd },
           ...(failedFiles.length > 0 ? { warning: `${failedFiles.length} of ${specFiles.length} spec files could not be read. Flow may be missing required fields.`, failedFiles } : {}),
-          _debug: { projectId, commonFields, projVarMap, specFilesReceived: specFiles.length, specFilesRequested: specFiles, specContextLength: specContext.length },
+          _debug: { projectId, commonFields, projVarMap, specSource: body.ideaId ? "server" : "client", specFilesReceived: specFiles.length, specFilesRequested: specFiles, specContextLength: specContext.length },
         }),
       };
     } catch (e) {

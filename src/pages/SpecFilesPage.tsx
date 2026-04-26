@@ -42,7 +42,7 @@ import {
   unlockFlow,
 } from "../lib/api/flowFilesApi";
 import { useUserStore } from "../store/user.store";
-import { buildFlowPrompt, filterRelevantSpecs } from "../lib/flow/buildPrompt";
+import { buildFlowPrompt } from "../lib/flow/buildPrompt";
 import { loadFlowsFromQueue } from "../lib/tests/flowXml/loader";
 import { activateFlow, activateFlows, getActiveFlows } from "../lib/tests/flowXml/activeTests";
 import { buildParsedTagsFromRegistry } from "../lib/tests/buildParsedTags";
@@ -1610,23 +1610,9 @@ export function SpecFilesPage() {
     );
     if (selectedIdeas.length === 0) return;
 
-    // Get spec file names for context — the primary set comes from the active
-    // folder, but we also include the full version folder so that prerequisite
-    // endpoint specs (e.g. categories when generating article flows) can be
-    // found by filterRelevantSpecs.
-    const allMdFiles = files.filter((f) => f.name.endsWith(".md")).map((f) => f.name);
-    let specFileNames: string[];
-    if (activePath.endsWith(".md")) {
-      specFileNames = allMdFiles;
-    } else {
-      // Use all .md files under the version root (e.g. V3/) so dependency
-      // specs from sibling folders are available for prerequisite steps.
-      const versionRoot = activePath.split("/")[0];
-      const versionPrefix = versionRoot ? `${versionRoot}/` : "";
-      specFileNames = versionPrefix
-        ? allMdFiles.filter((f) => f.startsWith(versionPrefix))
-        : allMdFiles;
-    }
+    // Server-side spec selection: extract version folder from the active path
+    // so the backend can list blobs and run filterRelevantSpecs itself.
+    const versionRoot = activePath.split("/")[0] ?? "";
 
     // Preserve existing completed flows, add pending entries for new ones.
     // Exclude ideas being re-generated to avoid duplicates in the list.
@@ -1674,9 +1660,11 @@ export function SpecFilesPage() {
 
         try {
           const prompt = buildFlowPrompt(idea);
-          const relevantSpecs = filterRelevantSpecs(idea, specFileNames);
-          console.log(`[FlowGen] Calling API for "${idea.title}" with ${relevantSpecs.length} spec files:`, relevantSpecs, `(from ${specFileNames.length} total:`, specFileNames, `)`);
-          const result = await generateFlowXml(prompt, relevantSpecs, aiModel, ctrl.signal);
+          console.log(`[FlowGen] Calling API for "${idea.title}" with server-side spec selection (idea=${idea.id}, version=${versionRoot}, folder=${generationPath})`);
+          const result = await generateFlowXml(
+            prompt, [], aiModel, ctrl.signal,
+            idea.id, versionRoot, generationPath,
+          );
           console.log(`[FlowGen] Success for "${idea.title}" — ${result.xml.length} chars`);
 
           localFlows = localFlows.map((f) =>

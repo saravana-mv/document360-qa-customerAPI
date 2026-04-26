@@ -18,17 +18,30 @@ function cleanXml(raw: string): string {
   return xml;
 }
 
-/** Generate flow XML (non-streaming). Returns the XML string and usage data. */
+/** Generate flow XML (non-streaming). Returns the XML string and usage data.
+ *  When ideaId + versionFolder are provided, the server resolves spec files
+ *  from the idea's steps — no need to send specFiles from the client.
+ */
 export async function generateFlowXml(
   prompt: string,
   specFiles: string[],
   model?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  ideaId?: string,
+  versionFolder?: string,
+  folderPath?: string,
 ): Promise<FlowXmlResult> {
   const res = await fetch(`/api/generate-flow`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getProjectHeaders() },
-    body: JSON.stringify({ prompt, specFiles, stream: false, ...(model ? { model } : {}) }),
+    body: JSON.stringify({
+      prompt,
+      ...(ideaId && versionFolder
+        ? { ideaId, versionFolder, ...(folderPath ? { folderPath } : {}) }
+        : { specFiles }),
+      stream: false,
+      ...(model ? { model } : {}),
+    }),
     signal,
   });
 
