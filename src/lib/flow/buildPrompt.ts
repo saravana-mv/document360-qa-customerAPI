@@ -82,7 +82,28 @@ export function filterRelevantSpecs(idea: FlowIdea, allSpecFiles: string[]): str
     }
   }
 
-  if (needed.size > 0) return Array.from(needed);
+  if (needed.size > 0) {
+    // Auto-include create/delete specs from sibling resource folders
+    // so the flow generator has context for prerequisite steps.
+    const primaryFolders = new Set<string>();
+    for (const f of needed) {
+      const parts = f.split("/");
+      if (parts.length >= 2) primaryFolders.add(parts.slice(0, -1).join("/"));
+    }
+    for (const file of allSpecFiles) {
+      if (needed.has(file)) continue;
+      const filename = file.toLowerCase().split("/").pop() ?? "";
+      const fileParts = file.split("/");
+      const fileFolder = fileParts.length >= 2 ? fileParts.slice(0, -1).join("/") : "";
+      // Skip files in the same folder (already matched above)
+      if (primaryFolders.has(fileFolder)) continue;
+      // Include create/delete specs from other resource folders (dependencies)
+      if (filename.startsWith("create-") || filename.startsWith("delete-")) {
+        needed.add(file);
+      }
+    }
+    return Array.from(needed);
+  }
 
   // Fallback: if step parsing found nothing (unusual), use keyword matching
   const stepText = idea.steps.join(" ").toLowerCase() + " " + idea.description.toLowerCase();

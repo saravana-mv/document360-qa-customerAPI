@@ -80,7 +80,10 @@ Always start with the simplest scenarios before progressing to complex ones. The
 ## Rules
 1. Generate up to ${MAX_IDEAS_PER_RUN} ideas maximum per request
 2. **STRICT SCOPE — NO PRIOR KNOWLEDGE**: Only use API endpoints explicitly described in the provided spec files. Do NOT use your training data or prior knowledge about this API — treat the specs as if you are seeing this API for the first time. For prerequisite setup/teardown steps not in the specs, construct the path by following the EXACT same URL pattern and version prefix as the provided specs.
-3. Always note entity dependencies — if a request body has a foreign-key field referencing another resource (e.g., \`category_id\`, \`parent_id\`), the flow MUST create that resource in setup and delete it in teardown, even if the field is optional/nullable in the schema
+3. **ENTITY DEPENDENCIES — CRITICAL**: Scan every endpoint's request body for foreign-key fields (any field ending in \`_id\` that references another resource, e.g. \`category_id\`, \`parent_id\`, \`folder_id\`, \`group_id\`). If a field description says "retrieve from GET /…" or the field name matches a sibling resource, the idea MUST include:
+   - A setup step BEFORE the main logic: \`POST /vN/…/{resource}\` to create the dependency
+   - A teardown step AFTER the main logic: \`DELETE /vN/…/{resource}/{id}\` to clean up
+   Even if the field is marked optional/nullable. Example: an article idea must include "POST /v3/projects/{project_id}/categories — create prerequisite category" as step 1 and "DELETE /v3/projects/{project_id}/categories/{category_id} — teardown category" as the final step before other teardown. Use the SAME version prefix as the provided specs
 4. Include both happy-path and error-path flows
 5. Group related flows logically
 6. Return ONLY valid JSON — no markdown fences, no explanation text
