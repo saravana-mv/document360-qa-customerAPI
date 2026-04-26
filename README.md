@@ -48,6 +48,7 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 ### Scenario Manager
 - Version-based accordion layout with folder trees
 - Drag-and-drop scenario organization (qa_manager role)
+- **Pre-run connection health check** — Validates all connection credentials on mount (OAuth token validity via server health-check endpoint, non-OAuth `hasCredential` flag); red error banner per version with "Settings → Connections" link, run buttons disabled until resolved
 - **Pre-run variable validation** — Missing or empty project variables detected before execution; red error banner with "Settings → Variables" link, run buttons disabled until resolved
 - Per-step breakpoint debugging (pause/resume)
 - Live execution console with step-grouped log output

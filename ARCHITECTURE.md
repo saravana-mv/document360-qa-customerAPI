@@ -67,7 +67,7 @@ src/components/
 ├── specfiles/      # FileTree (with _system and _distilled folder support: isSystem flag, lock icon, read-only), FlowChatPanel, FlowIdeasPanel, FlowsPanel, DetailPanel, ImportFromUrlModal, ImportResultModal (post-import stats + variable/connection auto-detect + processing health banner), FolderRulesPanel, NewVersionModal
 ├── connections/    # ConnectionFormModal (provider-specific fields, ProviderBadge), ConnectionsPage
 ├── explorer/       # TestExplorer, VersionAccordion, ScenarioFolderTree, TagNode, ConnectEndpointModal (simplified: Base URL + Connection picker), ScenarioEnvOverrideModal
-├── runner/         # RunControls (pre-run variable validation + run buttons), LiveLog, ProgressBar, RunHistory
+├── runner/         # RunControls (pre-run connection health check + variable validation + run buttons), LiveLog, ProgressBar, RunHistory
 ├── results/        # ResultsPanel, DetailPane, SummaryDrawer, DiffModal
 └── setup/          # SetupPanel, ApiKeysCard
 ```
@@ -323,8 +323,11 @@ All spec-file blob operations are scoped with a `{projectId}/` prefix. Azure Fun
 ### Scenario Environment Override Hierarchy
 Test context is built with a 3-tier merge: scenario-level overrides (from `scenarioConfigs`) > version-level config (from `versionConfigs`) > global defaults. `buildContextByTag` in `RunControls` performs the merge at runtime. `ScenarioEnvOverrideModal` (TagNode context menu) edits per-scenario overrides. Server-side `scenarioOrg.ts` persists `scenarioConfigs` alongside folders/placements.
 
+### Pre-Run Connection Health Check
+`RunControls` performs a one-time connection health check on mount that validates ALL connection types used by connected versions. OAuth connections are verified via `/api/oauth/health-check/{connectionId}` (checks token validity/refreshability); non-OAuth connections (bearer, API key, basic, cookie) are checked for `hasCredential` on the Connection object. Issues are shown in a red error banner listing version name, reason, and connection name, with a link to "Settings → Connections". A "Checking connection credentials..." spinner displays while the check runs. Run buttons are disabled until the health check completes and passes.
+
 ### Pre-Run Variable Validation
-`RunControls` performs design-time validation on every render: `findMissingProjVars()` detects `{{proj.*}}` references with no matching variable definition, and `findEmptyProjVars()` detects defined variables with empty/blank values. If any issues are found, a red error banner lists the problematic variables (with "not defined" / empty labels) and links to "Settings → Variables". Run buttons are disabled until all variables have values.
+`RunControls` also performs design-time variable validation on every render: `findMissingProjVars()` detects `{{proj.*}}` references with no matching variable definition, and `findEmptyProjVars()` detects defined variables with empty/blank values. If any issues are found, a red error banner lists the problematic variables (with "not defined" / empty labels) and links to "Settings → Variables". Run buttons are disabled until all variables have values.
 
 ### OpenAPI Auto-Detection
 `autoDetectEndpoint.ts` parses uploaded/imported spec files for `servers[].url` (OpenAPI 3.x) or `host`+`basePath` (Swagger 2.x) and security scheme definitions. Detected config stored in `scenarioOrg.store.detectedEndpoint` and surfaced as a blue banner in Spec Manager + pre-fill in `ConnectEndpointModal`.

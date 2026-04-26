@@ -114,6 +114,9 @@ Per-version-folder configurable rules injected into all AI system prompts (flow 
 ### Diagnostic Lessons (Auto-Learned Skills)
 When the Diagnose tab's "Fix it" succeeds, a lesson is auto-appended to `{versionFolder}/_system/_skills.md` in blob storage under a `## Lessons Learned` section. Each lesson records the endpoint, category, problematic fields, fix description, and date. Deduplication prevents the same endpoint+field combination from being recorded twice. `loadApiRules()` automatically picks up `_system/_skills.md` content (with legacy `Skills.md` fallback) alongside `_rules.json`, so lessons are injected into all AI prompts (flow generation, ideas, chat, edit) without any extra wiring.
 
+### Pre-Run Connection Health Check
+`RunControls` runs a one-time health check on mount validating ALL connection types: OAuth connections verified via `/api/oauth/health-check/{connectionId}`, non-OAuth checked for `hasCredential`. Red error banner per version with "Settings → Connections" link. Run buttons disabled until health check passes. Replaces the previous 60-second OAuth status polling approach.
+
 ### Project Variable Validation (Two Layers)
 - **Design-time** (`RunControls`): On every render, `findMissingProjVars()` + `findEmptyProjVars()` scan active flows for `{{proj.*}}` references. Missing or empty variables show a red banner with link to Settings → Variables; Run buttons are disabled until resolved.
 - **Runtime** (`runner.ts`): Steps with unresolved `{{proj.*}}` placeholders are blocked individually with `suggestSimilarVar()` hints.
