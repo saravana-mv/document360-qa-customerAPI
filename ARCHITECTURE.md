@@ -78,7 +78,7 @@ All API calls go through `client.ts` which adds auth headers and rewrites `/vN/`
 
 | Module | Key Functions |
 |--------|---------------|
-| `specFilesApi.ts` | `listSpecFiles`, `importSpecFileFromUrl`, `syncSpecFiles`, `getSourcesManifest`, `updateSourceUrl`, `generateFlowIdeas`, `splitSwagger` — `SplitSwaggerResult` includes `suggestedVariables` (`SuggestedVariable[]`), `suggestedConnections` (`SuggestedConnection[]`), and optional `processing` (`ProcessingReport`: distillation totals/errors + digest build status) |
+| `specFilesApi.ts` | `listSpecFiles`, `importSpecFileFromUrl`, `syncSpecFiles`, `getSourcesManifest`, `updateSourceUrl`, `generateFlowIdeas`, `splitSwagger` — `SplitSwaggerResult` includes `suggestedVariables` (`SuggestedVariable[]`), `suggestedConnections` (`SuggestedConnection[]`), and optional `processing` (`ProcessingReport`: distillation totals/errors + digest build status). Uses raw `fetch()` (not `apiClient`), so includes its own 401→`session-expired` event dispatch. |
 | `flowApi.ts` | `generateFlowXml` (AI generation from plan) |
 | `flowFilesApi.ts` | `saveFlowFile`, `deleteFlowFile`, `listFlowFiles`, `unlockFlow` |
 | `flowChatApi.ts` | `sendFlowChatMessage` (multi-turn conversation) |
@@ -246,6 +246,8 @@ Browser → SWA /.auth/login/aad → Microsoft login → SWA sets cookie
        → EntraGate checks /.auth/me → auto-login if no principal
        → withAuth() extracts claims from x-ms-client-principal header
        → getUserInfo() returns { oid, name, email }
+       → On 401: apiClient (and raw-fetch modules) dispatch `session-expired` event
+       → App.tsx handler calls auth.logout() + entraAuth.check() → login redirect
 ```
 
 ### API Proxy (Connection-Based Auth Injection)

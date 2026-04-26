@@ -148,6 +148,9 @@ Some APIs return enum fields as integers at runtime (spec uses strings). `enumAl
 ### Spec Distillation Backtick Format
 Distilled spec markdown uses 4-backtick fenced blocks (````json) as the canonical format. `specRequiredFields.ts` regex accepts both 3 and 4 backticks for backward compatibility. If the distillation output looks wrong, check `DISTILL_VERSION` in `specDistillCache.ts` — bumping it forces re-distillation of all cached specs.
 
+### Session-Expired Handling for Raw Fetch Modules
+Any API module that uses raw `fetch()` instead of `apiClient` (e.g., `specFilesApi.ts`) must dispatch a `session-expired` custom event on 401 responses — otherwise expired Entra sessions cause blank screens instead of login redirects. The global `session-expired` handler in `App.tsx` must call both `useAuthStore.getState().logout()` AND `useEntraAuthStore.getState().check()` to trigger Entra re-authentication.
+
 ### Debugging 500s
 For Azure Functions 500 with empty body: enable **Application Insights first** before theorizing. It reveals runtime exceptions invisible to browser.
 
