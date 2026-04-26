@@ -7,6 +7,7 @@ import { checkCredits, recordUsage } from "../lib/aiCredits";
 import { extractVersionFolder } from "../lib/apiRules";
 import { readDistilledContent } from "../lib/specDistillCache";
 import { loadAiContext } from "../lib/aiContext";
+import { analyzeCrossStepDependencies } from "../lib/specRequiredFields";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -233,7 +234,8 @@ async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<Http
   let systemPrompt = ctx.enrichSystemPrompt(FLOW_CHAT_SYSTEM_PROMPT);
   if (specContext) {
     const depMap = ctx.dependencyInfo ? `\n\n${ctx.dependencyInfo}` : "";
-    systemPrompt += `\n\n# Available API Specifications (${specFiles.length} file${specFiles.length !== 1 ? "s" : ""})\n\nThe user has provided the following API endpoint specifications. Use ONLY these endpoints when designing flows.\n\n${specContext}${depMap}`;
+    const crossStepDeps = analyzeCrossStepDependencies(specContext);
+    systemPrompt += `\n\n# Available API Specifications (${specFiles.length} file${specFiles.length !== 1 ? "s" : ""})\n\nThe user has provided the following API endpoint specifications. Use ONLY these endpoints when designing flows.\n\n${specContext}${depMap}${crossStepDeps}`;
   }
 
   // Pass messages through as-is — spec context is in the system prompt

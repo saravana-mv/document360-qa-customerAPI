@@ -380,10 +380,13 @@ function formatEndpoint(ep: EndpointSummary): string {
     }
   }
 
-  // Response
+  // Response — show full field list so the AI can identify capturable fields
   lines.push(`### Response (${ep.successStatus})`);
   if (ep.responseKeyFields.length > 0) {
-    lines.push(`Key fields: ${ep.responseKeyFields.slice(0, 10).map(f => `\`${f}\``).join(", ")}`);
+    lines.push("**Response fields available for capture** (use `<capture variable=\"state.xxx\" source=\"response.data.xxx\"/>`):");
+    for (const f of ep.responseKeyFields.slice(0, 15)) {
+      lines.push(`- \`${f}\``);
+    }
   }
   lines.push("");
 
@@ -503,6 +506,107 @@ export function extractCommonRequiredFields(specContext: string): string[] {
   return Object.entries(fieldFrequency)
     .filter(([name]) => /id$|_id|version/i.test(name))
     .map(([name]) => name);
+}
+
+/**
+ * Analyze distilled spec context to find cross-endpoint data dependencies.
+ *
+ * Scans all endpoints for cases where one endpoint's REQUIRED request field
+ * matches another endpoint's response field name.  Returns a markdown section
+ * with explicit capture instructions so the AI knows exactly which fields to
+ * capture from which step and inject into which downstream step.
+ *
+ * Works on already-distilled spec text (not raw OpenAPI JSON).
+ */
+export function analyzeCrossStepDependencies(distilledContext: string): string {
+  // Parse endpoints from distilled format
+  const endpointRe = /## Endpoint: (GET|POST|PUT|PATCH|DELETE) (\S+)/g;
+  const sections: { method: string; path: string; text: string; start: number }[] = [];
+  let em: RegExpExecArray | null;
+  while ((em = endpointRe.exec(distilledContext)) !== null) {
+    sections.push({ method: em[1], path: em[2], text: "", start: em.index });
+  }
+  // Slice each section's text
+  for (let i = 0; i < sections.length; i++) {
+    const end = i + 1 < sections.length ? sections[i + 1].start : distilledContext.length;
+    sections[i].text = distilledContext.slice(sections[i].start, end);
+  }
+
+  // For each endpoint, extract required request fields and response fields
+  const endpoints: {
+    method: string;
+    path: string;
+    requiredRequestFields: string[];
+    responseFields: string[]; // bare names like "version_number"
+  }[] = [];
+
+  for (const sec of sections) {
+    // Required request fields from **REQUIRED FIELDS: `f1`, `f2`**
+    const reqFields: string[] = [];
+    const reqRe = /\*\*REQUIRED FIELDS:\s*(.+?)\*\*/g;
+    let rm: RegExpExecArray | null;
+    while ((rm = reqRe.exec(sec.text)) !== null) {
+      const fields = rm[1].match(/`(\w+)`/g)?.map(f => f.replace(/`/g, "")) ?? [];
+      reqFields.push(...fields);
+    }
+
+    // Response fields from bulleted list: - `response.data.xxx`
+    const respFields: string[] = [];
+    const respRe = /- `response\.(?:data\.)?(\w+)/g;
+    let rr: RegExpExecArray | null;
+    while ((rr = respRe.exec(sec.text)) !== null) {
+      respFields.push(rr[1]);
+    }
+    // Also handle old flat format: Key fields: `response.data.xxx (type)`, ...
+    const flatRe = /Key fields:\s*(.+)/g;
+    let fr: RegExpExecArray | null;
+    while ((fr = flatRe.exec(sec.text)) !== null) {
+      const fields = fr[1].match(/response\.(?:data\.)?(\w+)/g) ?? [];
+      for (const f of fields) {
+        const bare = f.replace(/^response\.(?:data\.)?/, "");
+        if (bare && !respFields.includes(bare)) respFields.push(bare);
+      }
+    }
+
+    endpoints.push({
+      method: sec.method,
+      path: sec.path,
+      requiredRequestFields: reqFields,
+      responseFields: respFields,
+    });
+  }
+
+  // Find cross-endpoint matches: endpoint A's response field matches endpoint B's required field
+  const instructions: string[] = [];
+  for (const consumer of endpoints) {
+    for (const reqField of consumer.requiredRequestFields) {
+      // Skip generic fields that are path params or project variables (project_id, etc.)
+      if (/^project_id$/i.test(reqField)) continue;
+
+      for (const producer of endpoints) {
+        if (producer === consumer && producer.method === consumer.method) continue;
+        if (producer.responseFields.includes(reqField)) {
+          instructions.push(
+            `- **${producer.method} ${producer.path}** response contains \`${reqField}\` → ` +
+            `**${consumer.method} ${consumer.path}** requires \`${reqField}\` in request body. ` +
+            `You MUST add \`<capture variable="state.${toCamelCase(reqField)}" source="response.data.${reqField}"/>\` ` +
+            `to the ${producer.method} step and use \`{{state.${toCamelCase(reqField)}}}\` in the ${consumer.method} step's body.`
+          );
+        }
+      }
+    }
+  }
+
+  if (instructions.length === 0) return "";
+
+  return `\n\n# Cross-Step Data Dependencies (AUTO-DETECTED)\n\n` +
+    `**CRITICAL**: The following fields MUST be captured from earlier steps and passed to later steps. ` +
+    `Failure to capture these will cause runtime errors.\n\n` +
+    instructions.join("\n");
+}
+
+function toCamelCase(snakeCase: string): string {
+  return snakeCase.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 }
 
 /** Recursively collect required fields from all schemas, following $ref. */

@@ -5,7 +5,7 @@ import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPrici
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { checkCredits, recordUsage } from "../lib/aiCredits";
 import { extractVersionFolder } from "../lib/apiRules";
-import { extractCommonRequiredFields } from "../lib/specRequiredFields";
+import { extractCommonRequiredFields, analyzeCrossStepDependencies } from "../lib/specRequiredFields";
 import { readDistilledContent } from "../lib/specDistillCache";
 import { loadAiContext } from "../lib/aiContext";
 
@@ -502,8 +502,14 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     ? `\n\n**CRITICAL — API VERSION**: This API uses ${canonicalVersion} endpoints EXCLUSIVELY. ALL paths in your XML — including prerequisite/setup/teardown steps — MUST use /${canonicalVersion}/ prefix. Do NOT use any other version.`
     : "";
 
+  // Analyze cross-step dependencies between endpoints in the spec context
+  const crossStepDeps = specContext ? analyzeCrossStepDependencies(specContext) : "";
+  if (crossStepDeps) {
+    console.log(`[generateFlow] Cross-step dependencies detected:\n${crossStepDeps}`);
+  }
+
   const userMessage = specContext
-    ? `${body.prompt}${scopeNote}${versionDirective}\n\n# Relevant API Specification\n\n${specContext}`
+    ? `${body.prompt}${scopeNote}${versionDirective}\n\n# Relevant API Specification\n\n${specContext}${crossStepDeps}`
     : body.prompt;
 
   const shouldStream = body.stream !== false; // default to streaming
