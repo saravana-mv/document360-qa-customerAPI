@@ -5,7 +5,7 @@ import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPrici
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { checkCredits, recordUsage } from "../lib/aiCredits";
 import { extractVersionFolder } from "../lib/apiRules";
-import { extractCommonRequiredFields, analyzeCrossStepDependencies } from "../lib/specRequiredFields";
+import { extractCommonRequiredFields, analyzeCrossStepDependencies, injectCrossStepCaptures } from "../lib/specRequiredFields";
 import { readDistilledContent } from "../lib/specDistillCache";
 import { loadAiContext } from "../lib/aiContext";
 
@@ -503,7 +503,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     : "";
 
   // Analyze cross-step dependencies between endpoints in the spec context
-  const crossStepDeps = specContext ? analyzeCrossStepDependencies(specContext) : "";
+  const crossStepDeps = specContext ? analyzeCrossStepDependencies(specContext, projVars) : "";
   if (crossStepDeps) {
     console.log(`[generateFlow] Cross-step dependencies detected:\n${crossStepDeps}`);
   }
@@ -573,6 +573,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
           }
           console.log(`[generateFlow] stream post-process: commonFields=${JSON.stringify(commonFields)}, projVarMap=${JSON.stringify(projVarMap)}`);
           xml = injectMissingRequiredFields(xml, commonFields, projVarMap);
+          xml = injectCrossStepCaptures(xml, specContext, projVars);
 
           // Send the corrected XML so the frontend can replace the raw streamed text
           const correctedData = `data: ${JSON.stringify({ corrected: xml })}\n\n`;
@@ -639,6 +640,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       // Post-process: inject missing common required fields into POST/PUT bodies
       console.log(`[generateFlow] post-process: commonFields=${JSON.stringify(commonFields)}, projVarMap=${JSON.stringify(projVarMap)}`);
       xml = injectMissingRequiredFields(xml, commonFields, projVarMap);
+      xml = injectCrossStepCaptures(xml, specContext, projVars);
 
       const inputTokens = finalMessage.usage.input_tokens;
       const outputTokens = finalMessage.usage.output_tokens;
