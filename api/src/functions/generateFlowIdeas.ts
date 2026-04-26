@@ -364,6 +364,8 @@ export async function generateFlowIdeasHandler(
 
   // Extract concrete dependency map from spec content
   const dependencyMap = extractDependencyMap(specText, canonicalVersion);
+  console.log("[generateFlowIdeas] dependencyMap length:", dependencyMap.length, dependencyMap ? "FOUND" : "EMPTY");
+  if (dependencyMap) console.log("[generateFlowIdeas] dependencyMap:", dependencyMap.slice(0, 500));
 
   const requestedCount = typeof body.maxCount === "number" && body.maxCount > 0 && body.maxCount <= MAX_IDEAS_PER_RUN
     ? body.maxCount
@@ -469,7 +471,7 @@ export async function generateFlowIdeasHandler(
     }
   }
 
-  return ok({ ideas, usage });
+  return ok({ ideas, usage, _debug: { dependencyMap: dependencyMap || "(none detected)" } });
 }
 
 app.http("generateFlowIdeas", {
