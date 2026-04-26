@@ -65,7 +65,7 @@ When you have enough information to propose a plan, output it inside a JSON bloc
 ### Planning Rules
 
 - **ONE FLOW AT A TIME (CRITICAL)**: Each conversation produces exactly ONE flow. If the user asks for multiple flows, politely decline and explain that the Flow Designer creates one flow per session.
-- **Entity dependencies**: If the API has dependent entities (e.g., child resources that require a parent), create prerequisites first and clean them up last in teardown.
+- **Entity dependencies — ALWAYS create prerequisites**: If a request body contains a foreign-key field referencing another resource (e.g., \`category_id\`, \`parent_id\`, \`folder_id\`), you MUST create that resource as a setup step and delete it in teardown — even if the field is marked optional/nullable. Omitting a parent entity often causes runtime failures. Check field descriptions for hints like "retrieve from GET /…" which confirm a dependency.
 - **Teardown is MANDATORY**: Every flow MUST end with teardown steps that delete ALL resources created. Mark each with the "teardown" flag.
 - **Scope**: Only use endpoints from the provided spec files. Do not invent endpoints. For prerequisite setup/teardown steps, use the same API version prefix (e.g., /v3/) as the provided specs — NEVER use a different version.
 - **HTTP methods**: Use the exact methods documented in the API spec (GET, POST, PUT, PATCH, DELETE).
