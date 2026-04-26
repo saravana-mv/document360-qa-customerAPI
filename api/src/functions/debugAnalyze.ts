@@ -54,6 +54,8 @@ You MUST follow these rules strictly. Violating them produces dangerous false di
 
 10. **Base your diagnosis ONLY on the ACTUAL request and response data provided**, not on what other steps capture or use. If the actual request body is shown, analyze THOSE values — do not speculate about what "might have been" captured or passed. The actual data is the ground truth.
 
+11. **When the spec and the flow XML contradict each other** (e.g., the flow sends a request body but the spec shows no requestBody, or vice versa), the spec is ALWAYS correct. If the flow is sending a body to an endpoint that doesn't accept one, diagnose THAT as the issue — the flow XML needs to be fixed to match the spec.
+
 ## Common failure patterns (only diagnose these when you have supporting evidence):
 1. Extra fields in body (additionalProperties: false rejects unknown fields) — ONLY if spec lists the accepted properties
 2. Missing required fields — ONLY if spec marks them as required
@@ -384,6 +386,14 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
     parts.push(`\n\n${ctx.dependencyInfo}`);
   }
 
+  // Check if the failing step's spec defines a request body
+  const failingStepSpec = ctx.flowStepSpecs.find(
+    s => s.stepNumber === body.stepNumber && s.spec,
+  );
+  const specHasRequestBody = failingStepSpec?.spec
+    ? /### Request Body/i.test(failingStepSpec.spec)
+    : null; // null = spec not available, can't determine
+
   parts.push(`## Failed Step: ${step.name}\n`);
   parts.push(`**Method:** ${step.method}`);
   parts.push(`**Path:** ${step.path}`);
@@ -391,7 +401,13 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
   if (step.httpStatus !== undefined) parts.push(`**HTTP Status:** ${step.httpStatus}`);
   if (step.failureReason) parts.push(`**Failure Reason:** ${step.failureReason}`);
 
-  if (step.requestBody !== undefined) {
+  // If spec confirms no request body, annotate strongly regardless of what was sent
+  if (specHasRequestBody === false) {
+    parts.push(`\n**⚠ IMPORTANT: According to the API specification, this endpoint does NOT accept a request body. It only uses path parameters. Any request body content is IRRELEVANT to this failure. Do NOT diagnose body field issues. Focus on path parameters and resource state.**`);
+    if (step.requestBody !== undefined) {
+      parts.push(`\n### Request Body (IGNORED BY API — this endpoint accepts no body)\n\`\`\`json\n${JSON.stringify(step.requestBody, null, 2)}\n\`\`\``);
+    }
+  } else if (step.requestBody !== undefined) {
     parts.push(`\n### Request Body\n\`\`\`json\n${JSON.stringify(step.requestBody, null, 2)}\n\`\`\``);
   }
 
@@ -442,6 +458,20 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
       };
     }
 
+    // ── Post-AI guardrails ──
+    // If the spec shows no request body but the AI diagnosed body field issues,
+    // force low confidence — the AI is hallucinating.
+    if (specHasRequestBody === false && diagnosis.confidence === "high") {
+      const category = String(diagnosis.category ?? "");
+      const bodyFieldCategories = ["extra_field", "missing_field", "wrong_value", "schema_mismatch"];
+      if (bodyFieldCategories.includes(category)) {
+        console.warn("[debugAnalyze] Guardrail: AI diagnosed body field issue for no-body endpoint, forcing low confidence");
+        diagnosis.confidence = "low";
+        diagnosis.canYouFixIt = false;
+        diagnosis.summary = `${diagnosis.summary} (Note: The API specification shows this endpoint does NOT accept a request body — this diagnosis may be inaccurate.)`;
+      }
+    }
+
     const inputTokens = response.usage.input_tokens;
     const outputTokens = response.usage.output_tokens;
     const costUsd = computeCost(model, inputTokens, outputTokens);
@@ -467,6 +497,14 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
           hasDependencies: !!ctx.dependencyInfo,
           flowStepSpecsLoaded: ctx.flowStepSpecs.length,
           flowStepSpecsFound: ctx.flowStepSpecs.filter(s => s.spec !== null).length,
+          flowStepSpecDetails: ctx.flowStepSpecs.map(s => ({
+            step: s.stepNumber,
+            method: s.method,
+            path: s.path,
+            specFound: s.spec !== null,
+            specSource: s.specSource,
+            hasRequestBody: s.spec ? /### Request Body/i.test(s.spec) : null,
+          })),
           model,
         },
       }),
