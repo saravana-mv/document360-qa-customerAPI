@@ -44,6 +44,16 @@ You MUST follow these rules strictly. Violating them produces dangerous false di
 
 7. **If API Rules or Skills context is provided**, use it to understand known patterns and constraints for this API, but never contradict the actual endpoint specification with rule-based assumptions.
 
+8. **For 404 RESOURCE_NOT_FOUND errors:** The most common cause is that the resource referenced by path parameters doesn't exist — the ID is wrong, a prerequisite step failed to create it, or the resource is in a state that doesn't support the operation (e.g., forking requires a published article). Do NOT blame request body fields for a 404 unless the spec explicitly says body fields affect resource lookup. Focus your analysis on:
+   - Whether path parameter values (IDs) are correct and came from a prior step
+   - Whether prerequisite steps actually succeeded
+   - Whether the resource is in the required state for this operation
+   - Whether there's a timing/propagation issue between steps
+
+9. **When the spec defines NO request body (no requestBody schema):** The endpoint uses only path parameters and/or query parameters. Do NOT invent request body issues, do NOT suggest adding or fixing body fields, and do NOT attribute failures to body content. Any request body sent to such an endpoint is irrelevant to the failure.
+
+10. **Base your diagnosis ONLY on the ACTUAL request and response data provided**, not on what other steps capture or use. If the actual request body is shown, analyze THOSE values — do not speculate about what "might have been" captured or passed. The actual data is the ground truth.
+
 ## Common failure patterns (only diagnose these when you have supporting evidence):
 1. Extra fields in body (additionalProperties: false rejects unknown fields) — ONLY if spec lists the accepted properties
 2. Missing required fields — ONLY if spec marks them as required
@@ -63,10 +73,12 @@ You MUST follow these rules strictly. Violating them produces dangerous false di
 When specs for ALL flow steps are provided, analyze the data flow between steps:
 - Check if the failing step requires fields that should have been captured from a PRIOR step's response
 - Look at the response schema of prior steps to identify capturable fields (e.g., \`version_number\`, \`id\`, etc.)
-- If the failing step needs a field that exists in a prior step's response but is NOT being captured, your fix MUST:
+- **IMPORTANT: Only suggest adding body fields if the failing step's spec defines a requestBody schema.** If the endpoint has no requestBody (e.g., fork, delete), do NOT suggest adding captured fields to its body — the endpoint doesn't accept one.
+- If the failing step DOES have a requestBody and needs a field from a prior step's response:
   1. Add a \`<capture>\` to the prior step to extract that field into \`{{state.xxx}}\`
   2. Add the field to the failing step's request body using \`{{state.xxx}}\`
 - The \`fixPrompt\` must describe BOTH changes (capture in prior step + use in failing step)
+- For endpoints that only use path parameters, check that the path param values (\`{{state.xxx}}\` or \`{{proj.xxx}}\`) are correct and populated
 
 ## When endpoint specification is NOT provided:
 - State clearly: "The endpoint specification was not available for this diagnosis"

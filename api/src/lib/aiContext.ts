@@ -326,7 +326,10 @@ export async function loadAiContext(opts: AiContextOptions): Promise<AiContext> 
         const isFailing = failingStepNumber !== undefined && ss.stepNumber === failingStepNumber;
         const label = isFailing ? " ← FAILING STEP" : "";
         if (ss.spec) {
-          sections.push(`### Step ${ss.stepNumber}: ${ss.method} ${ss.path}${label}\n\n${ss.spec}`);
+          // Detect whether the distilled spec includes a "Request Body" section
+          const hasRequestBody = /### Request Body/i.test(ss.spec);
+          const bodyNote = hasRequestBody ? "" : "\n\n**⚠ This endpoint has NO request body — it only uses path/query parameters. Do NOT attribute failures to body fields.**";
+          sections.push(`### Step ${ss.stepNumber}: ${ss.method} ${ss.path}${label}\n\n${ss.spec}${bodyNote}`);
         } else {
           sections.push(`### Step ${ss.stepNumber}: ${ss.method} ${ss.path}${label}\n\n(Spec not available)`);
         }
