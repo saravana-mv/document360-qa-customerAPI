@@ -17,7 +17,7 @@ export interface DebugDiagnosis {
   // New fields (v2)
   summary: string;
   whatWentWrong: string;
-  category: "extra_field" | "missing_field" | "wrong_value" | "schema_mismatch" | "auth_error" | "upstream_error" | "other";
+  category: "extra_field" | "missing_field" | "wrong_value" | "schema_mismatch" | "auth_error" | "upstream_error" | "no_spec" | "other";
   canYouFixIt: boolean;
   howToFix?: string | null;
   fixPrompt?: string | null;

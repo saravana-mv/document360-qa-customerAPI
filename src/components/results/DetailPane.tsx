@@ -590,6 +590,7 @@ const categoryLabel: Record<string, string> = {
   schema_mismatch: "Schema mismatch",
   auth_error: "Authentication error",
   upstream_error: "Server error",
+  no_spec: "Spec not available",
   other: "Other",
 };
 
@@ -656,8 +657,11 @@ async function saveDiagnosticLesson(
 
 /** Parse numbered steps (e.g. "1. Do X 2. Do Y") into an ordered list. */
 function HowToFixSteps({ text }: { text: string }) {
+  // Defensive: AI may return non-string (array, object) — coerce to string
+  const safeText = typeof text === "string" ? text : Array.isArray(text) ? (text as string[]).join("\n") : String(text ?? "");
+  if (!safeText) return null;
   // Split on numbered prefixes like "1. ", "2. " etc. — handles both newline-separated and inline
-  const steps = text.split(/(?:^|\n|\s)(?=\d+\.\s)/).map(s => s.replace(/^\d+\.\s*/, "").trim()).filter(Boolean);
+  const steps = safeText.split(/(?:^|\n|\s)(?=\d+\.\s)/).map(s => s.replace(/^\d+\.\s*/, "").trim()).filter(Boolean);
   if (steps.length <= 1) {
     return <p className="text-sm text-[#1f2328] leading-relaxed mb-3">{text}</p>;
   }
@@ -858,10 +862,12 @@ function DiagnoseTab({ testId }: { testId: string }) {
   if (!diagnosis) return null;
 
   const conf = confidenceBadge[diagnosis.confidence] ?? confidenceBadge.low;
+  // Defensive: AI may return non-string values — coerce everything to string
+  const str = (v: unknown): string => typeof v === "string" ? v : v != null ? String(v) : "";
   // Use new whatWentWrong field, fall back to categoryLabel for legacy responses
-  const issueLabel = diagnosis.whatWentWrong ?? categoryLabel[diagnosis.category] ?? diagnosis.category;
+  const issueLabel = str(diagnosis.whatWentWrong) || categoryLabel[diagnosis.category] || str(diagnosis.category);
   // Use summary, fall back to rootCause for legacy cached responses
-  const summaryText = diagnosis.summary ?? diagnosis.rootCause ?? "";
+  const summaryText = str(diagnosis.summary) || str(diagnosis.rootCause);
 
   return (
     <div className="p-4 space-y-4 text-sm">
