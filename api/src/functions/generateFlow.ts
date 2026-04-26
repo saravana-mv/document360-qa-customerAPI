@@ -58,6 +58,8 @@ function injectMissingRequiredFields(
     // interpolation tokens like {{timestamp}} which aren't valid JSON
     const missingFields: string[] = [];
     for (const field of fields) {
+      // Only inject fields that have a real project variable mapping
+      if (!projVarMap[field]) continue;
       // Check if the field name appears as a JSON key in the body
       if (!bodyText.includes(`"${field}"`)) {
         missingFields.push(field);
@@ -105,9 +107,9 @@ function buildProjVarMap(
     );
     if (matchedVar) {
       map[field] = `{{proj.${matchedVar.name}}}`;
-    } else {
-      map[field] = `{{proj.${camel}}}`;
     }
+    // No fallback — if no project variable matches, don't inject as proj var.
+    // Cross-step fields (e.g. version_number) will be handled by injectCrossStepCaptures instead.
   }
   return map;
 }
@@ -572,8 +574,10 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
             xml = xml.replace(/(<path>)\/v\d+\//gi, `$1/${canonicalVersion}/`);
           }
           console.log(`[generateFlow] stream post-process: commonFields=${JSON.stringify(commonFields)}, projVarMap=${JSON.stringify(projVarMap)}`);
-          xml = injectMissingRequiredFields(xml, commonFields, projVarMap);
+          // Cross-step captures FIRST (injects state vars for cross-step deps like version_number)
           xml = injectCrossStepCaptures(xml, specContext, projVars);
+          // Missing required fields SECOND (fills remaining gaps with proj vars)
+          xml = injectMissingRequiredFields(xml, commonFields, projVarMap);
 
           // Send the corrected XML so the frontend can replace the raw streamed text
           const correctedData = `data: ${JSON.stringify({ corrected: xml })}\n\n`;
@@ -639,8 +643,10 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
 
       // Post-process: inject missing common required fields into POST/PUT bodies
       console.log(`[generateFlow] post-process: commonFields=${JSON.stringify(commonFields)}, projVarMap=${JSON.stringify(projVarMap)}`);
-      xml = injectMissingRequiredFields(xml, commonFields, projVarMap);
+      // Cross-step captures FIRST (injects state vars for cross-step deps like version_number)
       xml = injectCrossStepCaptures(xml, specContext, projVars);
+      // Missing required fields SECOND (fills remaining gaps with proj vars)
+      xml = injectMissingRequiredFields(xml, commonFields, projVarMap);
 
       const inputTokens = finalMessage.usage.input_tokens;
       const outputTokens = finalMessage.usage.output_tokens;

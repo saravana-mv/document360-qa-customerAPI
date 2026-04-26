@@ -764,6 +764,10 @@ export function injectCrossStepCaptures(
     ) ?? null;
   });
 
+  // Diagnostic: log step-to-spec matching
+  console.log(`[injectCrossStepCaptures] specEndpoints: ${specEndpoints.map(e => `${e.method} ${e.path} (req: ${e.requiredRequestFields.join(",")}, resp: ${e.responseFields.join(",")})`).join(" | ")}`);
+  console.log(`[injectCrossStepCaptures] step-spec matches: ${xmlSteps.map((s, i) => `${s.method} ${s.path} → ${stepSpecs[i] ? "MATCHED" : "no-match"}`).join(" | ")}`);
+
   // Build list of needed injections
   const captureInjections: { stepIdx: number; field: string; camelField: string }[] = [];
   const bodyInjections: { stepIdx: number; field: string; camelField: string }[] = [];
@@ -780,9 +784,11 @@ export function injectCrossStepCaptures(
 
       const camelField = toCamelCase(reqField);
 
-      // Check if the consumer step body already references this via state
+      // Check if the consumer step body already references this field
       const consumerXml = xmlSteps[consumerIdx].fullMatch;
-      if (consumerXml.includes(`state.${camelField}`) || consumerXml.includes(`"${reqField}"`)) continue;
+      // Extract CDATA body for precise check (avoid false matches in <name>, <notes>, etc.)
+      const cdataBody = consumerXml.match(/<body><!\[CDATA\[([\s\S]*?)\]\]><\/body>/)?.[1] ?? "";
+      if (cdataBody.includes(`state.${camelField}`) || cdataBody.includes(`"${reqField}"`)) continue;
 
       // Find a producer step (earlier) whose response includes this field
       for (let producerIdx = 0; producerIdx < consumerIdx; producerIdx++) {
@@ -800,6 +806,14 @@ export function injectCrossStepCaptures(
         break; // first producer wins
       }
     }
+  }
+
+  // Diagnostic: log detected injections
+  if (captureInjections.length > 0 || bodyInjections.length > 0) {
+    console.log(`[injectCrossStepCaptures] captures to inject: ${captureInjections.map(c => `step[${c.stepIdx}].${c.field}`).join(", ")}`);
+    console.log(`[injectCrossStepCaptures] body refs to inject: ${bodyInjections.map(b => `step[${b.stepIdx}].${b.field}`).join(", ")}`);
+  } else {
+    console.log(`[injectCrossStepCaptures] no cross-step dependencies detected`);
   }
 
   if (captureInjections.length === 0 && bodyInjections.length === 0) return xml;
