@@ -79,31 +79,33 @@ export function RunControls() {
 
       for (const version of versionSet) {
         const vc = versionConfigs[version];
-        if (!vc || vc.authType === "none") continue;
 
-        const conn = vc.connectionId
-          ? connections.find(c => c.id === vc.connectionId)
-          : undefined;
+        // No version config at all — needs endpoint setup
+        if (!vc) {
+          issues.push({ version, connectionName: "(none)", reason: "Endpoint not configured" });
+          continue;
+        }
 
-        if (!conn) {
+        const isOAuth = vc.authType === "oauth";
+        const hasCredential = vc.credentialConfigured || (isOAuth && !!vc.connectionId);
+
+        // Same logic as VersionAccordion's isConnected check
+        if (!hasCredential) {
           issues.push({ version, connectionName: "(none)", reason: "No connection configured" });
           continue;
         }
 
-        if (conn.provider === "oauth2") {
-          // Real health check — verifies token exists and is refreshable
+        // For OAuth connections, run a real health check
+        if (isOAuth && vc.connectionId) {
+          const conn = connections.find(c => c.id === vc.connectionId);
+          const connName = conn?.name || vc.connectionId;
           try {
-            const result: HealthCheckResult = await healthCheckOAuth(conn.id);
+            const result: HealthCheckResult = await healthCheckOAuth(vc.connectionId);
             if (!result.healthy) {
-              issues.push({ version, connectionName: conn.name, reason: result.reason || "OAuth token invalid or expired" });
+              issues.push({ version, connectionName: connName, reason: result.reason || "OAuth token invalid or expired" });
             }
           } catch {
-            issues.push({ version, connectionName: conn.name, reason: "OAuth sign-in required" });
-          }
-        } else {
-          // Static credential — just check it exists server-side
-          if (!conn.hasCredential) {
-            issues.push({ version, connectionName: conn.name, reason: "No credential stored" });
+            issues.push({ version, connectionName: connName, reason: "OAuth sign-in required" });
           }
         }
       }
