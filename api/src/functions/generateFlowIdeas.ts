@@ -92,6 +92,78 @@ Always start with the simplest scenarios before progressing to complex ones. The
 
 Return the JSON array directly.`;
 
+/**
+ * Scan distilled spec text for foreign-key `_id` fields and build a
+ * concrete dependency map the AI cannot ignore.
+ *
+ * Returns a formatted section like:
+ *   ## Entity Dependencies Detected
+ *   - POST /v3/.../articles requires `category_id` → setup: POST /v3/.../categories, teardown: DELETE /v3/.../categories/{category_id}
+ */
+function extractDependencyMap(specText: string, canonicalVersion: string | null): string {
+  // Parse endpoints: "## Endpoint: POST /v3/projects/{project_id}/articles"
+  const endpointRe = /## Endpoint:\s+(\w+)\s+(\S+)/g;
+  // Parse field rows: | `category_id` | type | req | description |
+  const fieldRowRe = /\|\s*`(\w+_id)`\s*\|[^|]*\|[^|]*\|([^|]*)\|/g;
+
+  // Collect: which endpoints have which _id fields
+  type DepInfo = { method: string; path: string; field: string; desc: string };
+  const deps: DepInfo[] = [];
+
+  // Split by endpoint sections
+  const sections = specText.split(/(?=## Endpoint:)/);
+  for (const section of sections) {
+    const epMatch = /## Endpoint:\s+(\w+)\s+(\S+)/.exec(section);
+    if (!epMatch) continue;
+    const [, method, path] = epMatch;
+    // Only care about POST/PUT/PATCH (endpoints that send a body with _id refs)
+    if (!["POST", "PUT", "PATCH"].includes(method)) continue;
+
+    let fm: RegExpExecArray | null;
+    const localFieldRe = /\|\s*`(\w+_id)`\s*\|[^|]*\|[^|]*\|([^|]*)\|/g;
+    while ((fm = localFieldRe.exec(section)) !== null) {
+      const field = fm[1];
+      const desc = fm[2].trim();
+      // Skip self-referencing IDs (project_id, article_id in articles endpoint, etc.)
+      const resource = path.split("/").filter(s => !s.startsWith("{")).pop() ?? "";
+      const singularResource = resource.replace(/s$/, "");
+      if (field === `${singularResource}_id`) continue;  // e.g. article_id in /articles
+      if (field === "project_id") continue;  // always a path param, not a dependency
+      deps.push({ method, path, field, desc });
+    }
+  }
+
+  if (deps.length === 0) return "";
+
+  // Deduplicate by field name and infer the resource to create
+  const seen = new Set<string>();
+  const lines: string[] = [];
+  const vPrefix = canonicalVersion ? `/${canonicalVersion}` : "/v1";
+
+  for (const d of deps) {
+    if (seen.has(d.field)) continue;
+    seen.add(d.field);
+
+    // Try to extract actual endpoint path from description (e.g. "Retrieve from GET /v3/.../categories")
+    const pathFromDesc = d.desc.match(/(?:GET|POST)\s+(\/\S+)/i);
+
+    // Infer resource name: category_id → categories, folder_id → folders
+    const base = d.field.replace(/_id$/, "");
+    const plural = base.endsWith("y") ? base.slice(0, -1) + "ies" : base + "s";
+
+    // Build the path prefix from the main endpoint (up to the version + project part)
+    const prefixMatch = d.path.match(/(\/v\d+\/projects\/\{project_id\})/);
+    const pathPrefix = prefixMatch ? prefixMatch[1] : `${vPrefix}/projects/{project_id}`;
+
+    const createPath = pathFromDesc ? pathFromDesc[1].replace(/^(GET|POST)\s+/i, "") : `${pathPrefix}/${plural}`;
+    const deletePath = `${pathPrefix}/${plural}/{${d.field}}`;
+
+    lines.push(`- \`${d.field}\` in ${d.method} ${d.path} → **setup**: POST ${createPath} (create the ${base}), **teardown**: DELETE ${deletePath} (clean up)`);
+  }
+
+  return `\n\n## ⚠️ Entity Dependencies Detected (MANDATORY)\n\nThe following foreign-key fields were found in the API specs. Any idea that uses an endpoint with these fields **MUST** include prerequisite setup and teardown steps:\n\n${lines.join("\n")}\n\n**Every idea for these endpoints must start with creating the dependency and end with deleting it.** Do NOT skip this — ideas without proper setup/teardown will fail at runtime.`;
+}
+
 function ok(data: unknown): HttpResponseInit {
   return {
     status: 200,
@@ -290,10 +362,13 @@ export async function generateFlowIdeasHandler(
     ? `\n\nIMPORTANT: You are analyzing a SINGLE endpoint specification. Generate ideas using ONLY this endpoint. Do not reference any other endpoints outside this file.`
     : `\n\nYou are analyzing ${filesAnalyzed} endpoint specifications. Only use endpoints from these files in your ideas.`;
 
+  // Extract concrete dependency map from spec content
+  const dependencyMap = extractDependencyMap(specText, canonicalVersion);
+
   const requestedCount = typeof body.maxCount === "number" && body.maxCount > 0 && body.maxCount <= MAX_IDEAS_PER_RUN
     ? body.maxCount
     : MAX_IDEAS_PER_RUN;
-  const userMessage = `Analyze these API specifications and generate up to ${requestedCount} NEW test flow ideas.${scopeNote}${versionDirective}${existingList}\n\n## Spec Files\n\n${specText}`;
+  const userMessage = `Analyze these API specifications and generate up to ${requestedCount} NEW test flow ideas.${scopeNote}${versionDirective}${existingList}${dependencyMap}\n\n## Spec Files\n\n${specText}`;
 
   // Load and inject version-folder API rules (falls back to project-level)
   const { rules: apiRules } = await loadApiRules(projectId, versionFolder ?? undefined);
