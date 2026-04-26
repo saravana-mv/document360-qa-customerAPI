@@ -20,7 +20,7 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 | Database | Azure Cosmos DB (serverless, 13 containers) |
 | File Storage | Azure Blob Storage (spec files only) |
 | Auth | Entra ID (Azure AD) SSO + generic OAuth/credential proxy |
-| AI | Anthropic Claude API (Sonnet 4.6 default, Opus 4.6, Haiku 4.5) |
+| AI | Anthropic Claude API (Sonnet 4.6 default, Opus 4.6) — user-selected model for all AI functions |
 | Deployment | Azure Static Web Apps + GitHub Actions CI/CD |
 | Editor | CodeMirror 6 (XML viewer/editor) |
 
@@ -53,7 +53,7 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 - Per-step breakpoint debugging (pause/resume)
 - Live execution console with step-grouped log output
 - Clickable run history with past result replay
-- **AI step debugging** — Analyze failed/errored steps with Claude Haiku, cross-referencing request/response against OpenAPI specs for inline diagnosis with structured output (summary, root cause, fix guidance) and **"Fix it automatically"** button that applies AI-suggested XML fixes, validates, saves, and reactivates the flow. Successful fixes auto-save lessons to `_system/_skills.md` per version folder — these are automatically injected into all AI prompts so the same mistakes are not repeated.
+- **AI step debugging** — Analyze failed/errored steps with Claude (user-selected model, Sonnet default), cross-referencing request/response against OpenAPI specs (with normalized path-param matching and raw spec fallback) for inline diagnosis with structured output (summary, root cause, fix guidance). API rules and learned lessons are injected into diagnosis context. **Anti-hallucination safeguards** prevent the AI from fabricating schemas when spec context is unavailable — diagnosis transparently reports `no_spec` category and disables auto-fix. **"Fix it automatically"** button applies AI-suggested XML fixes, validates, saves, and reactivates the flow. Successful fixes auto-save lessons to `_system/_skills.md` per version folder — these are automatically injected into all AI prompts so the same mistakes are not repeated.
 
 ### Connections & Connect Endpoint (Generic API Support)
 - Centralized connection management in Settings → Connections (all auth types)

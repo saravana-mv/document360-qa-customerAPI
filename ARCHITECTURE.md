@@ -79,7 +79,7 @@ All API calls go through `client.ts` which adds auth headers and rewrites `/vN/`
 | Module | Key Functions |
 |--------|---------------|
 | `specFilesApi.ts` | `listSpecFiles`, `importSpecFileFromUrl`, `syncSpecFiles`, `getSourcesManifest`, `updateSourceUrl`, `generateFlowIdeas`, `splitSwagger` — `SplitSwaggerResult` includes `suggestedVariables` (`SuggestedVariable[]`), `suggestedConnections` (`SuggestedConnection[]`), and optional `processing` (`ProcessingReport`: distillation totals/errors + digest build status). Uses raw `fetch()` (not `apiClient`), so includes its own 401→`session-expired` event dispatch. |
-| `flowApi.ts` | `generateFlowXml` (AI generation from plan) |
+| `flowApi.ts` | `generateFlowXml` (AI generation from plan), `editFlowXml` (accepts optional `method` and `path` for spec-aware editing) |
 | `flowFilesApi.ts` | `saveFlowFile`, `deleteFlowFile`, `listFlowFiles`, `unlockFlow` |
 | `flowChatApi.ts` | `sendFlowChatMessage` (multi-turn conversation) |
 | `flowChatSessionsApi.ts` | `listChatSessions`, `getChatSession`, `createChatSession`, `updateChatSession`, `deleteChatSession` |
@@ -95,7 +95,7 @@ All API calls go through `client.ts` which adds auth headers and rewrites `/vN/`
 | `projectVariablesApi.ts` | `getProjectVariables`, `saveProjectVariables` |
 | `apiRulesApi.ts` | `getApiRules`, `saveApiRules`, `fetchFolderApiRules(folder)`, `saveFolderApiRules(folder, data)` |
 | `connectionsApi.ts` | `listConnections`, `createConnection`, `updateConnection`, `deleteConnection` — `ConnectionProvider` type, `Connection` interface with optional OAuth fields and `hasCredential`. `CreateConnectionPayload` supports `draft: true` for auto-detected connections. |
-| `debugApi.ts` | `analyzeFailedStep` — sends failed step request/response to `/api/debug-analyze` for AI-powered diagnosis. Returns structured `DebugDiagnosis` with `summary`, `whatWentWrong`, `canYouFixIt`, `howToFix`, `fixPrompt`, `developerNote`. DiagnoseTab offers "Fix it automatically" (editFlowXml → validate → save → activate → reload pipeline). |
+| `debugApi.ts` | `analyzeFailedStep` — sends failed step request/response to `/api/debug-analyze` for AI-powered diagnosis. Returns structured `DebugDiagnosis` with `summary`, `whatWentWrong`, `canYouFixIt`, `howToFix`, `fixPrompt`, `developerNote`, plus `_debug` metadata (`specFound`, `specSource`, `hasApiRules`, `model`). When spec is unavailable, `canYouFixIt` is forced `false` and category is `no_spec`. DiagnoseTab offers "Fix it automatically" (editFlowXml with `method`/`path` for spec-aware editing → validate → save → activate → reload pipeline). |
 
 ### Test Execution Engine (`src/lib/tests/`)
 
@@ -143,8 +143,8 @@ tests/
 | `flowChatSessions` | `/api/flow-chat-sessions` | GET/POST/PUT/DELETE | Persist chat history |
 | `generateFlowIdeas` | `/api/generate-flow-ideas` | POST | AI idea generation from spec context |
 | `generateFlow` | `/api/generate-flow` | POST | AI XML generation from confirmed plan |
-| `editFlow` | `/api/edit-flow` | POST | AI-assisted flow editing |
-| `debugAnalyze` | `/api/debug-analyze` | POST | AI step debugging — analyzes failed test steps using Claude Haiku. Returns structured JSON: `summary`, `whatWentWrong`, `canYouFixIt`, `howToFix`, `fixPrompt`, `developerNote`. DiagnoseTab supports auto-fix via edit→validate→save→activate pipeline. |
+| `editFlow` | `/api/edit-flow` | POST | AI-assisted flow editing. Accepts optional `method` and `path` body params for spec-aware editing (used by Fix-it path). |
+| `debugAnalyze` | `/api/debug-analyze` | POST | AI step debugging — analyzes failed test steps using user-selected model (Sonnet default). Spec matching via `findMatchingSpec()` (from `aiContext.ts`) uses normalized path params (`{param}` → `{*}`) with raw spec fallback when distilled content is unavailable. Full AI context (spec, API rules, project variables, entity dependencies) loaded via `loadAiContext()`. **Anti-hallucination policy**: when spec is missing, AI must not fabricate schemas or field names — `canYouFixIt` forced to `false`, category set to `no_spec`, confidence lowered. Returns structured JSON: `summary`, `whatWentWrong`, `canYouFixIt`, `howToFix`, `fixPrompt`, `developerNote`, plus `_debug` field (`specFound`, `specSource`, `hasApiRules`, `model`). DiagnoseTab supports auto-fix via edit→validate→save→activate pipeline. |
 | `activeTests` | `/api/active-tests` | GET/PUT/POST | Manage active flow set |
 | `testRuns` | `/api/test-runs` | GET/POST | Persist/query run results |
 | `runScenario` | `/api/run-scenario` | POST | **Public API**: Server-side test execution |
@@ -181,6 +181,7 @@ tests/
 | `modelPricing.ts` | `resolveModel()`, `computeCost()`, pricing for Opus/Sonnet/Haiku |
 | `aiCredits.ts` | `checkCredits()`, `recordUsage()`, `seedProjectCredits()`, `seedUserCredits()`, `updateProjectBudget()`, `updateUserBudget()` — credit enforcement for AI endpoints |
 | `auditLog.ts` | Fire-and-forget `audit()` function, writes to Cosmos `audit-log` container. Actions include `project.member_add`, `project.member_remove`, `project.member_role_change`, `project.variables.update`, `project.apiRules.update`. |
+| `aiContext.ts` | Unified AI context builder. `loadAiContext(projectId, versionFolder, specFiles?)` returns `AiContext` with `enrichSystemPrompt()` and `formatUserContext()` helpers. Centralizes loading of spec context, API rules, project variables, and entity dependencies for all AI functions. Also exports `findMatchingSpec()` for spec lookup by method+path. |
 | `apiRules.ts` | `loadApiRules(projectId, versionFolder?)` fetches API rules — tries `_system/_rules.json` first, falls back to legacy `_rules.json` then Cosmos; also loads `_system/_skills.md` (with legacy `Skills.md` fallback) and merges into rules context. `injectApiRules(systemPrompt, projectId, versionFolder?)` appends rules + lessons to AI system prompts; `extractVersionFolder(paths)` derives version folder from spec file paths. |
 | `specDigest.ts` | Scalable spec context for large projects. Three tiers: Raw → Distilled → Digest (~2-3 lines/endpoint). Builds `_system/_digest.md` blob per version folder (lightweight endpoint index grouped by resource). Filters out `_system/` files from digest builds. Threshold: >20 specs use digest. Auto-invalidated on spec file changes. **Eagerly rebuilt during OpenAPI import** (split-swagger awaits distillation then calls `rebuildDigest`); lazy rebuild in `generateFlowIdeas` remains as fallback. |
 | `swaggerSplitter.ts` | Core OpenAPI/Swagger splitting logic: recursive $ref resolution (with circular detection), tag-to-folder kebab-case naming, method-to-filename with collision handling, Swagger 2.x→3.x normalization, per-endpoint markdown builder. `extractPathParameters()` extracts path params from all endpoints as `SuggestedVariable[]`. `extractSecuritySchemes()` extracts OAuth2/Bearer/API Key/Basic/Cookie auth from security definitions as `SuggestedConnection[]`. |
