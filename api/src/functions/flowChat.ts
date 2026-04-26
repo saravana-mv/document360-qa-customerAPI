@@ -7,6 +7,7 @@ import { checkCredits, recordUsage } from "../lib/aiCredits";
 import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRules";
 import { loadProjectVariables, injectProjectVariables } from "../lib/projectVariables";
 import { readDistilledContent } from "../lib/specDistillCache";
+import { loadOrRebuildDependencies } from "../lib/specDependencies";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -85,49 +86,6 @@ When you have enough information to propose a plan, output it inside a JSON bloc
 When the system tells you to generate XML, you switch to XML generation mode. You will receive the confirmed plan and must output ONLY the raw XML. This phase uses a different system prompt — you do not handle it directly.
 
 Remember: keep responses concise. Propose plans proactively when you have enough information. Ask at most 1-2 clarifying questions before showing a plan.`;
-
-/**
- * Scan distilled spec text for foreign-key `_id` fields and build a
- * concrete dependency map the AI cannot ignore.
- */
-function extractDependencyMap(specText: string, canonicalVersion: string | null): string {
-  type DepInfo = { method: string; path: string; field: string; desc: string };
-  const deps: DepInfo[] = [];
-  const sections = specText.split(/(?=## Endpoint:)/);
-  for (const section of sections) {
-    const epMatch = /## Endpoint:\s+(\w+)\s+(\S+)/.exec(section);
-    if (!epMatch) continue;
-    const [, method, path] = epMatch;
-    if (!["POST", "PUT", "PATCH"].includes(method)) continue;
-    const localFieldRe = /\|\s*`(\w+_id)`\s*\|[^|]*\|[^|]*\|([^|]*)\|/g;
-    let fm: RegExpExecArray | null;
-    while ((fm = localFieldRe.exec(section)) !== null) {
-      const field = fm[1];
-      const desc = fm[2].trim();
-      const resource = path.split("/").filter(s => !s.startsWith("{")).pop() ?? "";
-      const singularResource = resource.replace(/s$/, "");
-      if (field === `${singularResource}_id` || field === "project_id") continue;
-      deps.push({ method, path, field, desc });
-    }
-  }
-  if (deps.length === 0) return "";
-  const seen = new Set<string>();
-  const lines: string[] = [];
-  const vPrefix = canonicalVersion ? `/${canonicalVersion}` : "/v1";
-  for (const d of deps) {
-    if (seen.has(d.field)) continue;
-    seen.add(d.field);
-    const pathFromDesc = d.desc.match(/(?:GET|POST)\s+(\/\S+)/i);
-    const base = d.field.replace(/_id$/, "");
-    const plural = base.endsWith("y") ? base.slice(0, -1) + "ies" : base + "s";
-    const prefixMatch = d.path.match(/(\/v\d+\/projects\/\{project_id\})/);
-    const pathPrefix = prefixMatch ? prefixMatch[1] : `${vPrefix}/projects/{project_id}`;
-    const createPath = pathFromDesc ? pathFromDesc[1].replace(/^(GET|POST)\s+/i, "") : `${pathPrefix}/${plural}`;
-    const deletePath = `${pathPrefix}/${plural}/{${d.field}}`;
-    lines.push(`- \`${d.field}\` in ${d.method} ${d.path} → setup: POST ${createPath}, teardown: DELETE ${deletePath}`);
-  }
-  return `\n\n## Entity Dependencies Detected (MANDATORY)\n\nThese foreign-key fields require prerequisite setup/teardown:\n\n${lines.join("\n")}\n\n**You MUST include setup and teardown steps for these dependencies in every flow plan.**`;
-}
 
 function scopedPath(projectId: string, name: string): string {
   if (!projectId || projectId === "unknown") return name;
@@ -273,20 +231,9 @@ async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<Http
   // regardless of conversation length or message position.
   let systemPrompt = injectProjectVariables(injectApiRules(FLOW_CHAT_SYSTEM_PROMPT, apiRules), projVars);
   if (specContext) {
-    // Detect canonical version for dependency map
-    let chatVersion: string | null = null;
-    if (versionFolder) {
-      const fm = versionFolder.match(/^v(\d+)$/i);
-      if (fm) chatVersion = `v${fm[1]}`;
-    }
-    if (!chatVersion) {
-      const vs = new Set<string>();
-      const re = /\/v(\d+)\//g;
-      let m: RegExpExecArray | null;
-      while ((m = re.exec(specContext)) !== null) vs.add(`v${m[1]}`);
-      if (vs.size === 1) chatVersion = [...vs][0];
-    }
-    const depMap = extractDependencyMap(specContext, chatVersion);
+    // Load pre-computed dependency info (built at import time, lazy fallback from _swagger.json)
+    const depInfo = await loadOrRebuildDependencies(projectId, versionFolder ?? "");
+    const depMap = depInfo ? `\n\n${depInfo}` : "";
     systemPrompt += `\n\n# Available API Specifications (${specFiles.length} file${specFiles.length !== 1 ? "s" : ""})\n\nThe user has provided the following API endpoint specifications. Use ONLY these endpoints when designing flows.\n\n${specContext}${depMap}`;
   }
 

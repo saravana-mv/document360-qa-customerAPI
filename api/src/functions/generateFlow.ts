@@ -8,6 +8,7 @@ import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRu
 import { loadProjectVariables, injectProjectVariables } from "../lib/projectVariables";
 import { extractCommonRequiredFields } from "../lib/specRequiredFields";
 import { readDistilledContent } from "../lib/specDistillCache";
+import { loadOrRebuildDependencies } from "../lib/specDependencies";
 
 /** Strip markdown fences AND any preamble text before the XML declaration. */
 function cleanXmlResponse(raw: string): string {
@@ -517,6 +518,12 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   if (commonFields.length > 0) {
     const fieldList = commonFields.map(f => `\`${f}\``).join(", ");
     flowSystemPrompt += `\n\n**COMMON REQUIRED FIELDS**: These fields appear as required across multiple endpoints in this API: ${fieldList}. When creating ANY resource (including prerequisite/setup steps without a spec file), include these fields using project variables (\`{{proj.X}}\`) or state variables (\`{{state.X}}\`).`;
+  }
+
+  // Inject pre-computed dependency info (built at import time, lazy fallback from _swagger.json)
+  const dependencyInfo = await loadOrRebuildDependencies(projectId, versionFolder ?? "");
+  if (dependencyInfo) {
+    flowSystemPrompt += `\n\n${dependencyInfo}`;
   }
 
   const systemPrompt = injectProjectVariables(injectApiRules(flowSystemPrompt, apiRules), projVars);

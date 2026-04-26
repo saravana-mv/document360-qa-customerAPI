@@ -4,6 +4,7 @@ import { withAuth, getUserInfo, getProjectId } from "../lib/auth";
 import { audit } from "../lib/auditLog";
 import { distillAndStoreWithResult } from "../lib/specDistillCache";
 import { rebuildDigest } from "../lib/specDigest";
+import { rebuildDependencies } from "../lib/specDependencies";
 import { splitSwagger } from "../lib/swaggerSplitter";
 import { browserFetch } from "../lib/browserFetch";
 
@@ -195,6 +196,17 @@ async function splitSwaggerHandler(req: HttpRequest, _ctx: InvocationContext): P
       console.warn("[split-swagger] digest rebuild failed:", e);
     }
 
+    // Eagerly build dependency map from full spec
+    let depsBuilt = false;
+    let depsError: string | undefined;
+    try {
+      await rebuildDependencies(projectId, folderPath, specJson);
+      depsBuilt = true;
+    } catch (e) {
+      depsError = e instanceof Error ? e.message : String(e);
+      console.warn("[split-swagger] dependencies rebuild failed:", e);
+    }
+
     // Audit log
     const user = getUserInfo(req);
     audit(projectId, "spec.split-swagger", user, folderPath, {
@@ -223,6 +235,10 @@ async function splitSwaggerHandler(req: HttpRequest, _ctx: InvocationContext): P
         digest: {
           built: digestBuilt,
           ...(digestError ? { error: digestError } : {}),
+        },
+        dependencies: {
+          built: depsBuilt,
+          ...(depsError ? { error: depsError } : {}),
         },
       },
     });

@@ -16,6 +16,7 @@
 
 import { uploadBlob, deleteBlob, renameBlob, downloadBlob } from "./blobClient";
 import { distillSpecContext } from "./specRequiredFields";
+import { invalidateDependencies } from "./specDependencies";
 
 /** Delete the digest blob for the version folder containing a spec file. */
 async function invalidateDigest(blobPath: string): Promise<void> {
@@ -71,8 +72,9 @@ export async function distillAndStore(blobPath: string, rawContent: string): Pro
       const versioned = `<!-- distill-v${DISTILL_VERSION} -->\n${distilled}`;
       await uploadBlob(companionPath, versioned, "text/markdown");
     }
-    // Invalidate the folder digest so it rebuilds on next idea generation
+    // Invalidate the folder digest and dependencies so they rebuild on next use
     invalidateDigest(blobPath).catch(() => {});
+    invalidateDependencies(blobPath).catch(() => {});
   } catch (e) {
     // Distillation is best-effort — don't block the upload
     console.warn(`[distillAndStore] failed for ${blobPath}:`, e);
@@ -93,6 +95,7 @@ export async function deleteDistilled(blobPath: string): Promise<void> {
     // Companion may not exist — ignore
   }
   invalidateDigest(blobPath).catch(() => {});
+  invalidateDependencies(blobPath).catch(() => {});
 }
 
 /**
@@ -110,6 +113,7 @@ export async function renameDistilled(oldBlobPath: string, newBlobPath: string):
     // Old companion may not exist — ignore
   }
   invalidateDigest(oldBlobPath).catch(() => {});
+  invalidateDependencies(oldBlobPath).catch(() => {});
 }
 
 /**
@@ -135,6 +139,7 @@ export async function distillAndStoreWithResult(
     const versioned = `<!-- distill-v${DISTILL_VERSION} -->\n${distilled}`;
     await uploadBlob(companionPath, versioned, "text/markdown");
     invalidateDigest(blobPath).catch(() => {});
+    invalidateDependencies(blobPath).catch(() => {});
     return "distilled";
   }
   return "unchanged";
