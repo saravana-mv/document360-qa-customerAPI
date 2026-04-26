@@ -1,14 +1,15 @@
 // Editable markdown editor for _skills.md files using CodeMirror 6.
 // Provides syntax highlighting, line numbers, save functionality, and version history with diff.
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
 import { githubLight } from "@uiw/codemirror-theme-github";
 import { EditorView } from "@codemirror/view";
 import { diffLines } from "diff";
-import { uploadSpecFile, getSpecFileContent, listSkillsVersions } from "../../lib/api/specFilesApi";
+import { uploadSpecFile, getSpecFileContent, listSkillsVersions, sendSkillsChat } from "../../lib/api/specFilesApi";
 import type { SkillsVersion } from "../../lib/api/specFilesApi";
+import { useAiCostStore } from "../../store/aiCost.store";
 
 interface Props {
   path: string;
@@ -285,6 +286,258 @@ function ReadOnlyPreview({ content, label }: { content: string; label: string })
   );
 }
 
+// ── AI Chat Panel ─────────────────────────────────────────────────────────────
+
+interface AIPanelProps {
+  currentContent: string;
+  onApply: (updatedContent: string) => void;
+}
+
+interface AIHistoryEntry {
+  id: string;
+  instruction: string;
+  status: "pending" | "done" | "error";
+  /** Proposed updated content (when status=done) */
+  result?: string;
+  /** Error message (when status=error) */
+  error?: string;
+  /** Diff stats */
+  additions?: number;
+  deletions?: number;
+  costUsd?: number;
+}
+
+function SparkleIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+    </svg>
+  );
+}
+
+function computeDiffStats(before: string, after: string): { additions: number; deletions: number } {
+  const changes = diffLines(before, after);
+  let additions = 0;
+  let deletions = 0;
+  for (const c of changes) {
+    const lineCount = (c.value.match(/\n/g) ?? []).length + (c.value.endsWith("\n") ? 0 : 1);
+    if (c.added) additions += lineCount;
+    if (c.removed) deletions += lineCount;
+  }
+  return { additions, deletions };
+}
+
+function AIPanel({ currentContent, onApply }: AIPanelProps) {
+  const [instruction, setInstruction] = useState("");
+  const [history, setHistory] = useState<AIHistoryEntry[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const addAdhocCost = useAiCostStore((s) => s.addAdhocCost);
+
+  const handleSubmit = useCallback(async () => {
+    const text = instruction.trim();
+    if (!text) return;
+
+    const id = `ai-${Date.now()}`;
+    const entry: AIHistoryEntry = { id, instruction: text, status: "pending" };
+    setHistory((prev) => [entry, ...prev]);
+    setInstruction("");
+    setExpandedId(id);
+
+    try {
+      const res = await sendSkillsChat(currentContent, text);
+      const stats = computeDiffStats(currentContent, res.updatedContent);
+      setHistory((prev) =>
+        prev.map((e) =>
+          e.id === id
+            ? { ...e, status: "done" as const, result: res.updatedContent, costUsd: res.usage.costUsd, ...stats }
+            : e,
+        ),
+      );
+      if (res.usage.costUsd > 0) addAdhocCost(res.usage.costUsd);
+    } catch (e) {
+      setHistory((prev) =>
+        prev.map((en) =>
+          en.id === id
+            ? { ...en, status: "error" as const, error: e instanceof Error ? e.message : String(e) }
+            : en,
+        ),
+      );
+    }
+  }, [instruction, currentContent, addAdhocCost]);
+
+  const handleApply = useCallback((entry: AIHistoryEntry) => {
+    if (entry.result) onApply(entry.result);
+  }, [onApply]);
+
+  return (
+    <div className="w-[380px] border-l border-[#d1d9e0] bg-white flex flex-col shrink-0">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-3 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+        <SparkleIcon className="w-4 h-4 text-[#0969da]" />
+        <span className="text-sm font-semibold text-[#1f2328]">AI Rules Editor</span>
+      </div>
+
+      {/* Input area */}
+      <div className="px-3 py-3 border-b border-[#d1d9e0]">
+        <textarea
+          ref={inputRef}
+          value={instruction}
+          onChange={(e) => setInstruction(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void handleSubmit();
+            }
+          }}
+          placeholder="Describe the rule you want to add or change..."
+          rows={3}
+          className="w-full text-sm border border-[#d1d9e0] rounded-md px-3 py-2 outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] resize-none bg-white text-[#1f2328] placeholder:text-[#656d76]"
+        />
+        <div className="flex items-center justify-between mt-2">
+          <span className="text-xs text-[#656d76]">Enter to send, Shift+Enter for newline</span>
+          <button
+            onClick={() => void handleSubmit()}
+            disabled={!instruction.trim()}
+            className="px-3 py-1 text-sm font-medium text-white bg-[#0969da] hover:bg-[#0969da]/90 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Generate
+          </button>
+        </div>
+      </div>
+
+      {/* History / results */}
+      <div className="flex-1 overflow-y-auto">
+        {history.length === 0 ? (
+          <div className="p-4 text-sm text-[#656d76]">
+            <p className="font-medium text-[#1f2328] mb-2">Examples:</p>
+            <ul className="space-y-1.5 text-xs">
+              <li className="cursor-pointer hover:text-[#0969da]" onClick={() => setInstruction("Do not create project versions, instead use the version specified in the project variable")}>
+                &bull; Do not create project versions, use project variable instead
+              </li>
+              <li className="cursor-pointer hover:text-[#0969da]" onClick={() => setInstruction("Always include project_version_id in article creation requests")}>
+                &bull; Always include project_version_id in article creation
+              </li>
+              <li className="cursor-pointer hover:text-[#0969da]" onClick={() => setInstruction("DELETE endpoints return 204 with no body, never assert body fields on DELETE responses")}>
+                &bull; DELETE returns 204 with no body
+              </li>
+            </ul>
+          </div>
+        ) : (
+          history.map((entry) => (
+            <AIHistoryCard
+              key={entry.id}
+              entry={entry}
+              expanded={expandedId === entry.id}
+              currentContent={currentContent}
+              onToggle={() => setExpandedId(expandedId === entry.id ? null : entry.id)}
+              onApply={() => handleApply(entry)}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface AIHistoryCardProps {
+  entry: AIHistoryEntry;
+  expanded: boolean;
+  currentContent: string;
+  onToggle: () => void;
+  onApply: () => void;
+}
+
+function AIHistoryCard({ entry, expanded, currentContent, onToggle, onApply }: AIHistoryCardProps) {
+  const changes = useMemo(
+    () => (entry.result ? diffLines(currentContent, entry.result) : []),
+    [currentContent, entry.result],
+  );
+
+  return (
+    <div className="border-b border-[#d1d9e0]/50">
+      {/* Summary row */}
+      <div
+        className="flex items-start gap-2 px-3 py-2.5 cursor-pointer hover:bg-[#f6f8fa] transition-colors"
+        onClick={onToggle}
+      >
+        <svg
+          className={`w-3 h-3 mt-1 shrink-0 transition-transform text-[#656d76] ${expanded ? "rotate-90" : ""}`}
+          fill="currentColor" viewBox="0 0 20 20"
+        >
+          <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clipRule="evenodd" />
+        </svg>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-[#1f2328] line-clamp-2">{entry.instruction}</p>
+          <div className="flex items-center gap-2 mt-1">
+            {entry.status === "pending" && (
+              <span className="text-xs text-[#656d76]">Generating...</span>
+            )}
+            {entry.status === "error" && (
+              <span className="text-xs text-[#d1242f]">Error: {entry.error}</span>
+            )}
+            {entry.status === "done" && (
+              <>
+                {(entry.additions ?? 0) > 0 && <span className="text-xs text-[#1a7f37]">+{entry.additions}</span>}
+                {(entry.deletions ?? 0) > 0 && <span className="text-xs text-[#d1242f]">&minus;{entry.deletions}</span>}
+                {entry.additions === 0 && entry.deletions === 0 && <span className="text-xs text-[#656d76]">No changes</span>}
+                {entry.costUsd != null && <span className="text-xs text-[#656d76]">${entry.costUsd.toFixed(4)}</span>}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Expanded diff + apply */}
+      {expanded && entry.status === "done" && entry.result && (
+        <div className="border-t border-[#d1d9e0]/50">
+          {/* Diff */}
+          <div className="max-h-[300px] overflow-y-auto font-mono text-xs leading-5">
+            {changes.map((part, i) => {
+              const lines = part.value.split("\n");
+              if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+              return lines.map((line, j) => {
+                let bg = "";
+                let textColor = "text-[#1f2328]";
+                let prefix = " ";
+                if (part.added) { bg = "bg-[#dafbe1]"; textColor = "text-[#1a7f37]"; prefix = "+"; }
+                else if (part.removed) { bg = "bg-[#ffebe9]"; textColor = "text-[#d1242f]"; prefix = "-"; }
+                return (
+                  <div key={`${i}-${j}`} className={`${bg} ${textColor} px-3 whitespace-pre-wrap break-all`}>
+                    <span className="inline-block w-3 select-none text-[#656d76]">{prefix}</span>
+                    {line}
+                  </div>
+                );
+              });
+            })}
+          </div>
+          {/* Apply button */}
+          <div className="flex items-center gap-2 px-3 py-2 bg-[#f6f8fa] border-t border-[#d1d9e0]/50">
+            <button
+              onClick={onApply}
+              className="px-3 py-1 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md transition-colors"
+            >
+              Apply changes
+            </button>
+            <span className="text-xs text-[#656d76]">Applies to editor (still needs Save)</span>
+          </div>
+        </div>
+      )}
+
+      {/* Loading spinner */}
+      {expanded && entry.status === "pending" && (
+        <div className="px-3 py-4 flex items-center gap-2 text-sm text-[#656d76]">
+          <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          AI is refining your rule...
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Component ───────────────────────────────────────────────────────────
 
 export function SkillsEditor({ path, content, onSaved }: Props) {
@@ -301,6 +554,9 @@ export function SkillsEditor({ path, content, onSaved }: Props) {
   const [previewContent, setPreviewContent] = useState<string | null>(null);
   const [previewLabel, setPreviewLabel] = useState("");
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+
+  // AI panel state
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
 
   // Diff state
   const [diffMode, setDiffMode] = useState(false);
@@ -486,7 +742,18 @@ export function SkillsEditor({ path, content, onSaved }: Props) {
           {error && <span className="text-sm text-[#d1242f]">{error}</span>}
           {saved && <span className="text-sm text-[#1a7f37] font-medium">Saved</span>}
           <button
-            onClick={toggleHistory}
+            onClick={() => { setAiPanelOpen(!aiPanelOpen); if (!aiPanelOpen) { setHistoryOpen(false); setDiffMode(false); } }}
+            className={`p-1.5 rounded-md transition-colors ${
+              aiPanelOpen
+                ? "text-[#0969da] bg-[#ddf4ff]"
+                : "text-[#656d76] hover:text-[#1f2328] hover:bg-[#f6f8fa]"
+            }`}
+            title="AI Rules Editor"
+          >
+            <SparkleIcon className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => { toggleHistory(); if (!historyOpen) setAiPanelOpen(false); }}
             className={`p-1.5 rounded-md transition-colors ${
               historyOpen
                 ? "text-[#0969da] bg-[#ddf4ff]"
@@ -548,6 +815,14 @@ export function SkillsEditor({ path, content, onSaved }: Props) {
             onSelect={(v) => void handleSelectVersion(v)}
             onToggleCheck={handleToggleCheck}
             onCompare={() => void handleCompare()}
+          />
+        )}
+
+        {/* AI Rules Editor panel */}
+        {aiPanelOpen && (
+          <AIPanel
+            currentContent={draft}
+            onApply={(updated) => setDraft(updated)}
           />
         )}
       </div>

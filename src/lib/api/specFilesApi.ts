@@ -235,6 +235,26 @@ export async function regenerateSystemFiles(
   return res.json() as Promise<RegenerateSystemResult>;
 }
 
+// ── Skills Chat (AI) ──────────────────────────────────────────────────────────
+
+export interface SkillsChatResponse {
+  updatedContent: string;
+  usage: { inputTokens: number; outputTokens: number; totalTokens: number; costUsd: number };
+}
+
+export async function sendSkillsChat(
+  currentContent: string,
+  instruction: string,
+  model?: string,
+): Promise<SkillsChatResponse> {
+  const res = await apiFetch("/api/skills-chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ currentContent, instruction, ...(model ? { model } : {}) }),
+  });
+  return res.json() as Promise<SkillsChatResponse>;
+}
+
 // ── Flow Ideas (AI) ───────────────────────────────────────────────────────────
 
 export interface FlowIdea {
