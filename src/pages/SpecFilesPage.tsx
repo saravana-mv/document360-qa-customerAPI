@@ -1921,7 +1921,7 @@ export function SpecFilesPage() {
   }
 
   function selectAllFlows() {
-    setSelectedFlowIds(new Set(generatedFlows.filter(f => f.status === "done").map(f => f.ideaId)));
+    setSelectedFlowIds(new Set(generatedFlows.filter(f => f.status === "done" || f.status === "error").map(f => f.ideaId)));
   }
 
   function deselectAllFlows() {

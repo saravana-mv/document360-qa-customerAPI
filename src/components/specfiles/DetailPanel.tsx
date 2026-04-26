@@ -548,6 +548,15 @@ export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFl
     [selectedFlow?.status, selectedFlow?.xml],
   );
 
+  // Auto-switch to Flow XML tab when selected flow has an error so the user sees the message
+  const prevFlowRef = useRef<string | null>(null);
+  if (selectedFlow && selectedFlow.status === "error" && prevFlowRef.current !== selectedFlow.ideaId) {
+    prevFlowRef.current = selectedFlow.ideaId;
+    if (activeTab !== "flow-xml") setActiveTab("flow-xml");
+  } else if (selectedFlow && prevFlowRef.current !== selectedFlow.ideaId) {
+    prevFlowRef.current = selectedFlow.ideaId;
+  }
+
   // Nothing selected
   if (!selectedIdea && !selectedFlow) {
     return (

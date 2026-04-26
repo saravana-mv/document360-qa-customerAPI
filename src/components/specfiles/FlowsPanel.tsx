@@ -99,8 +99,9 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
     return map;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flows]);
-  const selectedCount = doneFlows.filter((f) => selectedFlowIds.has(f.ideaId)).length;
-  const allDoneSelected = doneFlows.length > 0 && selectedCount === doneFlows.length;
+  const selectableFlows = completedFlows;
+  const selectedCount = selectableFlows.filter((f) => selectedFlowIds.has(f.ideaId)).length;
+  const allDoneSelected = selectableFlows.length > 0 && selectedCount === selectableFlows.length;
   const selectedUnmarkedCount = doneFlows.filter(
     (f) => selectedFlowIds.has(f.ideaId) && !markedIds.has(f.ideaId) && validByIdea[f.ideaId],
   ).length;
@@ -153,7 +154,7 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
             New flow
           </button>
         )}
-        {doneFlows.length > 0 && !generating && (
+        {selectableFlows.length > 0 && !generating && (
           <button
             onClick={allDoneSelected ? onDeselectAllFlows : onSelectAllFlows}
             title={allDoneSelected ? "Deselect all" : "Select all"}
@@ -253,7 +254,7 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
                         : "border-l-2 border-l-transparent hover:bg-[#f6f8fa]"
                   }`}
                 >
-                  {isDone ? (
+                  {isDone || flow.status === "error" ? (
                     <input
                       type="checkbox"
                       checked={isChecked}
