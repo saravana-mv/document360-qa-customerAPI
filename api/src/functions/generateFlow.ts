@@ -454,7 +454,10 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     }
   }
   // buildSpecContext now reads pre-distilled versions (cached at upload time)
-  const specFiles = body.specFiles ?? [];
+  // Filter out system/distilled companion paths — only raw spec files should be passed
+  const specFiles = (body.specFiles ?? []).filter(
+    (f: string) => !f.includes("/_system/") && !f.includes("/_distilled/")
+  );
   const { context: specContext, failedFiles } = await buildSpecContext(specFiles, projectId);
 
   // Fail early if ALL requested spec files couldn't be read

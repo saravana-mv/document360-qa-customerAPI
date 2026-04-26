@@ -33,6 +33,10 @@ ${steps}`;
  * - Bulk operations: POST /articles/bulk/publish → bulk-publish-article.md
  */
 export function filterRelevantSpecs(idea: FlowIdea, allSpecFiles: string[]): string[] {
+  // Exclude system/distilled companion files — only match against raw spec files
+  const eligibleFiles = allSpecFiles.filter(f =>
+    !f.includes("/_system/") && !f.includes("/_distilled/")
+  );
   const needed = new Set<string>();
 
   // Map HTTP methods to typical spec filename action prefixes
@@ -86,7 +90,7 @@ export function filterRelevantSpecs(idea: FlowIdea, allSpecFiles: string[]): str
     }
 
     // Find the best matching spec file
-    for (const file of allSpecFiles) {
+    for (const file of eligibleFiles) {
       const lower = file.toLowerCase();
       const filename = lower.split("/").pop() ?? "";
 
@@ -119,7 +123,7 @@ export function filterRelevantSpecs(idea: FlowIdea, allSpecFiles: string[]): str
       const parts = f.split("/");
       if (parts.length >= 2) primaryFolders.add(parts.slice(0, -1).join("/"));
     }
-    for (const file of allSpecFiles) {
+    for (const file of eligibleFiles) {
       if (needed.has(file)) continue;
       const filename = file.toLowerCase().split("/").pop() ?? "";
       const fileParts = file.split("/");
@@ -135,7 +139,7 @@ export function filterRelevantSpecs(idea: FlowIdea, allSpecFiles: string[]): str
     // Also include create specs from the SAME resource folder when we have
     // action endpoints. E.g., if we matched publish-article.md, also include
     // create-article.md so the AI can see the response schema for captures.
-    for (const file of allSpecFiles) {
+    for (const file of eligibleFiles) {
       if (needed.has(file)) continue;
       const lower = file.toLowerCase();
       const filename = lower.split("/").pop() ?? "";
@@ -161,7 +165,7 @@ export function filterRelevantSpecs(idea: FlowIdea, allSpecFiles: string[]): str
   let m: RegExpExecArray | null;
   while ((m = pathRe.exec(stepText)) !== null) keywords.add(m[1].toLowerCase());
 
-  return allSpecFiles
+  return eligibleFiles
     .filter((name) => {
       const lower = name.toLowerCase();
       for (const kw of keywords) { if (lower.includes(kw)) return true; }
