@@ -2377,6 +2377,25 @@ export function SpecFilesPage() {
                     onClose={() => setChatActive(false)}
                   />
                 </div>
+              ) : activePath && (activePath.includes("/_system") || activePath.includes("/_distilled")) ? (
+                /* System/distilled folder — informational placeholder */
+                <div className="flex-1 flex items-center justify-center bg-white">
+                  <div className="text-center space-y-3 max-w-sm">
+                    <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto bg-[#656d76]/10">
+                      <svg className="w-7 h-7 text-[#656d76]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-[#1f2328] mb-1">System folder</p>
+                      <p className="text-sm text-[#656d76]">
+                        {activePath.includes("/_distilled")
+                          ? "This folder contains optimized versions of your API specs, automatically generated to reduce AI processing costs. These files are managed internally and update whenever source specs change."
+                          : "This folder contains internal system files such as API rules, diagnostic lessons, and spec digests. These are generated and managed automatically to support AI-powered features."}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               ) : (
                 /* Generate Ideas landing */
                 <div className="flex-1 flex items-center justify-center bg-white">
