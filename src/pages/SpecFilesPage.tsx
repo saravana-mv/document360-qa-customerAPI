@@ -1606,14 +1606,18 @@ export function SpecFilesPage() {
         : allMdFiles;
     }
 
-    // Preserve existing completed flows, add pending entries for new ones
+    // Preserve existing completed flows, add pending entries for new ones.
+    // Exclude ideas being re-generated to avoid duplicates in the list.
+    const regenIds = new Set(selectedIdeas.map(i => i.id));
     const newPending: GeneratedFlow[] = selectedIdeas.map((idea) => ({
       ideaId: idea.id,
       title: idea.title,
       status: "pending" as const,
       xml: "",
     }));
-    const existingCompleted = generatedFlows.filter(f => f.status === "done" || f.status === "error");
+    const existingCompleted = generatedFlows.filter(
+      f => (f.status === "done" || f.status === "error") && !regenIds.has(f.ideaId),
+    );
 
     // Local mirror of flow state — we maintain this alongside React state so we
     // always have the latest snapshot available for persistence without relying
