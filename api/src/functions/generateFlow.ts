@@ -4,11 +4,10 @@ import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { checkCredits, recordUsage } from "../lib/aiCredits";
-import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRules";
-import { loadProjectVariables, injectProjectVariables } from "../lib/projectVariables";
+import { extractVersionFolder } from "../lib/apiRules";
 import { extractCommonRequiredFields } from "../lib/specRequiredFields";
 import { readDistilledContent } from "../lib/specDistillCache";
-import { loadOrRebuildDependencies } from "../lib/specDependencies";
+import { loadAiContext } from "../lib/aiContext";
 
 /** Strip markdown fences AND any preamble text before the XML declaration. */
 function cleanXmlResponse(raw: string): string {
@@ -471,10 +470,13 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       ? `\n\nIMPORTANT: You are working with ${specCount} endpoint specifications. The primary test steps MUST focus on endpoints described in the specs above. However, you MUST still add prerequisite setup and teardown steps as required by the hard rules and project-specific API rules — these are ALWAYS allowed regardless of scope.`
       : "";
 
-  // Load and inject version-folder API rules (falls back to project-level)
+  // Load AI context (rules, variables, dependencies) via shared module
   const versionFolder = extractVersionFolder(body.specFiles ?? []);
-  const { rules: apiRules } = await loadApiRules(projectId, versionFolder ?? undefined);
-  const projVars = await loadProjectVariables(projectId);
+  const ctx = await loadAiContext({
+    projectId, versionFolder,
+    loadSpec: false, // spec loaded separately via buildSpecContext above
+  });
+  const projVars = ctx.projectVariables;
   console.log(`[generateFlow] specContext: ${specContext.length} chars (pre-distilled)`);
 
   // Detect API version — prefer folder path (unambiguous), fall back to spec content
@@ -520,13 +522,12 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     flowSystemPrompt += `\n\n**COMMON REQUIRED FIELDS**: These fields appear as required across multiple endpoints in this API: ${fieldList}. When creating ANY resource (including prerequisite/setup steps without a spec file), include these fields using project variables (\`{{proj.X}}\`) or state variables (\`{{state.X}}\`).`;
   }
 
-  // Inject pre-computed dependency info (built at import time, lazy fallback from _swagger.json)
-  const dependencyInfo = await loadOrRebuildDependencies(projectId, versionFolder ?? "");
-  if (dependencyInfo) {
-    flowSystemPrompt += `\n\n${dependencyInfo}`;
+  // Inject dependency info from shared context
+  if (ctx.dependencyInfo) {
+    flowSystemPrompt += `\n\n${ctx.dependencyInfo}`;
   }
 
-  const systemPrompt = injectProjectVariables(injectApiRules(flowSystemPrompt, apiRules), projVars);
+  const systemPrompt = ctx.enrichSystemPrompt(flowSystemPrompt);
 
   if (shouldStream) {
     // SSE streaming response

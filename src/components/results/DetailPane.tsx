@@ -673,6 +673,7 @@ function HowToFixSteps({ text }: { text: string }) {
 }
 
 function DiagnoseTab({ testId }: { testId: string }) {
+  const aiModel = useSetupStore((s) => s.aiModel);
   const result = useRunnerStore((s) => s.testResults[testId]);
 
   // Invalidate cache if a newer run produced different results
@@ -723,7 +724,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
       let res;
       if (scenarioId && stepNumber) {
         // Minimal mode — backend pulls everything from Cosmos
-        res = await analyzeFailureByScenario({ scenarioId, stepNumber });
+        res = await analyzeFailureByScenario({ scenarioId, stepNumber, model: aiModel });
       } else {
         // Fallback — full payload mode
         let flowXml: string | undefined;
@@ -770,7 +771,12 @@ function DiagnoseTab({ testId }: { testId: string }) {
     const fileName = testDef.flowFileName;
     try {
       const xml = await getFlowFileContent(fileName);
-      const edited = await editFlowXml(xml, prompt);
+      // Extract version folder and pass endpoint context for spec-aware editing
+      const versionFolder = fileName.split("/")[0] || undefined;
+      const edited = await editFlowXml(
+        xml, prompt, aiModel, undefined,
+        versionFolder, testDef.method, testDef.path,
+      );
 
       // Track AI edit cost
       if (edited.usage) {

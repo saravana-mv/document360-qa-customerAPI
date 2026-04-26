@@ -2,8 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import Anthropic from "@anthropic-ai/sdk";
 import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
 import { withAuth, getProjectId } from "../lib/auth";
-import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRules";
-import { loadProjectVariables, injectProjectVariables } from "../lib/projectVariables";
+import { loadAiContext } from "../lib/aiContext";
 
 /** Strip markdown fences AND any preamble text before the XML declaration. */
 function cleanXmlResponse(raw: string): string {
@@ -167,7 +166,7 @@ async function editFlow(req: HttpRequest, _ctx: InvocationContext): Promise<Http
     };
   }
 
-  let body: { xml: string; prompt: string; model?: string; versionFolder?: string };
+  let body: { xml: string; prompt: string; model?: string; versionFolder?: string; method?: string; path?: string };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -189,16 +188,27 @@ async function editFlow(req: HttpRequest, _ctx: InvocationContext): Promise<Http
   const client = new Anthropic({ apiKey });
   const model = resolveModel(body.model, DEFAULT_FLOW_MODEL);
 
-  // Load version-folder API rules (falls back to project-level)
+  // Load AI context — when method/path provided (Fix-it path), include spec + deps
   let projectId: string;
   try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
   const versionFolder = body.versionFolder?.trim() || null;
-  const { rules: apiRules } = await loadApiRules(projectId, versionFolder ?? undefined);
-  const projVars = await loadProjectVariables(projectId);
-  const systemPrompt = injectProjectVariables(injectApiRules(FLOW_EDIT_SYSTEM_PROMPT, apiRules), projVars);
+  const hasEndpointHint = !!(body.method && body.path);
+  const ctx = await loadAiContext({
+    projectId,
+    versionFolder,
+    endpointHint: hasEndpointHint ? { method: body.method!, path: body.path! } : undefined,
+    loadSpec: hasEndpointHint,
+    loadDependencies: hasEndpointHint,
+  });
+  const systemPrompt = ctx.enrichSystemPrompt(FLOW_EDIT_SYSTEM_PROMPT);
 
   try {
-    const userMessage = `Here is the current flow XML:\n\n\`\`\`xml\n${body.xml}\n\`\`\`\n\nPlease apply the following changes:\n${body.prompt}`;
+    // When spec context is available (Fix-it path), inject it into the user message
+    const specSection = ctx.specContext
+      ? `\n\n## Endpoint Specification (source: ${ctx.specSource})\n\n${ctx.specContext}`
+      : "";
+    const depsSection = ctx.dependencyInfo ? `\n\n${ctx.dependencyInfo}` : "";
+    const userMessage = `Here is the current flow XML:\n\n\`\`\`xml\n${body.xml}\n\`\`\`${specSection}${depsSection}\n\nPlease apply the following changes:\n${body.prompt}`;
 
     const response = await client.messages.create({
       model,

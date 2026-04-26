@@ -53,12 +53,20 @@ export async function editFlowXml(
   prompt: string,
   model?: string,
   signal?: AbortSignal,
-  versionFolder?: string
+  versionFolder?: string,
+  method?: string,
+  path?: string,
 ): Promise<FlowXmlResult> {
   const res = await fetch(`/api/edit-flow`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getProjectHeaders() },
-    body: JSON.stringify({ xml, prompt, ...(model ? { model } : {}), ...(versionFolder ? { versionFolder } : {}) }),
+    body: JSON.stringify({
+      xml, prompt,
+      ...(model ? { model } : {}),
+      ...(versionFolder ? { versionFolder } : {}),
+      ...(method ? { method } : {}),
+      ...(path ? { path } : {}),
+    }),
     signal,
   });
 

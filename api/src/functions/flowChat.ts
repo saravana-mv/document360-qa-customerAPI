@@ -4,10 +4,9 @@ import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { checkCredits, recordUsage } from "../lib/aiCredits";
-import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRules";
-import { loadProjectVariables, injectProjectVariables } from "../lib/projectVariables";
+import { extractVersionFolder } from "../lib/apiRules";
 import { readDistilledContent } from "../lib/specDistillCache";
-import { loadOrRebuildDependencies } from "../lib/specDependencies";
+import { loadAiContext } from "../lib/aiContext";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -222,18 +221,17 @@ async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<Http
   // buildSpecContext now reads pre-distilled versions (cached at upload time)
   const specContext = await buildSpecContext(specFiles, projectId);
 
-  // Load and inject version-folder API rules (falls back to project-level)
+  // Load AI context (rules, variables, dependencies) via shared module
   const versionFolder = extractVersionFolder(specFiles);
-  const { rules: apiRules } = await loadApiRules(projectId, versionFolder ?? undefined);
-  const projVars = await loadProjectVariables(projectId);
+  const ctx = await loadAiContext({
+    projectId, versionFolder,
+    loadSpec: false, // spec loaded separately via buildSpecContext above
+  });
 
-  // Inject spec content into the system prompt so the AI always has access,
-  // regardless of conversation length or message position.
-  let systemPrompt = injectProjectVariables(injectApiRules(FLOW_CHAT_SYSTEM_PROMPT, apiRules), projVars);
+  // Inject spec content into the system prompt so the AI always has access
+  let systemPrompt = ctx.enrichSystemPrompt(FLOW_CHAT_SYSTEM_PROMPT);
   if (specContext) {
-    // Load pre-computed dependency info (built at import time, lazy fallback from _swagger.json)
-    const depInfo = await loadOrRebuildDependencies(projectId, versionFolder ?? "");
-    const depMap = depInfo ? `\n\n${depInfo}` : "";
+    const depMap = ctx.dependencyInfo ? `\n\n${ctx.dependencyInfo}` : "";
     systemPrompt += `\n\n# Available API Specifications (${specFiles.length} file${specFiles.length !== 1 ? "s" : ""})\n\nThe user has provided the following API endpoint specifications. Use ONLY these endpoints when designing flows.\n\n${specContext}${depMap}`;
   }
 

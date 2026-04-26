@@ -1,12 +1,9 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import Anthropic from "@anthropic-ai/sdk";
-import { listBlobs, downloadBlob } from "../lib/blobClient";
-import { resolveModel, computeCost } from "../lib/modelPricing";
-import type { ModelId } from "../lib/modelPricing";
+import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { checkCredits, recordUsage } from "../lib/aiCredits";
-import { readDistilledContent } from "../lib/specDistillCache";
-import { loadApiRules, extractVersionFolder } from "../lib/apiRules";
+import { loadAiContext } from "../lib/aiContext";
 import { resolveScenario, ScenarioNotFoundError } from "../lib/flowRunner/scenarioResolver";
 import { parseFlowXml } from "../lib/flowRunner/parser";
 import { getTestRunsContainer } from "../lib/cosmosClient";
@@ -17,9 +14,8 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-const DEFAULT_DEBUG_MODEL: ModelId = "claude-haiku-4-5-20251001";
-
-const MAX_SPEC_SCAN = 50;
+// Use the same default as all other AI functions — user can override via Settings
+const DEFAULT_DEBUG_MODEL = DEFAULT_FLOW_MODEL;
 
 const DEBUG_SYSTEM_PROMPT = `You are an API debugging assistant for the FlowForge test runner. Your audience is QA engineers with limited API or technical background. Write clearly and simply — avoid jargon.
 
@@ -209,99 +205,6 @@ async function findStepResult(
   return null;
 }
 
-/**
- * Try to find the matching spec for a given method + path.
- * First tries distilled content (compact), then falls back to raw spec
- * (full OpenAPI JSON with complete body schemas).
- *
- * Returns { content, source } where source indicates what was found.
- */
-async function findMatchingSpec(
-  projectId: string,
-  method: string,
-  path: string,
-): Promise<{ content: string; source: "distilled" | "raw" } | null> {
-  // Extract version prefix (e.g., /v3/... -> V3)
-  const versionMatch = path.match(/^\/(v\d+)\//i);
-  if (!versionMatch) return null;
-
-  const versionFolder = versionMatch[1].toUpperCase();
-  const prefix = projectId !== "unknown" ? `${projectId}/${versionFolder}/` : `${versionFolder}/`;
-
-  try {
-    const blobs = await listBlobs(prefix);
-    const mdBlobs = blobs
-      .filter((b) => b.name.endsWith(".md") && !b.name.includes("_digest") && !b.name.includes("_distilled/") && !b.name.includes("/_system/"))
-      .slice(0, MAX_SPEC_SCAN);
-
-    // Try httpMethod metadata first (fast path)
-    const methodUpper = method.toUpperCase();
-    const methodMatches = mdBlobs.filter((b) => b.httpMethod === methodUpper);
-
-    // Strip version prefix from path for matching: /v3/foo/bar -> /foo/bar
-    const pathWithoutVersion = path.replace(/^\/v\d+/i, "");
-
-    // Normalize path params for matching: /articles/{article_id}/publish
-    // should match /articles/{id}/publish or any {param} variant
-    const pathPattern = path.replace(/\{[^}]+\}/g, "{*}");
-    const pathPatternWithoutVersion = pathWithoutVersion.replace(/\{[^}]+\}/g, "{*}");
-
-    const searchBlobs = methodMatches.length > 0 ? methodMatches : mdBlobs;
-
-    for (const blob of searchBlobs) {
-      try {
-        // Try distilled content first (compact, has body field tables)
-        const content = await readDistilledContent(blob.name);
-        const contentUpper = content.toUpperCase();
-
-        // Check both exact and normalized patterns
-        const patterns = [
-          `${methodUpper} ${path}`,
-          `${methodUpper} ${pathWithoutVersion}`,
-          `${methodUpper} /${versionFolder.toLowerCase()}${pathWithoutVersion}`,
-        ];
-
-        if (patterns.some((p) => contentUpper.includes(p.toUpperCase()))) {
-          return { content, source: "distilled" };
-        }
-
-        // Try with normalized path params (replace specific param names with wildcards)
-        const normalizedContent = content.replace(/\{[^}]+\}/g, "{*}").toUpperCase();
-        if (normalizedContent.includes(`${methodUpper} ${pathPattern}`.toUpperCase()) ||
-            normalizedContent.includes(`${methodUpper} ${pathPatternWithoutVersion}`.toUpperCase())) {
-          return { content, source: "distilled" };
-        }
-      } catch {
-        // Skip unreadable blobs
-      }
-    }
-
-    // Fallback: try raw spec files (full OpenAPI JSON — has complete body schemas)
-    for (const blob of searchBlobs) {
-      try {
-        const raw = await downloadBlob(blob.name);
-        const rawUpper = raw.toUpperCase();
-        const normalizedRaw = raw.replace(/\{[^}]+\}/g, "{*}").toUpperCase();
-
-        const patterns = [
-          `${methodUpper} ${path}`,
-          `${methodUpper} ${pathWithoutVersion}`,
-        ];
-
-        if (patterns.some((p) => rawUpper.includes(p.toUpperCase())) ||
-            normalizedRaw.includes(`${methodUpper} ${pathPattern}`.toUpperCase())) {
-          return { content: raw, source: "raw" };
-        }
-      } catch {
-        // Skip
-      }
-    }
-  } catch {
-    // Blob listing failed — continue without spec
-  }
-
-  return null;
-}
 
 async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
@@ -427,31 +330,32 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
     };
   }
 
-  // Try to find matching spec
-  const specMatch = await findMatchingSpec(projectId, step.method, step.path);
-
-  // Load API rules (skills, custom rules) for additional context
-  const versionMatch2 = step.path.match(/^\/(v\d+)\//i);
-  const versionFolder = versionMatch2 ? versionMatch2[1].toUpperCase() : "";
-  let apiRulesContext = "";
-  if (projectId !== "unknown" && versionFolder) {
-    try {
-      const { rules } = await loadApiRules(projectId, versionFolder);
-      if (rules) apiRulesContext = `\n\n## API Rules & Skills\n\n${rules}`;
-    } catch { /* ignore */ }
-  }
+  // Load full AI context: spec, rules, project variables, dependencies
+  const ctx = await loadAiContext({
+    projectId,
+    endpointHint: { method: step.method, path: step.path },
+  });
 
   // Build user message
   const parts: string[] = [];
 
-  if (specMatch) {
-    parts.push(`## Endpoint Specification (source: ${specMatch.source})\n\n${specMatch.content}`);
+  if (ctx.specContext) {
+    parts.push(`## Endpoint Specification (source: ${ctx.specSource})\n\n${ctx.specContext}`);
   } else {
     parts.push(`## Endpoint Specification\n\n**NOT AVAILABLE** — The specification for ${step.method} ${step.path} could not be found. Do NOT guess or assume what fields this endpoint accepts. Limit your analysis to the HTTP status code and response body only. Set confidence to "low".`);
   }
 
-  if (apiRulesContext) {
-    parts.push(apiRulesContext);
+  if (ctx.rules) {
+    parts.push(`\n\n## API Rules & Skills\n\n${ctx.rules}`);
+  }
+
+  if (ctx.projectVariables.length > 0) {
+    const varList = ctx.projectVariables.map(v => `- \`{{proj.${v.name}}}\` = \`${v.value}\``).join("\n");
+    parts.push(`\n\n## Available Project Variables\n\n${varList}`);
+  }
+
+  if (ctx.dependencyInfo) {
+    parts.push(`\n\n${ctx.dependencyInfo}`);
   }
 
   parts.push(`## Failed Step: ${step.name}\n`);
@@ -530,9 +434,11 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
         diagnosis,
         usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, costUsd },
         _debug: {
-          specFound: !!specMatch,
-          specSource: specMatch?.source ?? null,
-          hasApiRules: !!apiRulesContext,
+          specFound: ctx.specSource !== "none",
+          specSource: ctx.specSource !== "none" ? ctx.specSource : null,
+          hasApiRules: !!ctx.rules,
+          hasProjectVars: ctx.projectVariables.length > 0,
+          hasDependencies: !!ctx.dependencyInfo,
           model,
         },
       }),

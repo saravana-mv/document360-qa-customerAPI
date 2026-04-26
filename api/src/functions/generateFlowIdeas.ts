@@ -6,9 +6,8 @@ import { readDigest, rebuildDigest } from "../lib/specDigest";
 import { DEFAULT_IDEAS_MODEL, resolveModel, priceFor, computeCost } from "../lib/modelPricing";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { checkCredits, recordUsage } from "../lib/aiCredits";
-import { loadApiRules, injectApiRules, extractVersionFolder } from "../lib/apiRules";
-import { loadProjectVariables, injectProjectVariables } from "../lib/projectVariables";
-import { loadOrRebuildDependencies } from "../lib/specDependencies";
+import { extractVersionFolder } from "../lib/apiRules";
+import { loadAiContext } from "../lib/aiContext";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -292,19 +291,19 @@ export async function generateFlowIdeasHandler(
     ? `\n\nIMPORTANT: You are analyzing a SINGLE endpoint specification. Generate ideas using ONLY this endpoint. Do not reference any other endpoints outside this file.`
     : `\n\nYou are analyzing ${filesAnalyzed} endpoint specifications. Only use endpoints from these files in your ideas.`;
 
-  // Load pre-computed dependency info (built at import time, lazy fallback from _swagger.json)
-  const dependencyInfo = await loadOrRebuildDependencies(projectId, versionFolder ?? "");
-  const dependencyMap = dependencyInfo ? `\n\n${dependencyInfo}` : "";
+  // Load AI context (rules, variables, dependencies) via shared module
+  const ctx = await loadAiContext({
+    projectId, versionFolder,
+    loadSpec: false, // spec loaded separately above
+  });
+  const dependencyMap = ctx.dependencyInfo ? `\n\n${ctx.dependencyInfo}` : "";
 
   const requestedCount = typeof body.maxCount === "number" && body.maxCount > 0 && body.maxCount <= MAX_IDEAS_PER_RUN
     ? body.maxCount
     : MAX_IDEAS_PER_RUN;
   const userMessage = `Analyze these API specifications and generate up to ${requestedCount} NEW test flow ideas.${scopeNote}${versionDirective}${existingList}${dependencyMap}\n\n## Spec Files\n\n${specText}`;
 
-  // Load and inject version-folder API rules (falls back to project-level)
-  const { rules: apiRules } = await loadApiRules(projectId, versionFolder ?? undefined);
-  const projVars = await loadProjectVariables(projectId);
-  const systemPrompt = injectProjectVariables(injectApiRules(SYSTEM_PROMPT, apiRules), projVars);
+  const systemPrompt = ctx.enrichSystemPrompt(SYSTEM_PROMPT);
 
   // ── Resolve model ──
   const model = resolveModel(body.model, DEFAULT_IDEAS_MODEL);
