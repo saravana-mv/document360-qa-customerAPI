@@ -214,14 +214,11 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
     }
   });
 
-  // Body: only attach for methods that explicitly carry one. DELETE/GET/HEAD/
-  // OPTIONS get NO body even if the SPA accidentally passed one — some
-  // intermediaries reject DELETE with Content-Length > 0.
-  //
-  // Note: we key off EFFECTIVE method, not the incoming request method. A
-  // tunneled DELETE arrives as POST with X-FF-Method: DELETE; we must
-  // drop the body before forwarding, matching a real DELETE.
-  const methodsWithBody = new Set(["POST", "PUT", "PATCH"]);
+  // Body: only attach for methods that carry one. GET/HEAD/OPTIONS get NO body.
+  // DELETE is included because some APIs (e.g. bulk delete) require a request
+  // body with entity IDs. The proxy makes a direct server-to-server fetch()
+  // call, so no intermediary will reject DELETE with Content-Length > 0.
+  const methodsWithBody = new Set(["POST", "PUT", "PATCH", "DELETE"]);
   const bodyBuf = methodsWithBody.has(effectiveMethod) ? await req.arrayBuffer() : undefined;
 
   // SWA Free plan kills Functions at 30s. Cap the upstream request at 25s and
