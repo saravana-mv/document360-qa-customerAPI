@@ -72,7 +72,7 @@ jest.mock("../lib/swaggerSplitter", () => ({
   }),
 }));
 
-jest.mock("../functions/specFilesSplitSwagger", () => ({
+jest.mock("../lib/specBatchHelpers", () => ({
   batchUpload: jest.fn().mockResolvedValue(undefined),
   batchDistillAll: jest.fn().mockResolvedValue([
     { file: "test-project/V3/articles/get-article.md", status: "distilled" },

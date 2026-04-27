@@ -3,7 +3,7 @@ import { downloadBlob, uploadBlob, listBlobs, deleteBlob } from "../lib/blobClie
 import { withAuth, getUserInfo, getProjectId } from "../lib/auth";
 import { audit } from "../lib/auditLog";
 import { getFlowsContainer, getIdeasContainer, getFlowChatSessionsContainer } from "../lib/cosmosClient";
-import { batchUpload, batchDistillAll } from "./specFilesSplitSwagger";
+import { batchUpload, batchDistillAll } from "../lib/specBatchHelpers";
 import { rebuildDigest } from "../lib/specDigest";
 import { rebuildDependencies } from "../lib/specDependencies";
 import { splitSwagger } from "../lib/swaggerSplitter";
