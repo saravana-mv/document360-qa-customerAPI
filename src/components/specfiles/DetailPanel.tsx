@@ -120,14 +120,6 @@ function IdeaContent({ idea }: { idea: FlowIdea }) {
           </button>
         </div>
         <pre className="text-sm font-mono text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md p-3 whitespace-pre-wrap leading-relaxed">{buildFlowPrompt(idea)}</pre>
-        <div className="flex items-start gap-2 mt-2 px-3 py-2 rounded-md bg-[#ddf4ff] border border-[#b6e3ff]">
-          <svg className="w-4 h-4 text-[#0969da] shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
-          </svg>
-          <span className="text-xs text-[#0969da] leading-relaxed">
-            When Flow XML is generated, the engine will add dependent setup/teardown steps (e.g. creating required parent resources referenced by foreign-key fields like <code className="font-mono bg-[#0969da]/10 px-1 rounded">category_id</code>).
-          </span>
-        </div>
       </div>
     </div>
   );

@@ -887,6 +887,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
           <span className="text-sm font-semibold text-[#1f2328]">AI Diagnosis</span>
           <span className={`text-xs px-1.5 py-0.5 rounded border ${conf.cls}`}>{conf.label}</span>
           <span className="text-xs px-1.5 py-0.5 rounded border border-[#54aeff] bg-[#ddf4ff] text-[#0969da]">{issueLabel}</span>
+          <CopyButton value={summaryText} className="ml-auto cursor-pointer" />
         </div>
         <p className="text-sm text-[#1f2328] leading-relaxed">{summaryText}</p>
       </div>
@@ -913,6 +914,19 @@ function DiagnoseTab({ testId }: { testId: string }) {
           <div className="px-3 py-3 rounded-md bg-[#dafbe1] border border-[#aceebb]">
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-xs font-semibold text-[#1a7f37] uppercase tracking-wide">How to fix</span>
+              <CopyButton
+                value={(() => {
+                  const parts: string[] = [];
+                  if (total === 1 && diagnosis.howToFix) {
+                    parts.push(diagnosis.howToFix);
+                  }
+                  for (const f of fixes) {
+                    parts.push(`${f.label}: ${f.description}`);
+                  }
+                  return parts.join("\n");
+                })()}
+                className="cursor-pointer"
+              />
               {total > 1 && (
                 <div className="flex items-center gap-1 ml-auto">
                   <button
