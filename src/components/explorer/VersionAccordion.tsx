@@ -96,24 +96,32 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
   }, [version, tags]);
 
   // Delete selected scenarios in this version
+  const [deleting, setDeleting] = useState(false);
   async function handleDeleteSelected() {
     const selectedInVersion = tags.filter((t) => selectedTags.has(t.name));
     if (selectedInVersion.length === 0) return;
-    const targetTests = getAllTests().filter((t) => selectedInVersion.some((st) => st.name === t.tag));
-    for (const t of targetTests) {
-      if (t.flowFileName) await deactivateFlow(t.flowFileName);
+    setDeleting(true);
+    try {
+      const targetTests = getAllTests().filter((t) => selectedInVersion.some((st) => st.name === t.tag));
+      for (const t of targetTests) {
+        if (t.flowFileName) await deactivateFlow(t.flowFileName);
+      }
+      const flowFileNames = new Set(targetTests.map((t) => t.flowFileName).filter(Boolean) as string[]);
+      unregisterWhere((def) => def.flowFileName !== undefined && flowFileNames.has(def.flowFileName));
+      const flowStatus = useFlowStatusStore.getState();
+      const remaining = new Set(
+        Object.keys(flowStatus.byName).filter((n) => !flowFileNames.has(n)),
+      );
+      flowStatus.pruneTo(remaining);
+      clearSelection();
+      // Reset the run controls — old results reference deleted scenarios
+      useRunnerStore.getState().resetRun();
+      const built = buildParsedTagsFromRegistry();
+      setSpec(null as never, built, null as never);
+    } finally {
+      setDeleting(false);
+      setShowDeleteAll(false);
     }
-    const flowFileNames = new Set(targetTests.map((t) => t.flowFileName).filter(Boolean) as string[]);
-    unregisterWhere((def) => def.flowFileName !== undefined && flowFileNames.has(def.flowFileName));
-    const flowStatus = useFlowStatusStore.getState();
-    const remaining = new Set(
-      Object.keys(flowStatus.byName).filter((n) => !flowFileNames.has(n)),
-    );
-    flowStatus.pruneTo(remaining);
-    clearSelection();
-    const built = buildParsedTagsFromRegistry();
-    setSpec(null as never, built, null as never);
-    setShowDeleteAll(false);
   }
 
   // Select/deselect all scenarios in this version
@@ -389,15 +397,23 @@ export function VersionAccordion({ version, tags, scenarioCount, sortOrder }: Ve
             <div className="flex justify-end gap-2 px-4 py-3 border-t border-[#d1d9e0] bg-[#f6f8fa] rounded-b-lg">
               <button
                 onClick={() => setShowDeleteAll(false)}
-                className="text-sm font-medium text-[#1f2328] border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] rounded-md px-3 py-1.5 transition-colors"
+                disabled={deleting}
+                className="text-sm font-medium text-[#1f2328] border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] rounded-md px-3 py-1.5 transition-colors disabled:opacity-60"
               >
                 Cancel
               </button>
               <button
                 onClick={() => void handleDeleteSelected()}
-                className="text-sm font-medium text-white bg-[#d1242f] hover:bg-[#d1242f]/90 border border-[#d1242f]/80 rounded-md px-3 py-1.5 transition-colors"
+                disabled={deleting}
+                className="text-sm font-medium text-white bg-[#d1242f] hover:bg-[#d1242f]/90 border border-[#d1242f]/80 rounded-md px-3 py-1.5 transition-colors disabled:opacity-60 flex items-center gap-2"
               >
-                Delete {selectedCount} scenario{selectedCount !== 1 ? "s" : ""}
+                {deleting && (
+                  <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                )}
+                {deleting ? "Deleting…" : `Delete ${selectedCount} scenario${selectedCount !== 1 ? "s" : ""}`}
               </button>
             </div>
           </div>
