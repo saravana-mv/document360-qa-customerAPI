@@ -7,9 +7,8 @@ const DEFAULT_BASE_URL = "";
 const DEFAULT_API_VERSION = "v3";
 
 export const AI_MODELS = [
-  { id: "claude-opus-4-6",           label: "Opus 4.6 ($15 / $75 per Mtok)" },
-  { id: "claude-sonnet-4-6",         label: "Sonnet 4.6 ($3 / $15 per Mtok)" },
-  { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5 ($1 / $5 per Mtok)" },
+  { id: "claude-sonnet-4-6",         label: "Sonnet 4.6 — recommended ($3 / $15 per Mtok)" },
+  { id: "claude-opus-4-6",           label: "Opus 4.6 — most capable ($15 / $75 per Mtok)" },
 ] as const;
 export type AiModelId = typeof AI_MODELS[number]["id"];
 const DEFAULT_AI_MODEL: AiModelId = "claude-sonnet-4-6";

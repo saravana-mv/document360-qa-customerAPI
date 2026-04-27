@@ -24,7 +24,7 @@ export function SetupPanel() {
 
           <div>
             <label className="block text-sm font-medium text-[#1f2328] mb-1">
-              AI Model <span className="text-[#656d76] font-normal">(flow ideas + XML generation)</span>
+              AI Model
             </label>
             <select
               value={setup.aiModel}
@@ -36,7 +36,7 @@ export function SetupPanel() {
               ))}
             </select>
             <p className="text-[11px] text-[#656d76] mt-1">
-              Sonnet 4.6 is the recommended default — 5× cheaper than Opus and produces valid flow XML reliably.
+              Used for flow generation, ideas, chat, editing, and diagnosis. Sonnet is recommended — 5× cheaper than Opus with reliable results.
             </p>
           </div>
         </div>
