@@ -23,5 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 
+# Azure Functions local settings (contains secrets)
+api/local.settings.json
+
 # Claude session data
 .claude/

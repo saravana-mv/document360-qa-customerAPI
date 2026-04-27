@@ -1,0 +1,591 @@
+{
+  "id": "run:ca94a18d-a623-4094-9098-0c1d8a5a725a",
+  "projectId": "b12c9088-2e8f-443c-adb0-05cdd9a944cd",
+  "type": "test_run",
+  "triggeredBy": {
+    "oid": "839155d1f2a547b29021b4b342fa66d0",
+    "name": "saravana.kumar@kovai.co"
+  },
+  "startedAt": "2026-04-27T11:22:41.848Z",
+  "completedAt": "2026-04-27T11:22:44.606Z",
+  "summary": {
+    "total": 6,
+    "pass": 5,
+    "fail": 1,
+    "skip": 0,
+    "error": 0,
+    "durationMs": 2758,
+    "startedAt": 1777288961848,
+    "completedAt": 1777288964606
+  },
+  "tagResults": {
+    "Bulk Create, Bulk Publish, Then Bulk Delete Articles": {
+      "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+      "status": "fail",
+      "tests": [
+        {
+          "testId": "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s1",
+          "testName": "Step 1: Setup: Create Prerequisite Category",
+          "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+          "path": "/v3/projects/{project_id}/categories",
+          "method": "POST",
+          "status": "idle",
+          "assertionResults": []
+        },
+        {
+          "testId": "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s2",
+          "testName": "Step 2: Bulk Create Articles",
+          "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+          "path": "/v3/projects/{project_id}/articles/bulk",
+          "method": "POST",
+          "status": "idle",
+          "assertionResults": []
+        },
+        {
+          "testId": "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s3",
+          "testName": "Step 3: Bulk Publish Articles",
+          "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+          "path": "/v3/projects/{project_id}/articles/bulk/publish",
+          "method": "POST",
+          "status": "idle",
+          "assertionResults": []
+        },
+        {
+          "testId": "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s4",
+          "testName": "Step 4: Bulk Unpublish Articles",
+          "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+          "path": "/v3/projects/{project_id}/articles/bulk/unpublish",
+          "method": "POST",
+          "status": "idle",
+          "assertionResults": []
+        },
+        {
+          "testId": "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s5",
+          "testName": "Step 5: Teardown: Bulk Delete Articles",
+          "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+          "path": "/v3/projects/{project_id}/articles/bulk",
+          "method": "DELETE",
+          "status": "idle",
+          "assertionResults": []
+        },
+        {
+          "testId": "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s6",
+          "testName": "Step 6: Teardown: Delete Prerequisite Category",
+          "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+          "path": "/v3/projects/{project_id}/categories/{category_id}",
+          "method": "DELETE",
+          "status": "idle",
+          "assertionResults": []
+        }
+      ],
+      "durationMs": 2748
+    }
+  },
+  "testResults": {
+    "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s1": {
+      "testId": "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s1",
+      "testName": "Step 1: Setup: Create Prerequisite Category",
+      "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+      "path": "/v3/projects/{project_id}/categories",
+      "method": "POST",
+      "status": "pass",
+      "assertionResults": [
+        {
+          "id": "status-201",
+          "description": "Response status is 201",
+          "passed": true
+        },
+        {
+          "id": "field-exists-data.id",
+          "description": "Response body has field \"data.id\"",
+          "passed": true
+        }
+      ],
+      "startedAt": 1777288961849,
+      "durationMs": 754,
+      "httpStatus": 201,
+      "responseBody": {
+        "data": {
+          "id": "9c9fdccb-83b7-4055-8e3d-bc3f043a760c",
+          "name": "[TEST] Bulk Articles Category - 1777288961850",
+          "order": 17,
+          "icon": null,
+          "created_at": "2026-04-27T11:22:42.2951633Z",
+          "modified_at": "2026-04-27T11:22:42.2951638Z"
+        },
+        "success": true,
+        "request_id": "0HNL4657MEAEL:000000A4",
+        "errors": null,
+        "warnings": null
+      },
+      "responseHeaders": {
+        "access-control-allow-headers": "Content-Type, Authorization, X-FF-Method, X-FF-No-Auth, X-FF-Auth-Type, X-FF-Auth-Method, X-FF-Version, X-FF-Auth-Header-Name, X-FF-Auth-Query-Param, X-FF-Base-Url, X-FF-Connection-Id",
+        "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+        "access-control-allow-origin": "*",
+        "access-control-expose-headers": "X-FF-Proxy-Build, X-FF-Proxy-Crash, X-FF-Upstream-Status, X-FF-Upstream-Url, X-FF-Trace-Id, Content-Type",
+        "content-length": "304",
+        "content-type": "application/json; charset=utf-8",
+        "date": "Mon, 27 Apr 2026 11:22:41 GMT",
+        "request-context": "appId=cid-v1:ae533c2b-d8f6-41cd-9911-dc0ee8f63412",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-ff-proxy-build": "proxy-v7-generic",
+        "x-ff-upstream-status": "201",
+        "x-ms-middleware-request-id": "d4963541-4fd3-4ee9-9542-acd8385f36bf"
+      },
+      "requestUrl": "https://apihub.berlin.document360.net/v3/projects/72df837d-80a0-403d-ac30-93c328a7a57c/categories",
+      "requestHeaders": {
+        "Content-Type": "application/json",
+        "X-FF-Auth-Type": "oauth",
+        "X-FF-Version": "V3",
+        "X-FF-Connection-Id": "7ced1c55-1181-46a2-92e0-7ab0f116f5ac",
+        "X-FF-Base-Url": "https://apihub.berlin.document360.net"
+      },
+      "requestBody": {
+        "name": "[TEST] Bulk Articles Category - 1777288961850",
+        "workspace_id": "aa54d486-e297-4f1e-bd94-a183e1b075df"
+      },
+      "stateSnapshot": {
+        "categoryId": "9c9fdccb-83b7-4055-8e3d-bc3f043a760c"
+      },
+      "completedAt": 1777288962604
+    },
+    "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s2": {
+      "testId": "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s2",
+      "testName": "Step 2: Bulk Create Articles",
+      "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+      "path": "/v3/projects/{project_id}/articles/bulk",
+      "method": "POST",
+      "status": "pass",
+      "assertionResults": [
+        {
+          "id": "status-201",
+          "description": "Response status is 201",
+          "passed": true
+        },
+        {
+          "id": "field-exists-data",
+          "description": "Response body has field \"data\"",
+          "passed": true
+        }
+      ],
+      "startedAt": 1777288962671,
+      "durationMs": 403,
+      "httpStatus": 201,
+      "responseBody": {
+        "data": [
+          {
+            "index": 0,
+            "id": "2b7c1e8f-c06f-4f7e-87c3-7fd5b8faad7e",
+            "success": true,
+            "details": "Successfully created article [TEST] Bulk Article One - 1777288962671"
+          },
+          {
+            "index": 1,
+            "id": "af61edda-21fc-40e6-bf54-3f7530f891cb",
+            "success": true,
+            "details": "Successfully created article [TEST] Bulk Article Two - 1777288962671"
+          },
+          {
+            "index": 2,
+            "id": "89b16975-578b-4298-abbf-a9a88ea38b98",
+            "success": true,
+            "details": "Successfully created article [TEST] Bulk Article Three - 1777288962671"
+          }
+        ],
+        "success": true,
+        "request_id": "0HNL4657MEAEL:000000A5",
+        "errors": null,
+        "warnings": null
+      },
+      "responseHeaders": {
+        "access-control-allow-headers": "Content-Type, Authorization, X-FF-Method, X-FF-No-Auth, X-FF-Auth-Type, X-FF-Auth-Method, X-FF-Version, X-FF-Auth-Header-Name, X-FF-Auth-Query-Param, X-FF-Base-Url, X-FF-Connection-Id",
+        "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+        "access-control-allow-origin": "*",
+        "access-control-expose-headers": "X-FF-Proxy-Build, X-FF-Proxy-Crash, X-FF-Upstream-Status, X-FF-Upstream-Url, X-FF-Trace-Id, Content-Type",
+        "content-length": "551",
+        "content-type": "application/json; charset=utf-8",
+        "date": "Mon, 27 Apr 2026 11:22:42 GMT",
+        "request-context": "appId=cid-v1:ae533c2b-d8f6-41cd-9911-dc0ee8f63412",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-ff-proxy-build": "proxy-v7-generic",
+        "x-ff-upstream-status": "201",
+        "x-ms-middleware-request-id": "04983868-38e0-40f8-95b7-8ccf22781e50"
+      },
+      "requestUrl": "https://apihub.berlin.document360.net/v3/projects/72df837d-80a0-403d-ac30-93c328a7a57c/articles/bulk",
+      "requestHeaders": {
+        "Content-Type": "application/json",
+        "X-FF-Auth-Type": "oauth",
+        "X-FF-Version": "V3",
+        "X-FF-Connection-Id": "7ced1c55-1181-46a2-92e0-7ab0f116f5ac",
+        "X-FF-Base-Url": "https://apihub.berlin.document360.net"
+      },
+      "requestBody": {
+        "articles": [
+          {
+            "title": "[TEST] Bulk Article One - 1777288962671",
+            "workspace_id": "aa54d486-e297-4f1e-bd94-a183e1b075df",
+            "category_id": "9c9fdccb-83b7-4055-8e3d-bc3f043a760c"
+          },
+          {
+            "title": "[TEST] Bulk Article Two - 1777288962671",
+            "workspace_id": "aa54d486-e297-4f1e-bd94-a183e1b075df",
+            "category_id": "9c9fdccb-83b7-4055-8e3d-bc3f043a760c"
+          },
+          {
+            "title": "[TEST] Bulk Article Three - 1777288962671",
+            "workspace_id": "aa54d486-e297-4f1e-bd94-a183e1b075df",
+            "category_id": "9c9fdccb-83b7-4055-8e3d-bc3f043a760c"
+          }
+        ]
+      },
+      "stateSnapshot": {
+        "categoryId": "9c9fdccb-83b7-4055-8e3d-bc3f043a760c",
+        "articleId1": "2b7c1e8f-c06f-4f7e-87c3-7fd5b8faad7e",
+        "articleId2": "af61edda-21fc-40e6-bf54-3f7530f891cb",
+        "articleId3": "89b16975-578b-4298-abbf-a9a88ea38b98"
+      },
+      "completedAt": 1777288963074
+    },
+    "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s3": {
+      "testId": "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s3",
+      "testName": "Step 3: Bulk Publish Articles",
+      "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+      "path": "/v3/projects/{project_id}/articles/bulk/publish",
+      "method": "POST",
+      "status": "pass",
+      "assertionResults": [
+        {
+          "id": "status-200",
+          "description": "Response status is 200",
+          "passed": true
+        },
+        {
+          "id": "field-exists-data",
+          "description": "Response body has field \"data\"",
+          "passed": true
+        }
+      ],
+      "startedAt": 1777288963137,
+      "durationMs": 210,
+      "httpStatus": 200,
+      "responseBody": {
+        "data": [],
+        "success": true,
+        "request_id": "0HNL4657MEAEL:000000A6",
+        "errors": null,
+        "warnings": null
+      },
+      "responseHeaders": {
+        "access-control-allow-headers": "Content-Type, Authorization, X-FF-Method, X-FF-No-Auth, X-FF-Auth-Type, X-FF-Auth-Method, X-FF-Version, X-FF-Auth-Header-Name, X-FF-Auth-Query-Param, X-FF-Base-Url, X-FF-Connection-Id",
+        "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+        "access-control-allow-origin": "*",
+        "access-control-expose-headers": "X-FF-Proxy-Build, X-FF-Proxy-Crash, X-FF-Upstream-Status, X-FF-Upstream-Url, X-FF-Trace-Id, Content-Type",
+        "content-encoding": "br",
+        "content-type": "application/json; charset=utf-8",
+        "date": "Mon, 27 Apr 2026 11:22:42 GMT",
+        "request-context": "appId=cid-v1:ae533c2b-d8f6-41cd-9911-dc0ee8f63412",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "vary": "Accept-Encoding",
+        "x-ff-proxy-build": "proxy-v7-generic",
+        "x-ff-upstream-status": "200",
+        "x-ms-middleware-request-id": "a204a864-5200-446b-b213-92db15fb92d0"
+      },
+      "requestUrl": "https://apihub.berlin.document360.net/v3/projects/72df837d-80a0-403d-ac30-93c328a7a57c/articles/bulk/publish",
+      "requestHeaders": {
+        "Content-Type": "application/json",
+        "X-FF-Auth-Type": "oauth",
+        "X-FF-Version": "V3",
+        "X-FF-Connection-Id": "7ced1c55-1181-46a2-92e0-7ab0f116f5ac",
+        "X-FF-Base-Url": "https://apihub.berlin.document360.net"
+      },
+      "requestBody": {
+        "article_ids": [
+          "2b7c1e8f-c06f-4f7e-87c3-7fd5b8faad7e",
+          "af61edda-21fc-40e6-bf54-3f7530f891cb",
+          "89b16975-578b-4298-abbf-a9a88ea38b98"
+        ]
+      },
+      "stateSnapshot": {
+        "categoryId": "9c9fdccb-83b7-4055-8e3d-bc3f043a760c",
+        "articleId1": "2b7c1e8f-c06f-4f7e-87c3-7fd5b8faad7e",
+        "articleId2": "af61edda-21fc-40e6-bf54-3f7530f891cb",
+        "articleId3": "89b16975-578b-4298-abbf-a9a88ea38b98"
+      },
+      "completedAt": 1777288963348
+    },
+    "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s4": {
+      "testId": "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s4",
+      "testName": "Step 4: Bulk Unpublish Articles",
+      "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+      "path": "/v3/projects/{project_id}/articles/bulk/unpublish",
+      "method": "POST",
+      "status": "pass",
+      "assertionResults": [
+        {
+          "id": "status-200",
+          "description": "Response status is 200",
+          "passed": true
+        },
+        {
+          "id": "field-exists-data",
+          "description": "Response body has field \"data\"",
+          "passed": true
+        }
+      ],
+      "startedAt": 1777288963417,
+      "durationMs": 215,
+      "httpStatus": 200,
+      "responseBody": {
+        "data": [],
+        "success": true,
+        "request_id": "0HNL4657MEAEL:000000A7",
+        "errors": null,
+        "warnings": null
+      },
+      "responseHeaders": {
+        "access-control-allow-headers": "Content-Type, Authorization, X-FF-Method, X-FF-No-Auth, X-FF-Auth-Type, X-FF-Auth-Method, X-FF-Version, X-FF-Auth-Header-Name, X-FF-Auth-Query-Param, X-FF-Base-Url, X-FF-Connection-Id",
+        "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+        "access-control-allow-origin": "*",
+        "access-control-expose-headers": "X-FF-Proxy-Build, X-FF-Proxy-Crash, X-FF-Upstream-Status, X-FF-Upstream-Url, X-FF-Trace-Id, Content-Type",
+        "content-encoding": "br",
+        "content-type": "application/json; charset=utf-8",
+        "date": "Mon, 27 Apr 2026 11:22:42 GMT",
+        "request-context": "appId=cid-v1:ae533c2b-d8f6-41cd-9911-dc0ee8f63412",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "vary": "Accept-Encoding",
+        "x-ff-proxy-build": "proxy-v7-generic",
+        "x-ff-upstream-status": "200",
+        "x-ms-middleware-request-id": "6104a335-e08a-4870-998a-43f2261c8c99"
+      },
+      "requestUrl": "https://apihub.berlin.document360.net/v3/projects/72df837d-80a0-403d-ac30-93c328a7a57c/articles/bulk/unpublish",
+      "requestHeaders": {
+        "Content-Type": "application/json",
+        "X-FF-Auth-Type": "oauth",
+        "X-FF-Version": "V3",
+        "X-FF-Connection-Id": "7ced1c55-1181-46a2-92e0-7ab0f116f5ac",
+        "X-FF-Base-Url": "https://apihub.berlin.document360.net"
+      },
+      "requestBody": {
+        "article_ids": [
+          "2b7c1e8f-c06f-4f7e-87c3-7fd5b8faad7e",
+          "af61edda-21fc-40e6-bf54-3f7530f891cb",
+          "89b16975-578b-4298-abbf-a9a88ea38b98"
+        ]
+      },
+      "stateSnapshot": {
+        "categoryId": "9c9fdccb-83b7-4055-8e3d-bc3f043a760c",
+        "articleId1": "2b7c1e8f-c06f-4f7e-87c3-7fd5b8faad7e",
+        "articleId2": "af61edda-21fc-40e6-bf54-3f7530f891cb",
+        "articleId3": "89b16975-578b-4298-abbf-a9a88ea38b98"
+      },
+      "completedAt": 1777288963632
+    },
+    "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s5": {
+      "testId": "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s5",
+      "testName": "Step 5: Teardown: Bulk Delete Articles",
+      "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+      "path": "/v3/projects/{project_id}/articles/bulk",
+      "method": "DELETE",
+      "status": "fail",
+      "assertionResults": [
+        {
+          "id": "status-200",
+          "description": "Response status is 200",
+          "passed": false
+        }
+      ],
+      "startedAt": 1777288963698,
+      "durationMs": 207,
+      "httpStatus": 422,
+      "failureReason": "One or more validation errors occurred. — A non-empty request body is required. [VALIDATION_ERROR]",
+      "responseBody": {
+        "type": "https://apidocs.document360.io/errors/validation-error",
+        "title": "Validation Error",
+        "status": 422,
+        "detail": "One or more validation errors occurred.",
+        "instance": "/v3/projects/72df837d-80a0-403d-ac30-93c328a7a57c/articles/bulk",
+        "trace_id": "0HNL4657MEAEL:000000A8",
+        "errors": [
+          {
+            "code": "VALIDATION_ERROR",
+            "message": "A non-empty request body is required.",
+            "field": "",
+            "details": null
+          }
+        ],
+        "warnings": null
+      },
+      "responseHeaders": {
+        "access-control-allow-headers": "Content-Type, Authorization, X-FF-Method, X-FF-No-Auth, X-FF-Auth-Type, X-FF-Auth-Method, X-FF-Version, X-FF-Auth-Header-Name, X-FF-Auth-Query-Param, X-FF-Base-Url, X-FF-Connection-Id",
+        "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+        "access-control-allow-origin": "*",
+        "access-control-expose-headers": "X-FF-Proxy-Build, X-FF-Proxy-Crash, X-FF-Upstream-Status, X-FF-Upstream-Url, X-FF-Trace-Id, Content-Type",
+        "content-length": "400",
+        "content-type": "application/json; charset=utf-8",
+        "date": "Mon, 27 Apr 2026 11:22:42 GMT",
+        "request-context": "appId=cid-v1:ae533c2b-d8f6-41cd-9911-dc0ee8f63412",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-ff-proxy-build": "proxy-v7-generic",
+        "x-ff-upstream-status": "422",
+        "x-ms-middleware-request-id": "ae745f8c-00a6-49da-9fea-e57b47d8a556"
+      },
+      "requestUrl": "https://apihub.berlin.document360.net/v3/projects/72df837d-80a0-403d-ac30-93c328a7a57c/articles/bulk",
+      "requestHeaders": {
+        "Content-Type": "application/json",
+        "X-FF-Auth-Type": "oauth",
+        "X-FF-Version": "V3",
+        "X-FF-Connection-Id": "7ced1c55-1181-46a2-92e0-7ab0f116f5ac",
+        "X-FF-Base-Url": "https://apihub.berlin.document360.net"
+      },
+      "requestBody": {
+        "article_ids": [
+          "2b7c1e8f-c06f-4f7e-87c3-7fd5b8faad7e",
+          "af61edda-21fc-40e6-bf54-3f7530f891cb",
+          "89b16975-578b-4298-abbf-a9a88ea38b98"
+        ]
+      },
+      "stateSnapshot": {
+        "categoryId": "9c9fdccb-83b7-4055-8e3d-bc3f043a760c",
+        "articleId1": "2b7c1e8f-c06f-4f7e-87c3-7fd5b8faad7e",
+        "articleId2": "af61edda-21fc-40e6-bf54-3f7530f891cb",
+        "articleId3": "89b16975-578b-4298-abbf-a9a88ea38b98"
+      },
+      "completedAt": 1777288963905
+    },
+    "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s6": {
+      "testId": "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s6",
+      "testName": "Step 6: Teardown: Delete Prerequisite Category",
+      "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+      "path": "/v3/projects/{project_id}/categories/{category_id}",
+      "method": "DELETE",
+      "status": "pass",
+      "assertionResults": [
+        {
+          "id": "status-204",
+          "description": "Response status is 204",
+          "passed": true
+        }
+      ],
+      "startedAt": 1777288963972,
+      "durationMs": 614,
+      "httpStatus": 204,
+      "responseHeaders": {
+        "access-control-allow-headers": "Content-Type, Authorization, X-FF-Method, X-FF-No-Auth, X-FF-Auth-Type, X-FF-Auth-Method, X-FF-Version, X-FF-Auth-Header-Name, X-FF-Auth-Query-Param, X-FF-Base-Url, X-FF-Connection-Id",
+        "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+        "access-control-allow-origin": "*",
+        "access-control-expose-headers": "X-FF-Proxy-Build, X-FF-Proxy-Crash, X-FF-Upstream-Status, X-FF-Upstream-Url, X-FF-Trace-Id, Content-Type",
+        "date": "Mon, 27 Apr 2026 11:22:44 GMT",
+        "request-context": "appId=cid-v1:ae533c2b-d8f6-41cd-9911-dc0ee8f63412",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-ff-proxy-build": "proxy-v7-generic",
+        "x-ff-upstream-status": "204",
+        "x-ms-middleware-request-id": "b3da845d-4407-40f4-b0b1-621f49f5a97d"
+      },
+      "requestUrl": "https://apihub.berlin.document360.net/v3/projects/72df837d-80a0-403d-ac30-93c328a7a57c/categories/9c9fdccb-83b7-4055-8e3d-bc3f043a760c",
+      "requestHeaders": {
+        "X-FF-Auth-Type": "oauth",
+        "X-FF-Version": "V3",
+        "X-FF-Connection-Id": "7ced1c55-1181-46a2-92e0-7ab0f116f5ac",
+        "X-FF-Base-Url": "https://apihub.berlin.document360.net"
+      },
+      "stateSnapshot": {
+        "categoryId": "9c9fdccb-83b7-4055-8e3d-bc3f043a760c",
+        "articleId1": "2b7c1e8f-c06f-4f7e-87c3-7fd5b8faad7e",
+        "articleId2": "af61edda-21fc-40e6-bf54-3f7530f891cb",
+        "articleId3": "89b16975-578b-4298-abbf-a9a88ea38b98"
+      },
+      "completedAt": 1777288964586
+    }
+  },
+  "log": [
+    {
+      "message": "STARTED",
+      "level": "info",
+      "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+      "id": "log-1",
+      "timestamp": 1777288961849
+    },
+    {
+      "message": "✓ Passed (754ms)",
+      "level": "success",
+      "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+      "testId": "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s1",
+      "testName": "Step 1: Setup: Create Prerequisite Category",
+      "id": "log-2",
+      "timestamp": 1777288962604
+    },
+    {
+      "message": "✓ Passed (403ms)",
+      "level": "success",
+      "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+      "testId": "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s2",
+      "testName": "Step 2: Bulk Create Articles",
+      "id": "log-3",
+      "timestamp": 1777288963074
+    },
+    {
+      "message": "✓ Passed (210ms)",
+      "level": "success",
+      "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+      "testId": "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s3",
+      "testName": "Step 3: Bulk Publish Articles",
+      "id": "log-4",
+      "timestamp": 1777288963348
+    },
+    {
+      "message": "✓ Passed (215ms)",
+      "level": "success",
+      "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+      "testId": "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s4",
+      "testName": "Step 4: Bulk Unpublish Articles",
+      "id": "log-5",
+      "timestamp": 1777288963632
+    },
+    {
+      "message": "✗ One or more validation errors occurred. — A non-empty request body is required. [VALIDATION_ERROR]",
+      "level": "error",
+      "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+      "testId": "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s5",
+      "testName": "Step 5: Teardown: Bulk Delete Articles",
+      "id": "log-6",
+      "timestamp": 1777288963905
+    },
+    {
+      "message": "Running teardown despite earlier failure",
+      "level": "warn",
+      "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+      "testId": "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s6",
+      "testName": "Step 6: Teardown: Delete Prerequisite Category",
+      "id": "log-7",
+      "timestamp": 1777288963917
+    },
+    {
+      "message": "✓ Passed (614ms)",
+      "level": "success",
+      "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+      "testId": "xml:bulk-create-bulk-publish-then-bulk-delete-articles.s6",
+      "testName": "Step 6: Teardown: Delete Prerequisite Category",
+      "id": "log-8",
+      "timestamp": 1777288964586
+    },
+    {
+      "message": "COMPLETED (5/6 passed in 2748ms)",
+      "level": "warn",
+      "tag": "Bulk Create, Bulk Publish, Then Bulk Delete Articles",
+      "id": "log-9",
+      "timestamp": 1777288964598
+    }
+  ],
+  "scenarioIds": {
+    "V3/articles/list-article-versions-after-create-and-publish.flow.xml": "9d358ee3-a5e6-4f48-90f3-930b27038b87",
+    "V3/articles/bulk-create-bulk-publish-then-bulk-delete-articles.flow.xml": "10c95ee7-8843-48f8-8781-2cc431ccdded",
+    "V3/articles/fork-published-article-and-update-draft-version.flow.xml": "4d94c776-1286-4294-bdcb-4274359651bc",
+    "V3/articles/create-article-then-retrieve-it-by-id.flow.xml": "84a3357d-e6e5-402b-aaab-2c147d51ddd8",
+    "V3/articles/update-article-settings-and-verify-with-get-settings.flow.xml": "504413f0-54ce-4e74-a88e-57f6783a9e78"
+  },
+  "_rid": "3zx2ALUu3xFGAAAAAAAAAA==",
+  "_self": "dbs/3zx2AA==/colls/3zx2ALUu3xE=/docs/3zx2ALUu3xFGAAAAAAAAAA==/",
+  "_etag": "\"8c01db0b-0000-1100-0000-69ef47040000\"",
+  "_attachments": "attachments/",
+  "_ts": 1777288964
+}
