@@ -1,9 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import Anthropic from "@anthropic-ai/sdk";
+import { callAI, AiConfigError, CreditDeniedError } from "../lib/aiClient";
 import { downloadBlob, listBlobs } from "../lib/blobClient";
-import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
-import { checkCredits, recordUsage } from "../lib/aiCredits";
 import { extractVersionFolder } from "../lib/apiRules";
 import { readDistilledContent } from "../lib/specDistillCache";
 import { loadAiContext } from "../lib/aiContext";
@@ -162,15 +160,6 @@ interface FlowChatBody {
 async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return {
-      status: 500,
-      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-      body: JSON.stringify({ error: "ANTHROPIC_API_KEY is not configured" }),
-    };
-  }
-
   let body: FlowChatBody;
   try {
     body = (await req.json()) as FlowChatBody;
@@ -190,37 +179,14 @@ async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<Http
     };
   }
 
-  const client = new Anthropic({ apiKey });
-  const model = resolveModel(body.model, DEFAULT_FLOW_MODEL);
-
-  // Build spec context from referenced files
   let projectId: string;
   try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
 
-  // ── Credit check ──
   const { oid, name: userName } = getUserInfo(req);
   const principal = parseClientPrincipal(req);
   const displayName = principal?.userDetails ?? userName;
-  if (projectId !== "unknown") {
-    try {
-      const creditCheck = await checkCredits(projectId, oid, displayName);
-      if (!creditCheck.allowed) {
-        return {
-          status: 402,
-          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            error: creditCheck.reason,
-            projectCredits: creditCheck.projectCredits,
-            userCredits: creditCheck.userCredits,
-          }),
-        };
-      }
-    } catch (e) {
-      console.warn("[flowChat] credit check failed, proceeding anyway:", e);
-    }
-  }
+
   const specFiles = body.specFiles ?? [];
-  // buildSpecContext now reads pre-distilled versions (cached at upload time)
   const specContext = await buildSpecContext(specFiles, projectId);
 
   // Load AI context (rules, variables, dependencies) via shared module
@@ -238,22 +204,21 @@ async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<Http
     systemPrompt += `\n\n# Available API Specifications (${specFiles.length} file${specFiles.length !== 1 ? "s" : ""})\n\nThe user has provided the following API endpoint specifications. Use ONLY these endpoints when designing flows.\n\n${specContext}${depMap}${crossStepDeps}`;
   }
 
-  // Pass messages through as-is — spec context is in the system prompt
   const apiMessages: ChatMessage[] = [...body.messages];
 
   try {
-    const response = await client.messages.create({
-      model,
-      max_tokens: 4096,
+    const result = await callAI({
+      source: "flowChat",
       system: systemPrompt,
       messages: apiMessages,
+      maxTokens: 4096,
+      requestedModel: body.model,
+      credits: { projectId, userId: oid, displayName },
     });
 
-    const textBlock = response.content.find((b) => b.type === "text");
-    let reply = textBlock && textBlock.type === "text" ? textBlock.text : "";
+    let reply = result.text;
 
     // Post-process: fix wrong API version prefixes in flowplan paths
-    // Prefer folder path (unambiguous) over scanning spec content
     let chatCanonicalVersion: string | null = null;
     if (versionFolder) {
       const fm = versionFolder.match(/^v(\d+)$/i);
@@ -273,26 +238,26 @@ async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<Http
       reply = reply.replace(/"path":\s*"\/v\d+\//g, `"path": "/${chatCanonicalVersion}/`);
     }
 
-    const inputTokens = response.usage.input_tokens;
-    const outputTokens = response.usage.output_tokens;
-    const costUsd = computeCost(model, inputTokens, outputTokens);
-
-    // Record AI credit usage
-    if (projectId !== "unknown") {
-      try { await recordUsage(projectId, oid, displayName, costUsd); } catch (e) {
-        console.warn("[flowChat] credit recording failed:", e);
-      }
-    }
-
     return {
       status: 200,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
       body: JSON.stringify({
         reply,
-        usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, costUsd },
+        usage: {
+          inputTokens: result.usage.inputTokens,
+          outputTokens: result.usage.outputTokens,
+          totalTokens: result.usage.totalTokens,
+          costUsd: result.usage.costUsd,
+        },
       }),
     };
   } catch (e) {
+    if (e instanceof AiConfigError) {
+      return { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" }, body: JSON.stringify({ error: e.message }) };
+    }
+    if (e instanceof CreditDeniedError) {
+      return { status: 402, headers: { ...CORS_HEADERS, "Content-Type": "application/json" }, body: JSON.stringify({ error: e.creditDenied.reason, projectCredits: e.creditDenied.projectCredits, userCredits: e.creditDenied.userCredits }) };
+    }
     const msg = e instanceof Error ? e.message : String(e);
     return {
       status: 500,

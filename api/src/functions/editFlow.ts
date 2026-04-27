@@ -1,7 +1,6 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import Anthropic from "@anthropic-ai/sdk";
-import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
-import { withAuth, getProjectId } from "../lib/auth";
+import { callAI, AiConfigError, CreditDeniedError } from "../lib/aiClient";
+import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { loadAiContext } from "../lib/aiContext";
 
 /** Strip markdown fences AND any preamble text before the XML declaration. */
@@ -158,15 +157,6 @@ Your entire response is the XML document and nothing else.`;
 async function editFlow(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return {
-      status: 500,
-      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-      body: JSON.stringify({ error: "ANTHROPIC_API_KEY is not configured" }),
-    };
-  }
-
   let body: { xml: string; prompt: string; model?: string; versionFolder?: string; method?: string; path?: string };
   try {
     body = (await req.json()) as typeof body;
@@ -186,9 +176,6 @@ async function editFlow(req: HttpRequest, _ctx: InvocationContext): Promise<Http
     };
   }
 
-  const client = new Anthropic({ apiKey });
-  const model = resolveModel(body.model, DEFAULT_FLOW_MODEL);
-
   // Load AI context — when method/path provided (Fix-it path), include specs for ALL steps
   let projectId: string;
   try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
@@ -204,41 +191,53 @@ async function editFlow(req: HttpRequest, _ctx: InvocationContext): Promise<Http
   });
   const systemPrompt = ctx.enrichSystemPrompt(FLOW_EDIT_SYSTEM_PROMPT);
 
-  try {
-    // When flow step specs are available (Fix-it path), inject ALL step specs
-    const flowStepContext = ctx.formatFlowStepSpecs();
-    const specSection = flowStepContext
-      ? `\n\n${flowStepContext}`
-      : ctx.specContext
-        ? `\n\n## Endpoint Specification (source: ${ctx.specSource})\n\n${ctx.specContext}`
-        : "";
-    const depsSection = ctx.dependencyInfo ? `\n\n${ctx.dependencyInfo}` : "";
-    const userMessage = `Here is the current flow XML:\n\n\`\`\`xml\n${body.xml}\n\`\`\`${specSection}${depsSection}\n\nPlease apply the following changes:\n${body.prompt}`;
+  // Build user message
+  const flowStepContext = ctx.formatFlowStepSpecs();
+  const specSection = flowStepContext
+    ? `\n\n${flowStepContext}`
+    : ctx.specContext
+      ? `\n\n## Endpoint Specification (source: ${ctx.specSource})\n\n${ctx.specContext}`
+      : "";
+  const depsSection = ctx.dependencyInfo ? `\n\n${ctx.dependencyInfo}` : "";
+  const userMessage = `Here is the current flow XML:\n\n\`\`\`xml\n${body.xml}\n\`\`\`${specSection}${depsSection}\n\nPlease apply the following changes:\n${body.prompt}`;
 
-    const response = await client.messages.create({
-      model,
-      max_tokens: 8192,
+  // Resolve credit identity
+  const { oid, name: userName } = getUserInfo(req);
+  const principal = parseClientPrincipal(req);
+  const displayName = principal?.userDetails ?? userName;
+
+  try {
+    const result = await callAI({
+      source: "editFlow",
       system: systemPrompt,
       messages: [{ role: "user", content: userMessage }],
+      maxTokens: 8192,
+      requestedModel: body.model,
+      credits: { projectId, userId: oid, displayName },
     });
 
-    const textBlock = response.content.find((b) => b.type === "text");
-    const rawXml = textBlock && textBlock.type === "text" ? textBlock.text : "";
-    const xml = cleanXmlResponse(rawXml);
-
-    const inputTokens = response.usage.input_tokens;
-    const outputTokens = response.usage.output_tokens;
-    const costUsd = computeCost(model, inputTokens, outputTokens);
+    const xml = cleanXmlResponse(result.text);
 
     return {
       status: 200,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
       body: JSON.stringify({
         xml,
-        usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, costUsd },
+        usage: {
+          inputTokens: result.usage.inputTokens,
+          outputTokens: result.usage.outputTokens,
+          totalTokens: result.usage.totalTokens,
+          costUsd: result.usage.costUsd,
+        },
       }),
     };
   } catch (e) {
+    if (e instanceof AiConfigError) {
+      return { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" }, body: JSON.stringify({ error: e.message }) };
+    }
+    if (e instanceof CreditDeniedError) {
+      return { status: 402, headers: { ...CORS_HEADERS, "Content-Type": "application/json" }, body: JSON.stringify({ error: e.creditDenied.reason, projectCredits: e.creditDenied.projectCredits, userCredits: e.creditDenied.userCredits }) };
+    }
     const msg = e instanceof Error ? e.message : String(e);
     return {
       status: 500,

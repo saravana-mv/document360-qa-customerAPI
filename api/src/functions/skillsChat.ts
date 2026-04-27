@@ -1,8 +1,6 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import Anthropic from "@anthropic-ai/sdk";
-import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
+import { callAI, AiConfigError, CreditDeniedError } from "../lib/aiClient";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
-import { checkCredits, recordUsage } from "../lib/aiCredits";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -80,9 +78,6 @@ function err(status: number, message: string): HttpResponseInit {
 async function skillsChatHandler(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return err(500, "ANTHROPIC_API_KEY is not configured");
-
   let body: { currentContent: string; instruction: string; model?: string };
   try {
     body = (await req.json()) as typeof body;
@@ -95,62 +90,43 @@ async function skillsChatHandler(req: HttpRequest, _ctx: InvocationContext): Pro
   let projectId: string;
   try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
 
-  // Credit check
   const { oid, name: userName } = getUserInfo(req);
   const principal = parseClientPrincipal(req);
   const displayName = principal?.userDetails ?? userName;
-  if (projectId !== "unknown") {
-    try {
-      const creditCheck = await checkCredits(projectId, oid, displayName);
-      if (!creditCheck.allowed) {
-        return err(402, creditCheck.reason ?? "AI credits exhausted");
-      }
-    } catch (e) {
-      console.warn("[skillsChat] credit check failed, proceeding:", e);
-    }
-  }
 
   const currentContent = body.currentContent ?? "";
   const userMessage = currentContent
     ? `Here is the current _skills.md content:\n\n---\n${currentContent}\n---\n\nUser instruction: ${body.instruction}`
     : `The _skills.md file is currently empty. Create it with the following rule:\n\nUser instruction: ${body.instruction}`;
 
-  const model = resolveModel(body.model, DEFAULT_FLOW_MODEL);
-  const client = new Anthropic({ apiKey });
-
   try {
-    const response = await client.messages.create({
-      model,
-      max_tokens: 4096,
+    const result = await callAI({
+      source: "skillsChat",
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userMessage }],
+      maxTokens: 4096,
+      requestedModel: body.model,
+      credits: { projectId, userId: oid, displayName },
     });
 
-    const textBlock = response.content.find((b) => b.type === "text");
-    let updatedContent = textBlock && textBlock.type === "text" ? textBlock.text : "";
-
     // Strip any accidental markdown fences the AI might add
-    updatedContent = updatedContent
+    let updatedContent = result.text
       .replace(/^```(?:markdown|md)?\s*\n?/, "")
       .replace(/\n?```\s*$/, "")
       .trim();
 
-    const inputTokens = response.usage.input_tokens;
-    const outputTokens = response.usage.output_tokens;
-    const costUsd = computeCost(model, inputTokens, outputTokens);
-
-    // Record credit usage
-    if (projectId !== "unknown") {
-      try { await recordUsage(projectId, oid, displayName, costUsd); } catch (e) {
-        console.warn("[skillsChat] credit recording failed:", e);
-      }
-    }
-
     return ok({
       updatedContent,
-      usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, costUsd },
+      usage: {
+        inputTokens: result.usage.inputTokens,
+        outputTokens: result.usage.outputTokens,
+        totalTokens: result.usage.totalTokens,
+        costUsd: result.usage.costUsd,
+      },
     });
   } catch (e) {
+    if (e instanceof AiConfigError) return err(500, e.message);
+    if (e instanceof CreditDeniedError) return err(402, e.creditDenied.reason);
     return err(500, `AI error: ${e instanceof Error ? e.message : String(e)}`);
   }
 }

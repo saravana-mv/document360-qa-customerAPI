@@ -1,9 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import Anthropic from "@anthropic-ai/sdk";
+import { callAI, streamAI, AiConfigError, CreditDeniedError } from "../lib/aiClient";
 import { downloadBlob, listBlobs } from "../lib/blobClient";
-import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
-import { checkCredits, recordUsage } from "../lib/aiCredits";
 import { extractVersionFolder } from "../lib/apiRules";
 import { extractCommonRequiredFields, analyzeCrossStepDependencies, injectCrossStepCaptures, injectSpecRequiredFields } from "../lib/specRequiredFields";
 import { readDistilledContent } from "../lib/specDistillCache";
@@ -477,15 +475,6 @@ async function resolveSpecFilesFromIdea(
 async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return {
-      status: 500,
-      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-      body: JSON.stringify({ error: "ANTHROPIC_API_KEY is not configured" }),
-    };
-  }
-
   let body: {
     prompt: string;
     specFiles?: string[];
@@ -516,34 +505,12 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     };
   }
 
-  const client = new Anthropic({ apiKey });
-
-  // Build spec context from selected files
   let projectId: string;
   try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
 
-  // ── Credit check ──
   const { oid, name: userName } = getUserInfo(req);
   const principal = parseClientPrincipal(req);
   const displayName = principal?.userDetails ?? userName;
-  if (projectId !== "unknown") {
-    try {
-      const creditCheck = await checkCredits(projectId, oid, displayName);
-      if (!creditCheck.allowed) {
-        return {
-          status: 402,
-          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            error: creditCheck.reason,
-            projectCredits: creditCheck.projectCredits,
-            userCredits: creditCheck.userCredits,
-          }),
-        };
-      }
-    } catch (e) {
-      console.warn("[generateFlow] credit check failed, proceeding anyway:", e);
-    }
-  }
   // ── Resolve spec files ──
   // Server-side selection: look up idea from Cosmos, list blobs, run filterRelevantSpecs
   // Falls back to client-provided specFiles for backward compatibility
@@ -626,7 +593,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     : body.prompt;
 
   const shouldStream = body.stream !== false; // default to streaming
-  const model = resolveModel(body.model, DEFAULT_FLOW_MODEL);
+  const creditInfo = { projectId, userId: oid, displayName };
 
   // Build system prompt once (used by both streaming and non-streaming paths)
   let flowSystemPrompt = FLOW_SYSTEM_PROMPT;
@@ -658,11 +625,13 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     const readable = new ReadableStream({
       async start(controller) {
         try {
-          const stream = client.messages.stream({
-            model,
-            max_tokens: 8192,
+          const { stream, finalize } = await streamAI({
+            source: "generateFlow",
             system: systemPrompt,
             messages: [{ role: "user", content: userMessage }],
+            maxTokens: 8192,
+            requestedModel: body.model,
+            credits: creditInfo,
           });
 
           // Collect full text for post-processing while also streaming chunks
@@ -696,25 +665,22 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
           const correctedData = `data: ${JSON.stringify({ corrected: xml })}\n\n`;
           controller.enqueue(encoder.encode(correctedData));
 
-          // Send usage data before closing
+          // Finalize: compute cost + record usage
           const finalMsg = await stream.finalMessage();
-          const inTok = finalMsg.usage.input_tokens;
-          const outTok = finalMsg.usage.output_tokens;
-          const cost = computeCost(model, inTok, outTok);
+          const usage = await finalize(finalMsg);
 
-          // Record AI credit usage
-          if (projectId !== "unknown") {
-            try { await recordUsage(projectId, oid, displayName, cost); } catch (e) {
-              console.warn("[generateFlow] credit recording failed:", e);
-            }
-          }
-
-          const usageData = `data: ${JSON.stringify({ usage: { inputTokens: inTok, outputTokens: outTok, totalTokens: inTok + outTok, costUsd: cost } })}\n\n`;
+          const usageData = `data: ${JSON.stringify({ usage: { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, totalTokens: usage.totalTokens, costUsd: usage.costUsd } })}\n\n`;
           controller.enqueue(encoder.encode(usageData));
 
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         } catch (e) {
+          if (e instanceof CreditDeniedError) {
+            const sseData = `data: ${JSON.stringify({ error: e.creditDenied.reason, creditDenied: true })}\n\n`;
+            controller.enqueue(encoder.encode(sseData));
+            controller.close();
+            return;
+          }
           const msg = e instanceof Error ? e.message : String(e);
           const sseData = `data: ${JSON.stringify({ error: msg })}\n\n`;
           controller.enqueue(encoder.encode(sseData));
@@ -736,17 +702,16 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   } else {
     // Non-streaming: collect full response
     try {
-      const stream = client.messages.stream({
-        model,
-        max_tokens: 8192,
+      const result = await callAI({
+        source: "generateFlow",
         system: systemPrompt,
         messages: [{ role: "user", content: userMessage }],
+        maxTokens: 8192,
+        requestedModel: body.model,
+        credits: creditInfo,
       });
 
-      const finalMessage = await stream.finalMessage();
-      const textBlock = finalMessage.content.find((b) => b.type === "text");
-      const rawXml = textBlock && textBlock.type === "text" ? textBlock.text : "";
-      let xml = cleanXmlResponse(rawXml);
+      let xml = cleanXmlResponse(result.text);
 
       // Post-process: fix wrong API version prefixes in <path> elements
       if (canonicalVersion) {
@@ -763,28 +728,28 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       // Spec-aware required fields THIRD (catches ALL remaining required fields like title, name)
       xml = injectSpecRequiredFields(xml, specContext, projVars);
 
-      const inputTokens = finalMessage.usage.input_tokens;
-      const outputTokens = finalMessage.usage.output_tokens;
-      const costUsd = computeCost(model, inputTokens, outputTokens);
-
-      // Record AI credit usage
-      if (projectId !== "unknown") {
-        try { await recordUsage(projectId, oid, displayName, costUsd); } catch (e) {
-          console.warn("[generateFlow] credit recording failed:", e);
-        }
-      }
-
       return {
         status: 200,
         headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
         body: JSON.stringify({
           xml,
-          usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, costUsd },
+          usage: {
+            inputTokens: result.usage.inputTokens,
+            outputTokens: result.usage.outputTokens,
+            totalTokens: result.usage.totalTokens,
+            costUsd: result.usage.costUsd,
+          },
           ...(failedFiles.length > 0 ? { warning: `${failedFiles.length} of ${specFiles.length} spec files could not be read. Flow may be missing required fields.`, failedFiles } : {}),
           _debug: { projectId, commonFields, projVarMap, specSource: body.ideaId ? "server" : "client", specFilesReceived: specFiles.length, specFilesRequested: specFiles, specContextLength: specContext.length },
         }),
       };
     } catch (e) {
+      if (e instanceof AiConfigError) {
+        return { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" }, body: JSON.stringify({ error: e.message }) };
+      }
+      if (e instanceof CreditDeniedError) {
+        return { status: 402, headers: { ...CORS_HEADERS, "Content-Type": "application/json" }, body: JSON.stringify({ error: e.creditDenied.reason, projectCredits: e.creditDenied.projectCredits, userCredits: e.creditDenied.userCredits }) };
+      }
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[generateFlow] Error:", msg, e instanceof Error ? e.stack : "");
       return {

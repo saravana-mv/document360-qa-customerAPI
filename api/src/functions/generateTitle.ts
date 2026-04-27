@@ -1,6 +1,5 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import Anthropic from "@anthropic-ai/sdk";
-import { computeCost } from "../lib/modelPricing";
+import { callAI, AiConfigError } from "../lib/aiClient";
 import { withAuth } from "../lib/auth";
 
 const CORS_HEADERS = {
@@ -8,9 +7,6 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
-
-// Always use Haiku — this is a trivial summarisation task
-const MODEL = "claude-haiku-4-5-20251001" as const;
 
 const SYSTEM_PROMPT = `You generate short, descriptive titles for API test flow prompts.
 
@@ -27,15 +23,6 @@ Rules:
  */
 async function generateTitle(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
-
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return {
-      status: 500,
-      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-      body: JSON.stringify({ error: "ANTHROPIC_API_KEY is not configured" }),
-    };
-  }
 
   let body: { prompt: string };
   try {
@@ -56,20 +43,16 @@ async function generateTitle(req: HttpRequest, _ctx: InvocationContext): Promise
     };
   }
 
-  const client = new Anthropic({ apiKey });
-
   try {
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 100,
+    const result = await callAI({
+      source: "generateTitle",
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: body.prompt.slice(0, 2000) }], // cap input to save tokens
+      messages: [{ role: "user", content: body.prompt.slice(0, 2000) }],
+      maxTokens: 100,
+      // No credits param — title generation is free
     });
 
-    const textBlock = response.content.find((b) => b.type === "text");
-    const title = (textBlock && textBlock.type === "text" ? textBlock.text : "").trim().slice(0, 80);
-
-    const costUsd = computeCost(MODEL, response.usage.input_tokens, response.usage.output_tokens);
+    const title = result.text.trim().slice(0, 80);
 
     return {
       status: 200,
@@ -77,14 +60,21 @@ async function generateTitle(req: HttpRequest, _ctx: InvocationContext): Promise
       body: JSON.stringify({
         title,
         usage: {
-          inputTokens: response.usage.input_tokens,
-          outputTokens: response.usage.output_tokens,
-          totalTokens: response.usage.input_tokens + response.usage.output_tokens,
-          costUsd,
+          inputTokens: result.usage.inputTokens,
+          outputTokens: result.usage.outputTokens,
+          totalTokens: result.usage.totalTokens,
+          costUsd: result.usage.costUsd,
         },
       }),
     };
   } catch (e) {
+    if (e instanceof AiConfigError) {
+      return {
+        status: 500,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        body: JSON.stringify({ error: e.message }),
+      };
+    }
     const msg = e instanceof Error ? e.message : String(e);
     return {
       status: 500,

@@ -1,8 +1,6 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import Anthropic from "@anthropic-ai/sdk";
-import { DEFAULT_FLOW_MODEL, resolveModel, computeCost } from "../lib/modelPricing";
+import { callAI, AiConfigError, CreditDeniedError } from "../lib/aiClient";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
-import { checkCredits, recordUsage } from "../lib/aiCredits";
 import { loadAiContext } from "../lib/aiContext";
 import { resolveScenario, ScenarioNotFoundError } from "../lib/flowRunner/scenarioResolver";
 import { parseFlowXml } from "../lib/flowRunner/parser";
@@ -13,9 +11,6 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
-
-// Use the same default as all other AI functions — user can override via Settings
-const DEFAULT_DEBUG_MODEL = DEFAULT_FLOW_MODEL;
 
 const DEBUG_SYSTEM_PROMPT = `You are an API debugging assistant for the FlowForge test runner. Your audience is QA engineers with limited API or technical background. Write clearly and simply — avoid jargon.
 
@@ -232,15 +227,6 @@ async function findStepResult(
 async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return {
-      status: 500,
-      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-      body: JSON.stringify({ error: "ANTHROPIC_API_KEY is not configured" }),
-    };
-  }
-
   let body: DebugAnalyzeBody;
   try {
     body = (await req.json()) as DebugAnalyzeBody;
@@ -255,33 +241,13 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
   let projectId: string;
   try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
 
-  // Credit check
   const { oid, name: userName } = getUserInfo(req);
   const principal = parseClientPrincipal(req);
   const displayName = principal?.userDetails ?? userName;
-  if (projectId !== "unknown") {
-    try {
-      const creditCheck = await checkCredits(projectId, oid, displayName);
-      if (!creditCheck.allowed) {
-        return {
-          status: 402,
-          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            error: creditCheck.reason,
-            projectCredits: creditCheck.projectCredits,
-            userCredits: creditCheck.userCredits,
-          }),
-        };
-      }
-    } catch (e) {
-      console.warn("[debugAnalyze] credit check failed, proceeding anyway:", e);
-    }
-  }
 
   // ── Minimal mode: scenarioId + stepNumber → resolve everything server-side ──
   let step: StepData;
   let flowXml: string | undefined;
-  const model = resolveModel(body.model, DEFAULT_DEBUG_MODEL);
 
   if (body.scenarioId && typeof body.stepNumber === "number") {
     if (projectId === "unknown") {
@@ -428,18 +394,17 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
 
   const userMessage = parts.join("\n");
 
-  const client = new Anthropic({ apiKey });
-
   try {
-    const response = await client.messages.create({
-      model,
-      max_tokens: 2048,
+    const result = await callAI({
+      source: "debugAnalyze",
       system: DEBUG_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userMessage }],
+      maxTokens: 2048,
+      requestedModel: body.model,
+      credits: { projectId, userId: oid, displayName },
     });
 
-    const textBlock = response.content.find((b) => b.type === "text");
-    let rawText = textBlock && textBlock.type === "text" ? textBlock.text : "{}";
+    let rawText = result.text || "{}";
 
     // Strip markdown code fences that models sometimes add despite instructions
     rawText = rawText.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
@@ -472,23 +437,17 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
       }
     }
 
-    const inputTokens = response.usage.input_tokens;
-    const outputTokens = response.usage.output_tokens;
-    const costUsd = computeCost(model, inputTokens, outputTokens);
-
-    // Record usage
-    if (projectId !== "unknown") {
-      try { await recordUsage(projectId, oid, displayName, costUsd); } catch (e) {
-        console.warn("[debugAnalyze] credit recording failed:", e);
-      }
-    }
-
     return {
       status: 200,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
       body: JSON.stringify({
         diagnosis,
-        usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, costUsd },
+        usage: {
+          inputTokens: result.usage.inputTokens,
+          outputTokens: result.usage.outputTokens,
+          totalTokens: result.usage.totalTokens,
+          costUsd: result.usage.costUsd,
+        },
         _debug: {
           specFound: ctx.specSource !== "none",
           specSource: ctx.specSource !== "none" ? ctx.specSource : null,
@@ -505,11 +464,17 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
             specSource: s.specSource,
             hasRequestBody: s.spec ? /### Request Body/i.test(s.spec) : null,
           })),
-          model,
+          model: result.usage.model,
         },
       }),
     };
   } catch (e) {
+    if (e instanceof AiConfigError) {
+      return { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" }, body: JSON.stringify({ error: e.message }) };
+    }
+    if (e instanceof CreditDeniedError) {
+      return { status: 402, headers: { ...CORS_HEADERS, "Content-Type": "application/json" }, body: JSON.stringify({ error: e.creditDenied.reason, projectCredits: e.creditDenied.projectCredits, userCredits: e.creditDenied.userCredits }) };
+    }
     const msg = e instanceof Error ? e.message : String(e);
     return {
       status: 500,

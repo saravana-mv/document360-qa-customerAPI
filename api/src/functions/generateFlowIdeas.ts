@@ -1,11 +1,10 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import Anthropic from "@anthropic-ai/sdk";
+import { callAI, AiConfigError, CreditDeniedError } from "../lib/aiClient";
 import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { readDistilledContent } from "../lib/specDistillCache";
 import { readDigest, rebuildDigest } from "../lib/specDigest";
-import { DEFAULT_IDEAS_MODEL, resolveModel, priceFor, computeCost } from "../lib/modelPricing";
+import { DEFAULT_IDEAS_MODEL, priceFor } from "../lib/modelPricing";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
-import { checkCredits, recordUsage } from "../lib/aiCredits";
 import { extractVersionFolder } from "../lib/apiRules";
 import { loadAiContext } from "../lib/aiContext";
 
@@ -116,12 +115,6 @@ export async function generateFlowIdeasHandler(
 ): Promise<HttpResponseInit> {
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
 
-  // ── Validate API key ──
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return err(500, "ANTHROPIC_API_KEY is not configured");
-  }
-
   // ── Parse body ──
   let body: { folderPath?: string; maxBudgetUsd?: number; existingIdeas?: string[]; model?: string; maxCount?: number; filePaths?: string[] };
   try {
@@ -145,24 +138,9 @@ export async function generateFlowIdeasHandler(
   let projectId: string;
   try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
 
-  // ── Credit check ──
   const { oid, name: userName } = getUserInfo(req);
   const principal = parseClientPrincipal(req);
   const displayName = principal?.userDetails ?? userName;
-  if (projectId !== "unknown") {
-    try {
-      const creditCheck = await checkCredits(projectId, oid, displayName);
-      if (!creditCheck.allowed) {
-        return err(402, {
-          error: creditCheck.reason,
-          projectCredits: creditCheck.projectCredits,
-          userCredits: creditCheck.userCredits,
-        });
-      }
-    } catch (e) {
-      console.warn("[generateFlowIdeas] credit check failed, proceeding anyway:", e);
-    }
-  }
 
   // ── Resolve spec files based on context (explicit paths, single file, or folder) ──
   let specContents: { name: string; content: string }[];
@@ -305,11 +283,8 @@ export async function generateFlowIdeasHandler(
 
   const systemPrompt = ctx.enrichSystemPrompt(SYSTEM_PROMPT);
 
-  // ── Resolve model ──
-  const model = resolveModel(body.model, DEFAULT_IDEAS_MODEL);
-  const { inputPrice, outputPrice } = priceFor(model);
-
   // ── Pre-estimate cost and enforce budget ──
+  const { inputPrice, outputPrice } = priceFor(DEFAULT_IDEAS_MODEL);
   const totalChars = systemPrompt.length + userMessage.length;
   const estimatedInputTokens = Math.ceil(totalChars / CHARS_PER_TOKEN);
   const estimatedCostUsd =
@@ -328,45 +303,38 @@ export async function generateFlowIdeasHandler(
     });
   }
 
-  // ── Call Claude API ──
-  const client = new Anthropic({ apiKey });
-  let response;
+  // ── Call Claude API via centralized client ──
+  let result;
   try {
-    response = await client.messages.create({
-      model,
-      max_tokens: MAX_OUTPUT_TOKENS,
+    result = await callAI({
+      source: "generateFlowIdeas",
       system: systemPrompt,
       messages: [{ role: "user", content: userMessage }],
+      maxTokens: MAX_OUTPUT_TOKENS,
+      requestedModel: body.model,
+      defaultModel: DEFAULT_IDEAS_MODEL,
+      credits: { projectId, userId: oid, displayName },
     });
   } catch (e) {
+    if (e instanceof AiConfigError) return err(500, e.message);
+    if (e instanceof CreditDeniedError) {
+      return err(402, { error: e.creditDenied.reason, projectCredits: e.creditDenied.projectCredits, userCredits: e.creditDenied.userCredits });
+    }
     return err(500, `Claude API error: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  // ── Extract usage ──
-  const inputTokens = response.usage.input_tokens;
-  const outputTokens = response.usage.output_tokens;
-  const costUsd = computeCost(model, inputTokens, outputTokens);
-
-  // Record AI credit usage
-  if (projectId !== "unknown") {
-    try { await recordUsage(projectId, oid, displayName, costUsd); } catch (e) {
-      console.warn("[generateFlowIdeas] credit recording failed:", e);
-    }
-  }
-
   const usage = {
-    inputTokens,
-    outputTokens,
-    totalTokens: inputTokens + outputTokens,
-    costUsd,
+    inputTokens: result.usage.inputTokens,
+    outputTokens: result.usage.outputTokens,
+    totalTokens: result.usage.totalTokens,
+    costUsd: result.usage.costUsd,
     filesAnalyzed,
     totalSpecCharacters: specText.length,
     usedDigest: useDigest,
   };
 
   // ── Parse response ──
-  const textBlock = response.content.find((b) => b.type === "text");
-  const rawText = textBlock && textBlock.type === "text" ? textBlock.text : "";
+  const rawText = result.text;
 
   let ideas;
   try {
