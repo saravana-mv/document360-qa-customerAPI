@@ -1061,3 +1061,90 @@ export function injectSpecRequiredFields(
   }
   return result;
 }
+
+// ── Endpoint Ref Injection ────────────────────────────────────────────
+
+/**
+ * Deterministic post-processor: for each step that has a method+path matching
+ * a spec file in the context, inject `<endpointRef>` if missing.
+ *
+ * Spec context headers look like: `## V3/articles/create-projects-articles.md`
+ * Distilled endpoints look like:  `## Endpoint: POST /v3/projects/{project_id}/articles`
+ *
+ * We build a map from (method, normalizedPath) → spec file name, then match
+ * each XML step against it.
+ */
+export function injectEndpointRefs(xml: string, specContext: string): string {
+  if (!specContext) return xml;
+
+  // Build map: (METHOD, normalizedPath) → spec file name
+  // Spec context has sections like "## V3/articles/create-projects-articles.md"
+  // followed by distilled content with "## Endpoint: POST /v3/projects/{project_id}/articles"
+  const fileHeaderRe = /^## ([\w/.-]+\.md)\s*$/gm;
+  const endpointHeaderRe = /## Endpoint: (GET|POST|PUT|PATCH|DELETE) (\S+)/g;
+
+  // First, collect all file names with their positions
+  const fileHeaders: { name: string; pos: number }[] = [];
+  let fh: RegExpExecArray | null;
+  while ((fh = fileHeaderRe.exec(specContext)) !== null) {
+    fileHeaders.push({ name: fh[1], pos: fh.index });
+  }
+
+  // Then collect all endpoint headers with their positions
+  const endpointMap = new Map<string, string>(); // "METHOD|normalizedPath" → file name
+  let eh: RegExpExecArray | null;
+  while ((eh = endpointHeaderRe.exec(specContext)) !== null) {
+    const method = eh[1];
+    const path = eh[2];
+    const normPath = normalizePath(path);
+    // Find which file section this endpoint belongs to (closest file header before it)
+    let fileName = "";
+    for (const fhdr of fileHeaders) {
+      if (fhdr.pos < eh.index) fileName = fhdr.name;
+      else break;
+    }
+    if (fileName) {
+      endpointMap.set(`${method}|${normPath}`, fileName);
+    }
+  }
+
+  if (endpointMap.size === 0) return xml;
+
+  const xmlSteps = parseXmlSteps(xml);
+  if (xmlSteps.length === 0) return xml;
+
+  let result = xml;
+  let injected = 0;
+
+  // Process in reverse to preserve string offsets
+  for (let i = xmlSteps.length - 1; i >= 0; i--) {
+    const step = xmlSteps[i];
+    // Skip if already has endpointRef
+    if (step.fullMatch.includes("<endpointRef>")) continue;
+
+    const key = `${step.method}|${normalizePath(step.path)}`;
+    const fileName = endpointMap.get(key);
+    if (!fileName) continue;
+
+    // Insert <endpointRef> after <name>...</name>
+    const nameCloseIdx = step.fullMatch.indexOf("</name>");
+    if (nameCloseIdx < 0) continue;
+
+    const insertPos = nameCloseIdx + "</name>".length;
+    const indent = "      "; // match typical step child indentation
+    const refElement = `\n${indent}<endpointRef>${fileName}</endpointRef>`;
+    const newStepXml = step.fullMatch.slice(0, insertPos) + refElement + step.fullMatch.slice(insertPos);
+
+    const pos = result.indexOf(step.fullMatch);
+    if (pos >= 0) {
+      result = result.slice(0, pos) + newStepXml + result.slice(pos + step.fullMatch.length);
+      injected++;
+    }
+  }
+
+  if (injected > 0) {
+    console.log(`[injectEndpointRefs] Injected ${injected} missing <endpointRef> elements`);
+  }
+
+  return result;
+}

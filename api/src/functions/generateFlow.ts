@@ -3,7 +3,7 @@ import { callAI, streamAI, AiConfigError, CreditDeniedError } from "../lib/aiCli
 import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { extractVersionFolder } from "../lib/apiRules";
-import { extractCommonRequiredFields, analyzeCrossStepDependencies, injectCrossStepCaptures, injectSpecRequiredFields } from "../lib/specRequiredFields";
+import { extractCommonRequiredFields, analyzeCrossStepDependencies, injectCrossStepCaptures, injectSpecRequiredFields, injectEndpointRefs } from "../lib/specRequiredFields";
 import { readDistilledContent } from "../lib/specDistillCache";
 import { loadAiContext } from "../lib/aiContext";
 import { getIdeasContainer } from "../lib/cosmosClient";
@@ -159,7 +159,7 @@ You generate structured XML flow files that describe a sequence of API test step
 The child elements of \`<step>\` must appear in this order:
 
 1. \`<name>\` — step title shown in logs (required)
-2. \`<endpointRef>\` — relative path to the endpoint MD file (optional)
+2. \`<endpointRef>\` — relative path to the endpoint spec file (REQUIRED when the step uses a spec-provided endpoint — copy the file path from the \`## filename.md\` header in the spec context). Omit ONLY for setup/teardown steps where no spec file exists.
 3. \`<method>\` — one of \`GET\`, \`POST\`, \`PUT\`, \`PATCH\`, \`DELETE\` (required). Use the method specified in the API spec.
 4. \`<path>\` — URL template with \`{placeholder}\` tokens (required)
 5. \`<pathParams>\` — bindings for \`{placeholders}\` in the path (required if path has placeholders)
@@ -661,6 +661,8 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
           xml = injectMissingRequiredFields(xml, commonFields, projVarMap);
           // Spec-aware required fields THIRD (catches ALL remaining required fields like title, name)
           try { xml = injectSpecRequiredFields(xml, specContext, projVars); } catch (e) { console.warn("[generateFlow] injectSpecRequiredFields failed:", e); }
+          // Endpoint refs FOURTH (links each step to its spec file for traceability)
+          try { xml = injectEndpointRefs(xml, specContext); } catch (e) { console.warn("[generateFlow] injectEndpointRefs failed:", e); }
 
           // Send the corrected XML so the frontend can replace the raw streamed text
           const correctedData = `data: ${JSON.stringify({ corrected: xml })}\n\n`;
@@ -728,6 +730,8 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       xml = injectMissingRequiredFields(xml, commonFields, projVarMap);
       // Spec-aware required fields THIRD (catches ALL remaining required fields like title, name)
       xml = injectSpecRequiredFields(xml, specContext, projVars);
+      // Endpoint refs FOURTH (links each step to its spec file for traceability)
+      xml = injectEndpointRefs(xml, specContext);
 
       return {
         status: 200,
