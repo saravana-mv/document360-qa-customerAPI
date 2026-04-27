@@ -931,6 +931,29 @@ export function SpecFilesPage() {
     const result = await reimportSpec(folderPath, specContent, specUrl);
     await loadFiles();
     setReimportFolderPath(null);
+
+    // Clear wiped ideas/flows from workshopMap (remove entries under this folder)
+    setWorkshopMap(prev => {
+      const next: WorkshopMap = {};
+      for (const [key, val] of Object.entries(prev)) {
+        if (key === folderPath || key.startsWith(folderPath + "/")) continue;
+        next[key] = val;
+      }
+      return next;
+    });
+
+    // Clear working set (ideas/flows panels)
+    setIdeas([]);
+    setIdeasUsage(null);
+    setGeneratedFlows([]);
+    setFlowsUsage(null);
+    setSelectedIdeaIds(new Set());
+    setMarkedIds(new Set());
+    setSelectedFlowIds(new Set());
+
+    // Reload flow status (active tests were modified server-side)
+    loadFlowsFromQueue().catch(() => {});
+
     // Load project variables + connections so modal can check existing names
     await Promise.all([
       useProjectVariablesStore.getState().load(),
