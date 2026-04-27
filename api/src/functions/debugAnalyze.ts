@@ -77,6 +77,20 @@ When specs for ALL flow steps are provided, analyze the data flow between steps:
 - The \`fixPrompt\` must describe BOTH changes (capture in prior step + use in failing step)
 - For endpoints that only use path parameters, check that the path param values (\`{{state.xxx}}\` or \`{{proj.xxx}}\`) are correct and populated
 
+## Runtime diagnostic context (when available):
+You may receive additional context captured at test run time:
+- **Runtime Endpoint Configuration** — base URL, API version, connection ID used during the actual test run
+- **Project Variables (at time of test run)** — actual \`{{proj.*}}\` values used when the test ran (may differ from current live values)
+- **State Variables (after failing step)** — the \`{{state.*}}\` variable snapshot after the failing step executed, showing what was captured
+- **Prior Steps in This Scenario** — actual request/response data from steps that ran BEFORE the failing step, including their state snapshots
+
+Use this runtime context to:
+- Verify that state variables were captured correctly by prior steps (check stateSnapshot)
+- Check if the prior step's response actually contained the expected data (e.g., IDs, version numbers)
+- Detect timing issues (e.g., create followed immediately by an operation that requires propagation)
+- Compare runtime project variable values against what the flow XML expects
+- Identify if the failure is caused by a prior step's response not matching expectations (e.g., empty data array)
+
 ## When endpoint specification is NOT provided:
 - State clearly: "The endpoint specification was not available for this diagnosis"
 - Only analyze the HTTP status code and response body
@@ -118,6 +132,29 @@ interface StepData {
   assertionResults?: Array<{ description: string; passed: boolean }>;
 }
 
+/** Diagnostic context extracted from the test run alongside the step result. */
+interface RunDiagnosticContext {
+  /** Project variables captured at run time (may differ from current live values). */
+  runtimeProjectVariables?: Record<string, string>;
+  /** Endpoint configuration at run time. */
+  baseUrl?: string;
+  apiVersion?: string;
+  connectionId?: string;
+  /** Flow XML snapshot captured at run time. */
+  flowXmlSnapshot?: string;
+  /** State snapshot after the failing step executed. */
+  stateSnapshot?: Record<string, unknown>;
+  /** Prior steps in the same scenario — gives AI cross-step data flow visibility. */
+  priorSteps?: Array<{
+    name: string;
+    status: string;
+    httpStatus?: number;
+    requestBody?: unknown;
+    responseBody?: unknown;
+    stateSnapshot?: Record<string, unknown>;
+  }>;
+}
+
 interface DebugAnalyzeBody {
   step?: StepData;
   flowXml?: string;
@@ -135,27 +172,34 @@ function slug(s: string): string {
 /**
  * Find step result data from the most recent test run for a given flow.
  * Checks both browser (testResults) and API (steps) run formats.
+ * Also extracts diagnostic context (runtime project vars, flow XML snapshot,
+ * state snapshots, prior step results) for richer AI diagnosis.
  */
 async function findStepResult(
   projectId: string,
   flowName: string,
   stepNumber: number,
-): Promise<{ stepData: StepData; flowXml?: string } | null> {
+  flowFileName?: string,
+): Promise<{ stepData: StepData; runContext: RunDiagnosticContext } | null> {
   const container = await getTestRunsContainer();
   const flowSlug = slug(flowName);
   const testIdKey = `xml:${flowSlug}.s${stepNumber}`;
 
+  interface TestResultEntry {
+    status: string;
+    httpStatus?: number;
+    failureReason?: string;
+    requestUrl?: string;
+    requestBody?: unknown;
+    responseBody?: unknown;
+    stateSnapshot?: Record<string, unknown>;
+    testName?: string;
+    assertionResults?: Array<{ id?: string; description: string; passed: boolean }>;
+  }
+
   const { resources: runs } = await container.items
     .query<{
-      testResults?: Record<string, {
-        status: string;
-        httpStatus?: number;
-        failureReason?: string;
-        requestUrl?: string;
-        requestBody?: unknown;
-        responseBody?: unknown;
-        assertionResults?: Array<{ id?: string; description: string; passed: boolean }>;
-      }>;
+      testResults?: Record<string, TestResultEntry>;
       steps?: Array<{
         number: number;
         name: string;
@@ -168,9 +212,16 @@ async function findStepResult(
         requestBody?: unknown;
         responseBody?: unknown;
       }>;
+      context?: {
+        baseUrl?: string;
+        apiVersion?: string;
+        connectionId?: string;
+        projectVariables?: Record<string, string>;
+      };
+      flowSnapshots?: Record<string, string>;
     }>({
       query:
-        "SELECT c.testResults, c.steps FROM c WHERE c.type='test_run' AND c.projectId=@pid ORDER BY c.startedAt DESC OFFSET 0 LIMIT 5",
+        "SELECT c.testResults, c.steps, c.context, c.flowSnapshots FROM c WHERE c.type='test_run' AND c.projectId=@pid ORDER BY c.startedAt DESC OFFSET 0 LIMIT 5",
       parameters: [{ name: "@pid", value: projectId }],
     }, { partitionKey: projectId })
     .fetchAll();
@@ -179,10 +230,41 @@ async function findStepResult(
     // Browser run format: testResults keyed by testId
     if (run.testResults?.[testIdKey]) {
       const r = run.testResults[testIdKey];
+
+      // Collect prior steps in the same scenario (same flow slug prefix)
+      const prefix = `xml:${flowSlug}.s`;
+      const priorSteps: RunDiagnosticContext["priorSteps"] = [];
+      for (let i = 1; i < stepNumber; i++) {
+        const priorKey = `${prefix}${i}`;
+        const prior = run.testResults[priorKey];
+        if (prior) {
+          priorSteps.push({
+            name: prior.testName ?? priorKey,
+            status: prior.status,
+            httpStatus: prior.httpStatus,
+            requestBody: prior.requestBody,
+            responseBody: prior.responseBody,
+            stateSnapshot: prior.stateSnapshot,
+          });
+        }
+      }
+
+      // Resolve flow XML snapshot if available
+      let flowXmlSnapshot: string | undefined;
+      if (run.flowSnapshots) {
+        if (flowFileName && run.flowSnapshots[flowFileName]) {
+          flowXmlSnapshot = run.flowSnapshots[flowFileName];
+        } else {
+          // Try to find by partial match
+          const key = Object.keys(run.flowSnapshots).find(k => k.includes(flowSlug));
+          if (key) flowXmlSnapshot = run.flowSnapshots[key];
+        }
+      }
+
       return {
         stepData: {
           name: testIdKey,
-          method: "", // will be filled by caller from parsed flow
+          method: "",
           path: "",
           requestUrl: r.requestUrl,
           requestBody: r.requestBody,
@@ -194,12 +276,34 @@ async function findStepResult(
             passed: a.passed,
           })),
         },
+        runContext: {
+          runtimeProjectVariables: run.context?.projectVariables,
+          baseUrl: run.context?.baseUrl,
+          apiVersion: run.context?.apiVersion,
+          connectionId: run.context?.connectionId,
+          flowXmlSnapshot,
+          stateSnapshot: r.stateSnapshot,
+          priorSteps: priorSteps.length > 0 ? priorSteps : undefined,
+        },
       };
     }
     // API run format: steps array indexed by number
     if (run.steps) {
       const s = run.steps.find((st) => st.number === stepNumber);
       if (s) {
+        const priorSteps: RunDiagnosticContext["priorSteps"] = [];
+        for (const ps of run.steps) {
+          if (ps.number < stepNumber) {
+            priorSteps.push({
+              name: ps.name,
+              status: ps.status,
+              httpStatus: ps.httpStatus,
+              requestBody: ps.requestBody,
+              responseBody: ps.responseBody,
+            });
+          }
+        }
+
         return {
           stepData: {
             name: s.name,
@@ -214,6 +318,13 @@ async function findStepResult(
               description: a.description,
               passed: a.passed,
             })),
+          },
+          runContext: {
+            runtimeProjectVariables: run.context?.projectVariables,
+            baseUrl: run.context?.baseUrl,
+            apiVersion: run.context?.apiVersion,
+            connectionId: run.context?.connectionId,
+            priorSteps: priorSteps.length > 0 ? priorSteps : undefined,
           },
         };
       }
@@ -248,6 +359,7 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
   // ── Minimal mode: scenarioId + stepNumber → resolve everything server-side ──
   let step: StepData;
   let flowXml: string | undefined;
+  let runDiagCtx: RunDiagnosticContext | undefined;
 
   if (body.scenarioId && typeof body.stepNumber === "number") {
     if (projectId === "unknown") {
@@ -260,10 +372,12 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
 
     // 1. Resolve flow XML from Cosmos
     let xml: string;
+    let flowFileName: string | undefined;
     try {
       const resolved = await resolveScenario(body.scenarioId, projectId);
       xml = resolved.xml;
       flowXml = xml;
+      flowFileName = resolved.fileName;
     } catch (e) {
       if (e instanceof ScenarioNotFoundError) {
         return {
@@ -288,8 +402,8 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
       };
     }
 
-    // 3. Find latest test run with step results
-    const found = await findStepResult(projectId, parsed.name, body.stepNumber);
+    // 3. Find latest test run with step results + diagnostic context
+    const found = await findStepResult(projectId, parsed.name, body.stepNumber, flowFileName);
     if (!found) {
       return {
         status: 404,
@@ -307,6 +421,12 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
       method: parsedStep.method,
       path: parsedStep.path,
     };
+
+    // Use flow XML snapshot from test run if available (reflects what actually ran)
+    if (found.runContext.flowXmlSnapshot) {
+      flowXml = found.runContext.flowXmlSnapshot;
+    }
+    runDiagCtx = found.runContext;
   } else if (body.step && body.step.method && body.step.path) {
     // ── Full payload mode (existing behavior) ──
     step = body.step;
@@ -350,6 +470,58 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
 
   if (ctx.dependencyInfo) {
     parts.push(`\n\n${ctx.dependencyInfo}`);
+  }
+
+  // ── Inject runtime diagnostic context from the test run snapshot ──
+  if (runDiagCtx) {
+    // Endpoint configuration at run time
+    if (runDiagCtx.baseUrl || runDiagCtx.apiVersion || runDiagCtx.connectionId) {
+      const configLines: string[] = [];
+      if (runDiagCtx.baseUrl) configLines.push(`- **Base URL:** ${runDiagCtx.baseUrl}`);
+      if (runDiagCtx.apiVersion) configLines.push(`- **API Version:** ${runDiagCtx.apiVersion}`);
+      if (runDiagCtx.connectionId) configLines.push(`- **Connection ID:** ${runDiagCtx.connectionId}`);
+      parts.push(`\n\n## Runtime Endpoint Configuration\n\n${configLines.join("\n")}`);
+    }
+
+    // Runtime project variables (snapshot from when the test actually ran)
+    if (runDiagCtx.runtimeProjectVariables && Object.keys(runDiagCtx.runtimeProjectVariables).length > 0) {
+      const runtimeVarList = Object.entries(runDiagCtx.runtimeProjectVariables)
+        .map(([k, v]) => `- \`{{proj.${k}}}\` = \`${v}\``)
+        .join("\n");
+      parts.push(`\n\n## Project Variables (at time of test run)\n\n${runtimeVarList}`);
+    }
+
+    // State snapshot — what state variables existed after the failing step
+    if (runDiagCtx.stateSnapshot && Object.keys(runDiagCtx.stateSnapshot).length > 0) {
+      const stateList = Object.entries(runDiagCtx.stateSnapshot)
+        .map(([k, v]) => `- \`{{state.${k}}}\` = \`${JSON.stringify(v)}\``)
+        .join("\n");
+      parts.push(`\n\n## State Variables (after failing step)\n\n${stateList}`);
+    }
+
+    // Prior steps — what happened before this step (data flow visibility)
+    if (runDiagCtx.priorSteps && runDiagCtx.priorSteps.length > 0) {
+      const priorLines: string[] = [];
+      for (const ps of runDiagCtx.priorSteps) {
+        const icon = ps.status === "pass" ? "✓" : ps.status === "fail" ? "✗" : "◌";
+        priorLines.push(`### ${icon} ${ps.name} [${ps.status}] HTTP ${ps.httpStatus ?? "—"}`);
+        if (ps.requestBody !== undefined) {
+          priorLines.push(`**Request Body:**\n\`\`\`json\n${JSON.stringify(ps.requestBody, null, 2)}\n\`\`\``);
+        }
+        if (ps.responseBody !== undefined) {
+          const respStr = JSON.stringify(ps.responseBody, null, 2);
+          // Truncate very long responses to avoid bloating the prompt
+          priorLines.push(`**Response Body:**\n\`\`\`json\n${respStr.length > 2000 ? respStr.slice(0, 2000) + "\n... (truncated)" : respStr}\n\`\`\``);
+        }
+        if (ps.stateSnapshot && Object.keys(ps.stateSnapshot).length > 0) {
+          const snapList = Object.entries(ps.stateSnapshot)
+            .map(([k, v]) => `\`{{state.${k}}}\` = \`${JSON.stringify(v)}\``)
+            .join(", ");
+          priorLines.push(`**State after step:** ${snapList}`);
+        }
+      }
+      parts.push(`\n\n## Prior Steps in This Scenario\n\n${priorLines.join("\n\n")}`);
+    }
   }
 
   // Check if the failing step's spec defines a request body
@@ -465,6 +637,12 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
             hasRequestBody: s.spec ? /### Request Body/i.test(s.spec) : null,
           })),
           model: result.usage.model,
+          // Diagnostic context availability
+          hasRunContext: !!runDiagCtx,
+          hasFlowXmlSnapshot: !!runDiagCtx?.flowXmlSnapshot,
+          hasRuntimeProjectVars: !!runDiagCtx?.runtimeProjectVariables,
+          hasStateSnapshot: !!runDiagCtx?.stateSnapshot,
+          priorStepsCount: runDiagCtx?.priorSteps?.length ?? 0,
         },
       }),
     };
