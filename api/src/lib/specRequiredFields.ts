@@ -915,6 +915,19 @@ const DEFAULT_TEST_VALUES: Record<string, string> = {
 };
 
 /**
+ * Common field name confusions the AI makes. When a required field is missing
+ * but a similar-sounding wrong field is present, rename it instead of adding both.
+ * Key = correct spec field name, value = wrong names the AI commonly substitutes.
+ */
+const FIELD_ALIASES: Record<string, string[]> = {
+  title: ["name", "article_name", "article_title"],
+  name: ["title", "category_name", "category_title"],
+  content: ["body", "html_content", "text"],
+  body: ["content", "html_body"],
+  description: ["summary", "desc"],
+};
+
+/**
  * Deterministic post-processor: for each POST/PUT/PATCH step, read the
  * matching spec's REQUIRED fields and inject any that the AI omitted.
  *
@@ -934,6 +947,7 @@ export function injectSpecRequiredFields(
 
   let result = xml;
   const injections: { stepIdx: number; field: string; value: string }[] = [];
+  const renames: { stepIdx: number; wrongField: string; correctField: string }[] = [];
 
   for (let i = 0; i < xmlSteps.length; i++) {
     const step = xmlSteps[i];
@@ -946,9 +960,27 @@ export function injectSpecRequiredFields(
     const cdataBody = step.fullMatch.match(/<body><!\[CDATA\[([\s\S]*?)\]\]><\/body>/)?.[1] ?? "";
     if (!cdataBody.trim().startsWith("{")) continue;
 
+    // Collect all field names actually present in the body
+    const bodyFieldNames = new Set<string>();
+    const fieldNameRe = /"(\w+)"\s*:/g;
+    let fm: RegExpExecArray | null;
+    while ((fm = fieldNameRe.exec(cdataBody)) !== null) {
+      bodyFieldNames.add(fm[1]);
+    }
+
     for (const field of spec.requiredRequestFields) {
       if (cdataBody.includes(`"${field}"`)) continue;
       if (/^project_id$/i.test(field)) continue;
+
+      // Check if the AI used a wrong alias for this field (e.g., "name" instead of "title")
+      const aliases = FIELD_ALIASES[field];
+      const wrongField = aliases?.find(a => bodyFieldNames.has(a));
+      if (wrongField) {
+        // Rename the wrong field to the correct one instead of adding both
+        renames.push({ stepIdx: i, wrongField, correctField: field });
+        continue;
+      }
+
       let value: string;
       const camel = toCamelCase(field);
       const matchedVar = projectVariables.find(v =>
@@ -969,9 +1001,36 @@ export function injectSpecRequiredFields(
     }
   }
 
-  if (injections.length === 0) return xml;
-  console.log(`[injectSpecRequiredFields] Injecting ${injections.length} missing required fields:`,
-    injections.map(j => `step ${j.stepIdx}: ${j.field}=${j.value}`).join(", "));
+  if (injections.length === 0 && renames.length === 0) return xml;
+  if (renames.length > 0) {
+    console.log(`[injectSpecRequiredFields] Renaming ${renames.length} wrong field names:`,
+      renames.map(r => `step ${r.stepIdx}: "${r.wrongField}" → "${r.correctField}"`).join(", "));
+  }
+  if (injections.length > 0) {
+    console.log(`[injectSpecRequiredFields] Injecting ${injections.length} missing required fields:`,
+      injections.map(j => `step ${j.stepIdx}: ${j.field}=${j.value}`).join(", "));
+  }
+
+  // Apply renames first (replace wrong field names with correct ones)
+  for (const r of renames) {
+    let stepXml = xmlSteps[r.stepIdx].fullMatch;
+    // Replace the field name inside the CDATA body JSON
+    const cdataRe = /(<body><!\[CDATA\[)([\s\S]*?)(\]\]><\/body>)/;
+    const cdataMatch = stepXml.match(cdataRe);
+    if (cdataMatch) {
+      const newBody = cdataMatch[2].replace(
+        new RegExp(`"${r.wrongField}"(\\s*:)`, "g"),
+        `"${r.correctField}"$1`,
+      );
+      stepXml = stepXml.replace(cdataRe, `$1${newBody}$3`);
+      const pos = result.indexOf(xmlSteps[r.stepIdx].fullMatch);
+      if (pos >= 0) {
+        result = result.slice(0, pos) + stepXml + result.slice(pos + xmlSteps[r.stepIdx].fullMatch.length);
+        // Update the stored fullMatch so subsequent operations see the renamed version
+        xmlSteps[r.stepIdx] = { ...xmlSteps[r.stepIdx], fullMatch: stepXml };
+      }
+    }
+  }
 
   const byStep = new Map<number, typeof injections>();
   for (const inj of injections) {

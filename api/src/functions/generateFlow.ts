@@ -188,11 +188,12 @@ The child elements of \`<step>\` must appear in this order:
 
 Wrap JSON in CDATA. Interpolation tokens (\`{{state.x}}\`, \`{{ctx.y}}\`, \`{{timestamp}}\`) are supported.
 **CRITICAL**: The JSON body MUST include ALL fields marked as \`required\` in the API spec's request schema. Read the spec carefully for required arrays and "(required)" annotations.
+**CRITICAL**: Use the EXACT field names from the spec schema — do NOT substitute similar-sounding names. If the spec says \`title\`, write \`"title"\`, NOT \`"name"\`. If the spec says \`name\`, write \`"name"\`, NOT \`"title"\`. Copy field names character-for-character from the schema properties list.
 
 \`\`\`xml
 <body><![CDATA[
 {
-  "name": "[TEST] Example - {{timestamp}}",
+  "required_field": "[TEST] Example - {{timestamp}}",
   "parent_id": "{{state.createdParentId}}"
 }
 ]]></body>
@@ -297,7 +298,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 
 1. **STRICT SCOPE — NO PRIOR KNOWLEDGE**: Only use API endpoints, methods, and paths explicitly described in the provided spec files. Do NOT use your training data or prior knowledge about this API — treat the specs as if you are seeing this API for the first time. For prerequisite setup/teardown steps not in the specs, construct the path by following the EXACT same URL pattern and version prefix as the provided specs.
 2. **Entity dependencies — ALWAYS create prerequisites**: If a request body contains a foreign-key field referencing another resource (e.g., \`category_id\`, \`parent_id\`, \`folder_id\`, \`group_id\`), you MUST create that resource as a setup step and delete it as a teardown step — even if the field is marked optional/nullable in the schema. In practice, omitting a parent entity often causes runtime failures or places the resource in an unusable state. When in doubt, create the dependency. Check field descriptions for hints like "retrieve from GET /…" which confirm a dependency. Delete child resources before parents in teardown.
-3. **Request body MUST include ALL required fields**: When the spec file documents a request body schema, you MUST include EVERY field listed as \`required\`. Parse the schema carefully — look for \`required: [field1, field2, ...]\` arrays, "Required" labels, or "(required)" annotations next to properties. For each required field, use: a project variable (\`{{proj.X}}\`) if one matches, a state variable (\`{{state.X}}\`) captured from a prior step, or a sensible test value. Omitting a required field will cause the API call to fail at runtime — this is a critical error. **For prerequisite/dependency steps** (e.g., creating a parent entity) where no spec is provided: check the "Common Required Fields" section at the end of the spec context and include those fields in the request body too.
+3. **Request body MUST include ALL required fields with EXACT names**: When the spec file documents a request body schema, you MUST include EVERY field listed as \`required\`, using the EXACT field name from the schema. Copy field names character-for-character — do NOT substitute similar names (e.g., do NOT use \`name\` when the spec says \`title\`, or \`description\` when the spec says \`content\`). Parse the schema carefully — look for \`required: [field1, field2, ...]\` arrays, the **REQUIRED FIELDS** line, "Required" labels, or "(required)" annotations next to properties. For each required field, use: a project variable (\`{{proj.X}}\`) if one matches, a state variable (\`{{state.X}}\`) captured from a prior step, or a sensible test value. Omitting a required field will cause the API call to fail at runtime — this is a critical error. **For prerequisite/dependency steps** (e.g., creating a parent entity) where no spec is provided: check the "Common Required Fields" section at the end of the spec context and include those fields in the request body too.
 4. **Teardown is MANDATORY for every flow**: Every flow — regardless of complexity — MUST end with teardown steps that delete ALL resources created during the flow. The testing environment must be left exactly as it was before the flow ran. Delete child resources before parent. Mark every teardown step with \`<flags teardown="true"/>\`.
 5. **State passing**: Use \`<capture variable="state.X" source="response.data.Y"/>\` then reference \`{{state.X}}\` in later steps.
 6. **Unique names**: For resource names, use \`[TEST] Something - {{timestamp}}\`.
