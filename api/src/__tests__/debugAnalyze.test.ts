@@ -30,6 +30,16 @@ jest.mock("../lib/aiCredits", () => ({
   recordUsage: jest.fn().mockResolvedValue(undefined),
 }));
 
+const mockCallAI = jest.fn();
+jest.mock("../lib/aiClient", () => ({
+  callAI: (...args: unknown[]) => mockCallAI(...args),
+  AiConfigError: class extends Error { constructor(m: string) { super(m); this.name = "AiConfigError"; } },
+  CreditDeniedError: class extends Error {
+    creditDenied: unknown;
+    constructor(b: unknown) { super("denied"); this.name = "CreditDeniedError"; this.creditDenied = b; }
+  },
+}));
+
 const SAMPLE_FLOW_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <flow xmlns="https://flowforge.io/qa/flow/v1">
   <name>Test Flow</name>
@@ -72,29 +82,26 @@ jest.mock("../lib/cosmosClient", () => ({
   }),
 }));
 
-jest.mock("@anthropic-ai/sdk", () => {
-  return jest.fn().mockImplementation(() => ({
-    messages: {
-      create: jest.fn().mockResolvedValue({
-        content: [{
-          type: "text",
-          text: JSON.stringify({
-            summary: "The request includes a field called 'project_version_id' that the API does not accept. Remove it from the request body to fix the error.",
-            whatWentWrong: "Extra field in request",
-            category: "extra_field",
-            canYouFixIt: true,
-            howToFix: "1. Open the flow XML\n2. Find the PATCH /v3/categories/settings step\n3. Remove the project_version_id field from the request body",
-            fixPrompt: "In step 'PATCH category settings' (PATCH /v3/categories/settings), remove the project_version_id field from the request body",
-            developerNote: "The field project_version_id is not in the schema's properties list. The endpoint uses additionalProperties: false, so unknown fields cause a 500.",
-            problematicFields: [{ field: "project_version_id", issue: "Not in schema", suggestion: "Remove it" }],
-            confidence: "high",
-          }),
-        }],
-        usage: { input_tokens: 500, output_tokens: 200 },
-      }),
-    },
-  }));
-});
+// Default mock response for callAI
+const DEFAULT_DIAGNOSIS = {
+  summary: "The request includes a field called 'project_version_id' that the API does not accept. Remove it from the request body to fix the error.",
+  whatWentWrong: "Extra field in request",
+  category: "extra_field",
+  canYouFixIt: true,
+  howToFix: "1. Open the flow XML\n2. Find the PATCH /v3/categories/settings step\n3. Remove the project_version_id field from the request body",
+  fixPrompt: "In step 'PATCH category settings' (PATCH /v3/categories/settings), remove the project_version_id field from the request body",
+  developerNote: "The field project_version_id is not in the schema's properties list. The endpoint uses additionalProperties: false, so unknown fields cause a 500.",
+  problematicFields: [{ field: "project_version_id", issue: "Not in schema", suggestion: "Remove it" }],
+  confidence: "high",
+};
+
+function makeCallAIResult(text: string, inputTokens = 500, outputTokens = 200) {
+  return {
+    text,
+    usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, costUsd: 0.0045, model: "claude-sonnet-4-6", source: "debugAnalyze" },
+    raw: { content: [{ type: "text", text }], usage: { input_tokens: inputTokens, output_tokens: outputTokens } },
+  };
+}
 
 import { debugAnalyze } from "../functions/debugAnalyze";
 
@@ -128,6 +135,8 @@ describe("POST /api/debug-analyze", () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv, ANTHROPIC_API_KEY: "test-key" };
+    mockCallAI.mockReset();
+    mockCallAI.mockResolvedValue(makeCallAIResult(JSON.stringify(DEFAULT_DIAGNOSIS)));
   });
 
   afterEach(() => {
@@ -187,7 +196,6 @@ describe("POST /api/debug-analyze", () => {
   });
 
   test("strips markdown code fences from AI response", async () => {
-    const Anthropic = require("@anthropic-ai/sdk");
     const fencedJson = "```json\n" + JSON.stringify({
       summary: "Extra field detected",
       whatWentWrong: "Extra field in request",
@@ -199,14 +207,8 @@ describe("POST /api/debug-analyze", () => {
       confidence: "high",
     }) + "\n```";
 
-    // Override the shared mock's create method for this test
-    const mockCreate = jest.fn().mockResolvedValue({
-      content: [{ type: "text", text: fencedJson }],
-      usage: { input_tokens: 300, output_tokens: 150 },
-    });
-    Anthropic.mockImplementationOnce(() => ({
-      messages: { create: mockCreate },
-    }));
+    // callAI returns .text — debugAnalyze strips fences from it
+    mockCallAI.mockResolvedValueOnce(makeCallAIResult(fencedJson, 300, 150));
 
     const res = await debugAnalyze(
       mockRequest("POST", {
@@ -229,6 +231,8 @@ describe("POST /api/debug-analyze — minimal mode", () => {
     process.env = { ...originalEnv, ANTHROPIC_API_KEY: "test-key" };
     mockResolveScenario.mockReset();
     mockTestRunsQuery.mockReset();
+    mockCallAI.mockReset();
+    mockCallAI.mockResolvedValue(makeCallAIResult(JSON.stringify(DEFAULT_DIAGNOSIS)));
   });
 
   afterEach(() => {
