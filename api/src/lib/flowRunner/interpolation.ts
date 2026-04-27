@@ -90,24 +90,34 @@ export function readDotPath(obj: unknown, path: string): unknown {
 }
 
 export function readPath(obj: unknown, path: string): unknown {
-  if (obj === null || obj === undefined) return undefined;
-  const parts = path.split(".");
-  let cur: unknown = obj;
-  for (const p of parts) {
-    if (cur === null || typeof cur !== "object") return undefined;
-    cur = (cur as Record<string, unknown>)[p];
-  }
-  return cur;
+  // Delegate to readDotPath which supports both dot notation and bracket notation
+  return readDotPath(obj, path);
 }
 
 export function fieldExists(obj: unknown, path: string): boolean {
   if (obj === null || obj === undefined) return false;
-  const parts = path.split(".");
+  // Use the same bracket-aware parsing as readDotPath
+  const parts: string[] = [];
+  for (const segment of path.split(".")) {
+    const bracketMatch = segment.match(/^([^[]*)\[(\d+)]$/);
+    if (bracketMatch) {
+      if (bracketMatch[1]) parts.push(bracketMatch[1]);
+      parts.push(bracketMatch[2]);
+    } else {
+      parts.push(segment);
+    }
+  }
   let cur: unknown = obj;
   for (const p of parts) {
     if (cur === null || typeof cur !== "object") return false;
-    if (!(p in (cur as Record<string, unknown>))) return false;
-    cur = (cur as Record<string, unknown>)[p];
+    if (Array.isArray(cur)) {
+      const idx = Number(p);
+      if (Number.isNaN(idx) || idx < 0 || idx >= cur.length) return false;
+      cur = cur[idx];
+    } else {
+      if (!(p in (cur as Record<string, unknown>))) return false;
+      cur = (cur as Record<string, unknown>)[p];
+    }
   }
   return cur !== undefined;
 }
