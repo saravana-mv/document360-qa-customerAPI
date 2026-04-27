@@ -27,7 +27,7 @@ function err(status: number, message: string): HttpResponseInit {
 }
 
 /** Upload files in parallel batches to stay within limits. */
-async function batchUpload(
+export async function batchUpload(
   items: Array<{ blobPath: string; content: string }>,
   batchSize: number,
 ): Promise<void> {
@@ -41,14 +41,14 @@ async function batchUpload(
   }
 }
 
-interface DistillResult {
+export interface DistillResult {
   file: string;
   status: "distilled" | "unchanged" | "error";
   error?: string;
 }
 
 /** Awaited batch distillation that collects per-file results. */
-async function batchDistillAll(
+export async function batchDistillAll(
   items: Array<{ blobPath: string; content: string }>,
   batchSize: number,
 ): Promise<DistillResult[]> {

@@ -210,6 +210,25 @@ export async function splitSwagger(
   return res.json() as Promise<SplitSwaggerResult>;
 }
 
+// ── Reimport Spec ─────────────────────────────────────────────────────────────
+
+export async function reimportSpec(
+  folderPath: string,
+  specContent?: string,
+  specUrl?: string,
+): Promise<SplitSwaggerResult & { wiped?: Record<string, number> }> {
+  const res = await apiFetch("/api/spec-files/reimport", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      folderPath,
+      ...(specContent != null ? { specContent } : {}),
+      ...(specUrl ? { specUrl } : {}),
+    }),
+  });
+  return res.json() as Promise<SplitSwaggerResult & { wiped?: Record<string, number> }>;
+}
+
 // ── Regenerate System Files ───────────────────────────────────────────────────
 
 export interface RegenerateSystemResult {

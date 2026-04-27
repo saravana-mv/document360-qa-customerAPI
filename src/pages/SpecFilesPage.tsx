@@ -52,8 +52,9 @@ import { useScenarioOrgStore } from "../store/scenarioOrg.store";
 import { useAiCostStore } from "../store/aiCost.store";
 import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
 import { NewVersionModal } from "../components/specfiles/NewVersionModal";
-import { splitSwagger, regenerateSystemFiles, type SuggestedVariable, type SuggestedConnection, type ProcessingReport } from "../lib/api/specFilesApi";
+import { splitSwagger, reimportSpec, regenerateSystemFiles, type SuggestedVariable, type SuggestedConnection, type ProcessingReport } from "../lib/api/specFilesApi";
 import { ImportResultModal } from "../components/specfiles/ImportResultModal";
+import { ReimportSpecModal } from "../components/specfiles/ReimportSpecModal";
 import { useProjectVariablesStore } from "../store/projectVariables.store";
 import { useConnectionsStore } from "../store/connections.store";
 
@@ -184,6 +185,9 @@ export function SpecFilesPage() {
     suggestedConnections: SuggestedConnection[];
     processing?: ProcessingReport;
   } | null>(null);
+
+  // ── Reimport state ───────────────────────────────────────────────────────────
+  const [reimportFolderPath, setReimportFolderPath] = useState<string | null>(null);
 
   // ── Multi-select state ─────────────────────────────────────────────────────
   const [multiSelectedPaths, setMultiSelectedPaths] = useState<Set<string>>(new Set());
@@ -919,6 +923,26 @@ export function SpecFilesPage() {
 
   function handleImportSkip() {
     setImportResult(null);
+  }
+
+  async function handleReimport(specContent?: string, specUrl?: string) {
+    if (!reimportFolderPath) return;
+    const folderPath = reimportFolderPath;
+    const result = await reimportSpec(folderPath, specContent, specUrl);
+    await loadFiles();
+    setReimportFolderPath(null);
+    // Load project variables + connections so modal can check existing names
+    await Promise.all([
+      useProjectVariablesStore.getState().load(),
+      useConnectionsStore.getState().load(),
+    ]);
+    setImportResult({
+      folderName: folderPath,
+      stats: result.stats,
+      suggestedVariables: result.suggestedVariables ?? [],
+      suggestedConnections: result.suggestedConnections ?? [],
+      processing: result.processing,
+    });
   }
 
   async function handleUpload(name: string, fileContent: string, contentType: string) {
@@ -2093,6 +2117,7 @@ export function SpecFilesPage() {
             onSyncFolder={(folderPath) => void handleSyncFolder(folderPath)}
             onRegenerateSystem={(folderPath) => void handleRegenerateSystem(folderPath)}
             regeneratingPaths={regeneratingPaths}
+            onReimportSpec={(folderPath) => setReimportFolderPath(folderPath)}
             onGenerateFlowIdeas={(path, count) => void handleGenerateFlowIdeas(path, count)}
             onRefresh={loadFiles}
             onNewVersion={() => setShowNewVersionModal(true)}
@@ -2508,6 +2533,16 @@ export function SpecFilesPage() {
           existingConnectionNames={new Set(useConnectionsStore.getState().connections.map(c => c.name))}
           onDone={handleImportDone}
           onSkip={handleImportSkip}
+        />
+      )}
+
+      {/* Reimport spec modal */}
+      {reimportFolderPath && (
+        <ReimportSpecModal
+          open={true}
+          folderPath={reimportFolderPath}
+          onClose={() => setReimportFolderPath(null)}
+          onReimport={handleReimport}
         />
       )}
 

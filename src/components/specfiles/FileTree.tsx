@@ -264,6 +264,7 @@ interface FolderMenuProps {
   hasSourcedFiles: boolean;
   hasSpecFiles: boolean;
   isRegenerating: boolean;
+  isVersionFolder: boolean;
   currentSort: SortOrder;
   onSort: (order: SortOrder) => void;
   onNewSubfolder: () => void;
@@ -271,12 +272,13 @@ interface FolderMenuProps {
   onImportFromUrl: () => void;
   onSyncFolder: () => void;
   onRegenerateSystem: () => void;
+  onReimportSpec?: () => void;
   onGenerateFlowIdeas: (count: number) => void;
   onRename: () => void;
   onDelete: () => void;
 }
 
-function FolderMenu({ isSelected, hasSourcedFiles, hasSpecFiles, isRegenerating, currentSort, onSort, onNewSubfolder, onUploadFiles, onImportFromUrl, onSyncFolder, onRegenerateSystem, onGenerateFlowIdeas, onRename, onDelete }: FolderMenuProps) {
+function FolderMenu({ isSelected, hasSourcedFiles, hasSpecFiles, isRegenerating, isVersionFolder, currentSort, onSort, onNewSubfolder, onUploadFiles, onImportFromUrl, onSyncFolder, onRegenerateSystem, onReimportSpec, onGenerateFlowIdeas, onRename, onDelete }: FolderMenuProps) {
   const noSpecTip = "Upload spec files (.md) first";
   const items: MenuItem[] = [
     { label: "New subfolder", icon: MenuIcons.folder, onClick: onNewSubfolder },
@@ -284,6 +286,9 @@ function FolderMenu({ isSelected, hasSourcedFiles, hasSpecFiles, isRegenerating,
     { label: "Import from URL", icon: MenuIcons.link, onClick: onImportFromUrl },
     { label: "Sync URL sources", icon: MenuIcons.sync, onClick: onSyncFolder, disabled: !hasSourcedFiles, tooltip: hasSourcedFiles ? undefined : "No URL-sourced files in this folder" },
     { label: isRegenerating ? "Regenerating..." : "Regenerate system files", icon: MenuIcons.refresh, onClick: onRegenerateSystem, disabled: !hasSpecFiles || isRegenerating, tooltip: hasSpecFiles ? undefined : noSpecTip },
+    ...(isVersionFolder && onReimportSpec ? [
+      { label: "Reimport OpenAPI Spec", icon: MenuIcons.refresh, onClick: onReimportSpec, danger: true } as MenuItem,
+    ] : []),
     "separator",
     { label: `Sort by name${currentSort === "name" ? "  ✓" : ""}`, icon: MenuIcons.sortAZ, onClick: () => onSort("name") },
     { label: `Sort by method${currentSort === "method" ? "  ✓" : ""}`, icon: MenuIcons.sortMethod, onClick: () => onSort("method"), disabled: !hasSpecFiles, tooltip: hasSpecFiles ? undefined : noSpecTip },
@@ -358,6 +363,7 @@ interface NodeProps {
   onSyncFolder: (folderPath: string) => void;
   onRegenerateSystem: (folderPath: string) => void;
   regeneratingPaths?: Set<string>;
+  onReimportSpec?: (folderPath: string) => void;
   onGenerateFlowIdeas: (path: string, count: number) => void;
   onCreateCommit: (parentPath: string, name: string) => void;
   onCreateCancel: () => void;
@@ -371,7 +377,7 @@ function TreeNodeRow({
   onDragStart, onDragOver, onDrop, onDragEnd,
   onSelect, onSelectFolder, onToggle, onSetSort, onMultiSelect, onRenameStart, onRenameCommit, onRenameCancel,
   onDeleteNode, onStartSubfolder, onUploadFiles, onImportFromUrl, onSyncFile, onSyncFolder,
-  onRegenerateSystem, regeneratingPaths,
+  onRegenerateSystem, regeneratingPaths, onReimportSpec,
   onGenerateFlowIdeas, onCreateCommit, onCreateCancel,
 }: NodeProps) {
   const indent = depth * 12;
@@ -488,6 +494,7 @@ function TreeNodeRow({
                 hasSourcedFiles={sourcedPaths ? Array.from(sourcedPaths).some((p) => p.startsWith(node.path + "/")) : false}
                 hasSpecFiles={countMdFiles(node) > 0}
                 isRegenerating={regeneratingPaths?.has(node.path) === true}
+                isVersionFolder={!node.path.includes("/")}
                 currentSort={folderSortOrder[node.path] ?? "name"}
                 onSort={(order) => onSetSort(node.path, order)}
                 onNewSubfolder={() => onStartSubfolder(node.path)}
@@ -495,6 +502,7 @@ function TreeNodeRow({
                 onImportFromUrl={() => onImportFromUrl(node.path)}
                 onSyncFolder={() => onSyncFolder(node.path)}
                 onRegenerateSystem={() => onRegenerateSystem(node.path)}
+                onReimportSpec={onReimportSpec ? () => onReimportSpec(node.path) : undefined}
                 onGenerateFlowIdeas={(count) => onGenerateFlowIdeas(node.path, count)}
                 onRename={() => onRenameStart(node.path)}
                 onDelete={() => onDeleteNode(node)}
@@ -571,6 +579,7 @@ function TreeNodeRow({
               onSyncFolder={onSyncFolder}
               onRegenerateSystem={onRegenerateSystem}
               regeneratingPaths={regeneratingPaths}
+              onReimportSpec={onReimportSpec}
               onGenerateFlowIdeas={onGenerateFlowIdeas}
               onCreateCommit={onCreateCommit}
               onCreateCancel={onCreateCancel}
@@ -626,6 +635,7 @@ interface FileTreeProps {
   onSyncFolder: (folderPath: string) => void;
   onRegenerateSystem: (folderPath: string) => void;
   regeneratingPaths?: Set<string>;
+  onReimportSpec?: (folderPath: string) => void;
   onGenerateFlowIdeas: (path: string, count: number) => void;
   onRefresh: () => void;
   onNewVersion: () => void;
@@ -636,7 +646,7 @@ export function FileTree({
   multiSelectedPaths, onSelectFile, onSelectFolder, onMultiSelect, onSelectAll, onClearMultiSelect, onBulkDelete,
   onCreateFolder, onDeleteFile, onDeleteFolder, onRenameFile,
   onUploadFiles, onImportFromUrl, onSyncFile, onSyncFolder, onRegenerateSystem, regeneratingPaths,
-  onGenerateFlowIdeas, onRefresh, onNewVersion,
+  onReimportSpec, onGenerateFlowIdeas, onRefresh, onNewVersion,
 }: FileTreeProps) {
   const tree = buildTree(files);
 
@@ -882,6 +892,7 @@ export function FileTree({
     onSyncFolder,
     onRegenerateSystem,
     regeneratingPaths,
+    onReimportSpec,
     onGenerateFlowIdeas,
     onCreateCommit: (parent: string, name: string) => void handleCreateCommit(parent, name),
     onCreateCancel: () => setCreatingUnder(null),
