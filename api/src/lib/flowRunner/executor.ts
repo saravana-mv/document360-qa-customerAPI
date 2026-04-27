@@ -213,22 +213,31 @@ async function executeStep(
     }
   }
 
-  // Apply captures
+  // Apply captures — failed captures mark the step as failed because
+  // downstream steps depend on the captured state variables.
+  const captureErrors: string[] = [];
   for (const cap of step.captures) {
     try {
       const value = resolveCapture(cap, {
         request: { body: requestBody, pathParams: resolvedPathParams },
         response: responseBody,
       });
-      if (value !== undefined) {
-        const variable = cap.variable.startsWith("state.")
-          ? cap.variable.slice("state.".length)
-          : cap.variable;
+      const variable = cap.variable.startsWith("state.")
+        ? cap.variable.slice("state.".length)
+        : cap.variable;
+      if (value === undefined || value === null) {
+        captureErrors.push(`Capture "${cap.variable}" resolved to ${value === null ? "null" : "undefined"} (source: ${cap.from}.${cap.source})`);
+      } else {
         state[variable] = value;
       }
-    } catch {
-      warnings.push(`Step ${step.number}: capture "${cap.variable}" failed`);
+    } catch (err) {
+      captureErrors.push(`Capture "${cap.variable}" threw: ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
+
+  // Capture failures → fail the step so downstream steps don't run with missing state
+  if (captureErrors.length > 0 && !failureReason) {
+    failureReason = `State capture failed: ${captureErrors.join("; ")}`;
   }
 
   // Run assertions
