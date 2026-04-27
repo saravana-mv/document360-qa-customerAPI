@@ -9,6 +9,33 @@ export function SetupPanel() {
   const setup = useSetupStore();
   const isOwner = useUserStore((s) => s.hasRole("owner"));
 
+  // ── Draft state for Application settings card ─────────────────────────
+  const [draftAiModel, setDraftAiModel] = useState<AiModelId>(setup.aiModel);
+  const [aiModelSaved, setAiModelSaved] = useState(false);
+  const aiModelDirty = draftAiModel !== setup.aiModel;
+
+  function saveAppSettings() {
+    setup.setAiModel(draftAiModel);
+    setAiModelSaved(true);
+    setTimeout(() => setAiModelSaved(false), 2000);
+  }
+
+  // ── Draft state for Test run settings card ────────────────────────────
+  const [draftStepDelay, setDraftStepDelay] = useState(setup.delayBetweenStepsMs);
+  const [draftScenarioDelay, setDraftScenarioDelay] = useState(setup.delayBetweenScenariosMs);
+  const [runSettingsSaved, setRunSettingsSaved] = useState(false);
+  const runSettingsDirty =
+    draftStepDelay !== setup.delayBetweenStepsMs ||
+    draftScenarioDelay !== setup.delayBetweenScenariosMs;
+
+  function saveRunSettings() {
+    setup.setDelayBetweenStepsMs(draftStepDelay);
+    setup.setDelayBetweenScenariosMs(draftScenarioDelay);
+    setRunSettingsSaved(true);
+    setTimeout(() => setRunSettingsSaved(false), 2000);
+  }
+
+  // ── Reset project state ───────────────────────────────────────────────
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
@@ -17,7 +44,7 @@ export function SetupPanel() {
     <div className="min-h-screen bg-[#f6f8fa] flex items-start justify-center px-4 py-8">
       <div className="flex flex-col gap-4 w-full max-w-md">
 
-        {/* ── Application settings (cross-cutting, not per-project) ──────────── */}
+        {/* ── Application settings ──────────────────────────────── */}
         <div className="bg-white rounded-xl border border-[#d1d9e0] shadow-sm p-6">
           <h2 className="text-base font-semibold text-[#1f2328] mb-0.5">Application settings</h2>
           <p className="text-sm text-[#656d76] mb-5">Preferences that apply across all projects.</p>
@@ -27,8 +54,8 @@ export function SetupPanel() {
               AI Model
             </label>
             <select
-              value={setup.aiModel}
-              onChange={(e) => setup.setAiModel(e.target.value as AiModelId)}
+              value={draftAiModel}
+              onChange={(e) => { setDraftAiModel(e.target.value as AiModelId); setAiModelSaved(false); }}
               className="w-full px-3 py-[7px] border border-[#d1d9e0] rounded-md text-sm bg-[#f6f8fa] focus:bg-white text-[#1f2328]"
             >
               {AI_MODELS.map((m) => (
@@ -38,6 +65,19 @@ export function SetupPanel() {
             <p className="text-[11px] text-[#656d76] mt-1">
               Used for flow generation, ideas, chat, editing, and diagnosis. Sonnet is recommended — 5× cheaper than Opus with reliable results.
             </p>
+          </div>
+
+          <div className="flex items-center gap-2 mt-5">
+            <button
+              onClick={saveAppSettings}
+              disabled={!aiModelDirty}
+              className="px-3 py-[6px] text-sm font-medium text-white bg-[#1a7f37] border border-[#1a7f37]/80 rounded-md hover:bg-[#1a7f37]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Save
+            </button>
+            {aiModelSaved && (
+              <span className="text-xs text-[#1a7f37] font-medium">Saved</span>
+            )}
           </div>
         </div>
 
@@ -56,8 +96,8 @@ export function SetupPanel() {
                 min={0}
                 max={30000}
                 step={100}
-                value={setup.delayBetweenStepsMs}
-                onChange={(e) => setup.setDelayBetweenStepsMs(Math.max(0, Math.min(30000, Number(e.target.value) || 0)))}
+                value={draftStepDelay}
+                onChange={(e) => { setDraftStepDelay(Math.max(0, Math.min(30000, Number(e.target.value) || 0))); setRunSettingsSaved(false); }}
                 className="w-full px-3 py-[7px] border border-[#d1d9e0] rounded-md text-sm bg-[#f6f8fa] focus:bg-white text-[#1f2328]"
               />
               <p className="text-[11px] text-[#656d76] mt-1">
@@ -74,14 +114,27 @@ export function SetupPanel() {
                 min={0}
                 max={60000}
                 step={500}
-                value={setup.delayBetweenScenariosMs}
-                onChange={(e) => setup.setDelayBetweenScenariosMs(Math.max(0, Math.min(60000, Number(e.target.value) || 0)))}
+                value={draftScenarioDelay}
+                onChange={(e) => { setDraftScenarioDelay(Math.max(0, Math.min(60000, Number(e.target.value) || 0))); setRunSettingsSaved(false); }}
                 className="w-full px-3 py-[7px] border border-[#d1d9e0] rounded-md text-sm bg-[#f6f8fa] focus:bg-white text-[#1f2328]"
               />
               <p className="text-[11px] text-[#656d76] mt-1">
                 Wait time between scenarios. Helps avoid overwhelming the target API. Default: 0 (no delay).
               </p>
             </div>
+          </div>
+
+          <div className="flex items-center gap-2 mt-5">
+            <button
+              onClick={saveRunSettings}
+              disabled={!runSettingsDirty}
+              className="px-3 py-[6px] text-sm font-medium text-white bg-[#1a7f37] border border-[#1a7f37]/80 rounded-md hover:bg-[#1a7f37]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Save
+            </button>
+            {runSettingsSaved && (
+              <span className="text-xs text-[#1a7f37] font-medium">Saved</span>
+            )}
           </div>
         </div>
 
