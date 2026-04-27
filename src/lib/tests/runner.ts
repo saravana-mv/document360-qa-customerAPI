@@ -2,7 +2,8 @@ import type { TestDef, TestContext, RunState, TestExecutionResult } from "../../
 import { runAssertions } from "./assertions";
 import { useRunnerStore } from "../../store/runner.store";
 import { isBreakpointSet } from "../../store/breakpoints.store";
-import { saveTestRun } from "../api/testRunsApi";
+import { saveTestRun, type SavedTestRun } from "../api/testRunsApi";
+import { getFlowFileContent } from "../api/flowFilesApi";
 import { useFlowStatusStore } from "../../store/flowStatus.store";
 import { useSetupStore } from "../../store/setup.store";
 import { fetchFolderApiRules, fetchApiRules } from "../api/apiRulesApi";
@@ -299,6 +300,30 @@ export async function runTests(options: RunOptions): Promise<void> {
     if (entry.scenarioId) scenarioIds[fileName] = entry.scenarioId;
   }
 
+  // Snapshot diagnostic context for post-mortem debugging
+  const projVars = useProjectVariablesStore.getState().asRecord();
+  const runContext: Record<string, unknown> = {};
+  if (context.baseUrl) runContext.baseUrl = context.baseUrl;
+  if (context.apiVersion) runContext.apiVersion = context.apiVersion;
+  if (context.connectionId) runContext.connectionId = context.connectionId;
+  if (Object.keys(projVars).length > 0) runContext.projectVariables = projVars;
+
+  // Snapshot flow XML for each unique flow (best-effort, don't block save)
+  const flowSnapshots: Record<string, string> = {};
+  const uniqueFlowFiles = new Set<string>();
+  for (const test of tests) {
+    if (test.flowFileName) uniqueFlowFiles.add(test.flowFileName);
+  }
+  try {
+    await Promise.all(
+      [...uniqueFlowFiles].map(async (name) => {
+        try {
+          flowSnapshots[name] = await getFlowFileContent(name);
+        } catch { /* skip if flow can't be loaded */ }
+      }),
+    );
+  } catch { /* proceed without flow snapshots */ }
+
   saveTestRun({
     id: `run:${crypto.randomUUID()}`,
     startedAt: new Date(startedAt).toISOString(),
@@ -308,6 +333,8 @@ export async function runTests(options: RunOptions): Promise<void> {
     testResults: { ...finalState.testResults },
     log: finalState.log.slice(0, 500),
     scenarioIds,
+    context: runContext as SavedTestRun["context"],
+    flowSnapshots: Object.keys(flowSnapshots).length > 0 ? flowSnapshots : undefined,
   }).catch((e) => console.warn("[runner] Failed to save test run:", e));
 
   options.onComplete?.();

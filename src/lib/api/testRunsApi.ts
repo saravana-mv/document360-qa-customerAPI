@@ -32,6 +32,15 @@ export interface SavedTestRun {
   source?: "api" | "ui";
   scenarioId?: string;
   scenarioName?: string;
+  /** Diagnostic snapshots captured at run time */
+  context?: {
+    baseUrl?: string;
+    apiVersion?: string;
+    connectionId?: string;
+    projectVariables?: Record<string, string>;
+  };
+  /** Flow XML snapshots keyed by flow file name */
+  flowSnapshots?: Record<string, string>;
   steps?: ApiStepResult[];
 }
 
@@ -70,6 +79,13 @@ export async function saveTestRun(run: {
   testResults: Record<string, TestResult>;
   log: LogEntry[];
   scenarioIds?: Record<string, string>;
+  context?: {
+    baseUrl?: string;
+    apiVersion?: string;
+    connectionId?: string;
+    projectVariables?: Record<string, string>;
+  };
+  flowSnapshots?: Record<string, string>;
 }): Promise<void> {
   await apiFetch("/api/test-runs", {
     method: "POST",
