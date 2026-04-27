@@ -161,6 +161,27 @@ export function substitute(template: string, ctx: RunContext, state: RunState): 
 }
 
 /**
+ * Like substitute() but collects unresolved variable names instead of
+ * silently replacing them with "null".
+ */
+export function substituteStrict(
+  template: string, ctx: RunContext, state: RunState,
+): { result: string; unresolved: string[] } {
+  const unresolved: string[] = [];
+  const result = template.replace(/\{\{(!?)([a-zA-Z][a-zA-Z0-9._]*)\}\}/g, (_match, neg, expr) => {
+    let value = resolveExpr(expr, ctx, state);
+    if (neg) value = !value;
+    if (typeof value === "string") return escapeForJsonString(value);
+    if (value === undefined || value === null) {
+      unresolved.push(expr as string);
+      return "null";
+    }
+    return JSON.stringify(value);
+  });
+  return { result, unresolved };
+}
+
+/**
  * Resolve a single param value (path/query).
  */
 export function resolveParam(raw: string, ctx: RunContext, state: RunState): unknown {

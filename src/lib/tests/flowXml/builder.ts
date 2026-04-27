@@ -204,11 +204,22 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
   const requestUrl = `${ctx.baseUrl}${resolvedPath}${queryString}`;
   const fetchUrl = `/api/proxy${resolvedPath}${queryString}`;
 
-  // Resolve body
+  // Resolve body — fail the step if any state/proj variables are unresolved
+  // so we don't send a body with null values that the API will reject.
   let requestBody: unknown = undefined;
   if (step.body) {
     try {
-      const interpolated = substitute(step.body, ctx, state);
+      const { result: interpolated, unresolved } = substituteStrict(step.body, ctx, state);
+      if (unresolved.length > 0) {
+        const varList = unresolved.map((v) => `{{${v}}}`).join(", ");
+        return {
+          status: "fail",
+          durationMs: Date.now() - start,
+          failureReason: `Request body has unresolved variables: ${varList} — expected values were not captured by a previous step or are not defined`,
+          assertionResults: [],
+          stateSnapshot: { ...state },
+        };
+      }
       requestBody = JSON.parse(interpolated);
     } catch (err) {
       return failError(start, new Error(`Failed to interpolate request body: ${(err as Error).message}`));
@@ -397,6 +408,28 @@ export function substitute(template: string, ctx: TestContext, state: RunState):
     if (value === undefined) return "null";
     return JSON.stringify(value);
   });
+}
+
+/**
+ * Like substitute() but collects unresolved variable names instead of
+ * silently replacing them with "null". Returns both the interpolated
+ * string and the list of unresolved expressions.
+ */
+export function substituteStrict(
+  template: string, ctx: TestContext, state: RunState,
+): { result: string; unresolved: string[] } {
+  const unresolved: string[] = [];
+  const result = template.replace(/\{\{(!?)([a-zA-Z][a-zA-Z0-9._]*)\}\}/g, (_match, neg, expr) => {
+    let value = resolveExpr(expr, ctx, state);
+    if (neg) value = !value;
+    if (typeof value === "string") return escapeForJsonString(value);
+    if (value === undefined || value === null) {
+      unresolved.push(expr as string);
+      return "null";
+    }
+    return JSON.stringify(value);
+  });
+  return { result, unresolved };
 }
 
 /**

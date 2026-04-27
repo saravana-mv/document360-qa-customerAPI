@@ -17,6 +17,7 @@ import type {
 import {
   rewriteApiVersion,
   substitute,
+  substituteStrict,
   resolveParam,
   readDotPath,
   readPath,
@@ -153,11 +154,18 @@ async function executeStep(
 
   const requestUrl = `${ctx.baseUrl}${resolvedPath}${queryString}`;
 
-  // Resolve body
+  // Resolve body — fail the step if any state/proj variables are unresolved
   let requestBody: unknown = undefined;
   if (step.body) {
     try {
-      const interpolated = substitute(step.body, ctx, state);
+      const { result: interpolated, unresolved } = substituteStrict(step.body, ctx, state);
+      if (unresolved.length > 0) {
+        const varList = unresolved.map((v) => `{{${v}}}`).join(", ");
+        return makeResult(step, start, "fail", {
+          failureReason: `Request body has unresolved variables: ${varList} — expected values were not captured by a previous step or are not defined`,
+          requestUrl,
+        });
+      }
       requestBody = JSON.parse(interpolated);
     } catch (err) {
       return makeResult(step, start, "error", {
