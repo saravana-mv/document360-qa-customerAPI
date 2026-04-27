@@ -44,6 +44,7 @@ interface EndpointSummary {
   } | null;
   successStatus: string;
   responseKeyFields: string[];
+  responseExample: unknown | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -248,6 +249,7 @@ function parseEndpoint(
   const responses = op.responses as Record<string, Record<string, unknown>> | undefined;
   let successStatus = "200";
   const responseKeyFields: string[] = [];
+  let responseExample: unknown | null = null;
   if (responses) {
     // Find the success response (2xx)
     const successKey = Object.keys(responses).find(k => k.startsWith("2"));
@@ -264,11 +266,20 @@ function parseEndpoint(
             extractResponseKeyFields(respSchema, schemas, "response", responseKeyFields, 0);
           }
         }
+        // Extract response example if available
+        const examples = jsonResp.examples as Record<string, Record<string, unknown>> | undefined;
+        if (examples) {
+          const firstEx = Object.values(examples)[0];
+          if (firstEx?.value) responseExample = firstEx.value;
+        }
+        if (!responseExample && jsonResp.example) {
+          responseExample = jsonResp.example;
+        }
       }
     }
   }
 
-  return { method, path, summary, description, pathParams, requestBody, successStatus, responseKeyFields };
+  return { method, path, summary, description, pathParams, requestBody, successStatus, responseKeyFields, responseExample };
 }
 
 function extractResponseKeyFields(
@@ -278,7 +289,7 @@ function extractResponseKeyFields(
   result: string[],
   depth: number,
 ): void {
-  if (depth > 2) return; // Don't go too deep
+  if (depth > 3) return; // Don't go too deep
   const properties = schema.properties as Record<string, Record<string, unknown>> | undefined;
   if (!properties) return;
 
@@ -286,8 +297,25 @@ function extractResponseKeyFields(
     const fieldPath = `${prefix}.${name}`;
     const type = extractFieldType(def, schemas);
 
-    if (type === "array" || type === "object" || def.allOf || def.$ref) {
-      // For nested objects, recurse one level if it's a $ref we can resolve
+    if (type === "array") {
+      // For arrays, follow items.$ref to show item-level fields with [] notation
+      const items = def.items as Record<string, unknown> | undefined;
+      let itemSchema: Record<string, unknown> | null = null;
+      if (items?.$ref) itemSchema = resolveRef(items.$ref as string, schemas);
+      if (!itemSchema && items?.allOf) {
+        for (const r of items.allOf as Record<string, string>[]) {
+          if (r.$ref) { itemSchema = resolveRef(r.$ref, schemas); break; }
+        }
+      }
+      if (itemSchema && depth < 2) {
+        // Show array with item fields: response.data[].id, response.data[].name, etc.
+        result.push(`${fieldPath} (array)`);
+        extractResponseKeyFields(itemSchema, schemas, `${fieldPath}[]`, result, depth + 1);
+      } else {
+        result.push(`${fieldPath} (${type})`);
+      }
+    } else if (type === "object" || def.allOf || def.$ref) {
+      // For nested objects, recurse if it's a $ref we can resolve
       let nested: Record<string, unknown> | null = null;
       if (def.$ref) nested = resolveRef(def.$ref as string, schemas);
       if (def.allOf) {
@@ -295,7 +323,7 @@ function extractResponseKeyFields(
           if (r.$ref) { nested = resolveRef(r.$ref, schemas); break; }
         }
       }
-      if (nested && depth < 1) {
+      if (nested && depth < 2) {
         extractResponseKeyFields(nested, schemas, fieldPath, result, depth + 1);
       } else {
         result.push(`${fieldPath} (${type})`);
@@ -304,8 +332,8 @@ function extractResponseKeyFields(
       result.push(`${fieldPath} (${type})`);
     }
 
-    // Cap at 15 key fields
-    if (result.length >= 15) return;
+    // Cap at 20 key fields (raised from 15 to accommodate array item fields)
+    if (result.length >= 20) return;
   }
 }
 
@@ -384,9 +412,24 @@ function formatEndpoint(ep: EndpointSummary): string {
   lines.push(`### Response (${ep.successStatus})`);
   if (ep.responseKeyFields.length > 0) {
     lines.push("**Response fields available for capture** (use `<capture variable=\"state.xxx\" source=\"response.data.xxx\"/>`):");
-    for (const f of ep.responseKeyFields.slice(0, 15)) {
+    lines.push("For array fields marked with `[]`, use index syntax in captures: `response.data[0].id`, `response.data[1].id`, etc.");
+    for (const f of ep.responseKeyFields.slice(0, 20)) {
       lines.push(`- \`${f}\``);
     }
+  }
+
+  // Response example — shows the EXACT structure the AI should use for captures
+  if (ep.responseExample) {
+    lines.push("");
+    lines.push("### Example Response");
+    const exStr = JSON.stringify(ep.responseExample, null, 2);
+    // Cap at 60 lines to keep distillation compact
+    const exLines = exStr.split("\n");
+    const capped = exLines.length > 60 ? exLines.slice(0, 60).join("\n") + "\n  // ... truncated" : exStr;
+    lines.push("```json");
+    lines.push(capped);
+    lines.push("```");
+    lines.push("**Use the EXACT field paths from this example for captures — do NOT invent nested paths.**");
   }
   lines.push("");
 

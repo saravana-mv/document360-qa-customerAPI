@@ -211,6 +211,16 @@ Wrap JSON in CDATA. Interpolation tokens (\`{{state.x}}\`, \`{{ctx.y}}\`, \`{{ti
 </captures>
 \`\`\`
 
+**Array/bulk response captures**: For endpoints that return arrays (e.g., bulk create), use bracket index syntax to capture fields from specific array items:
+\`\`\`xml
+<captures>
+  <!-- Capture from the first item in a bulk response array -->
+  <capture variable="state.articleId1" source="response.data[0].id"/>
+  <capture variable="state.articleId2" source="response.data[1].id"/>
+</captures>
+\`\`\`
+**CRITICAL**: Use the EXACT field paths from the response schema/example. If the spec shows \`data[0].id\`, write \`response.data[0].id\` — do NOT invent nested paths like \`response.data[0].details.id\` unless the example explicitly shows that structure.
+
 Attributes: \`variable\` (required), \`source\` (required), \`from\` (optional: \`response\` | \`request\` | \`computed\`, default \`response\`).
 
 ### Assertions
@@ -300,7 +310,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 2. **Entity dependencies — ALWAYS create prerequisites**: If a request body contains a foreign-key field referencing another resource (e.g., \`category_id\`, \`parent_id\`, \`folder_id\`, \`group_id\`), you MUST create that resource as a setup step and delete it as a teardown step — even if the field is marked optional/nullable in the schema. In practice, omitting a parent entity often causes runtime failures or places the resource in an unusable state. When in doubt, create the dependency. Check field descriptions for hints like "retrieve from GET /…" which confirm a dependency. Delete child resources before parents in teardown.
 3. **Request body MUST include ALL required fields with EXACT names**: When the spec file documents a request body schema, you MUST include EVERY field listed as \`required\`, using the EXACT field name from the schema. Copy field names character-for-character — do NOT substitute similar names (e.g., do NOT use \`name\` when the spec says \`title\`, or \`description\` when the spec says \`content\`). Parse the schema carefully — look for \`required: [field1, field2, ...]\` arrays, the **REQUIRED FIELDS** line, "Required" labels, or "(required)" annotations next to properties. For each required field, use: a project variable (\`{{proj.X}}\`) if one matches, a state variable (\`{{state.X}}\`) captured from a prior step, or a sensible test value. Omitting a required field will cause the API call to fail at runtime — this is a critical error. **For prerequisite/dependency steps** (e.g., creating a parent entity) where no spec is provided: check the "Common Required Fields" section at the end of the spec context and include those fields in the request body too.
 4. **Teardown is MANDATORY for every flow**: Every flow — regardless of complexity — MUST end with teardown steps that delete ALL resources created during the flow. The testing environment must be left exactly as it was before the flow ran. Delete child resources before parent. Mark every teardown step with \`<flags teardown="true"/>\`.
-5. **State passing**: Use \`<capture variable="state.X" source="response.data.Y"/>\` then reference \`{{state.X}}\` in later steps.
+5. **State passing — EXACT capture paths**: Use \`<capture variable="state.X" source="response.data.Y"/>\` then reference \`{{state.X}}\` in later steps. The \`source\` attribute MUST match the EXACT response structure from the spec example. For array responses use index syntax: \`response.data[0].id\`. Never fabricate nested paths — if the spec example shows \`data[0].id\`, do NOT write \`data[0].details.id\`.
 6. **Unique names**: For resource names, use \`[TEST] Something - {{timestamp}}\`.
 7. **Assertions**: Every step needs at least one \`<assertion type="status" code="…"/>\`. Write operations should also assert \`field-exists\` on the created resource id. **Read the spec file carefully** — use the exact status code and response structure documented there. Do NOT guess.
 8. **HTTP status codes**: Use these defaults unless the spec file explicitly states otherwise:

@@ -92,6 +92,15 @@ Wrap JSON in CDATA. Interpolation tokens (\`{{state.x}}\`, \`{{ctx.y}}\`, \`{{ti
 </captures>
 \`\`\`
 
+**Array/bulk response captures**: For endpoints returning arrays, use bracket index syntax:
+\`\`\`xml
+<captures>
+  <capture variable="state.articleId1" source="response.data[0].id"/>
+  <capture variable="state.articleId2" source="response.data[1].id"/>
+</captures>
+\`\`\`
+**CRITICAL**: Use the EXACT field paths from the response schema/example — do NOT invent nested paths.
+
 Attributes: \`variable\` (required), \`source\` (required), \`from\` (optional: \`response\` | \`request\` | \`computed\`, default \`response\`).
 
 ### Assertions

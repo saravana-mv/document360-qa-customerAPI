@@ -31,7 +31,7 @@ async function invalidateDigest(blobPath: string): Promise<void> {
 }
 
 /** Bump this when distill logic changes to invalidate stale caches. */
-const DISTILL_VERSION = 4;
+const DISTILL_VERSION = 5;
 
 // ── Path helpers ──────────────────────────────────────────────────────
 
