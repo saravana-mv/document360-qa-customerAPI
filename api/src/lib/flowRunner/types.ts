@@ -54,6 +54,8 @@ export interface RunContext {
   authMethod: "oauth" | "apikey" | "bearer" | "apikey_header" | "apikey_query" | "basic" | "cookie" | "none";
   /** Project-level variables (proj.varName). */
   projectVariables?: Record<string, string>;
+  /** Delay (ms) between steps within a scenario. */
+  delayBetweenStepsMs?: number;
 }
 
 // ── Execution results ───────────────────────────────────────────────────────

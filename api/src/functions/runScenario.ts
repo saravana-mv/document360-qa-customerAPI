@@ -111,12 +111,17 @@ async function handleRunScenario(req: HttpRequest, _ctx: InvocationContext): Pro
     }
   } catch { /* proceed without project variables */ }
 
+  const delayBetweenStepsMs = typeof settings.delayBetweenStepsMs === "number"
+    ? (settings.delayBetweenStepsMs as number)
+    : 0;
+
   const ctx: RunContext = {
     apiVersion,
     baseUrl,
     authMethod: apiKeyDoc.authMethod,
     ...creds,
     projectVariables,
+    delayBetweenStepsMs,
   };
 
   // Load version-folder enum aliases before execution (falls back to project-level)

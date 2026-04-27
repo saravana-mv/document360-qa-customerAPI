@@ -21,6 +21,10 @@ interface SetupState {
   apiVersion: string;
   /** Model used for AI generation (flow ideas + flow XML). Persisted. */
   aiModel: AiModelId;
+  /** Delay (ms) between steps within a scenario. 0 = no delay. */
+  delayBetweenStepsMs: number;
+  /** Delay (ms) between scenarios. 0 = no delay. */
+  delayBetweenScenariosMs: number;
   loadingProjects: boolean;
   /** True while loading settings from server on first auth */
   settingsLoaded: boolean;
@@ -30,6 +34,8 @@ interface SetupState {
   setBaseUrl: (url: string) => void;
   setApiVersion: (version: string) => void;
   setAiModel: (model: AiModelId) => void;
+  setDelayBetweenStepsMs: (ms: number) => void;
+  setDelayBetweenScenariosMs: (ms: number) => void;
   setLoadingProjects: (v: boolean) => void;
   setError: (error: string | null) => void;
   /** Call once after Entra auth is confirmed — loads settings from Cosmos */
@@ -64,6 +70,8 @@ function persistLocal(state: Partial<SetupState>) {
       baseUrl: state.baseUrl ?? DEFAULT_BASE_URL,
       apiVersion: state.apiVersion ?? DEFAULT_API_VERSION,
       aiModel: state.aiModel ?? DEFAULT_AI_MODEL,
+      delayBetweenStepsMs: state.delayBetweenStepsMs ?? 0,
+      delayBetweenScenariosMs: state.delayBetweenScenariosMs ?? 0,
     }));
   } catch { /* quota exceeded — ignore */ }
 }
@@ -74,6 +82,8 @@ function persistServer(state: Partial<SetupState>) {
     baseUrl: state.baseUrl ?? DEFAULT_BASE_URL,
     apiVersion: state.apiVersion ?? DEFAULT_API_VERSION,
     aiModel: state.aiModel ?? DEFAULT_AI_MODEL,
+    delayBetweenStepsMs: state.delayBetweenStepsMs ?? 0,
+    delayBetweenScenariosMs: state.delayBetweenScenariosMs ?? 0,
   }).catch((e) => console.warn("[setup.store] Failed to save settings:", e));
 }
 
@@ -88,6 +98,8 @@ export const useSetupStore = create<SetupState>((set, get) => ({
   baseUrl: initialBaseUrl,
   apiVersion: (cached.apiVersion as string) || DEFAULT_API_VERSION,
   aiModel: (AI_MODELS.some((m) => m.id === cached.aiModel) ? (cached.aiModel as AiModelId) : DEFAULT_AI_MODEL),
+  delayBetweenStepsMs: typeof cached.delayBetweenStepsMs === "number" ? (cached.delayBetweenStepsMs as number) : 0,
+  delayBetweenScenariosMs: typeof cached.delayBetweenScenariosMs === "number" ? (cached.delayBetweenScenariosMs as number) : 0,
   loadingProjects: false,
   settingsLoaded: false,
   error: null,
@@ -112,6 +124,14 @@ export const useSetupStore = create<SetupState>((set, get) => ({
   setAiModel: (aiModel) => {
     set({ aiModel });
     persist({ ...get(), aiModel });
+  },
+  setDelayBetweenStepsMs: (delayBetweenStepsMs) => {
+    set({ delayBetweenStepsMs });
+    persist({ ...get(), delayBetweenStepsMs });
+  },
+  setDelayBetweenScenariosMs: (delayBetweenScenariosMs) => {
+    set({ delayBetweenScenariosMs });
+    persist({ ...get(), delayBetweenScenariosMs });
   },
 
   setLoadingProjects: (v) => set({ loadingProjects: v }),
@@ -140,6 +160,12 @@ export const useSetupStore = create<SetupState>((set, get) => ({
       }
       if (remote.aiModel && AI_MODELS.some((m) => m.id === remote.aiModel)) {
         updates.aiModel = remote.aiModel as AiModelId;
+      }
+      if (typeof remote.delayBetweenStepsMs === "number") {
+        updates.delayBetweenStepsMs = remote.delayBetweenStepsMs as number;
+      }
+      if (typeof remote.delayBetweenScenariosMs === "number") {
+        updates.delayBetweenScenariosMs = remote.delayBetweenScenariosMs as number;
       }
 
       set({ ...updates, settingsLoaded: true });

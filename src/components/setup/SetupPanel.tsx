@@ -40,6 +40,51 @@ export function SetupPanel() {
             </p>
           </div>
         </div>
+
+        {/* ── Test run settings ──────────────────────────────────── */}
+        <div className="bg-white rounded-xl border border-[#d1d9e0] shadow-sm p-6">
+          <h2 className="text-base font-semibold text-[#1f2328] mb-0.5">Test run settings</h2>
+          <p className="text-sm text-[#656d76] mb-5">Configure pacing between steps and scenarios during test execution.</p>
+
+          <div className="flex flex-col gap-4">
+            <div>
+              <label className="block text-sm font-medium text-[#1f2328] mb-1">
+                Delay between steps <span className="text-[#656d76] font-normal">(ms)</span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={30000}
+                step={100}
+                value={setup.delayBetweenStepsMs}
+                onChange={(e) => setup.setDelayBetweenStepsMs(Math.max(0, Math.min(30000, Number(e.target.value) || 0)))}
+                className="w-full px-3 py-[7px] border border-[#d1d9e0] rounded-md text-sm bg-[#f6f8fa] focus:bg-white text-[#1f2328]"
+              />
+              <p className="text-[11px] text-[#656d76] mt-1">
+                Wait time between each step within a scenario. Useful for APIs with rate limits. Default: 0 (no delay).
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-[#1f2328] mb-1">
+                Delay between scenarios <span className="text-[#656d76] font-normal">(ms)</span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={60000}
+                step={500}
+                value={setup.delayBetweenScenariosMs}
+                onChange={(e) => setup.setDelayBetweenScenariosMs(Math.max(0, Math.min(60000, Number(e.target.value) || 0)))}
+                className="w-full px-3 py-[7px] border border-[#d1d9e0] rounded-md text-sm bg-[#f6f8fa] focus:bg-white text-[#1f2328]"
+              />
+              <p className="text-[11px] text-[#656d76] mt-1">
+                Wait time between scenarios. Helps avoid overwhelming the target API. Default: 0 (no delay).
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* ── Danger zone (owner only) ──────────────────────────── */}
         {isOwner && (
           <div className="bg-white rounded-xl border border-[#d1242f]/40 shadow-sm p-6">

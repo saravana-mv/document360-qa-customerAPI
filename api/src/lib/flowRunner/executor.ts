@@ -50,11 +50,17 @@ export async function executeScenario(
   const stepResults: StepResult[] = [];
   let aborted = false;
 
+  const stepDelay = ctx.delayBetweenStepsMs ?? 0;
+
   // Run main steps
-  for (const step of mainSteps) {
+  for (let i = 0; i < mainSteps.length; i++) {
+    const step = mainSteps[i];
     if (aborted) {
       stepResults.push(skipResult(step, "Skipped — previous step failed"));
       continue;
+    }
+    if (i > 0 && stepDelay > 0) {
+      await new Promise((r) => setTimeout(r, stepDelay));
     }
     const result = await executeStep(step, ctx, state, warnings);
     stepResults.push(result);

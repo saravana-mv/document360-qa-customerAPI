@@ -4,6 +4,7 @@ import { useRunnerStore } from "../../store/runner.store";
 import { isBreakpointSet } from "../../store/breakpoints.store";
 import { saveTestRun } from "../api/testRunsApi";
 import { useFlowStatusStore } from "../../store/flowStatus.store";
+import { useSetupStore } from "../../store/setup.store";
 import { fetchFolderApiRules, fetchApiRules } from "../api/apiRulesApi";
 import { getSpecFileContent } from "../api/specFilesApi";
 import { setEnumAliases, parseEnumAliasesFromMarkdown } from "./flowXml/enumAliases";
@@ -19,6 +20,11 @@ export interface RunOptions {
 
 function getStore() {
   return useRunnerStore.getState();
+}
+
+function delay(ms: number): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function log(message: string, level: "info" | "success" | "error" | "warn" = "info", tag?: string, testId?: string, testName?: string) {
@@ -159,6 +165,13 @@ async function runTag(tag: string, tests: TestDef[], ctx: TestContext): Promise<
       if (!aborted) aborted = true;
       continue;
     }
+    // Delay between steps (skip before first step)
+    if (i > 0) {
+      const stepDelay = useSetupStore.getState().delayBetweenStepsMs;
+      if (stepDelay > 0 && !getStore().cancelled) {
+        await delay(stepDelay);
+      }
+    }
     await executeTest(test, ctx, state);
     const result = getStore().testResults[test.id];
     const failed = result?.status === "fail" || result?.status === "error";
@@ -246,8 +259,17 @@ export async function runTests(options: RunOptions): Promise<void> {
     testsByTag.get(test.tag)!.push(test);
   }
 
-  for (const tag of tagOrder) {
+  for (let ti = 0; ti < tagOrder.length; ti++) {
     if (getStore().cancelled) break;
+    const tag = tagOrder[ti];
+    // Delay between scenarios (skip before first)
+    if (ti > 0) {
+      const scenarioDelay = useSetupStore.getState().delayBetweenScenariosMs;
+      if (scenarioDelay > 0 && !getStore().cancelled) {
+        log(`Waiting ${scenarioDelay}ms before next scenario…`, "info");
+        await delay(scenarioDelay);
+      }
+    }
     const tagCtx = options.contextByTag?.[tag] ?? context;
     await runTag(tag, testsByTag.get(tag)!, tagCtx);
   }
