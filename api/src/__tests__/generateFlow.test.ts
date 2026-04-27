@@ -64,6 +64,7 @@ jest.mock("../lib/specRequiredFields", () => ({
   analyzeCrossStepDependencies: jest.fn().mockReturnValue(""),
   injectCrossStepCaptures: jest.fn((xml: string) => xml),
   injectSpecRequiredFields: jest.fn((xml: string) => xml),
+  injectEndpointRefs: jest.fn((xml: string) => xml),
 }));
 
 jest.mock("../lib/cosmosClient", () => ({
