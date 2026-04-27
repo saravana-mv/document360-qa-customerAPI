@@ -1191,3 +1191,123 @@ export function injectEndpointRefs(xml: string, specContext: string): string {
 
   return result;
 }
+
+// ── Rules-Aware Field Injection ──────────────────────────────────────
+
+/**
+ * Parse skills/rules text for field requirements tied to endpoints.
+ * Looks for patterns like:
+ *   - `field_name` — in lesson lines mentioning specific endpoints
+ *   - **POST /v3/.../publish** — missing_field: `workspace_id`
+ *
+ * Returns a map from normalizedPath → Set of field names.
+ */
+function parseRulesFieldRequirements(
+  rulesText: string,
+): Map<string, Set<string>> {
+  const result = new Map<string, Set<string>>();
+  if (!rulesText) return result;
+
+  // Parse lessons: lines like "- **POST /v3/.../endpoint** — category: `field_name`. description"
+  // Also match: "- **endpoint** — ...: `field1`, `field2`..."
+  const lessonRe = /\*\*(?:(?:GET|POST|PUT|PATCH|DELETE)\s+)?(\S*\/\S+)\*\*[^`]*(`\w+`(?:\s*,\s*`\w+`)*)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = lessonRe.exec(rulesText)) !== null) {
+    const endpointPath = m[1];
+    const fieldsStr = m[2];
+    const fields = fieldsStr.match(/`(\w+)`/g)?.map(f => f.replace(/`/g, "")) ?? [];
+    if (fields.length === 0) continue;
+
+    const norm = normalizePath(endpointPath);
+    if (!result.has(norm)) result.set(norm, new Set());
+    for (const f of fields) result.get(norm)!.add(f);
+  }
+
+  return result;
+}
+
+/**
+ * Post-processor: inject fields that are mentioned in skills/rules lessons
+ * but missing from step request bodies. Only injects when a matching project
+ * variable exists (safe — we know the field is meant to come from a variable).
+ */
+export function injectRulesRequiredFields(
+  xml: string,
+  rulesText: string,
+  projectVariables: { name: string; value: string }[],
+): string {
+  if (!rulesText || projectVariables.length === 0) return xml;
+
+  const rulesFields = parseRulesFieldRequirements(rulesText);
+  if (rulesFields.size === 0) return xml;
+
+  console.log(`[injectRulesRequiredFields] Parsed ${rulesFields.size} endpoint field rules:`,
+    [...rulesFields.entries()].map(([k, v]) => `${k}: ${[...v].join(",")}`).join(" | "));
+
+  const xmlSteps = parseXmlSteps(xml);
+  if (xmlSteps.length === 0) return xml;
+
+  let result = xml;
+  const injections: { stepIdx: number; field: string; value: string }[] = [];
+
+  for (let i = 0; i < xmlSteps.length; i++) {
+    const step = xmlSteps[i];
+    if (!["POST", "PUT", "PATCH"].includes(step.method)) continue;
+
+    const normStep = normalizePath(step.path);
+    const ruleFieldSet = rulesFields.get(normStep);
+    if (!ruleFieldSet) continue;
+
+    const cdataBody = step.fullMatch.match(/<body><!\[CDATA\[([\s\S]*?)\]\]><\/body>/)?.[1] ?? "";
+    if (!cdataBody.trim().startsWith("{")) continue;
+
+    for (const field of ruleFieldSet) {
+      if (cdataBody.includes(`"${field}"`)) continue;
+      // Only inject if a matching project variable exists
+      const camel = toCamelCase(field);
+      const matchedVar = projectVariables.find(v =>
+        v.name === field || v.name === camel ||
+        v.name.toLowerCase() === field.toLowerCase() ||
+        v.name.toLowerCase() === camel.toLowerCase()
+      );
+      if (!matchedVar) continue;
+      injections.push({ stepIdx: i, field, value: `{{proj.${matchedVar.name}}}` });
+    }
+  }
+
+  if (injections.length === 0) return xml;
+
+  console.log(`[injectRulesRequiredFields] Injecting ${injections.length} fields from rules:`,
+    injections.map(inj => `step ${inj.stepIdx}: "${inj.field}" = "${inj.value}"`).join(", "));
+
+  // Group by step and inject
+  const byStep = new Map<number, typeof injections>();
+  for (const inj of injections) {
+    const list = byStep.get(inj.stepIdx) ?? [];
+    list.push(inj);
+    byStep.set(inj.stepIdx, list);
+  }
+
+  for (const stepIdx of [...byStep.keys()].sort((a, b) => b - a)) {
+    const fields = byStep.get(stepIdx)!;
+    let stepXml = xmlSteps[stepIdx].fullMatch;
+    const cdataRe = /(<body><!\[CDATA\[)([\s\S]*?)(\]\]><\/body>)/;
+    const cdataMatch = stepXml.match(cdataRe);
+    if (!cdataMatch) continue;
+    const bodyText = cdataMatch[2];
+    const lastBrace = bodyText.lastIndexOf("}");
+    if (lastBrace < 0) continue;
+    const additions = fields.map(f => `  "${f.field}": "${f.value}"`).join(",\n");
+    const beforeBrace = bodyText.slice(0, lastBrace).trimEnd();
+    const needsComma = beforeBrace.length > 0 && !beforeBrace.endsWith("{") && !beforeBrace.endsWith(",");
+    const separator = needsComma ? ",\n" : "\n";
+    const newBody = beforeBrace + separator + additions + "\n" + bodyText.slice(lastBrace).trimStart();
+    stepXml = stepXml.replace(cdataRe, `$1${newBody}$3`);
+    const pos = result.indexOf(xmlSteps[stepIdx].fullMatch);
+    if (pos >= 0) {
+      result = result.slice(0, pos) + stepXml + result.slice(pos + xmlSteps[stepIdx].fullMatch.length);
+    }
+  }
+
+  return result;
+}

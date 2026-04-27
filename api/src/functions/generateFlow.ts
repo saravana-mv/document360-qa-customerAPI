@@ -3,7 +3,7 @@ import { callAI, streamAI, AiConfigError, CreditDeniedError } from "../lib/aiCli
 import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { extractVersionFolder } from "../lib/apiRules";
-import { extractCommonRequiredFields, analyzeCrossStepDependencies, injectCrossStepCaptures, injectSpecRequiredFields, injectEndpointRefs } from "../lib/specRequiredFields";
+import { extractCommonRequiredFields, analyzeCrossStepDependencies, injectCrossStepCaptures, injectSpecRequiredFields, injectEndpointRefs, injectRulesRequiredFields } from "../lib/specRequiredFields";
 import { readDistilledContent } from "../lib/specDistillCache";
 import { loadAiContext } from "../lib/aiContext";
 import { getIdeasContainer } from "../lib/cosmosClient";
@@ -673,6 +673,8 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
           try { xml = injectSpecRequiredFields(xml, specContext, projVars); } catch (e) { console.warn("[generateFlow] injectSpecRequiredFields failed:", e); }
           // Endpoint refs FOURTH (links each step to its spec file for traceability)
           try { xml = injectEndpointRefs(xml, specContext); } catch (e) { console.warn("[generateFlow] injectEndpointRefs failed:", e); }
+          // Rules/skills field injection FIFTH (catches fields from diagnostic lessons, e.g. workspace_id)
+          try { xml = injectRulesRequiredFields(xml, ctx.rules, projVars); } catch (e) { console.warn("[generateFlow] injectRulesRequiredFields failed:", e); }
 
           // Send the corrected XML so the frontend can replace the raw streamed text
           const correctedData = `data: ${JSON.stringify({ corrected: xml })}\n\n`;
@@ -742,6 +744,8 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       xml = injectSpecRequiredFields(xml, specContext, projVars);
       // Endpoint refs FOURTH (links each step to its spec file for traceability)
       xml = injectEndpointRefs(xml, specContext);
+      // Rules/skills field injection FIFTH (catches fields from diagnostic lessons, e.g. workspace_id)
+      xml = injectRulesRequiredFields(xml, ctx.rules, projVars);
 
       return {
         status: 200,
