@@ -156,6 +156,9 @@ Must wait for `useFlowStatusStore` to finish loading before building `parsedTags
 ### Batch Save Pattern
 Never call `loadFlowsFromQueue` in a loop after parallel saves. Batch all saves, activate all, then load once.
 
+### esbuild Cross-Function Import Ban (CRITICAL)
+NEVER import from one `api/src/functions/` file into another. esbuild bundles each function file as a separate entry point and inlines all imports — including the imported file's `app.http()` registration. This causes duplicate route registration that **crashes the entire Azure Functions runtime** (all endpoints return 404). Always extract shared code into `api/src/lib/` modules.
+
 ### Enum Aliases
 Some APIs return enum fields as integers at runtime (spec uses strings). `enumAliases.ts` + bidirectional `jsonEqual` handles name↔ordinal. Aliases are configurable per version folder via API Rules (`_system/_rules.json` in blob storage). Both browser and server runners load aliases from version folder context at startup via `setEnumAliases(raw)` which parses `name=value` format.
 
