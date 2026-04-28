@@ -129,30 +129,15 @@ export function filterRelevantSpecs(idea: IdeaLike, allSpecFiles: string[]): str
   }
 
   if (needed.size > 0) {
-    // Auto-include create/delete specs from sibling resource folders
-    // so the flow generator has context for prerequisite steps.
     const primaryFolders = new Set<string>();
     for (const f of needed) {
       const parts = f.split("/");
       if (parts.length >= 2) primaryFolders.add(parts.slice(0, -1).join("/"));
     }
-    for (const file of eligibleFiles) {
-      if (needed.has(file)) continue;
-      const filename = file.toLowerCase().split("/").pop() ?? "";
-      const fileParts = file.split("/");
-      const fileFolder = fileParts.length >= 2 ? fileParts.slice(0, -1).join("/") : "";
-      // Skip files in the same folder (already matched above)
-      if (primaryFolders.has(fileFolder)) continue;
-      // Include create/delete specs from other resource folders (dependencies)
-      if (filename.startsWith("create-") || filename.startsWith("delete-")
-        || filename === "create.md" || filename === "delete.md") {
-        needed.add(file);
-      }
-    }
 
-    // Also include create AND delete specs from the SAME resource folder.
-    // Create specs provide response schema context for captures.
-    // Delete specs are needed for teardown steps the AI almost always generates.
+    // Same-folder create/delete specs FIRST (high priority — needed for
+    // teardown steps and response schema context for captures).
+    const sameFolderDeps: string[] = [];
     for (const file of eligibleFiles) {
       if (needed.has(file)) continue;
       const lower = file.toLowerCase();
@@ -161,15 +146,37 @@ export function filterRelevantSpecs(idea: IdeaLike, allSpecFiles: string[]): str
         || filename.startsWith("delete-") || filename === "delete.md") {
         for (const folder of primaryFolders) {
           if (lower.includes(folder.toLowerCase() + "/")) {
-            console.log(`[filterRelevantSpecs] Auto-include same-folder: ${file} (folder: ${folder})`);
-            needed.add(file);
+            sameFolderDeps.push(file);
             break;
           }
         }
       }
     }
+    for (const f of sameFolderDeps) needed.add(f);
 
-    console.log(`[filterRelevantSpecs] Final selection (${needed.size}):`, Array.from(needed));
+    // Sibling folder create/delete specs SECOND (lower priority — for
+    // prerequisite entity setup/teardown). Capped to avoid bloating.
+    const MAX_SIBLING_DEPS = 10;
+    let siblingCount = 0;
+    for (const file of eligibleFiles) {
+      if (siblingCount >= MAX_SIBLING_DEPS) break;
+      if (needed.has(file)) continue;
+      const filename = file.toLowerCase().split("/").pop() ?? "";
+      const fileParts = file.split("/");
+      const fileFolder = fileParts.length >= 2 ? fileParts.slice(0, -1).join("/") : "";
+      // Skip files in the same folder (handled above)
+      if (primaryFolders.has(fileFolder)) continue;
+      // Include create/delete specs from other resource folders (dependencies)
+      if (filename.startsWith("create-") || filename.startsWith("delete-")
+        || filename === "create.md" || filename === "delete.md") {
+        needed.add(file);
+        siblingCount++;
+      }
+    }
+
+    // Set insertion order is preserved: primary matches → same-folder deps → sibling deps.
+    // buildSpecContext caps at MAX_SPEC_FILES, so important files come first.
+    console.log(`[filterRelevantSpecs] Final selection (${needed.size}): primary=${needed.size - sameFolderDeps.length - siblingCount}, sameFolderDeps=${sameFolderDeps.length}, siblingDeps=${siblingCount}`);
     return Array.from(needed);
   }
 
