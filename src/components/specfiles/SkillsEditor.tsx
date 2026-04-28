@@ -2,10 +2,6 @@
 // Provides syntax highlighting, line numbers, save functionality, and version history with diff.
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import CodeMirror from "@uiw/react-codemirror";
-import { markdown } from "@codemirror/lang-markdown";
-import { githubLight } from "@uiw/codemirror-theme-github";
-import { EditorView } from "@codemirror/view";
 import { diffLines } from "diff";
 import { uploadSpecFile, getSpecFileContent, listSkillsVersions, sendSkillsChat } from "../../lib/api/specFilesApi";
 import type { SkillsVersion } from "../../lib/api/specFilesApi";
@@ -55,18 +51,6 @@ interface VersionEntry {
   blobName: string | null; // null = current draft
   isCurrent: boolean;
 }
-
-// ── CodeMirror theme ─────────────────────────────────────────────────────────
-
-const baseTheme = EditorView.theme({
-  "&": { fontSize: "13px", height: "100%", maxHeight: "100%" },
-  "&.cm-editor": { height: "100%", maxHeight: "100%" },
-  ".cm-scroller": { fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace", overflow: "auto" },
-  ".cm-gutters": { backgroundColor: "#f6f8fa", borderRight: "1px solid #d1d9e0" },
-  ".cm-activeLineGutter": { backgroundColor: "#ddf4ff" },
-  ".cm-activeLine": { backgroundColor: "#ddf4ff50" },
-  ".cm-content": { padding: "8px 0" },
-});
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 
@@ -267,20 +251,10 @@ function ReadOnlyPreview({ content, label }: { content: string; label: string })
       <div className="flex items-center gap-2 px-4 h-8 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
         <span className="text-xs text-[#656d76]">Viewing: {label}</span>
       </div>
-      <div className="flex-1 min-h-0">
-        <CodeMirror
-          value={content}
-          height="100%"
-          theme={githubLight}
-          extensions={[markdown(), baseTheme, EditorView.lineWrapping]}
-          editable={false}
-          basicSetup={{
-            lineNumbers: true,
-            foldGutter: true,
-            highlightActiveLine: false,
-            highlightActiveLineGutter: false,
-          }}
-        />
+      <div className="flex-1 overflow-auto">
+        <pre className="p-4 text-[13px] font-mono text-[#1f2328] whitespace-pre-wrap break-words leading-relaxed">
+          {content}
+        </pre>
       </div>
     </div>
   );
@@ -788,22 +762,13 @@ export function SkillsEditor({ path, content, onSaved }: Props) {
           ) : showPreview ? (
             <ReadOnlyPreview content={previewContent!} label={previewLabel} />
           ) : (
-            <div className="flex-1 min-h-0">
-              <CodeMirror
-                value={draft}
-                height="100%"
-                theme={githubLight}
-                extensions={[markdown(), baseTheme, EditorView.lineWrapping]}
-                onChange={setDraft}
-                basicSetup={{
-                  lineNumbers: true,
-                  foldGutter: true,
-                  highlightActiveLine: true,
-                  highlightActiveLineGutter: true,
-                  searchKeymap: true,
-                }}
-              />
-            </div>
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              spellCheck={false}
+              className="flex-1 w-full p-4 text-[13px] font-mono text-[#1f2328] leading-relaxed bg-white resize-none outline-none border-none"
+              style={{ tabSize: 2 }}
+            />
           )}
         </div>
 
