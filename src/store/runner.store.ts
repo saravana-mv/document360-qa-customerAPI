@@ -80,7 +80,7 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   summary: null,
   selectedTags: new Set(),
   selectedTests: new Set(),
-  selectedTestId: null,
+  selectedTestId: (() => { try { return localStorage.getItem("runner_selected_test_id") || null; } catch { return null; } })(),
   viewingHistory: null,
 
   startRun: () => set({ running: true, cancelled: false, paused: false, pausedAt: null, summary: null, viewingHistory: null }),
@@ -166,7 +166,10 @@ export const useRunnerStore = create<RunnerState>((set) => ({
       selectedTestId: null,
     });
   },
-  selectTest: (id) => set({ selectedTestId: id }),
+  selectTest: (id) => {
+    set({ selectedTestId: id });
+    try { if (id) localStorage.setItem("runner_selected_test_id", id); else localStorage.removeItem("runner_selected_test_id"); } catch { /* ignore */ }
+  },
 
   // Exclusive: deselects everything, selects only this test, opens detail pane
   selectSingleTest: (id) => set({

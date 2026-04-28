@@ -230,7 +230,10 @@ export function SpecFilesPage() {
   const [ideasMessage, setIdeasMessage] = useState<string | null>(null);
   const [ideasExhausted, setIdeasExhausted] = useState(false);
   const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(new Set());
-  const [chatActive, setChatActive] = useState(false);
+  const [chatActive, setChatActive] = useState(() => {
+    try { return localStorage.getItem("specfiles_chat_active") === "true"; } catch { return false; }
+  });
+  useEffect(() => { try { localStorage.setItem("specfiles_chat_active", String(chatActive)); } catch { /* ignore */ } }, [chatActive]);
 
   // ── Flow generation state ─────────────────────────────────────────────────
   const [generatedFlows, setGeneratedFlows] = useState<GeneratedFlow[]>([]);
@@ -239,9 +242,15 @@ export function SpecFilesPage() {
   const [flowProgress, setFlowProgress] = useState<{ current: number; total: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // ── Detail panel state ─────────────────────────────────────────────────────
-  const [activeIdeaId, setActiveIdeaId] = useState<string | null>(null);
-  const [activeFlowId, setActiveFlowId] = useState<string | null>(null);
+  // ── Detail panel state (persisted) ────────────────────────────────────────
+  const [activeIdeaId, setActiveIdeaId] = useState<string | null>(() => {
+    try { return localStorage.getItem("specfiles_active_idea_id") || null; } catch { return null; }
+  });
+  const [activeFlowId, setActiveFlowId] = useState<string | null>(() => {
+    try { return localStorage.getItem("specfiles_active_flow_id") || null; } catch { return null; }
+  });
+  useEffect(() => { try { if (activeIdeaId) localStorage.setItem("specfiles_active_idea_id", activeIdeaId); else localStorage.removeItem("specfiles_active_idea_id"); } catch { /* ignore */ } }, [activeIdeaId]);
+  useEffect(() => { try { if (activeFlowId) localStorage.setItem("specfiles_active_flow_id", activeFlowId); else localStorage.removeItem("specfiles_active_flow_id"); } catch { /* ignore */ } }, [activeFlowId]);
 
   // ── Mark-for-implementation state ─────────────────────────────────────────
   const [markedIds, setMarkedIds] = useState<Set<string>>(new Set());
@@ -257,19 +266,24 @@ export function SpecFilesPage() {
   // ── Auto-detected endpoint notification ──────────────────────────────────
   const [specDetection, setSpecDetection] = useState<DetectedEndpoint | null>(null);
 
-  // ── Resizable panel widths ────────────────────────────────────────────────
-  const [treeWidth, setTreeWidth] = useState(240);
-  // Default: split the area right of the tree into three equal columns
-  // (ideas / flows / detail). Detail uses flex-1 so only ideas & flows
-  // need an explicit width.
+  // ── Resizable panel widths (persisted) ───────────────────────────────────
+  const [treeWidth, setTreeWidth] = useState(() => {
+    try { const v = localStorage.getItem("specfiles_tree_width"); if (v) return parseInt(v, 10); } catch { /* ignore */ }
+    return 240;
+  });
   const [ideasWidth, setIdeasWidth] = useState(() => {
+    try { const v = localStorage.getItem("specfiles_ideas_width"); if (v) return parseInt(v, 10); } catch { /* ignore */ }
     const available = (typeof window !== "undefined" ? window.innerWidth : 1440) - 240;
     return Math.max(240, Math.floor(available / 3));
   });
   const [flowsWidth, setFlowsWidth] = useState(() => {
+    try { const v = localStorage.getItem("specfiles_flows_width"); if (v) return parseInt(v, 10); } catch { /* ignore */ }
     const available = (typeof window !== "undefined" ? window.innerWidth : 1440) - 240;
     return Math.max(240, Math.floor(available / 3));
   });
+  useEffect(() => { try { localStorage.setItem("specfiles_tree_width", String(treeWidth)); } catch { /* ignore */ } }, [treeWidth]);
+  useEffect(() => { try { localStorage.setItem("specfiles_ideas_width", String(ideasWidth)); } catch { /* ignore */ } }, [ideasWidth]);
+  useEffect(() => { try { localStorage.setItem("specfiles_flows_width", String(flowsWidth)); } catch { /* ignore */ } }, [flowsWidth]);
 
   // Workshop is visible when aggregated data exists for the current path (or loading/error)
   const activePath = selectedPath ?? selectedFolderPath;

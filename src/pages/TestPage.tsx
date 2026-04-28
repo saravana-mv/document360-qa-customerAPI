@@ -13,7 +13,11 @@ type Tab = "tests" | "history";
 export function TestPage() {
   const { selectedTestId, selectTest } = useRunnerStore();
   const parsedTags = useSpecStore((s) => s.parsedTags);
-  const [tab, setTab] = useState<Tab>("tests");
+  const [tab, setTab] = useState<Tab>(() => {
+    try { const v = localStorage.getItem("testpage_active_tab"); if (v === "history") return "history"; } catch { /* ignore */ }
+    return "tests";
+  });
+  useEffect(() => { try { localStorage.setItem("testpage_active_tab", tab); } catch { /* ignore */ } }, [tab]);
 
   // When a history run is clicked, switch to the Scenarios tab
   useEffect(() => {
