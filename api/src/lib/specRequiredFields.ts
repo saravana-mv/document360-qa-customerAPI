@@ -1247,7 +1247,9 @@ export function injectEndpointRefs(xml: string, specContext: string): string {
   }
 
   // Then collect all endpoint headers with their positions
-  const endpointMap = new Map<string, string>(); // "METHOD|normalizedPath" → file name
+  // Store all candidates per key to handle collisions (e.g., create.md and create-bulk.md
+  // both containing POST for the same path)
+  const endpointMap = new Map<string, string[]>(); // "METHOD|normalizedPath" → file names
   let eh: RegExpExecArray | null;
   while ((eh = endpointHeaderRe.exec(specContext)) !== null) {
     const method = eh[1];
@@ -1260,7 +1262,10 @@ export function injectEndpointRefs(xml: string, specContext: string): string {
       else break;
     }
     if (fileName) {
-      endpointMap.set(`${method}|${normPath}`, fileName);
+      const key = `${method}|${normPath}`;
+      const existing = endpointMap.get(key) ?? [];
+      existing.push(fileName);
+      endpointMap.set(key, existing);
     }
   }
 
@@ -1291,27 +1296,30 @@ export function injectEndpointRefs(xml: string, specContext: string): string {
 
     const normStepPath = normalizePath(step.path);
     const exactKey = `${step.method}|${normStepPath}`;
-    let fileName = endpointMap.get(exactKey);
+    let candidates = endpointMap.get(exactKey);
 
     // Fuzzy fallback: match by method + path suffix (last 2 segments after normalization).
     // Handles cases where the AI uses a slightly different path prefix
     // (e.g., /v3/projects/*/categories vs /v3/projects/*/workspaces/*/categories)
-    if (!fileName) {
+    if (!candidates) {
       const stepSuffix = extractPathSuffix(normStepPath, 2);
       if (stepSuffix) {
-        for (const [mapKey, mapFile] of endpointMap) {
+        for (const [mapKey, mapFiles] of endpointMap) {
           const [mapMethod, mapPath] = mapKey.split("|", 2);
           if (mapMethod !== step.method) continue;
           if (extractPathSuffix(mapPath, 2) === stepSuffix) {
-            fileName = mapFile;
-            console.log(`[injectEndpointRefs] Fuzzy match: step ${step.method} ${step.path} → ${mapFile} (suffix: ${stepSuffix})`);
+            candidates = mapFiles;
+            console.log(`[injectEndpointRefs] Fuzzy match: step ${step.method} ${step.path} → ${mapFiles.join(", ")} (suffix: ${stepSuffix})`);
             break;
           }
         }
       }
     }
 
-    if (!fileName) continue;
+    if (!candidates || candidates.length === 0) continue;
+
+    // Pick the best file from candidates when there are collisions
+    const fileName = pickBestEndpointFile(candidates, step);
 
     let newStepXml: string;
 
@@ -1345,6 +1353,28 @@ export function injectEndpointRefs(xml: string, specContext: string): string {
   }
 
   return result;
+}
+
+/**
+ * When multiple spec files map to the same METHOD|path key (e.g., create.md
+ * and create-categories-bulk.md both contain POST /categories), pick the best one.
+ * Prefers non-bulk, shorter/simpler filenames for single-object steps.
+ */
+function pickBestEndpointFile(candidates: string[], step: { fullMatch: string }): string {
+  if (candidates.length === 1) return candidates[0];
+
+  // For single-object bodies (no JSON array), prefer non-bulk files
+  const bodyLooksLikeArray = /\[\s*\{/.test(step.fullMatch);
+  if (!bodyLooksLikeArray) {
+    const nonBulk = candidates.filter(f => !f.toLowerCase().includes("bulk"));
+    if (nonBulk.length > 0) {
+      // Among non-bulk, prefer shorter filename (create.md over create-categories.md)
+      return nonBulk.sort((a, b) => a.length - b.length)[0];
+    }
+  }
+
+  // Default: prefer shorter/simpler filename
+  return candidates.sort((a, b) => a.length - b.length)[0];
 }
 
 /** Extract the last N segments of a normalized path for fuzzy matching. */

@@ -37,10 +37,19 @@ export function filterRelevantSpecs(idea: IdeaLike, allSpecFiles: string[]): str
   // Map HTTP methods to typical spec filename action prefixes
   const methodToActions: Record<string, string[]> = {
     POST: ["create-", "bulk-create-"],
-    GET: ["get-"],
+    GET: ["get-", "list-"],
     DELETE: ["delete-", "bulk-delete-"],
     PUT: ["update-", "bulk-update-"],
-    PATCH: ["update-"],
+    PATCH: ["update-", "patch-"],
+  };
+
+  // Exact filenames the swagger splitter generates (no hyphen suffix)
+  const methodToExactNames: Record<string, string[]> = {
+    POST: ["create.md"],
+    GET: ["get.md", "list.md"],
+    DELETE: ["delete.md"],
+    PUT: ["update.md"],
+    PATCH: ["patch.md", "update.md"],
   };
 
   for (const step of idea.steps) {
@@ -75,6 +84,18 @@ export function filterRelevantSpecs(idea: IdeaLike, allSpecFiles: string[]): str
       actions = methodToActions[method] ?? [];
     }
 
+    // Build exact names list, with GET path-parameter awareness
+    let exactNames: string[];
+    if (actionName) {
+      // Action endpoints (e.g., /publish) use action-based matching, not exact names
+      exactNames = [];
+    } else if (method === "GET") {
+      const endsWithParam = /\/\{[^}]+\}\s*$/.test(path);
+      exactNames = endsWithParam ? ["get.md"] : ["list.md"];
+    } else {
+      exactNames = methodToExactNames[method] ?? [];
+    }
+
     // Find the best matching spec file
     for (const file of eligibleFiles) {
       const lower = file.toLowerCase();
@@ -83,7 +104,13 @@ export function filterRelevantSpecs(idea: IdeaLike, allSpecFiles: string[]): str
       // Must relate to this resource (folder name or filename)
       if (!lower.includes(`/${resource}/`) && !filename.includes(resource)) continue;
 
-      // Match action prefix to method, respecting bulk vs single
+      // Exact match first (splitter-generated names: create.md, patch.md, get.md)
+      if (exactNames.includes(filename)) {
+        needed.add(file);
+        continue;
+      }
+
+      // Then existing startsWith prefix matching (create-xxx.md, update-xxx.md)
       for (const action of actions) {
         const isBulkAction = action.startsWith("bulk-");
         if (isBulk !== isBulkAction && !isActionEndpoint) continue;
@@ -117,7 +144,8 @@ export function filterRelevantSpecs(idea: IdeaLike, allSpecFiles: string[]): str
       // Skip files in the same folder (already matched above)
       if (primaryFolders.has(fileFolder)) continue;
       // Include create/delete specs from other resource folders (dependencies)
-      if (filename.startsWith("create-") || filename.startsWith("delete-")) {
+      if (filename.startsWith("create-") || filename.startsWith("delete-")
+        || filename === "create.md" || filename === "delete.md") {
         needed.add(file);
       }
     }
@@ -129,7 +157,7 @@ export function filterRelevantSpecs(idea: IdeaLike, allSpecFiles: string[]): str
       if (needed.has(file)) continue;
       const lower = file.toLowerCase();
       const filename = lower.split("/").pop() ?? "";
-      if (filename.startsWith("create-")) {
+      if (filename.startsWith("create-") || filename === "create.md") {
         for (const folder of primaryFolders) {
           if (lower.includes(folder.toLowerCase() + "/")) {
             needed.add(file);

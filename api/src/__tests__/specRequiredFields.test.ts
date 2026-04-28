@@ -547,4 +547,27 @@ describe("injectEndpointRefs", () => {
     // DELETE is not in our specContext, so hallucinated ref stays (no match to correct to)
     expect(result).toContain("V3/categories/delete.md");
   });
+
+  it("picks non-bulk file when multiple files share the same endpoint", () => {
+    const collisionContext = `## V3/categories/create.md
+
+## Endpoint: POST /v3/projects/{project_id}/categories
+
+## V3/categories/create-categories-bulk.md
+
+## Endpoint: POST /v3/projects/{project_id}/categories
+`;
+    const xml = wrapFlowXml(`
+    <step>
+      <name>Create Category</name>
+      <method>POST</method>
+      <path>/v3/projects/{project_id}/categories</path>
+      <body>{"name": "Test"}</body>
+    </step>`);
+
+    const result = injectEndpointRefs(xml, collisionContext);
+    // Should prefer create.md (non-bulk, shorter) over create-categories-bulk.md
+    expect(result).toContain("<endpointRef>V3/categories/create.md</endpointRef>");
+    expect(result).not.toContain("create-categories-bulk.md");
+  });
 });
