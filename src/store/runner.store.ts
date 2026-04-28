@@ -31,6 +31,8 @@ interface RunnerState {
   selectedTestId: string | null;
   /** Non-null when viewing a past run from Run History */
   viewingHistory: HistoryRunMeta | null;
+  /** Run ID of the most recent completed live run */
+  lastRunId: string | null;
 
   startRun: () => void;
   cancelRun: () => void;
@@ -51,6 +53,7 @@ interface RunnerState {
   updateTagStatus: (tag: string, status: RollupStatus, durationMs?: number) => void;
   appendLog: (entry: Omit<LogEntry, "id" | "timestamp">) => void;
   setSummary: (summary: RunSummary) => void;
+  setLastRunId: (id: string) => void;
   toggleTagSelection: (tag: string) => void;
   /** Exclusive select: clear all, select only this flow */
   selectFlow: (tag: string, testIds: string[]) => void;
@@ -82,8 +85,9 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   selectedTests: new Set(),
   selectedTestId: (() => { try { return localStorage.getItem("runner_selected_test_id") || null; } catch { return null; } })(),
   viewingHistory: null,
+  lastRunId: null,
 
-  startRun: () => set({ running: true, cancelled: false, paused: false, pausedAt: null, summary: null, viewingHistory: null }),
+  startRun: () => set({ running: true, cancelled: false, paused: false, pausedAt: null, summary: null, viewingHistory: null, lastRunId: null }),
   cancelRun: () => {
     // If we're paused waiting on a breakpoint, releasing the resolver lets the
     // runner loop wake up and observe `cancelled` so it can skip cleanly.
@@ -204,6 +208,7 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   },
 
   setSummary: (summary) => set({ summary, running: false }),
+  setLastRunId: (id) => set({ lastRunId: id }),
 
   toggleTagSelection: (tag) =>
     set((state) => {

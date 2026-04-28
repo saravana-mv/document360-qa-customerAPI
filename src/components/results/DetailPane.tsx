@@ -1729,6 +1729,7 @@ export function DetailPane({ testId, onClose }: DetailPaneProps) {
   const [activeTab, setActiveTab] = useState<Tab>("design");
   const result = useRunnerStore((s) => testId ? s.testResults[testId] : undefined);
   const viewingHistory = useRunnerStore((s) => s.viewingHistory);
+  const lastRunId = useRunnerStore((s) => s.lastRunId);
   const def = testId ? getTest(testId) : undefined;
   const scenarioId = useFlowStatusStore((s) => def?.flowFileName ? s.byName[def.flowFileName]?.scenarioId : undefined);
 
@@ -1826,8 +1827,9 @@ export function DetailPane({ testId, onClose }: DetailPaneProps) {
               if (def.flowFileName) {
                 items.push({ label: "Copy Flow ID", icon: MenuIcons.clipboard, onClick: () => void navigator.clipboard.writeText(def.flowFileName!) });
               }
-              if (viewingHistory?.runId) {
-                items.push({ label: "Copy Run ID", icon: MenuIcons.clipboard, onClick: () => void navigator.clipboard.writeText(viewingHistory.runId) });
+              const currentRunId = viewingHistory?.runId ?? lastRunId;
+              if (currentRunId) {
+                items.push({ label: "Copy Run ID", icon: MenuIcons.clipboard, onClick: () => void navigator.clipboard.writeText(currentRunId) });
               }
               if (def.flowFileName) {
                 if (items.length > 0) items.push("separator");

@@ -324,8 +324,11 @@ export async function runTests(options: RunOptions): Promise<void> {
     );
   } catch { /* proceed without flow snapshots */ }
 
+  const runId = `run:${crypto.randomUUID()}`;
+  useRunnerStore.getState().setLastRunId(runId);
+
   saveTestRun({
-    id: `run:${crypto.randomUUID()}`,
+    id: runId,
     startedAt: new Date(startedAt).toISOString(),
     completedAt: new Date(completedAt).toISOString(),
     summary,
