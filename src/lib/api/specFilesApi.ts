@@ -274,6 +274,21 @@ export async function sendSkillsChat(
   return res.json() as Promise<SkillsChatResponse>;
 }
 
+// ── Full-Text Search ─────────────────────────────────────────────────────────
+
+export interface SpecSearchResult {
+  name: string;
+  matches: string[];
+  score: number;
+}
+
+export async function searchSpecFiles(query: string, version?: string): Promise<SpecSearchResult[]> {
+  const params = new URLSearchParams({ q: query });
+  if (version) params.set("version", version);
+  const res = await apiFetch(`/api/spec-files/search?${params.toString()}`);
+  return res.json() as Promise<SpecSearchResult[]>;
+}
+
 // ── Flow Ideas (AI) ───────────────────────────────────────────────────────────
 
 export interface FlowIdea {
