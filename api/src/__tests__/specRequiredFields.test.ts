@@ -4,7 +4,9 @@ import {
   injectSpecRequiredFields,
   injectCrossStepCaptures,
   injectEndpointRefs,
+  stripExtraRequestFields,
 } from "../lib/specRequiredFields";
+import { filterRelevantSpecs } from "../lib/specFileSelection";
 
 // ── extractCommonRequiredFields ──────────────────────────────────────
 
@@ -597,5 +599,251 @@ describe("injectEndpointRefs", () => {
     // Should prefer create.md (non-bulk, shorter) over create-categories-bulk.md
     expect(result).toContain("<endpointRef>V3/categories/create.md</endpointRef>");
     expect(result).not.toContain("create-categories-bulk.md");
+  });
+});
+
+// ── Integration: Full CRUD Lifecycle Pipeline ──────────────────────────
+// Reproduces the exact scenario: splitter-generated filenames, AI-generated
+// XML with wrong/bare endpointRefs, workspace_id in PATCH body.
+// Tests filterRelevantSpecs → stripExtraRequestFields → injectEndpointRefs.
+
+describe("CRUD lifecycle integration (splitter filenames)", () => {
+  // Simulate blob listing: splitter-generated files
+  const allBlobFiles = [
+    "V3/categories/create.md",
+    "V3/categories/create-categories-bulk.md",
+    "V3/categories/get.md",
+    "V3/categories/list.md",
+    "V3/categories/patch.md",
+    "V3/categories/delete.md",
+    "V3/articles/create.md",
+    "V3/articles/get.md",
+    "V3/articles/update.md",
+    "V3/articles/delete.md",
+    "V3/_system/_rules.json",
+    "V3/_system/_digest.md",
+  ];
+
+  // Idea steps for a CRUD lifecycle
+  const crudIdea = {
+    steps: [
+      "POST /v3/projects/{project_id}/categories (Create a test category)",
+      "GET /v3/projects/{project_id}/categories/{id} (Read it back)",
+      "PATCH /v3/projects/{project_id}/categories/{id} (Update name and icon)",
+      "GET /v3/projects/{project_id}/categories/{id} (Confirm update)",
+      "DELETE /v3/projects/{project_id}/categories/{id} (Teardown)",
+    ],
+    entities: ["categories"],
+    description: "Full CRUD lifecycle for categories",
+  };
+
+  // Spec context as buildSpecContext would produce it (distilled format)
+  const specContext = `## V3/categories/create.md
+
+## Endpoint: POST /v3/projects/{project_id}/categories
+**Create a category**
+
+### Request Body (CreateCategoryRequest)
+**REQUIRED FIELDS: \`name\`**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| \`name\` | string | **YES** | Category name |
+| \`order\` | integer | no | Display order |
+| \`category_type\` | integer | no | Type |
+| \`icon\` | string | no | Icon class |
+
+### Response (201)
+Key fields: response.data.id, response.data.name, response.data.order, response.data.icon
+
+---
+
+## V3/categories/create-categories-bulk.md
+
+## Endpoint: POST /v3/projects/{project_id}/categories
+**Bulk create categories**
+
+### Request Body (BulkCreateCategoriesRequest)
+**REQUIRED FIELDS: \`categories\`**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| \`categories\` | array | **YES** | Array of category objects |
+
+---
+
+## V3/categories/get.md
+
+## Endpoint: GET /v3/projects/{project_id}/categories/{id}
+**Get a single category**
+
+### Response (200)
+Key fields: response.data.id, response.data.name, response.data.order, response.data.icon, response.data.workspace_id
+
+---
+
+## V3/categories/patch.md
+
+## Endpoint: PATCH /v3/projects/{project_id}/categories/{id}
+**Update a category**
+
+### Request Body (UpdateCategoryRequest)
+**REQUIRED FIELDS: \`name\`**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| \`name\` | string | **YES** | Updated name |
+| \`icon\` | string | no | Updated icon |
+| \`order\` | integer | no | Updated order |
+
+### Response (200)
+Key fields: response.data.id, response.data.name, response.data.icon
+
+---
+
+## V3/categories/delete.md
+
+## Endpoint: DELETE /v3/projects/{project_id}/categories/{id}
+**Delete a category**
+
+### Response (204)
+No content.
+`;
+
+  // The AI-generated XML with ALL the issues the user reported
+  const aiGeneratedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<flow version="1.0" xmlns="https://flowforge.io/qa/flow/v1">
+  <name>Full Category CRUD Lifecycle</name>
+  <entity>categories</entity>
+  <description>Exercise the complete CRUD lifecycle.</description>
+  <stopOnFailure>true</stopOnFailure>
+  <steps>
+    <step number="1">
+      <name>Create Category</name>
+      <endpointRef>create.md</endpointRef>
+      <method>POST</method>
+      <path>/v3/projects/{project_id}/categories</path>
+      <body><![CDATA[
+{
+  "name": "[TEST] CRUD - {{timestamp}}",
+  "order": 0,
+  "category_type": 0
+}
+      ]]></body>
+      <captures>
+        <capture variable="state.categoryId" source="response.data.id"/>
+      </captures>
+      <assertions>
+        <assertion type="status" code="201"/>
+        <assertion type="field-exists" field="data.id"/>
+      </assertions>
+    </step>
+    <step number="2">
+      <name>Read Category</name>
+      <endpointRef>get.md</endpointRef>
+      <method>GET</method>
+      <path>/v3/projects/{project_id}/categories/{category_id}</path>
+      <assertions>
+        <assertion type="status" code="200"/>
+      </assertions>
+    </step>
+    <step number="3">
+      <name>Update Category</name>
+      <endpointRef>V3/categories/create.md</endpointRef>
+      <method>PATCH</method>
+      <path>/v3/projects/{project_id}/categories/{category_id}</path>
+      <body><![CDATA[
+{
+  "name": "[TEST] CRUD Updated - {{timestamp}}",
+  "icon": "icon-star",
+  "workspace_id": "{{proj.workspace_id}}"
+}
+      ]]></body>
+      <assertions>
+        <assertion type="status" code="200"/>
+      </assertions>
+    </step>
+    <step number="4">
+      <name>Confirm Update</name>
+      <endpointRef>get.md</endpointRef>
+      <method>GET</method>
+      <path>/v3/projects/{project_id}/categories/{category_id}</path>
+      <assertions>
+        <assertion type="status" code="200"/>
+      </assertions>
+    </step>
+    <step number="5">
+      <name>Delete Category (teardown)</name>
+      <method>DELETE</method>
+      <path>/v3/projects/{project_id}/categories/{category_id}</path>
+      <assertions>
+        <assertion type="status" code="204"/>
+      </assertions>
+      <flags teardown="true"/>
+    </step>
+  </steps>
+</flow>`;
+
+  it("filterRelevantSpecs selects all CRUD spec files including patch.md and delete.md", () => {
+    const selected = filterRelevantSpecs(crudIdea, allBlobFiles);
+    expect(selected).toContain("V3/categories/create.md");
+    expect(selected).toContain("V3/categories/get.md");
+    expect(selected).toContain("V3/categories/patch.md");
+    expect(selected).toContain("V3/categories/delete.md");
+  });
+
+  it("stripExtraRequestFields removes workspace_id from PATCH body", () => {
+    const result = stripExtraRequestFields(aiGeneratedXml, specContext);
+    // Step 3 (PATCH) body should NOT have workspace_id — it's not in the PATCH spec
+    const step3 = result.match(/<step number="3">[\s\S]*?<\/step>/)?.[0] ?? "";
+    expect(step3).not.toContain("workspace_id");
+    // Step 3 should still have the valid fields
+    expect(step3).toContain('"name"');
+    expect(step3).toContain('"icon"');
+  });
+
+  it("injectEndpointRefs corrects all 5 steps", () => {
+    const result = injectEndpointRefs(aiGeneratedXml, specContext);
+
+    // Step 1: bare "create.md" → full path "V3/categories/create.md"
+    const step1 = result.match(/<step number="1">[\s\S]*?<\/step>/)?.[0] ?? "";
+    expect(step1).toContain("<endpointRef>V3/categories/create.md</endpointRef>");
+    expect(step1).not.toMatch(/<endpointRef>create\.md<\/endpointRef>/);
+
+    // Step 2: bare "get.md" → full path "V3/categories/get.md"
+    const step2 = result.match(/<step number="2">[\s\S]*?<\/step>/)?.[0] ?? "";
+    expect(step2).toContain("<endpointRef>V3/categories/get.md</endpointRef>");
+
+    // Step 3: wrong "V3/categories/create.md" (POST file) → "V3/categories/patch.md" (PATCH file)
+    const step3 = result.match(/<step number="3">[\s\S]*?<\/step>/)?.[0] ?? "";
+    expect(step3).toContain("<endpointRef>V3/categories/patch.md</endpointRef>");
+    expect(step3).not.toContain("<endpointRef>V3/categories/create.md</endpointRef>");
+
+    // Step 4: bare "get.md" → full path "V3/categories/get.md"
+    const step4 = result.match(/<step number="4">[\s\S]*?<\/step>/)?.[0] ?? "";
+    expect(step4).toContain("<endpointRef>V3/categories/get.md</endpointRef>");
+
+    // Step 5: missing endpointRef → "V3/categories/delete.md" injected
+    const step5 = result.match(/<step number="5">[\s\S]*?<\/step>/)?.[0] ?? "";
+    expect(step5).toContain("<endpointRef>V3/categories/delete.md</endpointRef>");
+  });
+
+  it("full pipeline: strip + inject produces correct final XML", () => {
+    // Run in the same order as generateFlow.ts (strip THEN inject refs)
+    let xml = stripExtraRequestFields(aiGeneratedXml, specContext);
+    xml = injectEndpointRefs(xml, specContext);
+
+    // Step 1: POST → create.md, body intact
+    const step1 = xml.match(/<step number="1">[\s\S]*?<\/step>/)?.[0] ?? "";
+    expect(step1).toContain("<endpointRef>V3/categories/create.md</endpointRef>");
+
+    // Step 3: PATCH → patch.md, workspace_id stripped
+    const step3 = xml.match(/<step number="3">[\s\S]*?<\/step>/)?.[0] ?? "";
+    expect(step3).toContain("<endpointRef>V3/categories/patch.md</endpointRef>");
+    expect(step3).not.toContain("workspace_id");
+
+    // Step 5: DELETE → delete.md injected
+    const step5 = xml.match(/<step number="5">[\s\S]*?<\/step>/)?.[0] ?? "";
+    expect(step5).toContain("<endpointRef>V3/categories/delete.md</endpointRef>");
   });
 });
