@@ -548,6 +548,34 @@ describe("injectEndpointRefs", () => {
     expect(result).toContain("V3/categories/delete.md");
   });
 
+  it("corrects known file used on wrong method (create.md on PATCH step)", () => {
+    // Splitter-style context: create.md is POST, patch.md is PATCH
+    const splitterContext = `## V3/categories/create.md
+
+## Endpoint: POST /v3/projects/{project_id}/categories
+
+## V3/categories/patch.md
+
+## Endpoint: PATCH /v3/projects/{project_id}/categories/{id}
+
+## V3/categories/get.md
+
+## Endpoint: GET /v3/projects/{project_id}/categories/{id}
+`;
+    const xml = wrapFlowXml(`
+    <step>
+      <name>Update Category</name>
+      <endpointRef>V3/categories/create.md</endpointRef>
+      <method>PATCH</method>
+      <path>/v3/projects/{project_id}/categories/{id}</path>
+    </step>`);
+
+    const result = injectEndpointRefs(xml, splitterContext);
+    // create.md is a known file but maps to POST, not PATCH — must be corrected
+    expect(result).not.toContain("<endpointRef>V3/categories/create.md</endpointRef>");
+    expect(result).toContain("<endpointRef>V3/categories/patch.md</endpointRef>");
+  });
+
   it("picks non-bulk file when multiple files share the same endpoint", () => {
     const collisionContext = `## V3/categories/create.md
 

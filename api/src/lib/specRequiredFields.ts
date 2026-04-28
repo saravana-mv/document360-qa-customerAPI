@@ -1284,19 +1284,22 @@ export function injectEndpointRefs(xml: string, specContext: string): string {
   for (let i = xmlSteps.length - 1; i >= 0; i--) {
     const step = xmlSteps[i];
 
+    const normStepPath = normalizePath(step.path);
+    const exactKey = `${step.method}|${normStepPath}`;
+    let candidates = endpointMap.get(exactKey);
+
     // Check if step already has an endpointRef
     const existingRefMatch = step.fullMatch.match(/<endpointRef>([^<]+)<\/endpointRef>/);
     if (existingRefMatch) {
       const existingRef = existingRefMatch[1].trim();
-      // If the existing ref points to a known spec file, keep it
-      if (knownFiles.has(existingRef)) continue;
-      // Otherwise it's hallucinated — we'll replace it below
-      console.log(`[injectEndpointRefs] Hallucinated endpointRef: "${existingRef}" — will correct`);
+      // Validate the existing ref is correct: must be a known file AND must be
+      // one of the candidates for this step's method+path. A known file that
+      // maps to a different endpoint (e.g., create.md on a PATCH step) is wrong.
+      const isValidForStep = candidates?.includes(existingRef) ?? false;
+      if (knownFiles.has(existingRef) && isValidForStep) continue;
+      // Otherwise it's wrong — we'll replace it below
+      console.log(`[injectEndpointRefs] Wrong endpointRef: "${existingRef}" for ${step.method} ${step.path} — will correct`);
     }
-
-    const normStepPath = normalizePath(step.path);
-    const exactKey = `${step.method}|${normStepPath}`;
-    let candidates = endpointMap.get(exactKey);
 
     // Fuzzy fallback: match by method + path suffix (last 2 segments after normalization).
     // Handles cases where the AI uses a slightly different path prefix
