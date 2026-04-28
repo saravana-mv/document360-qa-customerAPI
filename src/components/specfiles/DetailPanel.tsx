@@ -8,6 +8,8 @@ import { editFlowXml } from "../../lib/api/flowApi";
 import { validateFlowXml } from "../../lib/tests/flowXml/validate";
 import { useSetupStore } from "../../store/setup.store";
 import { useAiCostStore } from "../../store/aiCost.store";
+import { ContextMenu, MenuIcons } from "../common/ContextMenu";
+import type { MenuItem } from "../common/ContextMenu";
 
 const XmlEditor = lazy(() => import("../common/XmlEditor").then(m => ({ default: m.XmlEditor })));
 
@@ -568,6 +570,19 @@ export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFl
     const idea = flowIdea ?? null;
     const hasTabs = !!idea;
 
+    // Build context menu items
+    const contextMenuItems: MenuItem[] = [];
+    if (selectedFlow.ideaId) {
+      contextMenuItems.push({ label: "Copy Idea ID", icon: MenuIcons.clipboard, onClick: () => void navigator.clipboard.writeText(selectedFlow.ideaId) });
+    }
+    if (selectedFlow.title) {
+      contextMenuItems.push({ label: "Copy Flow Title", icon: MenuIcons.clipboard, onClick: () => void navigator.clipboard.writeText(selectedFlow.title) });
+    }
+    if (selectedFlow.status === "done" && onDownloadFlow) {
+      if (contextMenuItems.length > 0) contextMenuItems.push("separator");
+      contextMenuItems.push({ label: "Download Flow XML", icon: MenuIcons.download, onClick: () => onDownloadFlow(selectedFlow) });
+    }
+
     return (
       <div className="flex flex-col h-full overflow-hidden">
         {/* Title row */}
@@ -596,16 +611,8 @@ export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFl
               </span>
             )
           )}
-          {selectedFlow.status === "done" && onDownloadFlow && (
-            <button
-              onClick={() => onDownloadFlow(selectedFlow)}
-              title="Download XML"
-              className="text-[#656d76] hover:text-[#0969da] rounded-md p-1 hover:bg-[#ddf4ff] transition-colors shrink-0"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-              </svg>
-            </button>
+          {contextMenuItems.length > 0 && (
+            <ContextMenu align="right" items={contextMenuItems} />
           )}
         </div>
 
