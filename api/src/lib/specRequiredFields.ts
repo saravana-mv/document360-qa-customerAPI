@@ -703,6 +703,7 @@ interface SpecEndpoint {
   method: string;
   path: string;
   requiredRequestFields: string[];
+  allRequestFields: string[];   // all field names from the request body table
   responseFields: string[];  // bare field names from response
 }
 
@@ -734,11 +735,27 @@ function parseSpecEndpoints(distilledContext: string): SpecEndpoint[] {
       const fields = rm[1].match(/`(\w+)`/g)?.map(f => f.replace(/`/g, "")) ?? [];
       reqFields.push(...fields);
     }
-    // Also pick up from table rows
+    // Also pick up from table rows (required fields marked **YES**)
     const tableRowRe = /\|\s*`(\w+)`\s*\|[^|]*\|\s*\*\*YES\*\*\s*\|/g;
     let tr: RegExpExecArray | null;
     while ((tr = tableRowRe.exec(sec.text)) !== null) {
       if (!reqFields.includes(tr[1])) reqFields.push(tr[1]);
+    }
+
+    // All request fields (any field in the request body table, required or not)
+    const allFields: string[] = [];
+    const allFieldRe = /\|\s*`(\w+)`\s*\|/g;
+    let af: RegExpExecArray | null;
+    // Only parse fields from the Request Body section
+    const reqBodyStart = sec.text.indexOf("### Request Body");
+    const reqBodyEnd = sec.text.indexOf("### ", reqBodyStart + 1);
+    const reqBodySection = reqBodyStart >= 0
+      ? sec.text.slice(reqBodyStart, reqBodyEnd > reqBodyStart ? reqBodyEnd : undefined)
+      : "";
+    if (reqBodySection) {
+      while ((af = allFieldRe.exec(reqBodySection)) !== null) {
+        if (!allFields.includes(af[1])) allFields.push(af[1]);
+      }
     }
 
     // Response fields
@@ -758,7 +775,7 @@ function parseSpecEndpoints(distilledContext: string): SpecEndpoint[] {
       }
     }
 
-    endpoints.push({ method: sec.method, path: sec.path, requiredRequestFields: reqFields, responseFields: respFields });
+    endpoints.push({ method: sec.method, path: sec.path, requiredRequestFields: reqFields, allRequestFields: allFields, responseFields: respFields });
   }
   return endpoints;
 }
@@ -1106,6 +1123,96 @@ export function injectSpecRequiredFields(
       result = result.slice(0, pos) + stepXml + result.slice(pos + xmlSteps[stepIdx].fullMatch.length);
     }
   }
+  return result;
+}
+
+// ── Strip Extra Request Fields ───────────────────────────────────────
+
+/**
+ * Post-processor: for PATCH/PUT steps where we can match a spec endpoint,
+ * remove any request body fields that are NOT in the spec's request schema.
+ * This catches the common AI mistake of copying create-only fields (e.g.
+ * workspace_id) into update step bodies.
+ */
+export function stripExtraRequestFields(
+  xml: string,
+  specContext: string,
+): string {
+  if (!specContext) return xml;
+  const specEndpoints = parseSpecEndpoints(specContext);
+  if (specEndpoints.length === 0) return xml;
+  const xmlSteps = parseXmlSteps(xml);
+  if (xmlSteps.length === 0) return xml;
+
+  let result = xml;
+  const removals: { stepIdx: number; field: string }[] = [];
+
+  for (let i = 0; i < xmlSteps.length; i++) {
+    const step = xmlSteps[i];
+    if (!["PATCH", "PUT"].includes(step.method)) continue;
+    const normStep = normalizePath(step.path);
+    const spec = specEndpoints.find(ep =>
+      ep.method === step.method && normalizePath(ep.path) === normStep
+    );
+    // Only strip if we have a known set of allowed fields from the spec
+    if (!spec || spec.allRequestFields.length === 0) continue;
+
+    const cdataMatch = step.fullMatch.match(/<body><!\[CDATA\[([\s\S]*?)\]\]><\/body>/);
+    if (!cdataMatch) continue;
+    const bodyText = cdataMatch[1];
+    if (!bodyText.trim().startsWith("{")) continue;
+
+    const allowedSet = new Set(spec.allRequestFields);
+    const fieldRe = /"(\w+)"\s*:/g;
+    let fm: RegExpExecArray | null;
+    while ((fm = fieldRe.exec(bodyText)) !== null) {
+      if (!allowedSet.has(fm[1])) {
+        removals.push({ stepIdx: i, field: fm[1] });
+      }
+    }
+  }
+
+  if (removals.length === 0) return xml;
+
+  console.log(`[stripExtraRequestFields] Removing ${removals.length} extra fields:`,
+    removals.map(r => `step ${r.stepIdx}: "${r.field}"`).join(", "));
+
+  // Group by step and remove fields from JSON body
+  const byStep = new Map<number, string[]>();
+  for (const r of removals) {
+    const list = byStep.get(r.stepIdx) ?? [];
+    list.push(r.field);
+    byStep.set(r.stepIdx, list);
+  }
+
+  // Process in reverse order so positions remain valid
+  const sortedSteps = [...byStep.keys()].sort((a, b) => b - a);
+  for (const stepIdx of sortedSteps) {
+    const fieldsToRemove = byStep.get(stepIdx)!;
+    let stepXml = xmlSteps[stepIdx].fullMatch;
+    const cdataRe = /(<body><!\[CDATA\[)([\s\S]*?)(\]\]><\/body>)/;
+    const cdataMatch = stepXml.match(cdataRe);
+    if (!cdataMatch) continue;
+
+    let bodyJson = cdataMatch[2];
+    for (const field of fieldsToRemove) {
+      // Remove the field line including trailing comma handling
+      // Pattern: optional leading comma/whitespace, "field": value, optional trailing comma
+      bodyJson = bodyJson.replace(
+        new RegExp(`\\s*"${field}"\\s*:\\s*(?:"[^"]*"|\\{[^}]*\\}|\\[[^\\]]*\\]|[^,}\\]]+)\\s*,?`, "g"),
+        "",
+      );
+    }
+    // Fix potential trailing comma before closing brace
+    bodyJson = bodyJson.replace(/,(\s*})/, "$1");
+
+    stepXml = stepXml.replace(cdataRe, `$1${bodyJson}$3`);
+    const pos = result.indexOf(xmlSteps[stepIdx].fullMatch);
+    if (pos >= 0) {
+      result = result.slice(0, pos) + stepXml + result.slice(pos + xmlSteps[stepIdx].fullMatch.length);
+    }
+  }
+
   return result;
 }
 

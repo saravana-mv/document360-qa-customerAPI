@@ -3,7 +3,7 @@ import { callAI, streamAI, AiConfigError, CreditDeniedError } from "../lib/aiCli
 import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { extractVersionFolder } from "../lib/apiRules";
-import { extractCommonRequiredFields, analyzeCrossStepDependencies, injectCrossStepCaptures, injectSpecRequiredFields, injectEndpointRefs, injectRulesRequiredFields, validateCaptures } from "../lib/specRequiredFields";
+import { extractCommonRequiredFields, analyzeCrossStepDependencies, injectCrossStepCaptures, injectSpecRequiredFields, injectEndpointRefs, injectRulesRequiredFields, validateCaptures, stripExtraRequestFields } from "../lib/specRequiredFields";
 import { readDistilledContent } from "../lib/specDistillCache";
 import { loadAiContext } from "../lib/aiContext";
 import { getIdeasContainer } from "../lib/cosmosClient";
@@ -673,7 +673,9 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
           xml = injectMissingRequiredFields(xml, commonFields, projVarMap);
           // Spec-aware required fields THIRD (catches ALL remaining required fields like title, name)
           try { xml = injectSpecRequiredFields(xml, specContext, projVars); } catch (e) { console.warn("[generateFlow] injectSpecRequiredFields failed:", e); }
-          // Endpoint refs FOURTH (links each step to its spec file for traceability)
+          // Strip extra fields from PATCH/PUT bodies FOURTH (removes create-only fields like workspace_id)
+          try { xml = stripExtraRequestFields(xml, specContext); } catch (e) { console.warn("[generateFlow] stripExtraRequestFields failed:", e); }
+          // Endpoint refs FIFTH (links each step to its spec file for traceability)
           try { xml = injectEndpointRefs(xml, specContext); } catch (e) { console.warn("[generateFlow] injectEndpointRefs failed:", e); }
           // Rules/skills field injection FIFTH (catches fields from diagnostic lessons, e.g. workspace_id)
           try { xml = injectRulesRequiredFields(xml, ctx.rules, projVars); } catch (e) { console.warn("[generateFlow] injectRulesRequiredFields failed:", e); }
@@ -746,9 +748,11 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       xml = injectMissingRequiredFields(xml, commonFields, projVarMap);
       // Spec-aware required fields THIRD (catches ALL remaining required fields like title, name)
       xml = injectSpecRequiredFields(xml, specContext, projVars);
-      // Endpoint refs FOURTH (links each step to its spec file for traceability)
+      // Strip extra fields from PATCH/PUT bodies FOURTH (removes create-only fields like workspace_id)
+      xml = stripExtraRequestFields(xml, specContext);
+      // Endpoint refs FIFTH (links each step to its spec file for traceability)
       xml = injectEndpointRefs(xml, specContext);
-      // Rules/skills field injection FIFTH (catches fields from diagnostic lessons, e.g. workspace_id)
+      // Rules/skills field injection SIXTH (catches fields from diagnostic lessons, e.g. workspace_id)
       xml = injectRulesRequiredFields(xml, ctx.rules, projVars);
       // Capture validation LAST — remove captures for fields not in the spec response
       xml = validateCaptures(xml, specContext);
