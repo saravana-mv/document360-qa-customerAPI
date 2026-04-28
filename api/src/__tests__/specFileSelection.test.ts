@@ -19,19 +19,19 @@ const allFiles = [
   "V3/articles/_distilled/get-article.md",
 ];
 
-// Splitter-generated filenames (exact: create.md, patch.md, get.md, list.md)
+// Splitter-generated filenames (descriptive: create-category.md, update-category.md)
 const splitterFiles = [
-  "V3/categories/create.md",
+  "V3/categories/create-category.md",
   "V3/categories/create-categories-bulk.md",
-  "V3/categories/get.md",
-  "V3/categories/list.md",
-  "V3/categories/patch.md",
-  "V3/categories/delete.md",
-  "V3/articles/create.md",
-  "V3/articles/get.md",
-  "V3/articles/list.md",
-  "V3/articles/update.md",
-  "V3/articles/delete.md",
+  "V3/categories/get-category.md",
+  "V3/categories/list-categories.md",
+  "V3/categories/update-category.md",
+  "V3/categories/delete-category.md",
+  "V3/articles/create-article.md",
+  "V3/articles/get-article.md",
+  "V3/articles/list-articles.md",
+  "V3/articles/update-article.md",
+  "V3/articles/delete-article.md",
   "V3/_system/_rules.json",
 ];
 
@@ -216,55 +216,53 @@ describe("filterRelevantSpecs", () => {
 
   // ── Splitter-generated filename tests ────────────────────────────
 
-  describe("splitter-generated filenames (exact names)", () => {
-    it("matches POST to create.md", () => {
+  describe("splitter-generated filenames (descriptive names)", () => {
+    it("matches POST to create-category.md", () => {
       const result = filterRelevantSpecs(
         idea(["POST /v3/projects/{project_id}/categories"]),
         splitterFiles
       );
-      expect(result).toContain("V3/categories/create.md");
+      expect(result).toContain("V3/categories/create-category.md");
     });
 
-    it("matches PATCH to patch.md", () => {
+    it("matches PATCH to update-category.md", () => {
       const result = filterRelevantSpecs(
         idea(["PATCH /v3/projects/{project_id}/categories/{id}"]),
         splitterFiles
       );
-      expect(result).toContain("V3/categories/patch.md");
+      expect(result).toContain("V3/categories/update-category.md");
     });
 
-    it("matches GET with path param to get.md (single resource)", () => {
+    it("matches GET with path param to get-category.md (single resource)", () => {
       const result = filterRelevantSpecs(
         idea(["GET /v3/projects/{project_id}/categories/{id}"]),
         splitterFiles
       );
-      expect(result).toContain("V3/categories/get.md");
+      expect(result).toContain("V3/categories/get-category.md");
     });
 
-    it("matches GET without path param to list.md (collection)", () => {
+    it("matches GET without path param to list-categories.md (collection)", () => {
       const result = filterRelevantSpecs(
         idea(["GET /v3/projects/{project_id}/categories"]),
         splitterFiles
       );
-      expect(result).toContain("V3/categories/list.md");
+      expect(result).toContain("V3/categories/list-categories.md");
     });
 
-    it("matches DELETE to delete.md", () => {
+    it("matches DELETE to delete-category.md", () => {
       const result = filterRelevantSpecs(
         idea(["DELETE /v3/projects/{project_id}/categories/{id}"]),
         splitterFiles
       );
-      expect(result).toContain("V3/categories/delete.md");
+      expect(result).toContain("V3/categories/delete-category.md");
     });
 
-    it("matches PUT to update.md", () => {
-      // Add update.md to categories for this test
-      const files = [...splitterFiles, "V3/categories/update.md"];
+    it("matches PUT to update-category.md", () => {
       const result = filterRelevantSpecs(
         idea(["PUT /v3/projects/{project_id}/categories/{id}"]),
-        files
+        splitterFiles
       );
-      expect(result).toContain("V3/categories/update.md");
+      expect(result).toContain("V3/categories/update-category.md");
     });
 
     it("CRUD lifecycle selects all relevant splitter files", () => {
@@ -277,30 +275,29 @@ describe("filterRelevantSpecs", () => {
         ]),
         splitterFiles
       );
-      expect(result).toContain("V3/categories/create.md");
-      expect(result).toContain("V3/categories/get.md");
-      expect(result).toContain("V3/categories/patch.md");
-      expect(result).toContain("V3/categories/delete.md");
+      expect(result).toContain("V3/categories/create-category.md");
+      expect(result).toContain("V3/categories/get-category.md");
+      expect(result).toContain("V3/categories/update-category.md");
+      expect(result).toContain("V3/categories/delete-category.md");
     });
 
-    it("auto-includes create/delete from sibling folders with exact names", () => {
+    it("auto-includes create/delete from sibling folders", () => {
       const result = filterRelevantSpecs(
         idea(["PATCH /v3/projects/{project_id}/categories/{id}"]),
         splitterFiles
       );
-      expect(result).toContain("V3/categories/patch.md");
+      expect(result).toContain("V3/categories/update-category.md");
       // Sibling folder create/delete specs auto-included
-      expect(result).toContain("V3/articles/create.md");
-      expect(result).toContain("V3/articles/delete.md");
+      expect(result).toContain("V3/articles/create-article.md");
+      expect(result).toContain("V3/articles/delete-article.md");
     });
 
-    it("POST matches create.md over create-categories-bulk.md for non-bulk", () => {
+    it("POST matches create-category.md over create-categories-bulk.md for non-bulk", () => {
       const result = filterRelevantSpecs(
         idea(["POST /v3/projects/{project_id}/categories"]),
         splitterFiles
       );
-      // Both create.md and create-categories-bulk.md may match, but create.md is the primary
-      expect(result).toContain("V3/categories/create.md");
+      expect(result).toContain("V3/categories/create-category.md");
     });
   });
 });

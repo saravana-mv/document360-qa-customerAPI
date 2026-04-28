@@ -608,18 +608,18 @@ describe("injectEndpointRefs", () => {
 // Tests filterRelevantSpecs → stripExtraRequestFields → injectEndpointRefs.
 
 describe("CRUD lifecycle integration (splitter filenames)", () => {
-  // Simulate blob listing: splitter-generated files
+  // Simulate blob listing: splitter-generated files (descriptive naming)
   const allBlobFiles = [
-    "V3/categories/create.md",
+    "V3/categories/create-category.md",
     "V3/categories/create-categories-bulk.md",
-    "V3/categories/get.md",
-    "V3/categories/list.md",
-    "V3/categories/patch.md",
-    "V3/categories/delete.md",
-    "V3/articles/create.md",
-    "V3/articles/get.md",
-    "V3/articles/update.md",
-    "V3/articles/delete.md",
+    "V3/categories/get-category.md",
+    "V3/categories/list-categories.md",
+    "V3/categories/update-category.md",
+    "V3/categories/delete-category.md",
+    "V3/articles/create-article.md",
+    "V3/articles/get-article.md",
+    "V3/articles/update-article.md",
+    "V3/articles/delete-article.md",
     "V3/_system/_rules.json",
     "V3/_system/_digest.md",
   ];
@@ -637,15 +637,19 @@ describe("CRUD lifecycle integration (splitter filenames)", () => {
     description: "Full CRUD lifecycle for categories",
   };
 
-  // Helper: strip inner "## filename.md" header — same logic as buildSpecContext
-  function stripInnerHeader(content: string): string {
-    return content.replace(/^(<!--[^>]*-->\n)?## [\w.-]+\.md\s*\n/, "");
+  // Helper: strip inner "## filename.md" headers — same logic as buildSpecContext
+  function stripInnerHeaders(content: string): string {
+    let c = content.replace(/^<!--[^>]*-->\n/m, "");
+    c = c.replace(/^## [\w.-]+\.md\s*$/gm, "");
+    return c;
   }
 
-  // Raw distilled content as readDistilledContent returns it — includes the inner
-  // "## filename.md" header from the swagger splitter (this is the actual format)
+  // Raw distilled content as readDistilledContent returns it — includes DOUBLE
+  // inner headers from distillAndStore wrapping + splitter original
   const rawDistilledCreate = `<!-- distill-v6 -->
-## create.md
+## create-category.md
+
+## create-category.md
 
 ## Endpoint: POST /v3/projects/{project_id}/categories
 **Create a category**
@@ -666,6 +670,8 @@ Key fields: response.data.id, response.data.name, response.data.order, response.
   const rawDistilledBulk = `<!-- distill-v6 -->
 ## create-categories-bulk.md
 
+## create-categories-bulk.md
+
 ## Endpoint: POST /v3/projects/{project_id}/categories
 **Bulk create categories**
 
@@ -677,7 +683,9 @@ Key fields: response.data.id, response.data.name, response.data.order, response.
 | \`categories\` | array | **YES** | Array of category objects |`;
 
   const rawDistilledGet = `<!-- distill-v6 -->
-## get.md
+## get-category.md
+
+## get-category.md
 
 ## Endpoint: GET /v3/projects/{project_id}/categories/{id}
 **Get a single category**
@@ -686,7 +694,9 @@ Key fields: response.data.id, response.data.name, response.data.order, response.
 Key fields: response.data.id, response.data.name, response.data.order, response.data.icon, response.data.workspace_id`;
 
   const rawDistilledPatch = `<!-- distill-v6 -->
-## patch.md
+## update-category.md
+
+## update-category.md
 
 ## Endpoint: PATCH /v3/projects/{project_id}/categories/{id}
 **Update a category**
@@ -704,7 +714,9 @@ Key fields: response.data.id, response.data.name, response.data.order, response.
 Key fields: response.data.id, response.data.name, response.data.icon`;
 
   const rawDistilledDelete = `<!-- distill-v6 -->
-## delete.md
+## delete-category.md
+
+## delete-category.md
 
 ## Endpoint: DELETE /v3/projects/{project_id}/categories/{id}
 **Delete a category**
@@ -714,35 +726,36 @@ No content.`;
 
   // BAD spec context: inner headers NOT stripped — reproduces the actual bug
   const specContextWithInnerHeaders = [
-    `## V3/categories/create.md\n\n${rawDistilledCreate}`,
+    `## V3/categories/create-category.md\n\n${rawDistilledCreate}`,
     `## V3/categories/create-categories-bulk.md\n\n${rawDistilledBulk}`,
-    `## V3/categories/get.md\n\n${rawDistilledGet}`,
-    `## V3/categories/patch.md\n\n${rawDistilledPatch}`,
-    `## V3/categories/delete.md\n\n${rawDistilledDelete}`,
+    `## V3/categories/get-category.md\n\n${rawDistilledGet}`,
+    `## V3/categories/update-category.md\n\n${rawDistilledPatch}`,
+    `## V3/categories/delete-category.md\n\n${rawDistilledDelete}`,
   ].join("\n\n---\n\n");
 
   // GOOD spec context: inner headers stripped — what buildSpecContext now produces
   const specContext = [
-    `## V3/categories/create.md\n\n${stripInnerHeader(rawDistilledCreate)}`,
-    `## V3/categories/create-categories-bulk.md\n\n${stripInnerHeader(rawDistilledBulk)}`,
-    `## V3/categories/get.md\n\n${stripInnerHeader(rawDistilledGet)}`,
-    `## V3/categories/patch.md\n\n${stripInnerHeader(rawDistilledPatch)}`,
-    `## V3/categories/delete.md\n\n${stripInnerHeader(rawDistilledDelete)}`,
+    `## V3/categories/create-category.md\n\n${stripInnerHeaders(rawDistilledCreate)}`,
+    `## V3/categories/create-categories-bulk.md\n\n${stripInnerHeaders(rawDistilledBulk)}`,
+    `## V3/categories/get-category.md\n\n${stripInnerHeaders(rawDistilledGet)}`,
+    `## V3/categories/update-category.md\n\n${stripInnerHeaders(rawDistilledPatch)}`,
+    `## V3/categories/delete-category.md\n\n${stripInnerHeaders(rawDistilledDelete)}`,
   ].join("\n\n---\n\n");
 
-  // Verify the bug: inner headers cause endpointMap to use bare filenames
-  it("BUG REPRO: inner headers cause injectEndpointRefs to use bare filenames", () => {
+  // Verify the bug: double inner headers cause endpointMap to use bare filenames
+  it("BUG REPRO: double inner headers cause injectEndpointRefs to use bare filenames", () => {
     const result = injectEndpointRefs(aiGeneratedXml, specContextWithInnerHeaders);
-    // With inner headers, the endpoint maps to "create.md" (bare) — the bug
+    // With double inner headers, the endpoint maps to bare "create-category.md"
     const step1 = result.match(/<step number="1">[\s\S]*?<\/step>/)?.[0] ?? "";
-    // The bare "create.md" is in knownFiles AND is a valid candidate → kept as-is!
-    expect(step1).toContain("<endpointRef>create.md</endpointRef>");
-    // This proves the bug exists when inner headers are present
+    // The bare name is in knownFiles AND is a valid candidate → kept as-is!
+    expect(step1).toContain("<endpointRef>create-category.md</endpointRef>");
+    expect(step1).not.toContain("V3/categories/");
   });
 
   // Now verify all the fixes work with the CORRECT spec context (inner headers stripped)
 
-  // The AI-generated XML with ALL the issues the user reported
+  // AI-generated XML with typical issues: bare endpointRefs, wrong file on wrong
+  // method, missing ref on DELETE. Uses new descriptive naming from splitter.
   const aiGeneratedXml = `<?xml version="1.0" encoding="UTF-8"?>
 <flow version="1.0" xmlns="https://flowforge.io/qa/flow/v1">
   <name>Full Category CRUD Lifecycle</name>
@@ -752,7 +765,7 @@ No content.`;
   <steps>
     <step number="1">
       <name>Create Category</name>
-      <endpointRef>create.md</endpointRef>
+      <endpointRef>create-category.md</endpointRef>
       <method>POST</method>
       <path>/v3/projects/{project_id}/categories</path>
       <body><![CDATA[
@@ -772,7 +785,7 @@ No content.`;
     </step>
     <step number="2">
       <name>Read Category</name>
-      <endpointRef>get.md</endpointRef>
+      <endpointRef>get-category.md</endpointRef>
       <method>GET</method>
       <path>/v3/projects/{project_id}/categories/{category_id}</path>
       <assertions>
@@ -781,7 +794,7 @@ No content.`;
     </step>
     <step number="3">
       <name>Update Category</name>
-      <endpointRef>V3/categories/create.md</endpointRef>
+      <endpointRef>V3/categories/create-category.md</endpointRef>
       <method>PATCH</method>
       <path>/v3/projects/{project_id}/categories/{category_id}</path>
       <body><![CDATA[
@@ -797,7 +810,7 @@ No content.`;
     </step>
     <step number="4">
       <name>Confirm Update</name>
-      <endpointRef>get.md</endpointRef>
+      <endpointRef>get-category.md</endpointRef>
       <method>GET</method>
       <path>/v3/projects/{project_id}/categories/{category_id}</path>
       <assertions>
@@ -806,6 +819,7 @@ No content.`;
     </step>
     <step number="5">
       <name>Delete Category (teardown)</name>
+      <endpointRef>V3/categories/create-category.md</endpointRef>
       <method>DELETE</method>
       <path>/v3/projects/{project_id}/categories/{category_id}</path>
       <assertions>
@@ -816,12 +830,12 @@ No content.`;
   </steps>
 </flow>`;
 
-  it("filterRelevantSpecs selects all CRUD spec files including patch.md and delete.md", () => {
+  it("filterRelevantSpecs selects all CRUD spec files", () => {
     const selected = filterRelevantSpecs(crudIdea, allBlobFiles);
-    expect(selected).toContain("V3/categories/create.md");
-    expect(selected).toContain("V3/categories/get.md");
-    expect(selected).toContain("V3/categories/patch.md");
-    expect(selected).toContain("V3/categories/delete.md");
+    expect(selected).toContain("V3/categories/create-category.md");
+    expect(selected).toContain("V3/categories/get-category.md");
+    expect(selected).toContain("V3/categories/update-category.md");
+    expect(selected).toContain("V3/categories/delete-category.md");
   });
 
   it("stripExtraRequestFields removes workspace_id from PATCH body", () => {
@@ -837,27 +851,27 @@ No content.`;
   it("injectEndpointRefs corrects all 5 steps", () => {
     const result = injectEndpointRefs(aiGeneratedXml, specContext);
 
-    // Step 1: bare "create.md" → full path "V3/categories/create.md"
+    // Step 1: bare "create-category.md" → full path "V3/categories/create-category.md"
     const step1 = result.match(/<step number="1">[\s\S]*?<\/step>/)?.[0] ?? "";
-    expect(step1).toContain("<endpointRef>V3/categories/create.md</endpointRef>");
-    expect(step1).not.toMatch(/<endpointRef>create\.md<\/endpointRef>/);
+    expect(step1).toContain("<endpointRef>V3/categories/create-category.md</endpointRef>");
+    expect(step1).not.toMatch(/<endpointRef>create-category\.md<\/endpointRef>/);
 
-    // Step 2: bare "get.md" → full path "V3/categories/get.md"
+    // Step 2: bare "get-category.md" → full path "V3/categories/get-category.md"
     const step2 = result.match(/<step number="2">[\s\S]*?<\/step>/)?.[0] ?? "";
-    expect(step2).toContain("<endpointRef>V3/categories/get.md</endpointRef>");
+    expect(step2).toContain("<endpointRef>V3/categories/get-category.md</endpointRef>");
 
-    // Step 3: wrong "V3/categories/create.md" (POST file) → "V3/categories/patch.md" (PATCH file)
+    // Step 3: wrong "V3/categories/create-category.md" (POST file) → "V3/categories/update-category.md" (PATCH file)
     const step3 = result.match(/<step number="3">[\s\S]*?<\/step>/)?.[0] ?? "";
-    expect(step3).toContain("<endpointRef>V3/categories/patch.md</endpointRef>");
-    expect(step3).not.toContain("<endpointRef>V3/categories/create.md</endpointRef>");
+    expect(step3).toContain("<endpointRef>V3/categories/update-category.md</endpointRef>");
+    expect(step3).not.toContain("<endpointRef>V3/categories/create-category.md</endpointRef>");
 
-    // Step 4: bare "get.md" → full path "V3/categories/get.md"
+    // Step 4: bare "get-category.md" → full path "V3/categories/get-category.md"
     const step4 = result.match(/<step number="4">[\s\S]*?<\/step>/)?.[0] ?? "";
-    expect(step4).toContain("<endpointRef>V3/categories/get.md</endpointRef>");
+    expect(step4).toContain("<endpointRef>V3/categories/get-category.md</endpointRef>");
 
-    // Step 5: missing endpointRef → "V3/categories/delete.md" injected
+    // Step 5: wrong "V3/categories/create-category.md" (POST file) → "V3/categories/delete-category.md" injected
     const step5 = result.match(/<step number="5">[\s\S]*?<\/step>/)?.[0] ?? "";
-    expect(step5).toContain("<endpointRef>V3/categories/delete.md</endpointRef>");
+    expect(step5).toContain("<endpointRef>V3/categories/delete-category.md</endpointRef>");
   });
 
   it("full pipeline: strip + inject produces correct final XML", () => {
@@ -865,17 +879,17 @@ No content.`;
     let xml = stripExtraRequestFields(aiGeneratedXml, specContext);
     xml = injectEndpointRefs(xml, specContext);
 
-    // Step 1: POST → create.md, body intact
+    // Step 1: POST → create-category.md, body intact
     const step1 = xml.match(/<step number="1">[\s\S]*?<\/step>/)?.[0] ?? "";
-    expect(step1).toContain("<endpointRef>V3/categories/create.md</endpointRef>");
+    expect(step1).toContain("<endpointRef>V3/categories/create-category.md</endpointRef>");
 
-    // Step 3: PATCH → patch.md, workspace_id stripped
+    // Step 3: PATCH → update-category.md, workspace_id stripped
     const step3 = xml.match(/<step number="3">[\s\S]*?<\/step>/)?.[0] ?? "";
-    expect(step3).toContain("<endpointRef>V3/categories/patch.md</endpointRef>");
+    expect(step3).toContain("<endpointRef>V3/categories/update-category.md</endpointRef>");
     expect(step3).not.toContain("workspace_id");
 
-    // Step 5: DELETE → delete.md injected
+    // Step 5: DELETE → delete-category.md injected
     const step5 = xml.match(/<step number="5">[\s\S]*?<\/step>/)?.[0] ?? "";
-    expect(step5).toContain("<endpointRef>V3/categories/delete.md</endpointRef>");
+    expect(step5).toContain("<endpointRef>V3/categories/delete-category.md</endpointRef>");
   });
 });

@@ -60,9 +60,11 @@ export async function distillAndStore(blobPath: string, rawContent: string): Pro
   if (blobPath.includes("/_sources.json")) return;
 
   try {
-    // Wrap content in the section format that distillSpecContext expects
+    // Wrap content in the section format that distillSpecContext expects.
+    // Strip any existing "## filename.md" header from splitter output to avoid double-wrapping.
     const filename = blobPath.split("/").pop() ?? blobPath;
-    const wrapped = `## ${filename}\n\n${rawContent}`;
+    const strippedContent = rawContent.replace(/^## [\w.-]+\.md\s*\n+/, "");
+    const wrapped = `## ${filename}\n\n${strippedContent}`;
     const distilled = distillSpecContext(wrapped);
 
     // Only store if distillation actually transformed something
@@ -131,7 +133,8 @@ export async function distillAndStoreWithResult(
   if (blobPath.includes("/_sources.json")) return "unchanged";
 
   const filename = blobPath.split("/").pop() ?? blobPath;
-  const wrapped = `## ${filename}\n\n${rawContent}`;
+  const strippedContent = rawContent.replace(/^## [\w.-]+\.md\s*\n+/, "");
+  const wrapped = `## ${filename}\n\n${strippedContent}`;
   const distilled = distillSpecContext(wrapped);
 
   if (distilled !== wrapped) {

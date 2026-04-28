@@ -357,8 +357,9 @@ async function buildSpecContext(specFiles: string[], projectId: string): Promise
           contents.map((c, i) => {
             const displayName = projPrefix && mdFiles[i].name.startsWith(projPrefix)
               ? mdFiles[i].name.slice(projPrefix.length) : mdFiles[i].name;
-            // Strip inner "## filename.md" header from splitter output
-            const cleaned = c.replace(/^(<!--[^>]*-->\n)?## [\w.-]+\.md\s*\n/, "");
+            // Strip inner "## filename.md" headers from splitter/distiller output
+            let cleaned = c.replace(/^<!--[^>]*-->\n/m, "");
+            cleaned = cleaned.replace(/^## [\w.-]+\.md\s*$/gm, "");
             return `## ${displayName}\n\n${cleaned}`;
           }),
         ),
@@ -377,11 +378,12 @@ async function buildSpecContext(specFiles: string[], projectId: string): Promise
       const blobPath = scopedPath(projectId, name);
       try {
         let content = await readDistilledContent(blobPath);
-        // Strip the inner "## filename.md" header that the swagger splitter embeds
-        // at the top of each file. Without this, injectEndpointRefs maps endpoints
-        // to the bare inner header (e.g. "create.md") instead of the full-path
-        // outer header we add below (e.g. "V3/categories/create.md").
-        content = content.replace(/^(<!--[^>]*-->\n)?## [\w.-]+\.md\s*\n/, "");
+        // Strip ALL inner "## filename.md" headers from the content. These come
+        // from the swagger splitter and/or distillAndStore double-wrapping.
+        // Without this, injectEndpointRefs maps endpoints to bare inner headers
+        // instead of the full-path outer header we add below.
+        content = content.replace(/^<!--[^>]*-->\n/m, "");
+        content = content.replace(/^## [\w.-]+\.md\s*$/gm, "");
         return `## ${name}\n\n${content}`;
       } catch (err) {
         console.error(`[generateFlow] Failed to read spec: ${blobPath}`, err);
