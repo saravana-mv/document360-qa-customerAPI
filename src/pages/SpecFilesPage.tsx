@@ -1622,6 +1622,7 @@ export function SpecFilesPage() {
   // ── Update flow XML (manual or AI edit) ──────────────────────────────────
 
   function handleUpdateFlowXml(ideaId: string, newXml: string) {
+    const flow = generatedFlows.find((f) => f.ideaId === ideaId);
     setGeneratedFlows((prev) =>
       prev.map((f) => (f.ideaId === ideaId ? { ...f, xml: newXml } : f))
     );
@@ -1631,6 +1632,12 @@ export function SpecFilesPage() {
         f.ideaId === ideaId ? { ...f, xml: newXml } : f
       );
       persistFlowsForPath(activePath, updated);
+
+      // Sync updated XML to Cosmos flows container (best-effort)
+      if (flow?.title) {
+        const flowBlobName = buildFlowFilePath(activePath, flow.title);
+        void saveFlowFile(flowBlobName, newXml, true).catch(() => { /* best-effort */ });
+      }
     }
   }
 
@@ -1750,6 +1757,12 @@ export function SpecFilesPage() {
           setGeneratedFlows(localFlows);
           persistFlowsForPath(generationPath, localFlows);
 
+          // Persist flow XML to Cosmos flows container immediately (best-effort)
+          const flowBlobName = buildFlowFilePath(generationPath, idea.title);
+          void saveFlowFile(flowBlobName, result.xml, true).catch((e) =>
+            console.warn(`[FlowGen] Failed to persist flow XML for "${idea.title}":`, e),
+          );
+
           // Auto-select the newly generated flow
           setSelectedFlowIds((prev) => { const n = new Set(prev); n.add(idea.id); return n; });
           // Accumulate flow usage
@@ -1833,6 +1846,12 @@ export function SpecFilesPage() {
     // Persist to workshopMap
     if (activePath) {
       persistFlowsForPath(activePath, [...generatedFlows, newFlow]);
+
+      // Persist flow XML to Cosmos flows container immediately (best-effort)
+      const flowBlobName = buildFlowFilePath(activePath, title);
+      void saveFlowFile(flowBlobName, xml, true).catch((e) =>
+        console.warn(`[FlowChat] Failed to persist flow XML for "${title}":`, e),
+      );
     }
 
     // Accumulate flow usage
