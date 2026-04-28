@@ -41,55 +41,75 @@ describe("tagToFolder", () => {
 // ── operationToFilename ──────────────────────────────────────────────────────
 
 describe("operationToFilename", () => {
-  test("GET without trailing param → list.md", () => {
+  test("GET without trailing param → list-articles.md", () => {
     const existing = new Set<string>();
-    expect(operationToFilename("GET", "/v3/articles", existing)).toBe("list.md");
+    expect(operationToFilename("GET", "/v3/articles", existing, "articles")).toBe("list-articles.md");
   });
 
-  test("GET with trailing param → get.md", () => {
+  test("GET with trailing param → get-article.md", () => {
     const existing = new Set<string>();
-    expect(operationToFilename("GET", "/v3/articles/{id}", existing)).toBe("get.md");
+    expect(operationToFilename("GET", "/v3/articles/{id}", existing, "articles")).toBe("get-article.md");
   });
 
-  test("POST → create.md", () => {
+  test("POST → create-article.md", () => {
     const existing = new Set<string>();
-    expect(operationToFilename("POST", "/v3/articles", existing)).toBe("create.md");
+    expect(operationToFilename("POST", "/v3/articles", existing, "articles")).toBe("create-article.md");
   });
 
-  test("PUT → update.md", () => {
+  test("PUT → update-article.md", () => {
     const existing = new Set<string>();
-    expect(operationToFilename("PUT", "/v3/articles/{id}", existing)).toBe("update.md");
+    expect(operationToFilename("PUT", "/v3/articles/{id}", existing, "articles")).toBe("update-article.md");
   });
 
-  test("PATCH → patch.md", () => {
+  test("PATCH → update-article.md (same as PUT)", () => {
     const existing = new Set<string>();
-    expect(operationToFilename("PATCH", "/v3/articles/{id}", existing)).toBe("patch.md");
+    expect(operationToFilename("PATCH", "/v3/articles/{id}", existing, "articles")).toBe("update-article.md");
   });
 
-  test("DELETE → delete.md", () => {
+  test("DELETE → delete-article.md", () => {
     const existing = new Set<string>();
-    expect(operationToFilename("DELETE", "/v3/articles/{id}", existing)).toBe("delete.md");
+    expect(operationToFilename("DELETE", "/v3/articles/{id}", existing, "articles")).toBe("delete-article.md");
+  });
+
+  test("singularizes resource: categories → category", () => {
+    const existing = new Set<string>();
+    expect(operationToFilename("POST", "/v3/categories", existing, "categories")).toBe("create-category.md");
+    expect(operationToFilename("GET", "/v3/categories", existing, "categories")).toBe("list-categories.md");
   });
 
   test("collision adds path discriminator", () => {
     const existing = new Set<string>();
-    const first = operationToFilename("GET", "/v3/articles", existing);
-    expect(first).toBe("list.md");
+    const first = operationToFilename("GET", "/v3/articles", existing, "articles");
+    expect(first).toBe("list-articles.md");
 
-    const second = operationToFilename("GET", "/v3/articles/search", existing);
-    expect(second).not.toBe("list.md");
-    expect(second).toMatch(/^list-.+\.md$/);
+    const second = operationToFilename("GET", "/v3/articles/search", existing, "articles");
+    expect(second).not.toBe("list-articles.md");
+    expect(second).toMatch(/^list-articles-.+\.md$/);
   });
 
   test("multiple collisions get unique names", () => {
     const existing = new Set<string>();
     const names = [
-      operationToFilename("GET", "/v3/articles", existing),
-      operationToFilename("GET", "/v3/articles/top", existing),
-      operationToFilename("GET", "/v3/articles/recent", existing),
+      operationToFilename("GET", "/v3/articles", existing, "articles"),
+      operationToFilename("GET", "/v3/articles/top", existing, "articles"),
+      operationToFilename("GET", "/v3/articles/recent", existing, "articles"),
     ];
     const unique = new Set(names);
     expect(unique.size).toBe(3);
+  });
+
+  test("PUT and PATCH collision gets disambiguated", () => {
+    const existing = new Set<string>();
+    const put = operationToFilename("PUT", "/v3/articles/{id}", existing, "articles");
+    const patch = operationToFilename("PATCH", "/v3/articles/{id}", existing, "articles");
+    expect(put).toBe("update-article.md");
+    expect(patch).not.toBe("update-article.md");
+    expect(patch).toMatch(/^update-article-.+\.md$/);
+  });
+
+  test("no resourceFolder falls back to bare action name", () => {
+    const existing = new Set<string>();
+    expect(operationToFilename("POST", "/v3/items", existing)).toBe("create.md");
   });
 });
 
@@ -283,10 +303,10 @@ describe("splitSwagger", () => {
 
     const articleFiles = result.files.filter(f => f.folder === "articles");
     const articleNames = articleFiles.map(f => f.filename);
-    expect(articleNames).toContain("list.md");
-    expect(articleNames).toContain("create.md");
-    expect(articleNames).toContain("get.md");
-    expect(articleNames).toContain("delete.md");
+    expect(articleNames).toContain("list-articles.md");
+    expect(articleNames).toContain("create-article.md");
+    expect(articleNames).toContain("get-article.md");
+    expect(articleNames).toContain("delete-article.md");
   });
 
   test("handles Swagger 2.x with definitions", () => {
@@ -325,7 +345,7 @@ describe("splitSwagger", () => {
 
     expect(result.stats.endpoints).toBe(1);
     expect(result.files[0].folder).toBe("users");
-    expect(result.files[0].filename).toBe("list.md");
+    expect(result.files[0].filename).toBe("list-users.md");
     // Content should reference the full path with basePath
     expect(result.files[0].content).toContain("/api/users");
   });

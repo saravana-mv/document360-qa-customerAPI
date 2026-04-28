@@ -64,10 +64,19 @@ function methodToBaseName(method: string): string {
   const map: Record<string, string> = {
     post: "create",
     put: "update",
-    patch: "patch",
+    patch: "update",
     delete: "delete",
   };
   return map[method.toLowerCase()] ?? method.toLowerCase();
+}
+
+/** Naive singularize: "categories" → "category", "articles" → "article". */
+function singularize(word: string): string {
+  if (word.endsWith("ies")) return word.slice(0, -3) + "y";
+  if (word.endsWith("ses") || word.endsWith("xes") || word.endsWith("zes"))
+    return word.slice(0, -2);
+  if (word.endsWith("s") && !word.endsWith("ss")) return word.slice(0, -1);
+  return word;
 }
 
 /** Check if a path ends with a path parameter (e.g. `/{id}`). */
@@ -87,20 +96,32 @@ function pathDiscriminator(method: string, path: string): string {
   return suffix ? `-${suffix}` : `-${method.toLowerCase()}`;
 }
 
-/** Generate a collision-safe filename for an operation. */
+/** Generate a collision-safe filename for an operation.
+ *  @param resourceFolder — the kebab-case folder name (e.g. "categories")
+ *    used to build descriptive names like "create-category.md".
+ */
 export function operationToFilename(
   method: string,
   path: string,
   existingNames: Set<string>,
+  resourceFolder?: string,
 ): string {
   const m = method.toLowerCase();
-  let base: string;
+  let action: string;
 
   if (m === "get") {
-    base = endsWithParam(path) ? "get" : "list";
+    action = endsWithParam(path) ? "get" : "list";
   } else {
-    base = methodToBaseName(m);
+    action = methodToBaseName(m);
   }
+
+  // Build descriptive name: "create-category", "list-categories", "get-article"
+  const resource = resourceFolder ? singularize(resourceFolder) : "";
+  // "list" keeps plural form (list-categories), others use singular (create-category)
+  const suffix = resourceFolder
+    ? (action === "list" ? resourceFolder : resource)
+    : "";
+  const base = suffix ? `${action}-${suffix}` : action;
 
   const candidate = `${base}.md`;
   if (!existingNames.has(candidate)) {
@@ -398,7 +419,7 @@ export function splitSwagger(specJson: Record<string, unknown>): SplitResult {
       // Track filenames per folder
       if (!folderFileNames[folder]) folderFileNames[folder] = new Set();
 
-      const filename = operationToFilename(method, path, folderFileNames[folder]);
+      const filename = operationToFilename(method, path, folderFileNames[folder], folder);
 
       try {
         const content = buildEndpointMarkdown(
