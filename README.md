@@ -43,6 +43,7 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 - **Interactive Flow Designer** — ChatGPT-style multi-turn conversation to design flows
 - **XML Generation** — Convert plans into validated `.flow.xml` definitions
 - **AI Edit Mode** — Modify existing flows with natural language instructions + diff review
+- **Copy Flow XML ID** — Context menu action in both Spec Manager (FlowsPanel) and Scenario Manager (TagNode) for quick access to flow identifiers during diagnosis
 - Cost tracking with per-call and cumulative spend display
 - AI credit budgets per project/user with enforcement (402 when exhausted) and Super Owner management
 
@@ -223,7 +224,7 @@ Both environments follow the same build steps:
 │   │   └── modelPricing.ts     # Claude model token costs
 │   └── __tests__/              # Jest unit tests
 │
-├── scripts/                    # smoke-test, seed-spec-files, cleanup, migrate-project-scoping
+├── scripts/                    # smoke-test, seed-spec-files, cleanup, migrate-project-scoping, diagnose.mjs
 ├── .github/workflows/          # CI/CD pipeline
 ├── staticwebapp.config.json    # SWA routing + Entra ID auth
 ├── vite.config.ts              # Build config with version injection
