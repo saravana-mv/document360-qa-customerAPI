@@ -2339,7 +2339,9 @@ export function SpecFilesPage() {
                 loadingContent ? (
                   <div className="flex-1 flex items-center justify-center text-[#656d76] text-sm">Loading…</div>
                 ) : (
-                  <SkillsEditor path={selectedPath!} content={content} onSaved={() => void loadFiles()} />
+                  <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                    <SkillsEditor path={selectedPath!} content={content} onSaved={() => void loadFiles()} />
+                  </div>
                 )
               ) : viewingContent && isFileContext && selectedPath?.includes("/_system/") && selectedPath?.endsWith(".json") ? (
                 /* System JSON files — read-only CodeMirror JSON viewer */
