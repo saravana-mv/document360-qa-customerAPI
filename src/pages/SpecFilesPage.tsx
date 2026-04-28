@@ -56,6 +56,7 @@ import { NewVersionModal } from "../components/specfiles/NewVersionModal";
 import { splitSwagger, reimportSpec, regenerateSystemFiles, type SuggestedVariable, type SuggestedConnection, type ProcessingReport } from "../lib/api/specFilesApi";
 import { ImportResultModal } from "../components/specfiles/ImportResultModal";
 import { ReimportSpecModal } from "../components/specfiles/ReimportSpecModal";
+import { CreateScenariosModal } from "../components/specfiles/CreateScenariosModal";
 import { useProjectVariablesStore } from "../store/projectVariables.store";
 import { useConnectionsStore } from "../store/connections.store";
 
@@ -1907,16 +1908,14 @@ export function SpecFilesPage() {
   function handleMarkForImplementation(flow: GeneratedFlow) {
     // Defensive: UI already blocks this, but don't let an invalid flow slip into the queue.
     if (!validateFlowXml(flow.xml).ok) return;
-    if (!activePath && flow.ideaId.startsWith("manual-")) {
-      // manual flow with no active path — drop at root
-    }
-    const folder = parentFolderOf(activePath);
-    const target = buildFlowFilePath(folder, flow.title);
-    void markFlow(flow, target, true);
+    setPendingCreateScenarios([flow]);
   }
 
-  async function handleMarkSelectedForImplementation() {
-    const folder = parentFolderOf(activePath);
+  // State for the "Create scenarios" modal — holds flows pending folder selection
+  const [pendingCreateScenarios, setPendingCreateScenarios] = useState<GeneratedFlow[] | null>(null);
+
+  /** Show the folder-picker modal before creating scenarios (batch) */
+  function handleMarkSelectedForImplementation() {
     const toMark = generatedFlows.filter(
       (f) =>
         f.status === "done" &&
@@ -1925,15 +1924,21 @@ export function SpecFilesPage() {
         validateFlowXml(f.xml).ok,
     );
     if (toMark.length === 0) return;
+    setPendingCreateScenarios(toMark);
+  }
+
+  /** Actually create scenarios after the user picks a folder */
+  async function executeCreateScenarios(flowsToCreate: GeneratedFlow[], scenarioTargetFolder?: string) {
+    const folder = parentFolderOf(activePath);
 
     // Mark all as "in progress" up-front so the UI reflects the batch.
     setMarkingIds(prev => {
       const n = new Set(prev);
-      for (const f of toMark) n.add(f.ideaId);
+      for (const f of flowsToCreate) n.add(f.ideaId);
       return n;
     });
 
-    const jobs = toMark.map((flow) => ({
+    const jobs = flowsToCreate.map((flow) => ({
       flow,
       target: buildFlowFilePath(folder, flow.title),
     }));
@@ -1980,7 +1985,7 @@ export function SpecFilesPage() {
     // Batch-activate all succeeded flows in a single API call
     if (toActivate.length > 0) {
       await activateFlows(toActivate);
-      useScenarioOrgStore.getState().placeNewScenarios(toActivate);
+      useScenarioOrgStore.getState().placeNewScenarios(toActivate, scenarioTargetFolder);
     }
 
     // Mark succeeded flows and clear "in progress" state in one go.
@@ -1991,7 +1996,7 @@ export function SpecFilesPage() {
     });
     setMarkingIds(prev => {
       const n = new Set(prev);
-      for (const f of toMark) n.delete(f.ideaId);
+      for (const f of flowsToCreate) n.delete(f.ideaId);
       return n;
     });
 
@@ -2676,6 +2681,20 @@ export function SpecFilesPage() {
           initialToken={sourceAccessToken}
           onSubmit={tokenPrompt.onRetry}
           onClose={() => setTokenPrompt(null)}
+        />
+      )}
+
+      {/* Create scenarios folder picker modal */}
+      {pendingCreateScenarios && pendingCreateScenarios.length > 0 && (
+        <CreateScenariosModal
+          flows={pendingCreateScenarios}
+          version={activePath?.split("/")[0] ?? ""}
+          onConfirm={(targetFolder) => {
+            const flows = pendingCreateScenarios;
+            setPendingCreateScenarios(null);
+            void executeCreateScenarios(flows, targetFolder);
+          }}
+          onClose={() => setPendingCreateScenarios(null)}
         />
       )}
 

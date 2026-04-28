@@ -338,8 +338,8 @@ function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps)
               onBlur={confirmRename}
             />
           ) : (
-            <span className={`font-medium text-sm truncate ${reserved ? "text-[#8250df]" : "text-[#1f2328]"}`} title={reserved ? "Default folder for new scenarios" : undefined}>
-              {node.name}
+            <span className={`font-medium text-sm truncate ${reserved ? "text-[#8b949e] italic" : "text-[#1f2328]"}`} title={reserved ? "Default folder for new scenarios" : undefined}>
+              {reserved ? "(Default)" : node.name}
             </span>
           )}
           <span className="text-xs text-[#656d76] ml-auto shrink-0">{totalFlows}</span>

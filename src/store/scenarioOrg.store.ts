@@ -96,7 +96,7 @@ interface ScenarioOrgState {
 
   // Scenario placement
   moveScenario: (flowPath: string, targetFolder: string) => void;
-  placeNewScenarios: (flowPaths: string[]) => void;
+  placeNewScenarios: (flowPaths: string[], targetFolder?: string) => void;
 
   // Clear placements (for delete-all)
   clearPlacements: () => void;
@@ -317,12 +317,13 @@ export const useScenarioOrgStore = create<ScenarioOrgState>((set, get) => ({
     get().save();
   },
 
-  placeNewScenarios: (flowPaths) => {
+  placeNewScenarios: (flowPaths, targetFolder) => {
     set((s) => {
       const newPlacements = { ...s.placements };
       const newFolders = { ...s.folders };
       const newConfigs = { ...s.versionConfigs };
       const setup = useSetupStore.getState();
+      const dest = targetFolder ?? NEWLY_ADDED;
 
       for (const fp of flowPaths) {
         const version = extractVersion(fp);
@@ -336,7 +337,11 @@ export const useScenarioOrgStore = create<ScenarioOrgState>((set, get) => ({
             credentialConfigured: false,
           };
         }
-        newPlacements[fp] = NEWLY_ADDED;
+        // Ensure target folder exists in the version's folder list
+        if (dest !== NEWLY_ADDED && !newFolders[version].includes(dest)) {
+          newFolders[version] = [...newFolders[version], dest];
+        }
+        newPlacements[fp] = dest;
       }
 
       return {
