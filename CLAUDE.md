@@ -159,11 +159,14 @@ Never call `loadFlowsFromQueue` in a loop after parallel saves. Batch all saves,
 ### esbuild Cross-Function Import Ban (CRITICAL)
 NEVER import from one `api/src/functions/` file into another. esbuild bundles each function file as a separate entry point and inlines all imports — including the imported file's `app.http()` registration. This causes duplicate route registration that **crashes the entire Azure Functions runtime** (all endpoints return 404). Always extract shared code into `api/src/lib/` modules.
 
+### Distilled Spec Blob Paths
+Distilled spec blobs are stored at `{folder}/_distilled/` (e.g., `v3/articles/_distilled/create.md`), NOT at `_system/_distilled/`. The `_system/_distilled/` path is a virtual remapping for the file tree UI only. When searching for distilled blobs programmatically, always use the actual `{folder}/_distilled/` path.
+
 ### Enum Aliases
 Some APIs return enum fields as integers at runtime (spec uses strings). `enumAliases.ts` + bidirectional `jsonEqual` handles name↔ordinal. Aliases are configurable per version folder via API Rules (`_system/_rules.json` in blob storage). Both browser and server runners load aliases from version folder context at startup via `setEnumAliases(raw)` which parses `name=value` format.
 
 ### Spec Distillation Backtick Format
-Distilled spec markdown uses 4-backtick fenced blocks (````json) as the canonical format. `specRequiredFields.ts` regex accepts both 3 and 4 backticks for backward compatibility. If the distillation output looks wrong, check `DISTILL_VERSION` in `specDistillCache.ts` — bumping it forces re-distillation of all cached specs.
+Distilled spec markdown uses 4-backtick fenced blocks (````json) as the canonical format. `specRequiredFields.ts` regex accepts both 3 and 4 backticks for backward compatibility. The distiller handles both `$ref` schemas and inline schemas in OpenAPI request bodies. If the distillation output looks wrong, check `DISTILL_VERSION` in `specDistillCache.ts` (currently v6) — bumping it forces re-distillation of all cached specs.
 
 ### Session-Expired Handling for Raw Fetch Modules
 Any API module that uses raw `fetch()` instead of `apiClient` (e.g., `specFilesApi.ts`) must dispatch a `session-expired` custom event on 401 responses — otherwise expired Entra sessions cause blank screens instead of login redirects. The global `session-expired` handler in `App.tsx` must call both `useAuthStore.getState().logout()` AND `useEntraAuthStore.getState().check()` to trigger Entra re-authentication.

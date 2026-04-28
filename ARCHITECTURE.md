@@ -14,11 +14,12 @@ Deep reference for developers working on the FlowForge codebase. For quick-start
      Upload/         Claude AI          Chat/batch           Activate →
      Import URL      generation         generation           Execute →
                                         + validation         Results (Cosmos)
+                                        + persist to Cosmos
 ```
 
 1. **Spec Import** — Upload markdown files, import from URLs (with sync-from-source), or split full OpenAPI/Swagger specs into per-endpoint files
 2. **Idea Generation** — Claude analyzes spec context (digest for large folders >20 specs, full distilled for small) and proposes test ideas
-3. **Flow Authoring** — Interactive chat or batch generation produces `.flow.xml` files, validated against XSD
+3. **Flow Authoring** — Interactive chat or batch generation produces `.flow.xml` files, validated against XSD, persisted to Cosmos `flows` container immediately upon generation (batch, chat, or edit)
 4. **Test Execution** — Activated flows are parsed into TestDef arrays at runtime (no code generation), executed with setup/teardown semantics
 
 ---
