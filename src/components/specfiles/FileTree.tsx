@@ -639,6 +639,7 @@ interface FileTreeProps {
   onGenerateFlowIdeas: (path: string, count: number) => void;
   onRefresh: () => void;
   onNewVersion: () => void;
+  onSearch: () => void;
 }
 
 export function FileTree({
@@ -646,7 +647,7 @@ export function FileTree({
   multiSelectedPaths, onSelectFile, onSelectFolder, onMultiSelect, onSelectAll, onClearMultiSelect, onBulkDelete,
   onCreateFolder, onDeleteFile, onDeleteFolder, onRenameFile,
   onUploadFiles, onImportFromUrl, onSyncFile, onSyncFolder, onRegenerateSystem, regeneratingPaths,
-  onReimportSpec, onGenerateFlowIdeas, onRefresh, onNewVersion,
+  onReimportSpec, onGenerateFlowIdeas, onRefresh, onNewVersion, onSearch,
 }: FileTreeProps) {
   const tree = buildTree(files);
 
@@ -959,6 +960,16 @@ export function FileTree({
             </svg>
             <span className="text-sm font-semibold text-[#1f2328]">Spec Files</span>
             <div className="flex-1" />
+            <button
+              onClick={onSearch}
+              title="Search spec files (Ctrl+K)"
+              disabled={files.length === 0}
+              className="text-[#656d76] hover:text-[#1f2328] disabled:opacity-40 rounded-md p-1 hover:bg-[#eef1f6] transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+              </svg>
+            </button>
             <button
               onClick={() => setSelectMode(true)}
               title="Select files"

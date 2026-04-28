@@ -12,6 +12,7 @@ import { DetailPanel } from "../components/specfiles/DetailPanel";
 import { FlowChatPanel } from "../components/specfiles/FlowChatPanel";
 import { SkillsEditor } from "../components/specfiles/SkillsEditor";
 import { JsonCodeBlock } from "../components/common/JsonCodeBlock";
+import { SearchModal } from "../components/specfiles/SearchModal";
 import {
   listSpecFiles,
   getSpecFileContent,
@@ -158,6 +159,7 @@ export function SpecFilesPage() {
   const [uploadFolderPath, setUploadFolderPath] = useState<string | null>(null);
   const [importUrlFolderPath, setImportUrlFolderPath] = useState<string | null>(null);
   const [showNewVersionModal, setShowNewVersionModal] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [sourcesManifest, setSourcesManifest] = useState<Record<string, SourceEntry>>({});
   const sourcedPaths = useMemo(() => new Set(Object.keys(sourcesManifest)), [sourcesManifest]);
 
@@ -219,6 +221,18 @@ export function SpecFilesPage() {
     }
     useAiCostStore.getState().setWorkshopCost(parseFloat(total.toFixed(6)));
   }, [workshopMap]);
+
+  // Ctrl+K to open search
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setShowSearch(s => !s);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // Working set — flat state loaded from workshopMap when navigating
   const [ideas, setIdeas] = useState<FlowIdea[]>([]);
@@ -2158,6 +2172,7 @@ export function SpecFilesPage() {
             onGenerateFlowIdeas={(path, count) => void handleGenerateFlowIdeas(path, count)}
             onRefresh={loadFiles}
             onNewVersion={() => setShowNewVersionModal(true)}
+            onSearch={() => setShowSearch(true)}
           />
         </aside>
         <ResizeHandle width={treeWidth} onResize={setTreeWidth} minWidth={160} maxWidth={400} />
@@ -2554,6 +2569,14 @@ export function SpecFilesPage() {
           )}
         </div>
       </div>
+
+      {/* Search modal */}
+      {showSearch && (
+        <SearchModal
+          onSelectFile={(path) => void selectFile(path)}
+          onClose={() => setShowSearch(false)}
+        />
+      )}
 
       {/* New Version modal */}
       <NewVersionModal
