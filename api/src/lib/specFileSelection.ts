@@ -150,14 +150,15 @@ export function filterRelevantSpecs(idea: IdeaLike, allSpecFiles: string[]): str
       }
     }
 
-    // Also include create specs from the SAME resource folder when we have
-    // action endpoints. E.g., if we matched publish-article.md, also include
-    // create-article.md so the AI can see the response schema for captures.
+    // Also include create AND delete specs from the SAME resource folder.
+    // Create specs provide response schema context for captures.
+    // Delete specs are needed for teardown steps the AI almost always generates.
     for (const file of eligibleFiles) {
       if (needed.has(file)) continue;
       const lower = file.toLowerCase();
       const filename = lower.split("/").pop() ?? "";
-      if (filename.startsWith("create-") || filename === "create.md") {
+      if (filename.startsWith("create-") || filename === "create.md"
+        || filename.startsWith("delete-") || filename === "delete.md") {
         for (const folder of primaryFolders) {
           if (lower.includes(folder.toLowerCase() + "/")) {
             needed.add(file);

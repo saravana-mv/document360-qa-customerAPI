@@ -129,6 +129,21 @@ describe("filterRelevantSpecs", () => {
     expect(result).not.toContain("V3/categories/update-category.md");
   });
 
+  it("auto-includes delete spec from same folder for teardown", () => {
+    const result = filterRelevantSpecs(
+      idea([
+        "POST /v3/projects/{project_id}/categories",
+        "GET /v3/projects/{project_id}/categories/{id}",
+      ]),
+      allFiles
+    );
+    // Primary matches
+    expect(result).toContain("V3/categories/create-category.md");
+    expect(result).toContain("V3/categories/get-category.md");
+    // Delete spec from SAME folder auto-included for teardown
+    expect(result).toContain("V3/categories/delete-category.md");
+  });
+
   it("auto-includes create spec from same folder for action endpoints", () => {
     const result = filterRelevantSpecs(
       idea(["POST /v3/projects/{project_id}/articles/{article_id}/publish"]),
