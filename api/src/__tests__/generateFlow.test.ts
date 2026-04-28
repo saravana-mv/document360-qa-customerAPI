@@ -66,6 +66,7 @@ jest.mock("../lib/specRequiredFields", () => ({
   injectSpecRequiredFields: jest.fn((xml: string) => xml),
   injectEndpointRefs: jest.fn((xml: string) => xml),
   injectRulesRequiredFields: jest.fn((xml: string) => xml),
+  validateCaptures: jest.fn((xml: string) => xml),
 }));
 
 jest.mock("../lib/cosmosClient", () => ({
