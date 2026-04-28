@@ -118,21 +118,35 @@ export const useConnectionsStore = create<ConnectionsState>((set, get) => ({
   },
 
   refreshToken: async (connectionId) => {
-    const result = await refreshOAuth(connectionId);
-    // After refresh, update the status with new expiry
-    set((s) => ({
-      authStatus: {
-        ...s.authStatus,
-        [connectionId]: {
-          ...s.authStatus[connectionId],
-          authenticated: true,
-          expired: false,
-          expiresAt: result.expiresAt,
-          expiresInMs: result.expiresAt - Date.now(),
-          lastRefreshedAt: Date.now(),
+    try {
+      const result = await refreshOAuth(connectionId);
+      // After refresh, update the status with new expiry
+      set((s) => ({
+        authStatus: {
+          ...s.authStatus,
+          [connectionId]: {
+            ...s.authStatus[connectionId],
+            authenticated: true,
+            expired: false,
+            expiresAt: result.expiresAt,
+            expiresInMs: result.expiresAt - Date.now(),
+            lastRefreshedAt: Date.now(),
+          },
         },
-      },
-    }));
+      }));
+    } catch (e) {
+      // If refresh token is expired/revoked, clear status so UI shows "Not connected"
+      const { OAuthRefreshExpiredError } = await import("../lib/api/oauthApi");
+      if (e instanceof OAuthRefreshExpiredError) {
+        set((s) => ({
+          authStatus: {
+            ...s.authStatus,
+            [connectionId]: { authenticated: false },
+          },
+        }));
+      }
+      throw e;
+    }
   },
 
   runHealthCheck: async (connectionId) => {

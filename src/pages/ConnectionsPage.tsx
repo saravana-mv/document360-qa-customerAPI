@@ -113,7 +113,13 @@ export function ConnectionsPage() {
     try {
       await refreshToken(conn.id);
     } catch (e) {
-      alert(`Refresh failed: ${e instanceof Error ? e.message : String(e)}`);
+      const msg = e instanceof Error ? e.message : String(e);
+      // OAuthRefreshExpiredError — store already cleared status, just inform user
+      if (msg.includes("expired") || msg.includes("revoked") || msg.includes("sign in again")) {
+        alert("Refresh token has expired. Please sign in again to reconnect.");
+      } else {
+        alert(`Refresh failed: ${msg}`);
+      }
     } finally {
       setRefreshing(null);
     }

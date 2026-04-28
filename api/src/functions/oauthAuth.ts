@@ -198,7 +198,19 @@ async function refreshHandler(req: HttpRequest): Promise<HttpResponseInit> {
       params.set("client_secret", conn.clientSecret);
     }
 
-    const tokenRes = await postTokenEndpoint(conn.tokenUrl, params);
+    let tokenRes: TokenResponse;
+    try {
+      tokenRes = await postTokenEndpoint(conn.tokenUrl, params);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // invalid_grant means the refresh token is revoked/expired — user must re-authenticate
+      if (msg.includes("invalid_grant") || msg.includes("400")) {
+        // Clear the stale token so status shows unauthenticated
+        await deleteOAuthToken(principal.userId, connectionId);
+        return err(401, "Refresh token expired or revoked. Please sign in again.");
+      }
+      throw e;
+    }
     const expiresAt = Date.now() + (tokenRes.expires_in ?? 3600) * 1000;
 
     await putOAuthToken(principal.userId, connectionId, {

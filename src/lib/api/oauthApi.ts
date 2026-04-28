@@ -49,11 +49,20 @@ export async function logoutOAuth(connectionId: string): Promise<void> {
   await fetch(`/api/oauth/logout/${connectionId}`, { method: "POST" });
 }
 
+export class OAuthRefreshExpiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OAuthRefreshExpiredError";
+  }
+}
+
 export async function refreshOAuth(connectionId: string): Promise<{ refreshed: boolean; expiresAt: number }> {
   const res = await fetch(`/api/oauth/refresh/${connectionId}`, { method: "POST" });
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Refresh failed: ${res.status} ${text}`);
+    let msg = `Refresh failed: ${res.status}`;
+    try { const body = await res.json() as { error?: string }; if (body.error) msg = body.error; } catch { /* ignore */ }
+    if (res.status === 401) throw new OAuthRefreshExpiredError(msg);
+    throw new Error(msg);
   }
   return res.json() as Promise<{ refreshed: boolean; expiresAt: number }>;
 }

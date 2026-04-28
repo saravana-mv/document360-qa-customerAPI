@@ -168,6 +168,11 @@ export async function getValidOAuthToken(
   });
   if (!res.ok) {
     const text = await res.text();
+    // invalid_grant means refresh token is revoked/expired — clear stale token
+    if (res.status === 400 && text.includes("invalid_grant")) {
+      await deleteOAuthToken(oid, connectionId);
+      throw new Error("OAUTH_REFRESH_TOKEN_EXPIRED");
+    }
     throw new Error(`OAuth refresh failed (${res.status}): ${text}`);
   }
   const tokenRes = (await res.json()) as TokenResponse;
