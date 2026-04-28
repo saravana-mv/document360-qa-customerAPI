@@ -9,6 +9,15 @@
  * reference and a version folder.
  */
 
+/** Naive singularize: "categories" → "category", "articles" → "article". */
+function singularize(word: string): string {
+  if (word.endsWith("ies")) return word.slice(0, -3) + "y";
+  if (word.endsWith("ses") || word.endsWith("xes") || word.endsWith("zes"))
+    return word.slice(0, -2);
+  if (word.endsWith("s") && !word.endsWith("ss")) return word.slice(0, -1);
+  return word;
+}
+
 interface IdeaLike {
   steps: string[];
   entities: string[];
@@ -96,6 +105,17 @@ export function filterRelevantSpecs(idea: IdeaLike, allSpecFiles: string[]): str
       exactNames = methodToExactNames[method] ?? [];
     }
 
+    // For standard CRUD steps (not action/bulk), build the canonical filename
+    // so we can prefer it over action variants (e.g., create-category.md over
+    // create-category-bulk-publish.md).
+    const singular = singularize(resource);
+    const canonicalNames = (!actionName && !isBulk && resource)
+      ? actions.map(a => `${a}${singular}.md`).concat(
+          // "list" keeps plural
+          actions.filter(a => a === "list-").map(a => `${a}${resource}.md`)
+        )
+      : [];
+
     // Find the best matching spec file
     for (const file of eligibleFiles) {
       const lower = file.toLowerCase();
@@ -110,13 +130,21 @@ export function filterRelevantSpecs(idea: IdeaLike, allSpecFiles: string[]): str
         continue;
       }
 
-      // Then existing startsWith prefix matching (create-xxx.md, update-xxx.md)
-      for (const action of actions) {
-        const isBulkAction = action.startsWith("bulk-");
-        if (isBulk !== isBulkAction && !isActionEndpoint) continue;
-        if (filename.startsWith(action)) {
-          needed.add(file);
-          break;
+      // Canonical match: prefer the base {action}-{resource}.md form for standard CRUD
+      if (canonicalNames.includes(filename)) {
+        needed.add(file);
+        continue;
+      }
+
+      // Prefix matching — only for action/bulk endpoints or when no canonical match exists
+      if (actionName || isBulk) {
+        for (const action of actions) {
+          const isBulkAction = action.startsWith("bulk-");
+          if (isBulk !== isBulkAction && !isActionEndpoint) continue;
+          if (filename.startsWith(action)) {
+            needed.add(file);
+            break;
+          }
         }
       }
 
