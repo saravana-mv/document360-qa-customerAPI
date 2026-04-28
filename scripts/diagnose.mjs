@@ -407,9 +407,11 @@ section("5. Relevant spec files");
 
 const versionFolder = flowPath?.split("/")[0];
 if (versionFolder && projectId) {
-  const distilledPrefix = `${projectId}/${versionFolder}/_system/_distilled/`;
+  // Distilled blobs live at {folder}/_distilled/ (not _system/_distilled/)
+  const versionPrefix = `${projectId}/${versionFolder}/`;
   try {
-    const distilledBlobs = await listBlobs("spec-files", distilledPrefix);
+    const allBlobs = await listBlobs("spec-files", versionPrefix);
+    const distilledBlobs = allBlobs.filter(b => b.includes("/_distilled/") && b.endsWith(".md"));
     console.log(`  Found ${distilledBlobs.length} distilled spec(s) in ${versionFolder}`);
 
     // Determine which specs are relevant based on flow XML endpoint references
@@ -442,7 +444,7 @@ if (versionFolder && projectId) {
     // Show up to 10 distilled specs
     const toShow = relevantBlobs.slice(0, 10);
     for (const blobName of toShow) {
-      const shortName = blobName.replace(distilledPrefix, "");
+      const shortName = blobName.replace(versionPrefix, "");
       section(`5a. Spec: ${shortName}`);
       try {
         const content = await downloadBlob("spec-files", blobName);
