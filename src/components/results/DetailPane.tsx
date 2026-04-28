@@ -22,6 +22,8 @@ import { analyzeFailure, analyzeFailureByScenario } from "../../lib/api/debugApi
 import type { DebugDiagnosis } from "../../lib/api/debugApi";
 import { suggestSimilarVar } from "../../lib/tests/validateProjVars";
 import { getSpecFileContent, uploadSpecFile } from "../../lib/api/specFilesApi";
+import { ContextMenu, MenuIcons } from "../common/ContextMenu";
+import type { MenuItem } from "../common/ContextMenu";
 
 const XmlEditor = lazy(() => import("../common/XmlEditor").then(m => ({ default: m.XmlEditor })));
 
@@ -1726,7 +1728,9 @@ function SpinnerIcon() {
 export function DetailPane({ testId, onClose }: DetailPaneProps) {
   const [activeTab, setActiveTab] = useState<Tab>("design");
   const result = useRunnerStore((s) => testId ? s.testResults[testId] : undefined);
+  const viewingHistory = useRunnerStore((s) => s.viewingHistory);
   const def = testId ? getTest(testId) : undefined;
+  const scenarioId = useFlowStatusStore((s) => def?.flowFileName ? s.byName[def.flowFileName]?.scenarioId : undefined);
 
   // Reset to Design tab when a different test is selected
   useEffect(() => {
@@ -1811,6 +1815,47 @@ export function DetailPane({ testId, onClose }: DetailPaneProps) {
             )}
           </button>
         ))}
+        <div className="ml-auto">
+          <ContextMenu
+            align="right"
+            items={(() => {
+              const items: MenuItem[] = [];
+              if (scenarioId) {
+                items.push({ label: "Copy Scenario ID", icon: MenuIcons.clipboard, onClick: () => void navigator.clipboard.writeText(scenarioId) });
+              }
+              if (def.flowFileName) {
+                items.push({ label: "Copy Flow ID", icon: MenuIcons.clipboard, onClick: () => void navigator.clipboard.writeText(def.flowFileName!) });
+              }
+              if (viewingHistory?.runId) {
+                items.push({ label: "Copy Run ID", icon: MenuIcons.clipboard, onClick: () => void navigator.clipboard.writeText(viewingHistory.runId) });
+              }
+              if (def.flowFileName) {
+                if (items.length > 0) items.push("separator");
+                items.push({
+                  label: "Download Flow XML",
+                  icon: MenuIcons.download,
+                  onClick: () => {
+                    void (async () => {
+                      try {
+                        const xml = await getFlowFileContent(def.flowFileName!);
+                        const blob = new Blob([xml], { type: "application/xml" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = def.flowFileName!.split("/").pop() ?? "flow.xml";
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      } catch (e) {
+                        console.error("Failed to download flow XML:", e);
+                      }
+                    })();
+                  },
+                });
+              }
+              return items;
+            })()}
+          />
+        </div>
       </div>
 
       {/* ── Tab content ── */}
