@@ -2463,6 +2463,7 @@ export function SpecFilesPage() {
                           flowLockTooltip={selectedFlowLock ? `Locked by ${selectedFlowLock.lockedBy.name}${canUnlockFlow ? " — click to unlock" : ". Unlock the scenario before editing."}` : undefined}
                           canUnlockFlow={canUnlockFlow}
                           onUnlockFlow={selectedFlowLock ? () => void handleUnlockSelectedFlow() : undefined}
+                          folderPath={parentFolderOf(activePath)}
                         />
                         )}
                       </div>

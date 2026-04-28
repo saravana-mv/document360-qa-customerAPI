@@ -10,6 +10,8 @@ import { useSetupStore } from "../../store/setup.store";
 import { useAiCostStore } from "../../store/aiCost.store";
 import { ContextMenu, MenuIcons } from "../common/ContextMenu";
 import type { MenuItem } from "../common/ContextMenu";
+import { useFlowStatusStore } from "../../store/flowStatus.store";
+import { buildFlowFilePath } from "../../lib/api/flowFilesApi";
 
 const XmlEditor = lazy(() => import("../common/XmlEditor").then(m => ({ default: m.XmlEditor })));
 
@@ -45,6 +47,8 @@ interface Props {
   canUnlockFlow?: boolean;
   /** Called when the user clicks the lock icon to unlock */
   onUnlockFlow?: () => void;
+  /** Active folder path — used to derive flow file name for context menu */
+  folderPath?: string;
 }
 
 type FlowTab = "idea" | "flow-xml";
@@ -535,7 +539,7 @@ function FlowXmlContent({ flow, validation, onUpdateXml, isLocked, lockTooltip, 
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFlow, onGenerateFlow, generatingFlows, isFlowMarked, onCreateTest, creatingTest, onUpdateFlowXml, isFlowLocked, flowLockTooltip, canUnlockFlow, onUnlockFlow }: Props) {
+export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFlow, onGenerateFlow, generatingFlows, isFlowMarked, onCreateTest, creatingTest, onUpdateFlowXml, isFlowLocked, flowLockTooltip, canUnlockFlow, onUnlockFlow, folderPath }: Props) {
   const [activeTab, setActiveTab] = useState<FlowTab>("idea");
   const validation = useMemo(
     () => (selectedFlow && selectedFlow.status === "done" ? validateFlowXml(selectedFlow.xml) : null),
@@ -570,13 +574,24 @@ export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFl
     const idea = flowIdea ?? null;
     const hasTabs = !!idea;
 
+    // Derive flow file name and scenario ID from flow status store
+    const flowXmlId = folderPath && selectedFlow.title
+      ? buildFlowFilePath(folderPath, selectedFlow.title)
+      : undefined;
+    const scenarioId = flowXmlId
+      ? useFlowStatusStore.getState().byName[flowXmlId]?.scenarioId
+      : undefined;
+
     // Build context menu items
     const contextMenuItems: MenuItem[] = [];
     if (selectedFlow.ideaId) {
       contextMenuItems.push({ label: "Copy Idea ID", icon: MenuIcons.clipboard, onClick: () => void navigator.clipboard.writeText(selectedFlow.ideaId) });
     }
-    if (selectedFlow.title) {
-      contextMenuItems.push({ label: "Copy Flow Title", icon: MenuIcons.clipboard, onClick: () => void navigator.clipboard.writeText(selectedFlow.title) });
+    if (flowXmlId) {
+      contextMenuItems.push({ label: "Copy Flow XML ID", icon: MenuIcons.clipboard, onClick: () => void navigator.clipboard.writeText(flowXmlId) });
+    }
+    if (scenarioId) {
+      contextMenuItems.push({ label: "Copy Scenario ID", icon: MenuIcons.clipboard, onClick: () => void navigator.clipboard.writeText(scenarioId) });
     }
     if (selectedFlow.status === "done" && onDownloadFlow) {
       if (contextMenuItems.length > 0) contextMenuItems.push("separator");
