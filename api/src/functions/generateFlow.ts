@@ -3,7 +3,7 @@ import { callAI, streamAI, AiConfigError, CreditDeniedError } from "../lib/aiCli
 import { downloadBlob, listBlobs } from "../lib/blobClient";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { extractVersionFolder } from "../lib/apiRules";
-import { extractCommonRequiredFields, analyzeCrossStepDependencies, injectCrossStepCaptures, injectSpecRequiredFields, injectEndpointRefs, injectRulesRequiredFields } from "../lib/specRequiredFields";
+import { extractCommonRequiredFields, analyzeCrossStepDependencies, injectCrossStepCaptures, injectSpecRequiredFields, injectEndpointRefs, injectRulesRequiredFields, validateCaptures } from "../lib/specRequiredFields";
 import { readDistilledContent } from "../lib/specDistillCache";
 import { loadAiContext } from "../lib/aiContext";
 import { getIdeasContainer } from "../lib/cosmosClient";
@@ -310,7 +310,9 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 2. **Entity dependencies — ALWAYS create prerequisites**: If a request body contains a foreign-key field referencing another resource (e.g., \`category_id\`, \`parent_id\`, \`folder_id\`, \`group_id\`), you MUST create that resource as a setup step and delete it as a teardown step — even if the field is marked optional/nullable in the schema. In practice, omitting a parent entity often causes runtime failures or places the resource in an unusable state. When in doubt, create the dependency. Check field descriptions for hints like "retrieve from GET /…" which confirm a dependency. Delete child resources before parents in teardown.
 3. **Request body MUST include ALL required fields with EXACT names**: When the spec file documents a request body schema, you MUST include EVERY field listed as \`required\`, using the EXACT field name from the schema. Copy field names character-for-character — different resources use different names (e.g., articles may use \`title\` while categories use \`name\`). Parse the schema carefully — look for \`required: [field1, field2, ...]\` arrays, the **REQUIRED FIELDS** line, "Required" labels, or "(required)" annotations next to properties. For each required field, use: a project variable (\`{{proj.X}}\`) if one matches, a state variable (\`{{state.X}}\`) captured from a prior step, or a sensible test value. Omitting a required field will cause the API call to fail at runtime — this is a critical error. **For prerequisite/dependency steps** (e.g., creating a parent entity) where no spec is provided: check the "Common Required Fields" section at the end of the spec context and include those fields in the request body too.
 4. **Teardown is MANDATORY for every flow**: Every flow — regardless of complexity — MUST end with teardown steps that delete ALL resources created during the flow. The testing environment must be left exactly as it was before the flow ran. Delete child resources before parent. Mark every teardown step with \`<flags teardown="true"/>\`.
-5. **State passing — EXACT capture paths**: Use \`<capture variable="state.X" source="response.data.Y"/>\` then reference \`{{state.X}}\` in later steps. The \`source\` attribute MUST match the EXACT response structure from the spec example. For array responses use index syntax: \`response.data[0].id\`. Never fabricate nested paths — if the spec example shows \`data[0].id\`, do NOT write \`data[0].details.id\`. **CRITICAL: Only capture fields that actually appear in the endpoint's response example/schema.** If the response example for POST /categories shows \`{ data: { id, name, order } }\`, do NOT add a capture for \`version_number\` just because a later step needs it — instead, use a separate step (e.g., GET versions) to obtain that field.
+5. **State passing — EXACT capture paths (ZERO TOLERANCE FOR HALLUCINATION)**: Use \`<capture variable="state.X" source="response.data.Y"/>\` then reference \`{{state.X}}\` in later steps. The \`source\` attribute MUST match the EXACT response structure from the spec example. For array responses use index syntax: \`response.data[0].id\`. Never fabricate nested paths — if the spec example shows \`data[0].id\`, do NOT write \`data[0].details.id\`.
+   **BEFORE adding ANY capture, you MUST verify**: open the spec's response example/schema for THAT SPECIFIC endpoint and confirm the field exists. Different endpoints for the same resource often return DIFFERENT response schemas (e.g., POST /categories returns \`CategorySimpleResponse\` with only \`id, name, order, icon\` — NO \`version_number\`, NO \`slug\`, NO \`status\`). Do NOT assume fields exist based on other endpoints or your general knowledge.
+   **If a later step needs a field not present in any earlier step's response**, add a dedicated GET step to retrieve it — do NOT hallucinate the field into a response that doesn't contain it.
 6. **Unique names**: For resource names, use \`[TEST] Something - {{timestamp}}\`.
 7. **Assertions**: Every step needs at least one \`<assertion type="status" code="…"/>\`. Write operations should also assert \`field-exists\` on the created resource id. **Read the spec file carefully** — use the exact status code and response structure documented there. Do NOT guess.
 8. **HTTP status codes**: Use these defaults unless the spec file explicitly states otherwise:
@@ -324,7 +326,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 12. **Cross-step data flow — CAPTURE fields needed by downstream steps (CRITICAL)**: Before writing any step, scan ALL later steps' request body schemas for required fields. If a later step requires a field (e.g., \`version_number\`, \`slug\`, \`status\`) that appears in an earlier step's RESPONSE example/schema, you MUST:
    - Add a \`<capture variable="state.fieldName" source="response.data.fieldName"/>\` to the earlier step
    - Use \`{{state.fieldName}}\` in the later step's request body
-   **IMPORTANT**: Only add captures for fields that ACTUALLY EXIST in the producer step's response example. Read the response example carefully — if the field is not listed there, do NOT assume it exists. If a downstream step needs a field that no prior step's response contains, add a dedicated step to fetch it (e.g., a GET list/versions endpoint). Never hallucinate response fields.
+   **IMPORTANT**: Only add captures for fields that ACTUALLY EXIST in the producer step's response example. Read the response example carefully — if the field is not listed there, do NOT assume it exists. Many create endpoints return a SIMPLIFIED response schema (e.g., only \`id\`, \`name\`, \`order\`) that is DIFFERENT from the full GET response. If a downstream step needs a field that no prior step's response contains, you MUST add a dedicated GET step to fetch it — NEVER add a capture for a field that isn't in the response schema.
 
 ## Output format — MANDATORY
 
@@ -675,6 +677,8 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
           try { xml = injectEndpointRefs(xml, specContext); } catch (e) { console.warn("[generateFlow] injectEndpointRefs failed:", e); }
           // Rules/skills field injection FIFTH (catches fields from diagnostic lessons, e.g. workspace_id)
           try { xml = injectRulesRequiredFields(xml, ctx.rules, projVars); } catch (e) { console.warn("[generateFlow] injectRulesRequiredFields failed:", e); }
+          // Capture validation LAST — remove captures for fields not in the spec response
+          try { xml = validateCaptures(xml, specContext); } catch (e) { console.warn("[generateFlow] validateCaptures failed:", e); }
 
           // Send the corrected XML so the frontend can replace the raw streamed text
           const correctedData = `data: ${JSON.stringify({ corrected: xml })}\n\n`;
@@ -746,6 +750,8 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       xml = injectEndpointRefs(xml, specContext);
       // Rules/skills field injection FIFTH (catches fields from diagnostic lessons, e.g. workspace_id)
       xml = injectRulesRequiredFields(xml, ctx.rules, projVars);
+      // Capture validation LAST — remove captures for fields not in the spec response
+      xml = validateCaptures(xml, specContext);
 
       return {
         status: 200,

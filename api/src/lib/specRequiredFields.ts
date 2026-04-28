@@ -1169,8 +1169,28 @@ export function injectEndpointRefs(xml: string, specContext: string): string {
     // Skip if already has endpointRef
     if (step.fullMatch.includes("<endpointRef>")) continue;
 
-    const key = `${step.method}|${normalizePath(step.path)}`;
-    const fileName = endpointMap.get(key);
+    const normStepPath = normalizePath(step.path);
+    const exactKey = `${step.method}|${normStepPath}`;
+    let fileName = endpointMap.get(exactKey);
+
+    // Fuzzy fallback: match by method + path suffix (last 2 segments after normalization).
+    // Handles cases where the AI uses a slightly different path prefix
+    // (e.g., /v3/projects/*/categories vs /v3/projects/*/workspaces/*/categories)
+    if (!fileName) {
+      const stepSuffix = extractPathSuffix(normStepPath, 2);
+      if (stepSuffix) {
+        for (const [mapKey, mapFile] of endpointMap) {
+          const [mapMethod, mapPath] = mapKey.split("|", 2);
+          if (mapMethod !== step.method) continue;
+          if (extractPathSuffix(mapPath, 2) === stepSuffix) {
+            fileName = mapFile;
+            console.log(`[injectEndpointRefs] Fuzzy match: step ${step.method} ${step.path} → ${mapFile} (suffix: ${stepSuffix})`);
+            break;
+          }
+        }
+      }
+    }
+
     if (!fileName) continue;
 
     // Insert <endpointRef> after <name>...</name>
@@ -1194,6 +1214,101 @@ export function injectEndpointRefs(xml: string, specContext: string): string {
   }
 
   return result;
+}
+
+/** Extract the last N segments of a normalized path for fuzzy matching. */
+function extractPathSuffix(normPath: string, segments: number): string | null {
+  const parts = normPath.split("/").filter(Boolean);
+  if (parts.length < segments) return null;
+  return parts.slice(-segments).join("/");
+}
+
+// ── Capture Validation ───────────────────────────────────────────────
+
+/**
+ * Deterministic post-processor: validate that each step's <capture> elements
+ * only reference fields that actually exist in the matched spec's response
+ * schema. Removes hallucinated captures (e.g., capturing version_number from
+ * a create endpoint that only returns id, name, order).
+ *
+ * Only validates steps whose method+path match a spec endpoint in the context.
+ * Steps without a matching spec (setup/teardown) are left untouched.
+ */
+export function validateCaptures(xml: string, specContext: string): string {
+  if (!specContext) return xml;
+
+  const specEndpoints = parseSpecEndpoints(specContext);
+  if (specEndpoints.length === 0) return xml;
+
+  const xmlSteps = parseXmlSteps(xml);
+  if (xmlSteps.length === 0) return xml;
+
+  let result = xml;
+  let removed = 0;
+
+  // Process in reverse to preserve string offsets
+  for (let i = xmlSteps.length - 1; i >= 0; i--) {
+    const step = xmlSteps[i];
+    const normStepPath = normalizePath(step.path);
+
+    // Match step to spec endpoint (exact then fuzzy)
+    let spec = specEndpoints.find(ep =>
+      ep.method === step.method && normalizePath(ep.path) === normStepPath
+    );
+    if (!spec) {
+      const stepSuffix = extractPathSuffix(normStepPath, 2);
+      if (stepSuffix) {
+        spec = specEndpoints.find(ep =>
+          ep.method === step.method && extractPathSuffix(normalizePath(ep.path), 2) === stepSuffix
+        );
+      }
+    }
+
+    // No spec match — can't validate, leave untouched
+    if (!spec || spec.responseFields.length === 0) continue;
+
+    // Find all capture elements in this step
+    const captureRe = /<capture\s+variable="state\.(\w+)"\s+source="response\.(?:data\.)?(\w+)"[^/]*\/>/g;
+    const badCaptures: string[] = [];
+    let cm: RegExpExecArray | null;
+    const stepXml = step.fullMatch;
+    while ((cm = captureRe.exec(stepXml)) !== null) {
+      const sourceField = cm[2]; // e.g. "version_number"
+      // Check if this field exists in the spec's response fields
+      if (!spec.responseFields.includes(sourceField)) {
+        badCaptures.push(cm[0]);
+        console.log(`[validateCaptures] Removing hallucinated capture: state.${cm[1]} from response.data.${sourceField} (step: ${step.method} ${step.path}, available: ${spec.responseFields.join(", ")})`);
+      }
+    }
+
+    if (badCaptures.length === 0) continue;
+
+    // Remove bad captures from the step XML
+    let newStepXml = stepXml;
+    for (const bad of badCaptures) {
+      // Remove the capture line (including leading whitespace and trailing newline)
+      newStepXml = newStepXml.replace(new RegExp(`\\s*${escapeRegex(bad)}\\s*\n?`), "\n");
+      removed++;
+    }
+
+    // If <captures> is now empty, remove the entire block
+    newStepXml = newStepXml.replace(/\s*<captures>\s*<\/captures>\s*/g, "\n");
+
+    const pos = result.indexOf(stepXml);
+    if (pos >= 0) {
+      result = result.slice(0, pos) + newStepXml + result.slice(pos + stepXml.length);
+    }
+  }
+
+  if (removed > 0) {
+    console.log(`[validateCaptures] Removed ${removed} hallucinated capture(s)`);
+  }
+
+  return result;
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 // ── Rules-Aware Field Injection ──────────────────────────────────────
