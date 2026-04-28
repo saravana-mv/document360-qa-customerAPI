@@ -179,6 +179,10 @@ function parseEndpoint(
       if (schemaRef?.$ref) {
         schemaName = schemaRef.$ref.split("/").pop() ?? "";
         schema = resolveRef(schemaRef.$ref, schemas);
+      } else if (schemaRef && (schemaRef as Record<string, unknown>).type) {
+        // Inline schema (no $ref) — use it directly
+        schema = schemaRef as unknown as Record<string, unknown>;
+        schemaName = (schema.title as string) ?? "inline";
       }
 
       if (schema) {
