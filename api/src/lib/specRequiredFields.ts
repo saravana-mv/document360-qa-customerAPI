@@ -1269,6 +1269,10 @@ export function injectEndpointRefs(xml: string, specContext: string): string {
     }
   }
 
+  console.log(`[injectEndpointRefs] fileHeaders: ${fileHeaders.map(h => h.name).join(", ")}`);
+  console.log(`[injectEndpointRefs] endpointMap (${endpointMap.size}):`,
+    Array.from(endpointMap.entries()).map(([k, v]) => `${k} → ${v.join(", ")}`).join(" | "));
+
   if (endpointMap.size === 0) return xml;
 
   const xmlSteps = parseXmlSteps(xml);

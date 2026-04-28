@@ -161,6 +161,7 @@ export function filterRelevantSpecs(idea: IdeaLike, allSpecFiles: string[]): str
         || filename.startsWith("delete-") || filename === "delete.md") {
         for (const folder of primaryFolders) {
           if (lower.includes(folder.toLowerCase() + "/")) {
+            console.log(`[filterRelevantSpecs] Auto-include same-folder: ${file} (folder: ${folder})`);
             needed.add(file);
             break;
           }
@@ -168,6 +169,7 @@ export function filterRelevantSpecs(idea: IdeaLike, allSpecFiles: string[]): str
       }
     }
 
+    console.log(`[filterRelevantSpecs] Final selection (${needed.size}):`, Array.from(needed));
     return Array.from(needed);
   }
 
