@@ -357,7 +357,9 @@ async function buildSpecContext(specFiles: string[], projectId: string): Promise
           contents.map((c, i) => {
             const displayName = projPrefix && mdFiles[i].name.startsWith(projPrefix)
               ? mdFiles[i].name.slice(projPrefix.length) : mdFiles[i].name;
-            return `## ${displayName}\n\n${c}`;
+            // Strip inner "## filename.md" header from splitter output
+            const cleaned = c.replace(/^(<!--[^>]*-->\n)?## [\w.-]+\.md\s*\n/, "");
+            return `## ${displayName}\n\n${cleaned}`;
           }),
         ),
         failedFiles: [],
@@ -374,7 +376,12 @@ async function buildSpecContext(specFiles: string[], projectId: string): Promise
     capped.map(async (name) => {
       const blobPath = scopedPath(projectId, name);
       try {
-        const content = await readDistilledContent(blobPath);
+        let content = await readDistilledContent(blobPath);
+        // Strip the inner "## filename.md" header that the swagger splitter embeds
+        // at the top of each file. Without this, injectEndpointRefs maps endpoints
+        // to the bare inner header (e.g. "create.md") instead of the full-path
+        // outer header we add below (e.g. "V3/categories/create.md").
+        content = content.replace(/^(<!--[^>]*-->\n)?## [\w.-]+\.md\s*\n/, "");
         return `## ${name}\n\n${content}`;
       } catch (err) {
         console.error(`[generateFlow] Failed to read spec: ${blobPath}`, err);

@@ -637,8 +637,15 @@ describe("CRUD lifecycle integration (splitter filenames)", () => {
     description: "Full CRUD lifecycle for categories",
   };
 
-  // Spec context as buildSpecContext would produce it (distilled format)
-  const specContext = `## V3/categories/create.md
+  // Helper: strip inner "## filename.md" header — same logic as buildSpecContext
+  function stripInnerHeader(content: string): string {
+    return content.replace(/^(<!--[^>]*-->\n)?## [\w.-]+\.md\s*\n/, "");
+  }
+
+  // Raw distilled content as readDistilledContent returns it — includes the inner
+  // "## filename.md" header from the swagger splitter (this is the actual format)
+  const rawDistilledCreate = `<!-- distill-v6 -->
+## create.md
 
 ## Endpoint: POST /v3/projects/{project_id}/categories
 **Create a category**
@@ -654,11 +661,10 @@ describe("CRUD lifecycle integration (splitter filenames)", () => {
 | \`icon\` | string | no | Icon class |
 
 ### Response (201)
-Key fields: response.data.id, response.data.name, response.data.order, response.data.icon
+Key fields: response.data.id, response.data.name, response.data.order, response.data.icon`;
 
----
-
-## V3/categories/create-categories-bulk.md
+  const rawDistilledBulk = `<!-- distill-v6 -->
+## create-categories-bulk.md
 
 ## Endpoint: POST /v3/projects/{project_id}/categories
 **Bulk create categories**
@@ -668,21 +674,19 @@ Key fields: response.data.id, response.data.name, response.data.order, response.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| \`categories\` | array | **YES** | Array of category objects |
+| \`categories\` | array | **YES** | Array of category objects |`;
 
----
-
-## V3/categories/get.md
+  const rawDistilledGet = `<!-- distill-v6 -->
+## get.md
 
 ## Endpoint: GET /v3/projects/{project_id}/categories/{id}
 **Get a single category**
 
 ### Response (200)
-Key fields: response.data.id, response.data.name, response.data.order, response.data.icon, response.data.workspace_id
+Key fields: response.data.id, response.data.name, response.data.order, response.data.icon, response.data.workspace_id`;
 
----
-
-## V3/categories/patch.md
+  const rawDistilledPatch = `<!-- distill-v6 -->
+## patch.md
 
 ## Endpoint: PATCH /v3/projects/{project_id}/categories/{id}
 **Update a category**
@@ -697,18 +701,46 @@ Key fields: response.data.id, response.data.name, response.data.order, response.
 | \`order\` | integer | no | Updated order |
 
 ### Response (200)
-Key fields: response.data.id, response.data.name, response.data.icon
+Key fields: response.data.id, response.data.name, response.data.icon`;
 
----
-
-## V3/categories/delete.md
+  const rawDistilledDelete = `<!-- distill-v6 -->
+## delete.md
 
 ## Endpoint: DELETE /v3/projects/{project_id}/categories/{id}
 **Delete a category**
 
 ### Response (204)
-No content.
-`;
+No content.`;
+
+  // BAD spec context: inner headers NOT stripped — reproduces the actual bug
+  const specContextWithInnerHeaders = [
+    `## V3/categories/create.md\n\n${rawDistilledCreate}`,
+    `## V3/categories/create-categories-bulk.md\n\n${rawDistilledBulk}`,
+    `## V3/categories/get.md\n\n${rawDistilledGet}`,
+    `## V3/categories/patch.md\n\n${rawDistilledPatch}`,
+    `## V3/categories/delete.md\n\n${rawDistilledDelete}`,
+  ].join("\n\n---\n\n");
+
+  // GOOD spec context: inner headers stripped — what buildSpecContext now produces
+  const specContext = [
+    `## V3/categories/create.md\n\n${stripInnerHeader(rawDistilledCreate)}`,
+    `## V3/categories/create-categories-bulk.md\n\n${stripInnerHeader(rawDistilledBulk)}`,
+    `## V3/categories/get.md\n\n${stripInnerHeader(rawDistilledGet)}`,
+    `## V3/categories/patch.md\n\n${stripInnerHeader(rawDistilledPatch)}`,
+    `## V3/categories/delete.md\n\n${stripInnerHeader(rawDistilledDelete)}`,
+  ].join("\n\n---\n\n");
+
+  // Verify the bug: inner headers cause endpointMap to use bare filenames
+  it("BUG REPRO: inner headers cause injectEndpointRefs to use bare filenames", () => {
+    const result = injectEndpointRefs(aiGeneratedXml, specContextWithInnerHeaders);
+    // With inner headers, the endpoint maps to "create.md" (bare) — the bug
+    const step1 = result.match(/<step number="1">[\s\S]*?<\/step>/)?.[0] ?? "";
+    // The bare "create.md" is in knownFiles AND is a valid candidate → kept as-is!
+    expect(step1).toContain("<endpointRef>create.md</endpointRef>");
+    // This proves the bug exists when inner headers are present
+  });
+
+  // Now verify all the fixes work with the CORRECT spec context (inner headers stripped)
 
   // The AI-generated XML with ALL the issues the user reported
   const aiGeneratedXml = `<?xml version="1.0" encoding="UTF-8"?>
