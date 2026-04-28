@@ -64,6 +64,7 @@ jest.mock("../lib/specRequiredFields", () => ({
   analyzeCrossStepDependencies: jest.fn().mockReturnValue(""),
   injectCrossStepCaptures: jest.fn((xml: string) => xml),
   injectSpecRequiredFields: jest.fn((xml: string) => xml),
+  stripExtraRequestFields: jest.fn((xml: string) => xml),
   injectEndpointRefs: jest.fn((xml: string) => xml),
   injectRulesRequiredFields: jest.fn((xml: string) => xml),
   validateCaptures: jest.fn((xml: string) => xml),
