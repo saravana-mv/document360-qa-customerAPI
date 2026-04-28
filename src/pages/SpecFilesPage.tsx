@@ -2392,6 +2392,11 @@ export function SpecFilesPage() {
                           thisLevelOnly={thisLevelOnly}
                           onToggleThisLevel={(hasSubLevelFlows || hasSubLevelIdeas) ? () => setThisLevelOnly((v) => !v) : undefined}
                           onCancelGeneration={generatingFlows ? handleCancelGeneration : undefined}
+                          onCopyFlowId={(flow) => {
+                            const folder = parentFolderOf(activePath);
+                            const path = buildFlowFilePath(folder, flow.title);
+                            navigator.clipboard.writeText(path);
+                          }}
                         />
                       </div>
                       <ResizeHandle width={flowsWidth} onResize={setFlowsWidth} minWidth={180} maxWidth={500} />

@@ -120,6 +120,14 @@ export function TagNode({ tag, tests }: TagNodeProps) {
     });
   }
 
+  if (flowFileName) {
+    menuItems.push({
+      label: "Copy Flow XML ID",
+      icon: <ClipboardIcon />,
+      onClick: () => { navigator.clipboard.writeText(flowFileName); },
+    });
+  }
+
   if (canLockUnlock && flowFileName) {
     if (isLocked) {
       menuItems.push({

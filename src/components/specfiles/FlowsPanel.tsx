@@ -44,6 +44,8 @@ interface Props {
   onToggleThisLevel?: () => void;
   /** Cancel the in-progress batch flow generation */
   onCancelGeneration?: () => void;
+  /** Copy the flow XML blob path to clipboard */
+  onCopyFlowId?: (flow: GeneratedFlow) => void;
 }
 
 function formatRelativeTime(iso: string): string {
@@ -86,7 +88,7 @@ const STATUS_ICON: Record<string, React.ReactNode> = {
   ),
 };
 
-export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickFlow, onDownloadFlow, onDownloadAll, onDeleteFlow, onDeleteAllFlows, onStartFlowChat, onMarkForImplementation, onMarkSelectedForImplementation, markedIds, markingIds, selectedFlowIds, onToggleSelectFlow, onSelectAllFlows, onDeselectAllFlows, thisLevelOnly, onToggleThisLevel, onCancelGeneration }: Props) {
+export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickFlow, onDownloadFlow, onDownloadAll, onDeleteFlow, onDeleteAllFlows, onStartFlowChat, onMarkForImplementation, onMarkSelectedForImplementation, markedIds, markingIds, selectedFlowIds, onToggleSelectFlow, onSelectAllFlows, onDeselectAllFlows, thisLevelOnly, onToggleThisLevel, onCancelGeneration, onCopyFlowId }: Props) {
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [deleteFlowId, setDeleteFlowId] = useState<string | null>(null);
 
@@ -322,6 +324,9 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
                         disabled: isMarking || !isValid,
                       });
                       items.push({ label: "Download XML", icon: MenuIcons.download, onClick: () => onDownloadFlow(flow) });
+                      if (onCopyFlowId) {
+                        items.push({ label: "Copy Flow XML ID", icon: MenuIcons.clipboard, onClick: () => onCopyFlowId(flow) });
+                      }
                       items.push("separator");
                     }
                     items.push({
