@@ -1,7 +1,8 @@
-// Editable markdown editor for _skills.md files using CodeMirror 6.
-// Provides syntax highlighting, line numbers, save functionality, and version history with diff.
+// Editable markdown editor for _skills.md files.
+// Provides rendered/raw view toggle, search, save, AI editing, and version history with diff.
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import MDEditor from "@uiw/react-md-editor";
 import { diffLines } from "diff";
 import { uploadSpecFile, getSpecFileContent, listSkillsVersions, sendSkillsChat } from "../../lib/api/specFilesApi";
 import type { SkillsVersion } from "../../lib/api/specFilesApi";
@@ -520,6 +521,17 @@ export function SkillsEditor({ path, content, onSaved }: Props) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // View mode: rendered markdown vs raw editor
+  const [raw, setRaw] = useState(true); // default to raw (editable)
+
+  // Search state
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [matchIndex, setMatchIndex] = useState(0);
+  const [matchCount, setMatchCount] = useState(0);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   // Version history state
   const [historyOpen, setHistoryOpen] = useState(false);
   const [versions, setVersions] = useState<SkillsVersion[]>([]);
@@ -696,6 +708,132 @@ export function SkillsEditor({ path, content, onSaved }: Props) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [changed, saving, handleSave]);
 
+  // ── Search helpers (mirrors MarkdownViewer) ──────────────────────────────
+
+  const clearHighlights = useCallback(() => {
+    if (!contentRef.current) return;
+    const marks = contentRef.current.querySelectorAll("mark[data-search-highlight]");
+    marks.forEach((mark) => {
+      const parent = mark.parentNode;
+      if (parent) {
+        parent.replaceChild(document.createTextNode(mark.textContent ?? ""), mark);
+        parent.normalize();
+      }
+    });
+  }, []);
+
+  const highlight = useCallback((term: string, scrollToIdx: number) => {
+    if (!contentRef.current) return 0;
+    clearHighlights();
+    if (!term) return 0;
+
+    const walker = document.createTreeWalker(contentRef.current, NodeFilter.SHOW_TEXT);
+    const textNodes: Text[] = [];
+    let node: Text | null;
+    while ((node = walker.nextNode() as Text | null)) textNodes.push(node);
+
+    const lowerTerm = term.toLowerCase();
+    let totalMatches = 0;
+
+    for (const textNode of textNodes) {
+      const text = textNode.textContent ?? "";
+      const lowerText = text.toLowerCase();
+      if (!lowerText.includes(lowerTerm)) continue;
+
+      const frag = document.createDocumentFragment();
+      let lastIdx = 0;
+      let searchIdx = lowerText.indexOf(lowerTerm, lastIdx);
+
+      while (searchIdx !== -1) {
+        if (searchIdx > lastIdx) frag.appendChild(document.createTextNode(text.slice(lastIdx, searchIdx)));
+        const mark = document.createElement("mark");
+        mark.setAttribute("data-search-highlight", "true");
+        mark.textContent = text.slice(searchIdx, searchIdx + term.length);
+        mark.style.backgroundColor = totalMatches === scrollToIdx ? "#fff176" : "#fff9c4";
+        mark.style.color = "#1f2328";
+        mark.style.borderRadius = "2px";
+        mark.style.padding = "0 1px";
+        if (totalMatches === scrollToIdx) {
+          mark.style.outline = "2px solid #f9a825";
+          mark.setAttribute("data-active", "true");
+        }
+        frag.appendChild(mark);
+        totalMatches++;
+        lastIdx = searchIdx + term.length;
+        searchIdx = lowerText.indexOf(lowerTerm, lastIdx);
+      }
+
+      if (lastIdx < text.length) frag.appendChild(document.createTextNode(text.slice(lastIdx)));
+      textNode.parentNode?.replaceChild(frag, textNode);
+    }
+
+    const active = contentRef.current.querySelector("mark[data-active]");
+    active?.scrollIntoView({ block: "center", behavior: "smooth" });
+    return totalMatches;
+  }, [clearHighlights]);
+
+  // Run highlight when search term, index, or view mode changes
+  useEffect(() => {
+    // Only highlight in rendered mode (DOM-based search)
+    if (!raw && searchTerm) {
+      const count = highlight(searchTerm, matchIndex);
+      setMatchCount(count);
+    } else if (!searchTerm) {
+      setMatchCount(0);
+    }
+  }, [searchTerm, matchIndex, highlight, raw, draft]);
+
+  // For raw mode, count matches in the text directly
+  useEffect(() => {
+    if (raw && searchTerm) {
+      const lowerTerm = searchTerm.toLowerCase();
+      const lowerDraft = draft.toLowerCase();
+      let count = 0;
+      let idx = lowerDraft.indexOf(lowerTerm);
+      while (idx !== -1) {
+        count++;
+        idx = lowerDraft.indexOf(lowerTerm, idx + 1);
+      }
+      setMatchCount(count);
+    }
+  }, [raw, searchTerm, draft]);
+
+  // Ctrl+F to open search
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        e.preventDefault();
+        setSearchOpen(true);
+        setTimeout(() => searchInputRef.current?.focus(), 0);
+      }
+      if (e.key === "Escape" && searchOpen) {
+        setSearchOpen(false);
+        setSearchTerm("");
+        setMatchIndex(0);
+        clearHighlights();
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [searchOpen, clearHighlights]);
+
+  function handleSearchNext() {
+    if (matchCount === 0) return;
+    setMatchIndex((prev) => (prev + 1) % matchCount);
+  }
+
+  function handleSearchPrev() {
+    if (matchCount === 0) return;
+    setMatchIndex((prev) => (prev - 1 + matchCount) % matchCount);
+  }
+
+  function handleSearchClose() {
+    setSearchOpen(false);
+    setSearchTerm("");
+    setMatchIndex(0);
+    clearHighlights();
+  }
+
   const fileName = path.split("/").pop() ?? "Skills.md";
 
   // Determine what to show in the main area
@@ -712,9 +850,34 @@ export function SkillsEditor({ path, content, onSaved }: Props) {
         <span className="text-sm font-semibold text-[#1f2328]">{fileName}</span>
         <span className="text-xs text-[#656d76]">API rules and enum aliases for AI generation</span>
 
+        {/* Rendered / Raw toggle */}
+        <div className="flex items-center shrink-0 rounded-md overflow-hidden border border-[#d1d9e0] text-[13px] ml-3">
+          <button
+            onClick={() => setRaw(false)}
+            className={`px-2.5 py-1 transition-colors ${!raw ? "bg-[#0969da] text-white" : "text-[#656d76] hover:bg-[#f6f8fa]"}`}
+          >
+            Rendered
+          </button>
+          <button
+            onClick={() => setRaw(true)}
+            className={`px-2.5 py-1 transition-colors ${raw ? "bg-[#0969da] text-white" : "text-[#656d76] hover:bg-[#f6f8fa]"}`}
+          >
+            Raw
+          </button>
+        </div>
+
         <div className="ml-auto flex items-center gap-2">
           {error && <span className="text-sm text-[#d1242f]">{error}</span>}
           {saved && <span className="text-sm text-[#1a7f37] font-medium">Saved</span>}
+          <button
+            onClick={() => { setSearchOpen(!searchOpen); setTimeout(() => searchInputRef.current?.focus(), 0); }}
+            title="Search (Ctrl+F)"
+            className={`shrink-0 w-7 h-7 flex items-center justify-center rounded-md transition-colors border ${searchOpen ? "text-[#0969da] bg-[#ddf4ff] border-[#b6e3ff]" : "text-[#656d76] hover:text-[#1f2328] hover:bg-[#eef1f6] border-transparent hover:border-[#d1d9e0]"}`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            </svg>
+          </button>
           <button
             onClick={() => { setAiPanelOpen(!aiPanelOpen); if (!aiPanelOpen) { setHistoryOpen(false); setDiffMode(false); } }}
             className={`p-1.5 rounded-md transition-colors ${
@@ -747,6 +910,41 @@ export function SkillsEditor({ path, content, onSaved }: Props) {
         </div>
       </div>
 
+      {/* Search bar */}
+      {searchOpen && (
+        <div className="flex items-center gap-2 px-4 py-1.5 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+          <svg className="w-3.5 h-3.5 text-[#656d76] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+          </svg>
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchTerm}
+            onChange={(e) => { setSearchTerm(e.target.value); setMatchIndex(0); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.shiftKey ? handleSearchPrev() : handleSearchNext(); }
+              if (e.key === "Escape") handleSearchClose();
+            }}
+            placeholder="Search..."
+            className="flex-1 text-sm border border-[#d1d9e0] rounded-md px-2 py-1 focus:outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da]"
+          />
+          {searchTerm && (
+            <span className="text-xs text-[#656d76] shrink-0 tabular-nums">
+              {matchCount > 0 ? `${matchIndex + 1} / ${matchCount}` : "No results"}
+            </span>
+          )}
+          <button onClick={handleSearchPrev} disabled={matchCount === 0} title="Previous (Shift+Enter)" className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-[#656d76] hover:text-[#1f2328] hover:bg-[#eef1f6] disabled:opacity-30 disabled:pointer-events-none transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" /></svg>
+          </button>
+          <button onClick={handleSearchNext} disabled={matchCount === 0} title="Next (Enter)" className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-[#656d76] hover:text-[#1f2328] hover:bg-[#eef1f6] disabled:opacity-30 disabled:pointer-events-none transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+          </button>
+          <button onClick={handleSearchClose} title="Close search" className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-[#656d76] hover:text-[#1f2328] hover:bg-[#eef1f6] transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+      )}
+
       {/* Body: editor/preview/diff + optional sidebar */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Main area */}
@@ -761,7 +959,7 @@ export function SkillsEditor({ path, content, onSaved }: Props) {
             />
           ) : showPreview ? (
             <ReadOnlyPreview content={previewContent!} label={previewLabel} />
-          ) : (
+          ) : raw ? (
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -769,6 +967,22 @@ export function SkillsEditor({ path, content, onSaved }: Props) {
               className="flex-1 w-full p-4 text-[13px] font-mono text-[#1f2328] leading-relaxed bg-white resize-none outline-none border-none"
               style={{ tabSize: 2 }}
             />
+          ) : (
+            <div className="flex-1 overflow-auto" ref={contentRef}>
+              <div className="p-6 md-wrap-fix" data-color-mode="light">
+                <style>{`
+                  .md-wrap-fix .wmde-markdown pre > code { white-space: pre-wrap !important; word-break: break-word !important; overflow-wrap: break-word !important; }
+                  .md-wrap-fix .wmde-markdown pre { white-space: pre-wrap !important; overflow-wrap: break-word !important; }
+                  .md-wrap-fix .wmde-markdown table { table-layout: fixed; width: 100%; }
+                  .md-wrap-fix .wmde-markdown td, .md-wrap-fix .wmde-markdown th { white-space: normal !important; word-break: break-word !important; }
+                  .md-wrap-fix .wmde-markdown p, .md-wrap-fix .wmde-markdown li, .md-wrap-fix .wmde-markdown blockquote { overflow-wrap: break-word !important; word-break: break-word !important; }
+                `}</style>
+                <MDEditor.Markdown
+                  source={draft}
+                  style={{ background: "transparent", fontFamily: "inherit" }}
+                />
+              </div>
+            </div>
           )}
         </div>
 
