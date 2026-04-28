@@ -8,9 +8,9 @@
  *      node scripts/diagnose.mjs --flow <flowXmlId> ["problem statement"]
  *      node scripts/diagnose.mjs --flow V3/bulk-create.flow.xml "step 3 returns 404"
  *
- *   2. By Scenario ID (existing behavior):
- *      node scripts/diagnose.mjs <scenarioId> [stepNumber]
- *      node scripts/diagnose.mjs ebeb00a9-... 3
+ *   2. By Scenario ID:
+ *      node scripts/diagnose.mjs --scenario <scenarioId> [stepNumber] ["problem statement"]
+ *      node scripts/diagnose.mjs --scenario ebeb00a9-... 3
  *
  * Environment (auto-loaded from api/local.settings.json if not set):
  *   COSMOS_CONNECTION_STRING
@@ -78,15 +78,27 @@ if (args[0] === "--flow") {
     console.error("Usage: node scripts/diagnose.mjs --flow <flowXmlId> [problem statement]");
     process.exit(1);
   }
-} else {
-  scenarioId = args[0];
-  stepNumber = args[1] ? parseInt(args[1], 10) : null;
+} else if (args[0] === "--scenario") {
+  mode = "scenario";
+  scenarioId = args[1];
+  stepNumber = args[2] ? parseInt(args[2], 10) : null;
+  problemStatement = args.slice(stepNumber ? 3 : 2).join(" ") || null;
   if (!scenarioId) {
-    console.error("Usage:");
-    console.error("  node scripts/diagnose.mjs --flow <flowXmlId> [problem statement]");
-    console.error("  node scripts/diagnose.mjs <scenarioId> [stepNumber]");
+    console.error("Usage: node scripts/diagnose.mjs --scenario <scenarioId> [stepNumber] [problem statement]");
     process.exit(1);
   }
+} else {
+  // Show help if no recognized flag
+  console.error("FlowForge Diagnostic Script");
+  console.error("");
+  console.error("Usage:");
+  console.error("  node scripts/diagnose.mjs --flow <flowXmlId> [problem statement]");
+  console.error("  node scripts/diagnose.mjs --scenario <scenarioId> [stepNumber] [problem statement]");
+  console.error("");
+  console.error("Examples:");
+  console.error("  node scripts/diagnose.mjs --flow V3/articles/create-article.flow.xml \"step 3 returns 404\"");
+  console.error("  node scripts/diagnose.mjs --scenario ebeb00a9-b3ef-45f4-9cde-7631d4bb9adb 3");
+  process.exit(1);
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -203,6 +215,7 @@ if (mode === "flow") {
   console.log(`Mode:          Scenario ID`);
   console.log(`Scenario ID:   ${scenarioId}`);
   if (stepNumber) console.log(`Step focus:    ${stepNumber}`);
+  if (problemStatement) console.log(`Problem:       ${problemStatement}`);
 
   section("1. Looking up flow document in Cosmos DB");
 
