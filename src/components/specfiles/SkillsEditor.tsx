@@ -59,9 +59,9 @@ interface VersionEntry {
 // ── CodeMirror theme ─────────────────────────────────────────────────────────
 
 const baseTheme = EditorView.theme({
-  "&": { fontSize: "13px" },
-  "&.cm-editor": { height: "100%", overflow: "hidden" },
-  ".cm-scroller": { fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace", overflow: "auto !important" },
+  "&": { fontSize: "13px", height: "100%", maxHeight: "100%" },
+  "&.cm-editor": { height: "100%", maxHeight: "100%" },
+  ".cm-scroller": { fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace", overflow: "auto" },
   ".cm-gutters": { backgroundColor: "#f6f8fa", borderRight: "1px solid #d1d9e0" },
   ".cm-activeLineGutter": { backgroundColor: "#ddf4ff" },
   ".cm-activeLine": { backgroundColor: "#ddf4ff50" },
@@ -267,7 +267,7 @@ function ReadOnlyPreview({ content, label }: { content: string; label: string })
       <div className="flex items-center gap-2 px-4 h-8 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
         <span className="text-xs text-[#656d76]">Viewing: {label}</span>
       </div>
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0">
         <CodeMirror
           value={content}
           height="100%"
@@ -776,7 +776,7 @@ export function SkillsEditor({ path, content, onSaved }: Props) {
       {/* Body: editor/preview/diff + optional sidebar */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Main area */}
-        <div className="flex-1 min-w-0 h-full overflow-hidden">
+        <div className="flex-1 min-w-0 flex flex-col min-h-0">
           {diffMode ? (
             <DiffView
               labelA={diffA.label}
@@ -788,20 +788,22 @@ export function SkillsEditor({ path, content, onSaved }: Props) {
           ) : showPreview ? (
             <ReadOnlyPreview content={previewContent!} label={previewLabel} />
           ) : (
-            <CodeMirror
-              value={draft}
-              height="100%"
-              theme={githubLight}
-              extensions={[markdown(), baseTheme, EditorView.lineWrapping]}
-              onChange={setDraft}
-              basicSetup={{
-                lineNumbers: true,
-                foldGutter: true,
-                highlightActiveLine: true,
-                highlightActiveLineGutter: true,
-                searchKeymap: true,
-              }}
-            />
+            <div className="flex-1 min-h-0">
+              <CodeMirror
+                value={draft}
+                height="100%"
+                theme={githubLight}
+                extensions={[markdown(), baseTheme, EditorView.lineWrapping]}
+                onChange={setDraft}
+                basicSetup={{
+                  lineNumbers: true,
+                  foldGutter: true,
+                  highlightActiveLine: true,
+                  highlightActiveLineGutter: true,
+                  searchKeymap: true,
+                }}
+              />
+            </div>
           )}
         </div>
 
