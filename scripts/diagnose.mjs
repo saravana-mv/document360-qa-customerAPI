@@ -184,26 +184,54 @@ if (mode === "flow") {
         console.error("  Ambiguous — set PROJECT_ID or use a more specific flow path.");
         process.exit(1);
       } else {
-        // Not in Cosmos at all — try blob storage across all projects
-        console.log(`  Not found in Cosmos. Trying blob storage...`);
-        if (hasBlobAccess) {
-          const { resources: projects } = await db.container("projects").items.query(
-            "SELECT c.id FROM c OFFSET 0 LIMIT 10"
-          ).fetchAll();
-          for (const p of projects) {
-            try {
-              const content = await downloadBlob("spec-files", `${p.id}/${flowXmlId}`);
-              projectId = p.id;
-              flowXml = content;
-              console.log(`  Found in blob storage (project: ${projectId}, ${content.length} chars)`);
+        // Not in flows container — try ideas container (pre-scenario flows are stored there)
+        console.log(`  Not in flows container. Searching ideas container for generated flow XML...`);
+        const vFolder = flowXmlId.split("/")[0]; // e.g. "V3"
+        const { resources: ideaDocs } = await db.container("ideas").items.query({
+          query: "SELECT * FROM c WHERE STARTSWITH(c.id, @prefix)",
+          parameters: [{ name: "@prefix", value: `ideas:${vFolder}` }],
+        }).fetchAll();
+
+        for (const doc of ideaDocs) {
+          const flows = doc.generatedFlows ?? [];
+          for (const gf of flows) {
+            // Match by slug: build the expected path from idea title
+            const slug = gf.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").replace(/-+/g, "-").slice(0, 71);
+            const folder = doc.folderPath ?? doc.id.replace(/^ideas:/, "");
+            const expectedPath = `${folder}/${slug}.flow.xml`;
+            if (expectedPath === flowXmlId || gf.title === flowXmlId) {
+              flowXml = gf.xml;
+              projectId = doc.projectId;
+              console.log(`  Found in ideas container! (project: ${projectId})`);
+              console.log(`  Idea title:  ${gf.title}`);
+              console.log(`  Status:      ${gf.status}`);
               break;
-            } catch { /* not in this project */ }
+            }
+          }
+          if (flowXml) break;
+        }
+
+        // Still not found — try blob storage as last resort
+        if (!projectId) {
+          console.log(`  Not in ideas. Trying blob storage...`);
+          if (hasBlobAccess) {
+            const { resources: projects } = await db.container("projects").items.query(
+              "SELECT c.id FROM c OFFSET 0 LIMIT 10"
+            ).fetchAll();
+            for (const p of projects) {
+              try {
+                const content = await downloadBlob("spec-files", `${p.id}/${flowXmlId}`);
+                projectId = p.id;
+                flowXml = content;
+                console.log(`  Found in blob storage (project: ${projectId}, ${content.length} chars)`);
+                break;
+              } catch { /* not in this project */ }
+            }
           }
         }
+
         if (!projectId) {
-          console.error("  Flow not found in Cosmos or blob storage.");
-          console.error("  Note: If this flow hasn't been saved as a scenario yet, the XML only exists in the browser.");
-          console.error("  Use 'Copy Flow XML ID' only on flows that have the 'Scenario' badge.");
+          console.error("  Flow not found in Cosmos flows, ideas, or blob storage.");
           process.exit(1);
         }
       }
