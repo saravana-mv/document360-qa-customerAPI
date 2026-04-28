@@ -2592,7 +2592,7 @@ export function SpecFilesPage() {
       {/* Search modal */}
       {showSearch && (
         <SearchModal
-          onSelectFile={(path) => void selectFile(path)}
+          onSelectFile={(path) => { void selectFile(path); setViewingContent(true); }}
           onClose={() => setShowSearch(false)}
         />
       )}
