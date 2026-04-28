@@ -86,11 +86,16 @@ function endsWithParam(path: string): boolean {
   return !!last && /^\{.+\}$/.test(last);
 }
 
-/** Build a discriminator suffix from the path for collision resolution. */
-function pathDiscriminator(method: string, path: string): string {
+/** Build a discriminator suffix from the path for collision resolution.
+ *  @param resourceFolder — the resource folder name to avoid repeating in the suffix.
+ */
+function pathDiscriminator(method: string, path: string, resourceFolder?: string): string {
   const segments = path.split("/").filter(Boolean);
-  // Remove path params and common prefixes
-  const meaningful = segments.filter(s => !/^\{.+\}$/.test(s));
+  // Remove path params, version prefixes, "projects", and the resource folder itself
+  const skip = new Set(["projects", resourceFolder?.toLowerCase()].filter(Boolean));
+  const meaningful = segments.filter(s =>
+    !/^\{.+\}$/.test(s) && !/^v\d+$/i.test(s) && !skip.has(s.toLowerCase())
+  );
   // Take the last 1-2 meaningful segments
   const suffix = meaningful.slice(-2).join("-");
   return suffix ? `-${suffix}` : `-${method.toLowerCase()}`;
@@ -130,7 +135,7 @@ export function operationToFilename(
   }
 
   // Collision — add path discriminator
-  const disc = pathDiscriminator(method, path);
+  const disc = pathDiscriminator(method, path, resourceFolder);
   const fallback = `${base}${disc}.md`;
   if (!existingNames.has(fallback)) {
     existingNames.add(fallback);

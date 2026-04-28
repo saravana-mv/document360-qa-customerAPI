@@ -107,6 +107,16 @@ describe("operationToFilename", () => {
     expect(patch).toMatch(/^update-article-.+\.md$/);
   });
 
+  test("sub-resource collision avoids repeating resource name", () => {
+    const existing = new Set<string>();
+    // list-categories.md taken by GET /v3/projects/{id}/categories
+    operationToFilename("GET", "/v3/projects/{id}/categories", existing, "categories");
+    // GET /v3/projects/{id}/categories/{cid}/settings should NOT produce
+    // "list-categories-categories-settings.md" — should be "list-categories-settings.md"
+    const settings = operationToFilename("GET", "/v3/projects/{id}/categories/{cid}/settings", existing, "categories");
+    expect(settings).toBe("list-categories-settings.md");
+  });
+
   test("no resourceFolder falls back to bare action name", () => {
     const existing = new Set<string>();
     expect(operationToFilename("POST", "/v3/items", existing)).toBe("create.md");
