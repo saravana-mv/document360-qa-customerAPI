@@ -324,7 +324,7 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
                         disabled: isMarking || !isValid,
                       });
                       items.push({ label: "Download XML", icon: MenuIcons.download, onClick: () => onDownloadFlow(flow) });
-                      if (onCopyFlowId) {
+                      if (onCopyFlowId && isMarked) {
                         items.push({ label: "Copy Flow XML ID", icon: MenuIcons.clipboard, onClick: () => onCopyFlowId(flow) });
                       }
                       items.push("separator");

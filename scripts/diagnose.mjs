@@ -184,8 +184,28 @@ if (mode === "flow") {
         console.error("  Ambiguous — set PROJECT_ID or use a more specific flow path.");
         process.exit(1);
       } else {
-        console.error("  No flow found matching that path.");
-        process.exit(1);
+        // Not in Cosmos at all — try blob storage across all projects
+        console.log(`  Not found in Cosmos. Trying blob storage...`);
+        if (hasBlobAccess) {
+          const { resources: projects } = await db.container("projects").items.query(
+            "SELECT c.id FROM c OFFSET 0 LIMIT 10"
+          ).fetchAll();
+          for (const p of projects) {
+            try {
+              const content = await downloadBlob("spec-files", `${p.id}/${flowXmlId}`);
+              projectId = p.id;
+              flowXml = content;
+              console.log(`  Found in blob storage (project: ${projectId}, ${content.length} chars)`);
+              break;
+            } catch { /* not in this project */ }
+          }
+        }
+        if (!projectId) {
+          console.error("  Flow not found in Cosmos or blob storage.");
+          console.error("  Note: If this flow hasn't been saved as a scenario yet, the XML only exists in the browser.");
+          console.error("  Use 'Copy Flow XML ID' only on flows that have the 'Scenario' badge.");
+          process.exit(1);
+        }
       }
     }
   } else {
