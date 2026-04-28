@@ -1220,13 +1220,15 @@ export function stripExtraRequestFields(
 
 /**
  * Deterministic post-processor: for each step that has a method+path matching
- * a spec file in the context, inject `<endpointRef>` if missing.
+ * a spec file in the context, inject `<endpointRef>` if missing, or correct
+ * hallucinated endpointRefs that point to non-existent spec files.
  *
  * Spec context headers look like: `## V3/articles/create-projects-articles.md`
  * Distilled endpoints look like:  `## Endpoint: POST /v3/projects/{project_id}/articles`
  *
  * We build a map from (method, normalizedPath) → spec file name, then match
- * each XML step against it.
+ * each XML step against it. Steps with existing endpointRefs that don't match
+ * any known spec file are treated as hallucinated and replaced.
  */
 export function injectEndpointRefs(xml: string, specContext: string): string {
   if (!specContext) return xml;
@@ -1270,11 +1272,22 @@ export function injectEndpointRefs(xml: string, specContext: string): string {
   let result = xml;
   let injected = 0;
 
+  // Collect known spec file names for validation
+  const knownFiles = new Set(fileHeaders.map((fh) => fh.name));
+
   // Process in reverse to preserve string offsets
   for (let i = xmlSteps.length - 1; i >= 0; i--) {
     const step = xmlSteps[i];
-    // Skip if already has endpointRef
-    if (step.fullMatch.includes("<endpointRef>")) continue;
+
+    // Check if step already has an endpointRef
+    const existingRefMatch = step.fullMatch.match(/<endpointRef>([^<]+)<\/endpointRef>/);
+    if (existingRefMatch) {
+      const existingRef = existingRefMatch[1].trim();
+      // If the existing ref points to a known spec file, keep it
+      if (knownFiles.has(existingRef)) continue;
+      // Otherwise it's hallucinated — we'll replace it below
+      console.log(`[injectEndpointRefs] Hallucinated endpointRef: "${existingRef}" — will correct`);
+    }
 
     const normStepPath = normalizePath(step.path);
     const exactKey = `${step.method}|${normStepPath}`;
@@ -1300,14 +1313,25 @@ export function injectEndpointRefs(xml: string, specContext: string): string {
 
     if (!fileName) continue;
 
-    // Insert <endpointRef> after <name>...</name>
-    const nameCloseIdx = step.fullMatch.indexOf("</name>");
-    if (nameCloseIdx < 0) continue;
+    let newStepXml: string;
 
-    const insertPos = nameCloseIdx + "</name>".length;
-    const indent = "      "; // match typical step child indentation
-    const refElement = `\n${indent}<endpointRef>${fileName}</endpointRef>`;
-    const newStepXml = step.fullMatch.slice(0, insertPos) + refElement + step.fullMatch.slice(insertPos);
+    if (existingRefMatch) {
+      // Replace the wrong endpointRef with the correct one
+      newStepXml = step.fullMatch.replace(
+        /<endpointRef>[^<]+<\/endpointRef>/,
+        `<endpointRef>${fileName}</endpointRef>`,
+      );
+      console.log(`[injectEndpointRefs] Corrected endpointRef: "${existingRefMatch[1].trim()}" → "${fileName}"`);
+    } else {
+      // Insert <endpointRef> after <name>...</name>
+      const nameCloseIdx = step.fullMatch.indexOf("</name>");
+      if (nameCloseIdx < 0) continue;
+
+      const insertPos = nameCloseIdx + "</name>".length;
+      const indent = "      "; // match typical step child indentation
+      const refElement = `\n${indent}<endpointRef>${fileName}</endpointRef>`;
+      newStepXml = step.fullMatch.slice(0, insertPos) + refElement + step.fullMatch.slice(insertPos);
+    }
 
     const pos = result.indexOf(step.fullMatch);
     if (pos >= 0) {
@@ -1317,7 +1341,7 @@ export function injectEndpointRefs(xml: string, specContext: string): string {
   }
 
   if (injected > 0) {
-    console.log(`[injectEndpointRefs] Injected ${injected} missing <endpointRef> elements`);
+    console.log(`[injectEndpointRefs] Injected/corrected ${injected} <endpointRef> elements`);
   }
 
   return result;

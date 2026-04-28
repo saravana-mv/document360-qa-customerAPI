@@ -3,6 +3,7 @@ import {
   analyzeCrossStepDependencies,
   injectSpecRequiredFields,
   injectCrossStepCaptures,
+  injectEndpointRefs,
 } from "../lib/specRequiredFields";
 
 // ── extractCommonRequiredFields ──────────────────────────────────────
@@ -461,5 +462,89 @@ ${stepsXml}
 
     const result = injectCrossStepCaptures(xml, independentSpec, []);
     expect(result).toBe(xml);
+  });
+});
+
+// ── injectEndpointRefs ─────────────────────────────────────────────
+
+describe("injectEndpointRefs", () => {
+  const wrapFlowXml = (stepXml: string) =>
+    `<?xml version="1.0" encoding="UTF-8"?>
+<flow xmlns="https://flowforge.io/qa/flow/v1">
+  <meta>
+    <name>Test Flow</name>
+  </meta>
+  <steps>
+    ${stepXml}
+  </steps>
+</flow>`;
+
+  const specContext = `## V3/categories/post.md
+
+## Endpoint: POST /v3/projects/{project_id}/categories
+
+## V3/categories/patch.md
+
+## Endpoint: PATCH /v3/projects/{project_id}/categories/{id}
+
+## V3/categories/get.md
+
+## Endpoint: GET /v3/projects/{project_id}/categories/{id}
+`;
+
+  it("injects missing endpointRef", () => {
+    const xml = wrapFlowXml(`
+    <step>
+      <name>Create Category</name>
+      <method>POST</method>
+      <path>/v3/projects/{project_id}/categories</path>
+    </step>`);
+
+    const result = injectEndpointRefs(xml, specContext);
+    expect(result).toContain("<endpointRef>V3/categories/post.md</endpointRef>");
+  });
+
+  it("keeps correct existing endpointRef", () => {
+    const xml = wrapFlowXml(`
+    <step>
+      <name>Update Category</name>
+      <endpointRef>V3/categories/patch.md</endpointRef>
+      <method>PATCH</method>
+      <path>/v3/projects/{project_id}/categories/{id}</path>
+    </step>`);
+
+    const result = injectEndpointRefs(xml, specContext);
+    expect(result).toContain("<endpointRef>V3/categories/patch.md</endpointRef>");
+    // Should not duplicate
+    expect(result.match(/<endpointRef>/g)?.length).toBe(1);
+  });
+
+  it("corrects hallucinated endpointRef to the right spec file", () => {
+    const xml = wrapFlowXml(`
+    <step>
+      <name>Update Category</name>
+      <endpointRef>V3/categories/update-categories.md</endpointRef>
+      <method>PATCH</method>
+      <path>/v3/projects/{project_id}/categories/{id}</path>
+    </step>`);
+
+    const result = injectEndpointRefs(xml, specContext);
+    // Hallucinated "update-categories.md" should be replaced with "patch.md"
+    expect(result).not.toContain("update-categories.md");
+    expect(result).toContain("<endpointRef>V3/categories/patch.md</endpointRef>");
+  });
+
+  it("leaves hallucinated ref unchanged if no method+path match found", () => {
+    const xml = wrapFlowXml(`
+    <step>
+      <name>Delete Category</name>
+      <endpointRef>V3/categories/delete.md</endpointRef>
+      <method>DELETE</method>
+      <path>/v3/projects/{project_id}/categories/{id}</path>
+    </step>`);
+
+    const result = injectEndpointRefs(xml, specContext);
+    // DELETE is not in our specContext, so hallucinated ref stays (no match to correct to)
+    expect(result).toContain("V3/categories/delete.md");
   });
 });
