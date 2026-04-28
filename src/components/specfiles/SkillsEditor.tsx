@@ -774,9 +774,9 @@ export function SkillsEditor({ path, content, onSaved }: Props) {
       </div>
 
       {/* Body: editor/preview/diff + optional sidebar */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Main area */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-w-0 h-full overflow-hidden">
           {diffMode ? (
             <DiffView
               labelA={diffA.label}
