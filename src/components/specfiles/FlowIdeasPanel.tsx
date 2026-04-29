@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ContextMenu, MenuIcons } from "../common/ContextMenu";
 import type { FlowIdea, IdeaMode } from "../../lib/api/specFilesApi";
+import { GenerateIdeasModal } from "./GenerateIdeasModal";
 
 function formatRelativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -74,6 +75,7 @@ export function FlowIdeasPanel({
 }: Props) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [rowDeleteId, setRowDeleteId] = useState<string | null>(null);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
   const totalIdeas = ideas?.length ?? 0;
   const lockedCount = ideas?.filter(i => lockedIds.has(i.id)).length ?? 0;
   const selectedCount = selectedIds.size;
@@ -160,19 +162,18 @@ export function FlowIdeasPanel({
                 ? "Generation in progress..."
                 : generatingFlows
                   ? "Wait for flow generation to complete"
-                  : undefined;
+                  : "Generate more ideas";
           return (
-            <ContextMenu
-              items={[
-                { label: "Generate 1 idea", icon: MenuIcons.sparkle, onClick: () => onGenerateMore(1), disabled: moreDisabled, tooltip: moreTooltip },
-                { label: "Generate 3 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateMore(3), disabled: moreDisabled, tooltip: moreTooltip },
-                { label: "Generate 5 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateMore(5), disabled: moreDisabled, tooltip: moreTooltip },
-                "separator",
-                { label: "Full lifecycle", icon: ideaMode === "full" ? MenuIcons.check : undefined, onClick: () => onModeChange("full") },
-                { label: "No prerequisites", icon: ideaMode === "no-prereqs" ? MenuIcons.check : undefined, onClick: () => onModeChange("no-prereqs") },
-                { label: "Minimal (no prereqs/teardown)", icon: ideaMode === "no-prereqs-no-teardown" ? MenuIcons.check : undefined, onClick: () => onModeChange("no-prereqs-no-teardown") },
-              ]}
-            />
+            <button
+              onClick={() => !moreDisabled && setShowGenerateModal(true)}
+              disabled={moreDisabled}
+              title={moreTooltip}
+              className="rounded-md p-1 text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+              </svg>
+            </button>
           );
         })()}
       </div>
@@ -443,6 +444,19 @@ export function FlowIdeasPanel({
           </div>
         );
       })()}
+
+      {/* Generate Ideas modal */}
+      {showGenerateModal && (
+        <GenerateIdeasModal
+          currentMode={ideaMode}
+          onGenerate={(count, mode) => {
+            onModeChange(mode);
+            onGenerateMore(count);
+          }}
+          onClose={() => setShowGenerateModal(false)}
+          disabled={generatingFlows || !!appending}
+        />
+      )}
 
     </div>
   );

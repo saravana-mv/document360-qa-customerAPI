@@ -7,6 +7,7 @@ import { FileUploadModal } from "../components/specfiles/FileUploadModal";
 import { ImportFromUrlModal } from "../components/specfiles/ImportFromUrlModal";
 import { SyncFolderModal } from "../components/specfiles/SyncFolderModal";
 import { FlowIdeasPanel } from "../components/specfiles/FlowIdeasPanel";
+import { GenerateIdeasModal } from "../components/specfiles/GenerateIdeasModal";
 import { FlowsPanel, type GeneratedFlow } from "../components/specfiles/FlowsPanel";
 import { DetailPanel } from "../components/specfiles/DetailPanel";
 import { FlowChatPanel } from "../components/specfiles/FlowChatPanel";
@@ -246,6 +247,7 @@ export function SpecFilesPage() {
   const [ideasMessage, setIdeasMessage] = useState<string | null>(null);
   const [ideasExhausted, setIdeasExhausted] = useState(false);
   const [ideaMode, setIdeaMode] = useState<IdeaMode>("full");
+  const [showLandingModal, setShowLandingModal] = useState(false);
   const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(new Set());
   const [chatActive, setChatActive] = useState(() => {
     try { return localStorage.getItem("specfiles_chat_active") === "true"; } catch { return false; }
@@ -2535,38 +2537,31 @@ export function SpecFilesPage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 justify-center">
-                      {multiSelectedMdPaths.length > 0 ? (
-                        /* Multi-select: generate from selected files */
-                        [1, 3, 5].map((n) => (
-                          <button
-                            key={n}
-                            onClick={() => {
+                      <button
+                        onClick={() => setShowLandingModal(true)}
+                        disabled={noSpecFiles}
+                        title={noSpecFiles ? noSpecFilesTooltip : "Generate test flow ideas with AI"}
+                        className="inline-flex items-center gap-1.5 bg-[#0969da] hover:bg-[#0860ca] text-white text-sm font-medium rounded-md px-3 py-2 transition-colors border border-[#0969da]/80 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                        </svg>
+                        Generate ideas
+                      </button>
+                      {showLandingModal && (
+                        <GenerateIdeasModal
+                          currentMode={ideaMode}
+                          onGenerate={(count, mode) => {
+                            setIdeaMode(mode);
+                            if (multiSelectedMdPaths.length > 0) {
                               const folder = activePath ?? multiSelectedMdPaths[0].split("/").slice(0, -1).join("/");
-                              void handleGenerateFlowIdeas(folder, n, multiSelectedMdPaths);
-                            }}
-                            className="inline-flex items-center gap-1.5 bg-[#0969da] hover:bg-[#0860ca] text-white text-sm font-medium rounded-md px-3 py-2 transition-colors border border-[#0969da]/80"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-                            </svg>
-                            {n} idea{n > 1 ? "s" : ""} from {multiSelectedMdPaths.length} file{multiSelectedMdPaths.length > 1 ? "s" : ""}
-                          </button>
-                        ))
-                      ) : (
-                        [1, 3, 5].map((n) => (
-                          <button
-                            key={n}
-                            onClick={() => void handleGenerateFlowIdeas(activePath!, n)}
-                            disabled={noSpecFiles}
-                            title={noSpecFiles ? noSpecFilesTooltip : `Generate ${n} test flow idea${n > 1 ? "s" : ""}`}
-                            className="inline-flex items-center gap-1.5 bg-[#0969da] hover:bg-[#0860ca] text-white text-sm font-medium rounded-md px-3 py-2 transition-colors border border-[#0969da]/80 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-                            </svg>
-                            {n} idea{n > 1 ? "s" : ""}
-                          </button>
-                        ))
+                              void handleGenerateFlowIdeas(folder, count, multiSelectedMdPaths);
+                            } else {
+                              void handleGenerateFlowIdeas(activePath!, count);
+                            }
+                          }}
+                          onClose={() => setShowLandingModal(false)}
+                        />
                       )}
                     </div>
                     <div className="flex flex-col items-center gap-2 pt-2">
