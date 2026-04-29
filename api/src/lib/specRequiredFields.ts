@@ -1149,7 +1149,7 @@ export function stripExtraRequestFields(
 
   for (let i = 0; i < xmlSteps.length; i++) {
     const step = xmlSteps[i];
-    if (!["PATCH", "PUT"].includes(step.method)) continue;
+    if (!["POST", "PATCH", "PUT"].includes(step.method)) continue;
     const normStep = normalizePath(step.path);
     const spec = specEndpoints.find(ep =>
       ep.method === step.method && normalizePath(ep.path) === normStep
