@@ -285,7 +285,9 @@ function FolderMenu({ isSelected, hasSourcedFiles, hasSpecFiles, isRegenerating,
     { label: "Upload files", icon: MenuIcons.upload, onClick: onUploadFiles },
     { label: "Import from URL", icon: MenuIcons.link, onClick: onImportFromUrl },
     { label: "Sync URL sources", icon: MenuIcons.sync, onClick: onSyncFolder, disabled: !hasSourcedFiles, tooltip: hasSourcedFiles ? undefined : "No URL-sourced files in this folder" },
-    { label: isRegenerating ? "Regenerating..." : "Regenerate system files", icon: MenuIcons.refresh, onClick: onRegenerateSystem, disabled: !hasSpecFiles || isRegenerating, tooltip: hasSpecFiles ? undefined : noSpecTip },
+    ...(isVersionFolder ? [
+      { label: isRegenerating ? "Regenerating..." : "Regenerate system files", icon: MenuIcons.refresh, onClick: onRegenerateSystem, disabled: !hasSpecFiles || isRegenerating, tooltip: hasSpecFiles ? undefined : noSpecTip } as MenuItem,
+    ] : []),
     ...(isVersionFolder && onReimportSpec ? [
       { label: "Reimport OpenAPI Spec", icon: MenuIcons.refresh, onClick: onReimportSpec, danger: true } as MenuItem,
     ] : []),
