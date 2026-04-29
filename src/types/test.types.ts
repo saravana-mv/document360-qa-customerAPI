@@ -29,7 +29,7 @@ export interface RunState {
 export interface AssertionDef {
   id: string;
   description: string;
-  check: (result: TestExecutionResult, state: RunState) => boolean;
+  check: (result: TestExecutionResult, state: RunState, ctx?: TestContext) => boolean;
 }
 
 export interface AssertionResult {

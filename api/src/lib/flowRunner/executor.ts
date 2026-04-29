@@ -317,8 +317,7 @@ function runAssertions(
     }
     // field-equals
     const actual = readPath(responseBody, a.field);
-    const emptyCtx: RunContext = { apiVersion: "", baseUrl: "", authMethod: "none" };
-    const expected = coerce(substitute(a.value, emptyCtx, state));
+    const expected = coerce(substitute(a.value, ctx, state));
     return {
       id: `field-equals-${a.field}`,
       description: `Field "${a.field}" equals ${a.value}`,

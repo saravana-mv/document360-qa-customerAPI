@@ -1,4 +1,4 @@
-import type { AssertionDef, TestExecutionResult, RunState } from "../../types/test.types";
+import type { AssertionDef, TestExecutionResult, RunState, TestContext } from "../../types/test.types";
 
 export function assertStatus(expected: number): AssertionDef {
   return {
@@ -49,12 +49,13 @@ export function assertStateField(stateKey: string, bodyField: string): Assertion
 export function runAssertions(
   assertions: AssertionDef[],
   result: TestExecutionResult,
-  state: RunState
+  state: RunState,
+  ctx?: TestContext,
 ): TestExecutionResult["assertionResults"] {
   return assertions.map((assertion) => {
     let passed = false;
     try {
-      passed = assertion.check(result, state);
+      passed = assertion.check(result, state, ctx);
     } catch { /* assertion error = fail */ }
     return { id: assertion.id, description: assertion.description, passed };
   });

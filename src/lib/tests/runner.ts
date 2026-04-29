@@ -55,7 +55,7 @@ async function executeTest(
     }
 
     result = await test.execute(ctx, state);
-    result.assertionResults = runAssertions(test.assertions, result, state);
+    result.assertionResults = runAssertions(test.assertions, result, state, ctx);
 
     const allPassed = result.assertionResults.every((a) => a.passed);
     if (result.status === "pass" && !allPassed) {

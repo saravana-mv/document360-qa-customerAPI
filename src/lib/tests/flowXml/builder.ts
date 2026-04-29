@@ -109,9 +109,9 @@ function toAssertionDef(a: ParsedAssertion): AssertionDef {
   return {
     id: `field-equals-${a.field}`,
     description: `Response body field "${a.field}" equals ${a.value}`,
-    check: (result, state) => {
+    check: (result, state, ctx) => {
       const actual = readPath(result.responseBody, a.field);
-      const expected = coerce(substitute(a.value, makeCtxStub(), state));
+      const expected = coerce(substitute(a.value, ctx ?? makeCtxStub(), state));
       return jsonEqual(actual, expected);
     },
   };
