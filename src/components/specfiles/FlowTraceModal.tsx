@@ -107,6 +107,34 @@ export default function FlowTraceModal({ trace, onClose }: Props) {
                 {selected - survived} files were dropped by the MAX_SPEC_FILES cap
               </div>
             )}
+
+            {/* Survived files */}
+            {trace.specSelection.survivedFiles.length > 0 && (
+              <div className="mt-2">
+                <span className="text-xs font-medium" style={{ color: "#656d76" }}>Survived files ({survived}):</span>
+                <div className="mt-1 text-xs font-mono space-y-0.5" style={{ color: "#1a7f37" }}>
+                  {trace.specSelection.survivedFiles.map((f, i) => (
+                    <div key={i}>✓ {f}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Dropped files (selected but not survived) */}
+            {wasCapped && (() => {
+              const survivedSet = new Set(trace.specSelection.survivedFiles);
+              const dropped = trace.specSelection.selectedFiles.filter(f => !survivedSet.has(f));
+              return dropped.length > 0 ? (
+                <div className="mt-2">
+                  <span className="text-xs font-medium" style={{ color: "#d1242f" }}>Dropped files ({dropped.length}):</span>
+                  <div className="mt-1 text-xs font-mono space-y-0.5" style={{ color: "#d1242f" }}>
+                    {dropped.map((f, i) => (
+                      <div key={i}>✗ {f}</div>
+                    ))}
+                  </div>
+                </div>
+              ) : null;
+            })()}
           </Section>
 
           {/* Spec Context Headers */}
