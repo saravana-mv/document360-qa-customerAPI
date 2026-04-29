@@ -169,6 +169,15 @@ Never call `loadFlowsFromQueue` in a loop after parallel saves. Batch all saves,
 
 **Debug approach**: When post-processors produce wrong results in production, add Application Insights logging FIRST (log selected files, endpointMap contents, file headers), deploy, reproduce, read logs — then fix. Don't deploy blind guesses. KQL: `traces | where message has "filterRelevantSpecs" or message has "injectEndpointRefs"`
 
+### Flow XML Post-Processor Pipeline (CRITICAL — read before touching any post-processor)
+Seven post-processors run in order after AI generates flow XML: (1) `injectCrossStepCaptures` → (2) `injectMissingRequiredFields` → (3) `injectSpecRequiredFields` → (4) `stripExtraRequestFields` → (5) `injectEndpointRefs` → (6) `injectRulesRequiredFields` → (7) `validateCaptures`. All live in `api/src/lib/specRequiredFields.ts` except `injectMissingRequiredFields` (local in `generateFlow.ts`).
+
+**Method filters**: #2/#3/#4/#6 only process POST/PUT/PATCH bodies. #1/#5/#7 process all methods. When adding a new post-processor or changing method filters, verify all write methods are covered.
+
+**endpointRef gating**: `injectMissingRequiredFields` MUST skip steps with `<endpointRef>` — those steps have a spec managing their schema. It only injects common ID/version fields into prerequisite steps lacking a spec. Without this gate, cross-entity fields (e.g., `workspace_id`) bleed into unrelated endpoints.
+
+**Safety net**: `stripExtraRequestFields` (#4) runs AFTER injectors (#2/#3) and removes any field not in the spec's `allRequestFields`. It's the last line of defense against extra fields — must cover POST (not just PATCH/PUT) since bulk action endpoints use POST with strict schemas.
+
 ### esbuild Cross-Function Import Ban (CRITICAL)
 NEVER import from one `api/src/functions/` file into another. esbuild bundles each function file as a separate entry point and inlines all imports — including the imported file's `app.http()` registration. This causes duplicate route registration that **crashes the entire Azure Functions runtime** (all endpoints return 404). Always extract shared code into `api/src/lib/` modules.
 
