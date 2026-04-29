@@ -129,6 +129,61 @@ function fixTimestampAssertions(xml: string): string {
   return result;
 }
 
+/**
+ * Post-processor: detect and remove endpointRefs that point to the wrong resource.
+ * Example: step path is /v3/projects/{id}/categories but endpointRef is
+ * V3/articles/create-article.md — the endpointRef resource "articles" doesn't
+ * match the path resource "categories", so we strip it to prevent downstream
+ * post-processors from injecting wrong fields from the article spec.
+ */
+function fixMismatchedEndpointRefs(xml: string): string {
+  const stepRe = /<step\b[^>]*>[\s\S]*?<\/step>/g;
+  let result = xml;
+  let count = 0;
+
+  const steps: { fullMatch: string; path: string; refTag: string; refValue: string }[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = stepRe.exec(xml)) !== null) {
+    const pathMatch = m[0].match(/<path>([^<]+)<\/path>/);
+    const refMatch = m[0].match(/<endpointRef>([^<]+)<\/endpointRef>/);
+    if (pathMatch && refMatch) {
+      steps.push({
+        fullMatch: m[0],
+        path: pathMatch[1].trim(),
+        refTag: refMatch[0],
+        refValue: refMatch[1].trim(),
+      });
+    }
+  }
+
+  for (const step of steps) {
+    // Extract resource from path: skip version, "projects", path params
+    const pathSegments = step.path.split("/").filter(
+      s => s && !s.startsWith("{") && !/^v\d+$/i.test(s) && s !== "projects"
+    );
+    const pathResource = pathSegments[0]?.toLowerCase();
+    if (!pathResource) continue;
+
+    // Extract resource from endpointRef path (e.g., "V3/articles/create-article.md" → "articles")
+    const refParts = step.refValue.split("/").filter(Boolean);
+    // Find the resource folder — skip version folders like "V3"
+    const refResource = refParts.find(p => !/^v\d+$/i.test(p) && !p.endsWith(".md"))?.toLowerCase();
+    if (!refResource) continue;
+
+    if (pathResource !== refResource) {
+      console.log(`[fixMismatchedEndpointRefs] Resource mismatch: path has "${pathResource}" but endpointRef points to "${refResource}" (${step.refValue}) — removing endpointRef`);
+      const cleaned = step.fullMatch.replace(/\s*<endpointRef>[^<]+<\/endpointRef>/, "");
+      result = result.replace(step.fullMatch, cleaned);
+      count++;
+    }
+  }
+
+  if (count > 0) {
+    console.log(`[fixMismatchedEndpointRefs] Removed ${count} mismatched endpointRef(s)`);
+  }
+  return result;
+}
+
 /** Build a map from required field names to their best project variable token. */
 function buildProjVarMap(
   fields: string[],
@@ -345,7 +400,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 
 ## Hard rules (read before writing anything)
 
-1. **STRICT SCOPE — NO PRIOR KNOWLEDGE**: Only use API endpoints, methods, and paths explicitly described in the provided spec files. Do NOT use your training data or prior knowledge about this API — treat the specs as if you are seeing this API for the first time. For prerequisite setup/teardown steps not in the specs, construct the path by following the EXACT same URL pattern and version prefix as the provided specs.
+1. **STRICT SCOPE — NO PRIOR KNOWLEDGE**: Only use API endpoints, methods, and paths explicitly described in the provided spec files. Do NOT use your training data or prior knowledge about this API — treat the specs as if you are seeing this API for the first time. For prerequisite setup/teardown steps where no spec is provided: construct the correct path by using the same URL pattern and version prefix as the provided specs (e.g., if specs show \`/v3/projects/{project_id}/articles\`, a category prerequisite should use \`/v3/projects/{project_id}/categories\`). **CRITICAL**: NEVER substitute a different endpoint's path for a prerequisite step — if the step creates a category, the path MUST target \`/categories\`, NOT \`/articles\` or any other resource. Omit \`<endpointRef>\` for prerequisite steps that have no matching spec file. Use a minimal request body with only obvious fields like \`name\` or \`title\`.
 2. **Entity dependencies — ALWAYS create prerequisites**: If a request body contains a foreign-key field referencing another resource (e.g., \`category_id\`, \`parent_id\`, \`folder_id\`, \`group_id\`), you MUST create that resource as a setup step and delete it as a teardown step — even if the field is marked optional/nullable in the schema. In practice, omitting a parent entity often causes runtime failures or places the resource in an unusable state. When in doubt, create the dependency. Check field descriptions for hints like "retrieve from GET /…" which confirm a dependency. Delete child resources before parents in teardown.
 3. **Request body MUST include ALL required fields with EXACT names**: When the spec file documents a request body schema, you MUST include EVERY field listed as \`required\`, using the EXACT field name from the schema. Copy field names character-for-character — different resources use different names (e.g., articles may use \`title\` while categories use \`name\`). Parse the schema carefully — look for \`required: [field1, field2, ...]\` arrays, the **REQUIRED FIELDS** line, "Required" labels, or "(required)" annotations next to properties. For each required field, use: a project variable (\`{{proj.X}}\`) if one matches, a state variable (\`{{state.X}}\`) captured from a prior step, or a sensible test value. Omitting a required field will cause the API call to fail at runtime — this is a critical error. **For prerequisite/dependency steps** (e.g., creating a parent entity) where no spec is provided: check the "Common Required Fields" section at the end of the spec context and include those fields in the request body too.
 4. **Teardown is MANDATORY for every flow**: Every flow — regardless of complexity — MUST end with teardown steps that delete ALL resources created during the flow. The testing environment must be left exactly as it was before the flow ran. Delete child resources before parent. Mark every teardown step with \`<flags teardown="true"/>\`.
@@ -770,6 +825,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
             xml = xml.replace(/(<path>)\/v\d+\//gi, `$1/${canonicalVersion}/`);
           }
           console.log(`[generateFlow] stream post-process: commonFields=${JSON.stringify(commonFields)}, projVarMap=${JSON.stringify(projVarMap)}`);
+          xml = trace.wrapPostProcessor("fixMismatchedEndpointRefs", xml, (x) => fixMismatchedEndpointRefs(x));
           xml = trace.wrapPostProcessor("injectCrossStepCaptures", xml, (x) => injectCrossStepCaptures(x, specContext, projVars));
           xml = trace.wrapPostProcessor("injectMissingRequiredFields", xml, (x) => injectMissingRequiredFields(x, commonFields, projVarMap));
           xml = trace.wrapPostProcessor("injectSpecRequiredFields", xml, (x) => injectSpecRequiredFields(x, specContext, projVars));
@@ -846,6 +902,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
 
       // Post-process: inject missing common required fields into POST/PUT bodies
       console.log(`[generateFlow] post-process: commonFields=${JSON.stringify(commonFields)}, projVarMap=${JSON.stringify(projVarMap)}`);
+      xml = trace.wrapPostProcessor("fixMismatchedEndpointRefs", xml, (x) => fixMismatchedEndpointRefs(x));
       xml = trace.wrapPostProcessor("injectCrossStepCaptures", xml, (x) => injectCrossStepCaptures(x, specContext, projVars));
       xml = trace.wrapPostProcessor("injectMissingRequiredFields", xml, (x) => injectMissingRequiredFields(x, commonFields, projVarMap));
       xml = trace.wrapPostProcessor("injectSpecRequiredFields", xml, (x) => injectSpecRequiredFields(x, specContext, projVars));
@@ -853,6 +910,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       xml = trace.wrapPostProcessor("injectEndpointRefs", xml, (x) => injectEndpointRefs(x, specContext));
       xml = trace.wrapPostProcessor("injectRulesRequiredFields", xml, (x) => injectRulesRequiredFields(x, ctx.rules, projVars));
       xml = trace.wrapPostProcessor("validateCaptures", xml, (x) => validateCaptures(x, specContext));
+      xml = trace.wrapPostProcessor("fixTimestampAssertions", xml, (x) => fixTimestampAssertions(x));
       xml = injectModeComment(xml, ideaMode);
 
       // Save debug trace (fire-and-forget)
