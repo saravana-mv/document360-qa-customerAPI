@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { IdeaMode } from "../../lib/api/specFilesApi";
 
 interface Props {
-  onGenerate: (count: number, mode: IdeaMode) => void;
+  onGenerate: (count: number, mode: IdeaMode, prompt?: string) => void;
   onClose: () => void;
   currentMode: IdeaMode;
   disabled?: boolean;
@@ -31,6 +31,7 @@ const COUNT_OPTIONS = [1, 3, 5];
 export function GenerateIdeasModal({ onGenerate, onClose, currentMode, disabled }: Props) {
   const [count, setCount] = useState(5);
   const [mode, setMode] = useState<IdeaMode>(currentMode);
+  const [prompt, setPrompt] = useState("");
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
@@ -50,6 +51,20 @@ export function GenerateIdeasModal({ onGenerate, onClose, currentMode, disabled 
 
         {/* Body */}
         <div className="px-4 py-4 space-y-4">
+          {/* Focus prompt */}
+          <div>
+            <label className="text-sm font-medium text-[#1f2328] block mb-1.5">
+              Focus prompt <span className="font-normal text-[#656d76]">(optional)</span>
+            </label>
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="Describe what you want to test... Leave empty for general ideas."
+              rows={2}
+              className="w-full text-sm border border-[#d1d9e0] rounded-md px-3 py-2 outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da]/30 resize-none text-[#1f2328] placeholder:text-[#afb8c1]"
+            />
+          </div>
+
           {/* Count selector */}
           <div>
             <label className="text-sm font-medium text-[#1f2328] block mb-2">Number of ideas</label>
@@ -118,7 +133,7 @@ export function GenerateIdeasModal({ onGenerate, onClose, currentMode, disabled 
             Cancel
           </button>
           <button
-            onClick={() => { onGenerate(count, mode); onClose(); }}
+            onClick={() => { onGenerate(count, mode, prompt.trim() || undefined); onClose(); }}
             disabled={disabled}
             className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-[#0969da] hover:bg-[#0860ca] disabled:opacity-50 disabled:cursor-not-allowed rounded-md px-3 py-1.5 transition-colors border border-[#0969da]/80"
           >

@@ -10,7 +10,7 @@ import { FlowIdeasPanel } from "../components/specfiles/FlowIdeasPanel";
 import { GenerateIdeasModal } from "../components/specfiles/GenerateIdeasModal";
 import { FlowsPanel, type GeneratedFlow } from "../components/specfiles/FlowsPanel";
 import { DetailPanel } from "../components/specfiles/DetailPanel";
-import { FlowChatPanel } from "../components/specfiles/FlowChatPanel";
+import { SmartIdeasPanel } from "../components/specfiles/SmartIdeasPanel";
 import { SkillsEditor } from "../components/specfiles/SkillsEditor";
 import { JsonCodeBlock } from "../components/common/JsonCodeBlock";
 import { SearchModal } from "../components/specfiles/SearchModal";
@@ -30,6 +30,7 @@ import {
   type FlowIdeasUsage,
   type FlowUsage,
   type IdeaMode,
+  type IdeaScope,
 } from "../lib/api/specFilesApi";
 import type { SourceEntry } from "../types/spec.types";
 import { generateFlowXml } from "../lib/api/flowApi";
@@ -250,10 +251,10 @@ export function SpecFilesPage() {
   const [showLandingModal, setShowLandingModal] = useState(false);
   const [treeGeneratePath, setTreeGeneratePath] = useState<string | null>(null);
   const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(new Set());
-  const [chatActive, setChatActive] = useState(() => {
-    try { return localStorage.getItem("specfiles_chat_active") === "true"; } catch { return false; }
+  const [smartIdeasActive, setSmartIdeasActive] = useState(() => {
+    try { return localStorage.getItem("specfiles_smart_ideas_active") === "true"; } catch { return false; }
   });
-  useEffect(() => { try { localStorage.setItem("specfiles_chat_active", String(chatActive)); } catch { /* ignore */ } }, [chatActive]);
+  useEffect(() => { try { localStorage.setItem("specfiles_smart_ideas_active", String(smartIdeasActive)); } catch { /* ignore */ } }, [smartIdeasActive]);
 
   // ── Flow generation state ─────────────────────────────────────────────────
   const [generatedFlows, setGeneratedFlows] = useState<GeneratedFlow[]>([]);
@@ -1228,7 +1229,7 @@ export function SpecFilesPage() {
 
   // ── Generate flow ideas (AI) ──────────────────────────────────────────────
 
-  async function handleGenerateFlowIdeas(contextPath: string, maxCount?: number, filePaths?: string[]) {
+  async function handleGenerateFlowIdeas(contextPath: string, maxCount?: number, filePaths?: string[], prompt?: string, scope?: IdeaScope) {
     // contextPath can be a folder path or a file path (.md)
     if (contextPath.endsWith(".md")) {
       setSelectedPath(contextPath);
@@ -1265,7 +1266,7 @@ export function SpecFilesPage() {
       setIdeasLoading(true);
     }
     try {
-      const result = await generateFlowIdeas(contextPath, existingTitles, undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN, filePaths, ideaMode);
+      const result = await generateFlowIdeas(contextPath, existingTitles, undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN, filePaths, ideaMode, prompt, scope);
       const perIdeaCost = result.usage && result.ideas.length > 0
         ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
         : undefined;
@@ -1339,7 +1340,7 @@ export function SpecFilesPage() {
     }
   }
 
-  async function handleGenerateMoreIdeas(count?: number) {
+  async function handleGenerateMoreIdeas(count?: number, prompt?: string) {
     const currentPath = activePath;
     if (!currentPath) return;
     setIdeasError(null);
@@ -1348,7 +1349,7 @@ export function SpecFilesPage() {
     // Exclude ALL visible idea titles (including from child contexts)
     const existingTitles = ideas.map((i) => i.title);
     try {
-      const result = await generateFlowIdeas(currentPath, existingTitles, undefined, aiModel, count, undefined, ideaMode);
+      const result = await generateFlowIdeas(currentPath, existingTitles, undefined, aiModel, count, undefined, ideaMode, prompt);
       if (result.ideas.length > 0) {
         const perIdeaCost = result.usage && result.ideas.length > 0
           ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
@@ -1821,56 +1822,6 @@ export function SpecFilesPage() {
 
 
 
-  // ── Spec files for current context (used by flow chat) ────────────────────
-
-  const contextSpecFiles = useMemo(() => {
-    if (!activePath) return [];
-    if (activePath.endsWith(".md")) return [activePath];
-    const prefix = activePath.endsWith("/") ? activePath : `${activePath}/`;
-    return files
-      .filter((f) => f.name.startsWith(prefix) && f.name.endsWith(".md"))
-      .map((f) => f.name)
-      .slice(0, 5);
-  }, [activePath, files]);
-
-  // ── Handle flow generated from chat panel ─────────────────────────────────
-
-  function handleChatFlowGenerated(title: string, xml: string, usage: FlowUsage | null) {
-    const chatId = `chat-${Date.now()}`;
-    const newFlow: GeneratedFlow = {
-      ideaId: chatId,
-      title,
-      status: "done",
-      xml,
-      usage,
-      createdAt: new Date().toISOString(),
-    };
-    setGeneratedFlows((prev) => [...prev, newFlow]);
-    setActiveFlowId(chatId);
-    setActiveIdeaId(null);
-
-    // Persist to workshopMap
-    if (activePath) {
-      persistFlowsForPath(activePath, [...generatedFlows, newFlow]);
-
-      // Persist flow XML to Cosmos flows container immediately (best-effort)
-      const flowBlobName = buildFlowFilePath(activePath, title);
-      void saveFlowFile(flowBlobName, xml, true).catch((e) =>
-        console.warn(`[FlowChat] Failed to persist flow XML for "${title}":`, e),
-      );
-    }
-
-    // Accumulate flow usage
-    if (usage) {
-      setFlowsUsage(prev => prev ? {
-        inputTokens: prev.inputTokens + usage.inputTokens,
-        outputTokens: prev.outputTokens + usage.outputTokens,
-        totalTokens: prev.totalTokens + usage.totalTokens,
-        costUsd: parseFloat((prev.costUsd + usage.costUsd).toFixed(6)),
-      } : usage);
-    }
-  }
-
   // ── Create tests — save flow XML to blob and register as runnable tests ──
 
   async function markFlow(flow: GeneratedFlow, targetName: string, overwrite: boolean) {
@@ -2238,17 +2189,17 @@ export function SpecFilesPage() {
                     </span>
                   </>
                 )}
-                {/* New Flow button */}
+                {/* New Ideas button */}
                 <button
-                  onClick={() => setChatActive(true)}
-                  disabled={chatActive || noSpecFiles}
-                  title={noSpecFiles ? noSpecFilesTooltip : chatActive ? "Flow chat is already open" : "Design a new flow interactively"}
+                  onClick={() => setSmartIdeasActive(true)}
+                  disabled={smartIdeasActive || noSpecFiles}
+                  title={noSpecFiles ? noSpecFilesTooltip : smartIdeasActive ? "Ideas panel is already open" : "Generate test ideas with AI"}
                   className="ml-auto inline-flex items-center gap-1 text-sm font-medium text-[#0969da] hover:text-[#0860ca] px-2 py-1 rounded-md hover:bg-[#ddf4ff] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
                   </svg>
-                  New Flow
+                  New Ideas
                 </button>
 
                 {/* Cost summary */}
@@ -2428,7 +2379,7 @@ export function SpecFilesPage() {
                           onDownloadAll={downloadAllFlows}
                           onDeleteFlow={handleDeleteFlow}
                           onDeleteAllFlows={handleDeleteAllFlows}
-                          onStartFlowChat={() => setChatActive(true)}
+                          onStartNewIdeas={() => setSmartIdeasActive(true)}
                           onMarkForImplementation={handleMarkForImplementation}
                           onMarkSelectedForImplementation={handleMarkSelectedForImplementation}
                           markedIds={markedIds}
@@ -2449,15 +2400,23 @@ export function SpecFilesPage() {
                       </div>
                       <ResizeHandle width={flowsWidth} onResize={setFlowsWidth} minWidth={180} maxWidth={500} />
 
-                      {/* Column 3 — Detail or Chat (takes remaining space) */}
+                      {/* Column 3 — Detail or Smart Ideas (takes remaining space) */}
                       <div className="flex-1 flex flex-col overflow-hidden min-w-[200px]">
-                        {chatActive ? (
-                          <FlowChatPanel
-                            specFiles={contextSpecFiles}
-                            allSpecFiles={files}
-                            aiModel={aiModel}
-                            onFlowGenerated={handleChatFlowGenerated}
-                            onClose={() => setChatActive(false)}
+                        {smartIdeasActive ? (
+                          <SmartIdeasPanel
+                            currentMode={ideaMode}
+                            isVersionRoot={!!(activePath && /^v\d+\/?$/i.test(activePath))}
+                            onGenerate={({ prompt: p, scope: s, count: c, mode: m }) => {
+                              setIdeaMode(m);
+                              setSmartIdeasActive(false);
+                              if (multiSelectedMdPaths.length > 0) {
+                                const folder = activePath ?? multiSelectedMdPaths[0].split("/").slice(0, -1).join("/");
+                                void handleGenerateFlowIdeas(folder, c, multiSelectedMdPaths, p, s);
+                              } else {
+                                void handleGenerateFlowIdeas(activePath!, c, undefined, p, s);
+                              }
+                            }}
+                            onClose={() => setSmartIdeasActive(false)}
                           />
                         ) : (
                         <DetailPanel
@@ -2482,15 +2441,23 @@ export function SpecFilesPage() {
                     </>
                   )}
                 </div>
-              ) : chatActive ? (
-                /* Full-width chat panel on landing page */
+              ) : smartIdeasActive ? (
+                /* Full-width Smart Ideas panel on landing page */
                 <div className="flex-1 flex overflow-hidden">
-                  <FlowChatPanel
-                    specFiles={contextSpecFiles}
-                    allSpecFiles={files}
-                    aiModel={aiModel}
-                    onFlowGenerated={handleChatFlowGenerated}
-                    onClose={() => setChatActive(false)}
+                  <SmartIdeasPanel
+                    currentMode={ideaMode}
+                    isVersionRoot={!!(activePath && /^v\d+\/?$/i.test(activePath))}
+                    onGenerate={({ prompt: p, scope: s, count: c, mode: m }) => {
+                      setIdeaMode(m);
+                      setSmartIdeasActive(false);
+                      if (multiSelectedMdPaths.length > 0) {
+                        const folder = activePath ?? multiSelectedMdPaths[0].split("/").slice(0, -1).join("/");
+                        void handleGenerateFlowIdeas(folder, c, multiSelectedMdPaths, p, s);
+                      } else {
+                        void handleGenerateFlowIdeas(activePath!, c, undefined, p, s);
+                      }
+                    }}
+                    onClose={() => setSmartIdeasActive(false)}
                   />
                 </div>
               ) : activePath && (activePath.includes("/_system") || activePath.includes("/_distilled")) ? (
@@ -2552,13 +2519,13 @@ export function SpecFilesPage() {
                       {showLandingModal && (
                         <GenerateIdeasModal
                           currentMode={ideaMode}
-                          onGenerate={(count, mode) => {
+                          onGenerate={(count, mode, prompt) => {
                             setIdeaMode(mode);
                             if (multiSelectedMdPaths.length > 0) {
                               const folder = activePath ?? multiSelectedMdPaths[0].split("/").slice(0, -1).join("/");
-                              void handleGenerateFlowIdeas(folder, count, multiSelectedMdPaths);
+                              void handleGenerateFlowIdeas(folder, count, multiSelectedMdPaths, prompt);
                             } else {
-                              void handleGenerateFlowIdeas(activePath!, count);
+                              void handleGenerateFlowIdeas(activePath!, count, undefined, prompt);
                             }
                           }}
                           onClose={() => setShowLandingModal(false)}
@@ -2566,17 +2533,17 @@ export function SpecFilesPage() {
                       )}
                     </div>
                     <div className="flex flex-col items-center gap-2 pt-2">
-                      <span className="text-xs text-[#656d76]">or design a flow interactively</span>
+                      <span className="text-xs text-[#656d76]">or customize with a focus prompt</span>
                       <button
-                        onClick={() => setChatActive(true)}
+                        onClick={() => setSmartIdeasActive(true)}
                         disabled={noSpecFiles}
-                        title={noSpecFiles ? noSpecFilesTooltip : "Design a new flow interactively"}
+                        title={noSpecFiles ? noSpecFilesTooltip : "Generate ideas with custom prompt, scope, and mode"}
                         className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md px-3 py-2 transition-colors border border-[#1a7f37]/80 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
                         </svg>
-                        New Flow
+                        New Ideas
                       </button>
                     </div>
                   </div>
@@ -2709,15 +2676,15 @@ export function SpecFilesPage() {
         />
       )}
 
-      {/* CustomPromptModal removed — replaced by inline FlowChatPanel */}
+      {/* CustomPromptModal removed — replaced by SmartIdeasPanel */}
 
       {/* Generate Ideas modal (triggered from FileTree context menu) */}
       {treeGeneratePath && (
         <GenerateIdeasModal
           currentMode={ideaMode}
-          onGenerate={(count, mode) => {
+          onGenerate={(count, mode, prompt) => {
             setIdeaMode(mode);
-            void handleGenerateFlowIdeas(treeGeneratePath, count);
+            void handleGenerateFlowIdeas(treeGeneratePath, count, undefined, prompt);
           }}
           onClose={() => setTreeGeneratePath(null)}
         />

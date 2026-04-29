@@ -330,6 +330,8 @@ export interface GenerateFlowIdeasResponse {
   message?: string;
 }
 
+export type IdeaScope = "folder" | "version" | "custom";
+
 export async function generateFlowIdeas(
   folderPath: string,
   existingIdeas?: string[],
@@ -338,6 +340,8 @@ export async function generateFlowIdeas(
   maxCount?: number,
   filePaths?: string[],
   mode?: IdeaMode,
+  prompt?: string,
+  scope?: IdeaScope,
 ): Promise<GenerateFlowIdeasResponse> {
   const res = await apiFetch("/api/generate-flow-ideas", {
     method: "POST",
@@ -350,6 +354,8 @@ export async function generateFlowIdeas(
       ...(maxCount ? { maxCount } : {}),
       ...(filePaths && filePaths.length > 0 ? { filePaths } : {}),
       ...(mode ? { mode } : {}),
+      ...(prompt ? { prompt } : {}),
+      ...(scope && scope !== "folder" ? { scope } : {}),
     }),
   });
   return res.json() as Promise<GenerateFlowIdeasResponse>;

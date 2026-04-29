@@ -142,7 +142,7 @@ export async function generateFlowIdeasHandler(
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
 
   // ── Parse body ──
-  let body: { folderPath?: string; maxBudgetUsd?: number; existingIdeas?: string[]; model?: string; maxCount?: number; filePaths?: string[]; mode?: IdeaMode };
+  let body: { folderPath?: string; maxBudgetUsd?: number; existingIdeas?: string[]; model?: string; maxCount?: number; filePaths?: string[]; mode?: IdeaMode; prompt?: string; scope?: "folder" | "version" | "custom" };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -159,9 +159,13 @@ export async function generateFlowIdeasHandler(
     ? body.maxBudgetUsd
     : DEFAULT_BUDGET_USD;
 
-  const contextPath = body.folderPath;
+  const scope = body.scope ?? "folder";
+  // When scope is "version", use the version folder as context and force digest mode
+  const versionFolderEarly = extractVersionFolder(body.folderPath ?? "");
+  const contextPath = scope === "version" && versionFolderEarly ? versionFolderEarly : body.folderPath;
   const hasExplicitFiles = Array.isArray(body.filePaths) && body.filePaths.length > 0;
   const isSingleFile = !hasExplicitFiles && contextPath.endsWith(".md");
+  const forceDigest = scope === "version";
 
   let projectId: string;
   try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
@@ -232,7 +236,7 @@ export async function generateFlowIdeasHandler(
 
     filesAnalyzed = mdBlobs.length;
 
-    if (mdBlobs.length > DIGEST_THRESHOLD) {
+    if (forceDigest || mdBlobs.length > DIGEST_THRESHOLD) {
       // Large folder — use lightweight digest instead of reading every file
       useDigest = true;
       let digest = await readDigest(projectId, contextPath);
@@ -314,7 +318,11 @@ export async function generateFlowIdeasHandler(
       ? `\n\n**MODE: Minimal (No Prerequisites, No Teardown)** — Do NOT create prerequisite entities. Use \`{{proj.variableName}}\` for foreign key IDs. Do NOT include teardown/DELETE steps.`
       : "";
 
-  const userMessage = `Analyze these API specifications and generate up to ${requestedCount} NEW test flow ideas.${scopeNote}${versionDirective}${modeNote}${existingList}${dependencyMap}\n\n## Spec Files\n\n${specText}`;
+  const focusPrompt = body.prompt?.trim()
+    ? `\n\n## Focus Area\nThe QA engineer wants to focus on: ${body.prompt.trim()}\nGenerate ideas aligned with this focus while still covering the provided specs.`
+    : "";
+
+  const userMessage = `Analyze these API specifications and generate up to ${requestedCount} NEW test flow ideas.${scopeNote}${versionDirective}${modeNote}${focusPrompt}${existingList}${dependencyMap}\n\n## Spec Files\n\n${specText}`;
 
   const SYSTEM_PROMPT = buildSystemPrompt(mode, requestedCount, useDigest);
   const systemPrompt = ctx.enrichSystemPrompt(SYSTEM_PROMPT);
