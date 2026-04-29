@@ -12,6 +12,9 @@ import { ContextMenu, MenuIcons } from "../common/ContextMenu";
 import type { MenuItem } from "../common/ContextMenu";
 import { useFlowStatusStore } from "../../store/flowStatus.store";
 import { buildFlowFilePath } from "../../lib/api/flowFilesApi";
+import { getFlowTrace } from "../../lib/api/flowTraceApi";
+import type { FlowTrace } from "../../lib/api/flowTraceApi";
+import FlowTraceModal from "./FlowTraceModal";
 
 const XmlEditor = lazy(() => import("../common/XmlEditor").then(m => ({ default: m.XmlEditor })));
 
@@ -182,6 +185,24 @@ function FlowXmlContent({ flow, validation, onUpdateXml, isLocked, lockTooltip, 
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const aiModel = useSetupStore((s) => s.aiModel);
 
+  // Trace modal state
+  const [traceData, setTraceData] = useState<FlowTrace | null>(null);
+  const [traceLoading, setTraceLoading] = useState(false);
+  const [showTrace, setShowTrace] = useState(false);
+
+  const handleShowTrace = useCallback(async () => {
+    if (!flow.traceId) return;
+    setTraceLoading(true);
+    try {
+      const data = await getFlowTrace(flow.traceId);
+      if (data) {
+        setTraceData(data);
+        setShowTrace(true);
+      }
+    } catch { /* ignore */ }
+    setTraceLoading(false);
+  }, [flow.traceId]);
+
   const xmlContent = flow.xml;
 
   // ── Manual edit handlers ──────────────────────────────────────────────────
@@ -328,6 +349,25 @@ function FlowXmlContent({ flow, validation, onUpdateXml, isLocked, lockTooltip, 
         {isView && (
           <>
             <CopyButton value={xmlContent} />
+            {flow.traceId && (
+              <button
+                onClick={handleShowTrace}
+                disabled={traceLoading}
+                title="View generation trace"
+                className="shrink-0 text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff] rounded-md p-1 transition-colors disabled:opacity-40"
+              >
+                {traceLoading ? (
+                  <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 12.75c1.148 0 2.278.08 3.383.237 1.037.146 1.866.966 1.866 2.013 0 3.728-2.35 6.75-5.25 6.75S6.75 18.728 6.75 15c0-1.046.83-1.867 1.866-2.013A24.204 24.204 0 0 1 12 12.75ZM12 12.75c2.883 0 5.647.508 8.207 1.44a23.91 23.91 0 0 1-1.152-6.44c0-2.21.897-4.21 2.346-5.657a1.07 1.07 0 0 0-.462-1.782C19.147.126 17.108 0 15 0c-3.796 0-7.34.904-10.49 2.51a1.07 1.07 0 0 0-.13 1.82A8.476 8.476 0 0 1 7.75 11.25c0 .53-.043 1.05-.128 1.56" />
+                  </svg>
+                )}
+              </button>
+            )}
             {isLocked && (
               canUnlock && onUnlock ? (
                 <button
@@ -533,6 +573,11 @@ function FlowXmlContent({ flow, validation, onUpdateXml, isLocked, lockTooltip, 
           <XmlCodeBlock value={xmlContent} className="flex-1 min-h-0 overflow-auto" height="100%" />
         )}
       </div>
+
+      {/* Trace modal */}
+      {showTrace && traceData && (
+        <FlowTraceModal trace={traceData} onClose={() => setShowTrace(false)} />
+      )}
     </div>
   );
 }

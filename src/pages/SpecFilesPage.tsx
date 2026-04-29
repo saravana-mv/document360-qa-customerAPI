@@ -1752,7 +1752,7 @@ export function SpecFilesPage() {
 
           localFlows = localFlows.map((f) =>
             f.ideaId === idea.id
-              ? { ...f, status: "done" as const, xml: result.xml, usage: result.usage, createdAt: new Date().toISOString() }
+              ? { ...f, status: "done" as const, xml: result.xml, usage: result.usage, traceId: result.traceId, createdAt: new Date().toISOString() }
               : f
           );
           setGeneratedFlows(localFlows);

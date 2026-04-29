@@ -12,6 +12,7 @@ export interface GeneratedFlow {
   error?: string;
   usage?: FlowUsage | null;
   createdAt?: string;
+  traceId?: string;
 }
 
 interface Props {

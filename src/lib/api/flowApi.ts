@@ -4,6 +4,7 @@ import { getProjectHeaders } from "./projectHeader";
 export interface FlowXmlResult {
   xml: string;
   usage: FlowUsage | null;
+  traceId?: string;
 }
 
 /** Strip markdown code fences, preamble commentary, and whitespace from AI XML output. */
@@ -54,10 +55,10 @@ export async function generateFlowXml(
     throw new Error(msg);
   }
 
-  const data = await res.json() as { xml: string; usage?: FlowUsage; warning?: string; failedFiles?: string[]; _debug?: unknown };
+  const data = await res.json() as { xml: string; usage?: FlowUsage; traceId?: string; warning?: string; failedFiles?: string[]; _debug?: unknown };
   if (data._debug) console.log("[FlowGen] Backend debug:", data._debug);
   if (data.warning) console.warn("[FlowGen] Warning:", data.warning, data.failedFiles);
-  return { xml: cleanXml(data.xml), usage: data.usage ?? null };
+  return { xml: cleanXml(data.xml), usage: data.usage ?? null, traceId: data.traceId };
 }
 
 /** Edit an existing flow XML using AI. Returns updated XML and usage data. */
@@ -123,6 +124,7 @@ export async function generateTitle(
 
 /** Stream flow XML from Claude via SSE. Calls onChunk for each text delta.
  *  If onCorrected is provided, it receives the post-processed XML after streaming completes.
+ *  Returns the traceId if one was received from the server.
  */
 export async function generateFlowStream(
   prompt: string,
@@ -131,7 +133,7 @@ export async function generateFlowStream(
   model?: string,
   signal?: AbortSignal,
   onCorrected?: (xml: string) => void,
-): Promise<void> {
+): Promise<{ traceId?: string }> {
   const res = await fetch(`/api/generate-flow`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getProjectHeaders() },
@@ -153,6 +155,7 @@ export async function generateFlowStream(
 
   const decoder = new TextDecoder();
   let buffer = "";
+  let traceId: string | undefined;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -165,17 +168,19 @@ export async function generateFlowStream(
     for (const line of lines) {
       if (!line.startsWith("data: ")) continue;
       const data = line.slice(6).trim();
-      if (data === "[DONE]") return;
+      if (data === "[DONE]") return { traceId };
       try {
-        const parsed = JSON.parse(data) as { text?: string; error?: string; corrected?: string };
+        const parsed = JSON.parse(data) as { text?: string; error?: string; corrected?: string; traceId?: string };
         if (parsed.error) throw new Error(parsed.error);
-        if (parsed.corrected && onCorrected) onCorrected(parsed.corrected);
+        if (parsed.traceId) traceId = parsed.traceId;
+        else if (parsed.corrected && onCorrected) onCorrected(parsed.corrected);
         else if (parsed.text) onChunk(parsed.text);
       } catch (e) {
-        // re-throw real errors, skip JSON parse failures
         if (e instanceof SyntaxError) continue;
         throw e;
       }
     }
   }
+
+  return { traceId };
 }

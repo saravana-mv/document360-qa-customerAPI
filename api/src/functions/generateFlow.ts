@@ -8,6 +8,7 @@ import { readDistilledContent } from "../lib/specDistillCache";
 import { loadAiContext } from "../lib/aiContext";
 import { getIdeasContainer } from "../lib/cosmosClient";
 import { filterRelevantSpecs } from "../lib/specFileSelection";
+import { createTraceBuilder, TraceBuilder } from "../lib/flowTrace";
 
 /** Strip markdown fences AND any preamble text before the XML declaration. */
 function cleanXmlResponse(raw: string): string {
@@ -425,12 +426,18 @@ function ideasDocId(folderPath: string): string {
  * This eliminates the need for the client to send 50+ file paths and
  * avoids the class of bugs where the client sends wrong/stale paths.
  */
+interface SpecResolution {
+  files: string[];
+  totalBlobFiles: number;
+  idea: { id: string; steps: string[]; entities: string[]; description: string };
+}
+
 async function resolveSpecFilesFromIdea(
   projectId: string,
   ideaId: string,
   versionFolder: string,
   folderPath?: string,
-): Promise<string[]> {
+): Promise<SpecResolution> {
   // 1. Find the idea in Cosmos DB
   const container = await getIdeasContainer();
   let idea: { steps: string[]; entities: string[]; description: string } | null = null;
@@ -487,7 +494,7 @@ async function resolveSpecFilesFromIdea(
   const selected = filterRelevantSpecs(idea, allMdFiles);
   console.log(`[generateFlow] filterRelevantSpecs selected ${selected.length} from ${allMdFiles.length}:`, selected);
 
-  return selected;
+  return { files: selected, totalBlobFiles: allMdFiles.length, idea: { id: ideaId, ...idea } };
 }
 
 /** POST /api/generate-flow
@@ -533,15 +540,25 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   const { oid, name: userName } = getUserInfo(req);
   const principal = parseClientPrincipal(req);
   const displayName = principal?.userDetails ?? userName;
+
+  // ── Debug trace builder ──
+  const trace = createTraceBuilder(projectId, oid, displayName);
+
   // ── Resolve spec files ──
   // Server-side selection: look up idea from Cosmos, list blobs, run filterRelevantSpecs
   // Falls back to client-provided specFiles for backward compatibility
   let specFiles: string[];
+  let specSource: "server" | "client" = "client";
+  let totalBlobFiles = 0;
   if (body.ideaId && body.versionFolder) {
     try {
-      specFiles = await resolveSpecFilesFromIdea(
+      const resolution = await resolveSpecFilesFromIdea(
         projectId, body.ideaId, body.versionFolder, body.folderPath,
       );
+      specFiles = resolution.files;
+      totalBlobFiles = resolution.totalBlobFiles;
+      specSource = "server";
+      trace.setIdeaRef(resolution.idea);
       console.log(`[generateFlow] Server-side spec selection: ${specFiles.length} files from idea ${body.ideaId}`, specFiles);
     } catch (e) {
       console.warn(`[generateFlow] Server-side spec resolution failed, falling back to client specFiles:`, e);
@@ -556,6 +573,17 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     );
   }
   const { context: specContext, failedFiles } = await buildSpecContext(specFiles, projectId);
+
+  // Record spec selection in trace
+  trace.setSpecSelection({
+    source: specSource,
+    totalBlobFiles,
+    selectedFiles: specFiles,
+    cappedAt: MAX_SPEC_FILES,
+    survivedFiles: specFiles.slice(0, MAX_SPEC_FILES),
+    failedFiles,
+  });
+  trace.setSpecContext(specContext);
 
   // Fail early if ALL requested spec files couldn't be read
   if (specFiles.length > 0 && failedFiles.length === specFiles.length) {
@@ -641,6 +669,9 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
 
   const systemPrompt = ctx.enrichSystemPrompt(flowSystemPrompt);
 
+  // Record prompts in trace
+  trace.setPrompt(systemPrompt, userMessage);
+
   if (shouldStream) {
     // SSE streaming response
     const encoder = new TextEncoder();
@@ -676,20 +707,13 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
             xml = xml.replace(/(<path>)\/v\d+\//gi, `$1/${canonicalVersion}/`);
           }
           console.log(`[generateFlow] stream post-process: commonFields=${JSON.stringify(commonFields)}, projVarMap=${JSON.stringify(projVarMap)}`);
-          // Cross-step captures FIRST (injects state vars for cross-step deps like version_number)
-          xml = injectCrossStepCaptures(xml, specContext, projVars);
-          // Missing required fields SECOND (fills remaining gaps with proj vars)
-          xml = injectMissingRequiredFields(xml, commonFields, projVarMap);
-          // Spec-aware required fields THIRD (catches ALL remaining required fields like title, name)
-          try { xml = injectSpecRequiredFields(xml, specContext, projVars); } catch (e) { console.warn("[generateFlow] injectSpecRequiredFields failed:", e); }
-          // Strip extra fields from PATCH/PUT bodies FOURTH (removes create-only fields like workspace_id)
-          try { xml = stripExtraRequestFields(xml, specContext); } catch (e) { console.warn("[generateFlow] stripExtraRequestFields failed:", e); }
-          // Endpoint refs FIFTH (links each step to its spec file for traceability)
-          try { xml = injectEndpointRefs(xml, specContext); } catch (e) { console.warn("[generateFlow] injectEndpointRefs failed:", e); }
-          // Rules/skills field injection FIFTH (catches fields from diagnostic lessons, e.g. workspace_id)
-          try { xml = injectRulesRequiredFields(xml, ctx.rules, projVars); } catch (e) { console.warn("[generateFlow] injectRulesRequiredFields failed:", e); }
-          // Capture validation LAST — remove captures for fields not in the spec response
-          try { xml = validateCaptures(xml, specContext); } catch (e) { console.warn("[generateFlow] validateCaptures failed:", e); }
+          xml = trace.wrapPostProcessor("injectCrossStepCaptures", xml, (x) => injectCrossStepCaptures(x, specContext, projVars));
+          xml = trace.wrapPostProcessor("injectMissingRequiredFields", xml, (x) => injectMissingRequiredFields(x, commonFields, projVarMap));
+          xml = trace.wrapPostProcessor("injectSpecRequiredFields", xml, (x) => injectSpecRequiredFields(x, specContext, projVars));
+          xml = trace.wrapPostProcessor("stripExtraRequestFields", xml, (x) => stripExtraRequestFields(x, specContext));
+          xml = trace.wrapPostProcessor("injectEndpointRefs", xml, (x) => injectEndpointRefs(x, specContext));
+          xml = trace.wrapPostProcessor("injectRulesRequiredFields", xml, (x) => injectRulesRequiredFields(x, ctx.rules, projVars));
+          xml = trace.wrapPostProcessor("validateCaptures", xml, (x) => validateCaptures(x, specContext));
 
           // Send the corrected XML so the frontend can replace the raw streamed text
           const correctedData = `data: ${JSON.stringify({ corrected: xml })}\n\n`;
@@ -701,6 +725,12 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
 
           const usageData = `data: ${JSON.stringify({ usage: { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, totalTokens: usage.totalTokens, costUsd: usage.costUsd } })}\n\n`;
           controller.enqueue(encoder.encode(usageData));
+
+          // Save debug trace (fire-and-forget)
+          trace.setModelUsage({ name: body.model ?? "default", inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd });
+          const traceId = await trace.save();
+          const traceData = `data: ${JSON.stringify({ traceId })}\n\n`;
+          controller.enqueue(encoder.encode(traceData));
 
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
@@ -751,26 +781,24 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
 
       // Post-process: inject missing common required fields into POST/PUT bodies
       console.log(`[generateFlow] post-process: commonFields=${JSON.stringify(commonFields)}, projVarMap=${JSON.stringify(projVarMap)}`);
-      // Cross-step captures FIRST (injects state vars for cross-step deps like version_number)
-      xml = injectCrossStepCaptures(xml, specContext, projVars);
-      // Missing required fields SECOND (fills remaining gaps with proj vars)
-      xml = injectMissingRequiredFields(xml, commonFields, projVarMap);
-      // Spec-aware required fields THIRD (catches ALL remaining required fields like title, name)
-      xml = injectSpecRequiredFields(xml, specContext, projVars);
-      // Strip extra fields from PATCH/PUT bodies FOURTH (removes create-only fields like workspace_id)
-      xml = stripExtraRequestFields(xml, specContext);
-      // Endpoint refs FIFTH (links each step to its spec file for traceability)
-      xml = injectEndpointRefs(xml, specContext);
-      // Rules/skills field injection SIXTH (catches fields from diagnostic lessons, e.g. workspace_id)
-      xml = injectRulesRequiredFields(xml, ctx.rules, projVars);
-      // Capture validation LAST — remove captures for fields not in the spec response
-      xml = validateCaptures(xml, specContext);
+      xml = trace.wrapPostProcessor("injectCrossStepCaptures", xml, (x) => injectCrossStepCaptures(x, specContext, projVars));
+      xml = trace.wrapPostProcessor("injectMissingRequiredFields", xml, (x) => injectMissingRequiredFields(x, commonFields, projVarMap));
+      xml = trace.wrapPostProcessor("injectSpecRequiredFields", xml, (x) => injectSpecRequiredFields(x, specContext, projVars));
+      xml = trace.wrapPostProcessor("stripExtraRequestFields", xml, (x) => stripExtraRequestFields(x, specContext));
+      xml = trace.wrapPostProcessor("injectEndpointRefs", xml, (x) => injectEndpointRefs(x, specContext));
+      xml = trace.wrapPostProcessor("injectRulesRequiredFields", xml, (x) => injectRulesRequiredFields(x, ctx.rules, projVars));
+      xml = trace.wrapPostProcessor("validateCaptures", xml, (x) => validateCaptures(x, specContext));
+
+      // Save debug trace (fire-and-forget)
+      trace.setModelUsage({ name: body.model ?? "default", inputTokens: result.usage.inputTokens, outputTokens: result.usage.outputTokens, costUsd: result.usage.costUsd });
+      const traceId = await trace.save();
 
       return {
         status: 200,
         headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
         body: JSON.stringify({
           xml,
+          traceId,
           usage: {
             inputTokens: result.usage.inputTokens,
             outputTokens: result.usage.outputTokens,
