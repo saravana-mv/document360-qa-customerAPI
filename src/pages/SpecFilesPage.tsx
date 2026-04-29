@@ -10,7 +10,6 @@ import { FlowIdeasPanel } from "../components/specfiles/FlowIdeasPanel";
 import { GenerateIdeasModal } from "../components/specfiles/GenerateIdeasModal";
 import { FlowsPanel, type GeneratedFlow } from "../components/specfiles/FlowsPanel";
 import { DetailPanel } from "../components/specfiles/DetailPanel";
-import { SmartIdeasPanel } from "../components/specfiles/SmartIdeasPanel";
 import { SkillsEditor } from "../components/specfiles/SkillsEditor";
 import { JsonCodeBlock } from "../components/common/JsonCodeBlock";
 import { SearchModal } from "../components/specfiles/SearchModal";
@@ -253,10 +252,7 @@ export function SpecFilesPage() {
   const [showLandingModal, setShowLandingModal] = useState(false);
   const [treeGeneratePath, setTreeGeneratePath] = useState<string | null>(null);
   const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(new Set());
-  const [smartIdeasActive, setSmartIdeasActive] = useState(() => {
-    try { return localStorage.getItem("specfiles_smart_ideas_active") === "true"; } catch { return false; }
-  });
-  useEffect(() => { try { localStorage.setItem("specfiles_smart_ideas_active", String(smartIdeasActive)); } catch { /* ignore */ } }, [smartIdeasActive]);
+  const [showNewIdeasModal, setShowNewIdeasModal] = useState(false);
 
   // ── Flow generation state ─────────────────────────────────────────────────
   const [generatedFlows, setGeneratedFlows] = useState<GeneratedFlow[]>([]);
@@ -2214,9 +2210,9 @@ export function SpecFilesPage() {
                 )}
                 {/* New Ideas button */}
                 <button
-                  onClick={() => setSmartIdeasActive(true)}
-                  disabled={smartIdeasActive || noSpecFiles}
-                  title={noSpecFiles ? noSpecFilesTooltip : smartIdeasActive ? "Ideas panel is already open" : "Generate test ideas with AI"}
+                  onClick={() => setShowNewIdeasModal(true)}
+                  disabled={noSpecFiles}
+                  title={noSpecFiles ? noSpecFilesTooltip : "Generate test ideas with AI"}
                   className="ml-auto inline-flex items-center gap-1 text-sm font-medium text-[#0969da] hover:text-[#0860ca] px-2 py-1 rounded-md hover:bg-[#ddf4ff] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -2402,7 +2398,7 @@ export function SpecFilesPage() {
                           onDownloadAll={downloadAllFlows}
                           onDeleteFlow={handleDeleteFlow}
                           onDeleteAllFlows={handleDeleteAllFlows}
-                          onStartNewIdeas={() => setSmartIdeasActive(true)}
+                          onStartNewIdeas={() => setShowNewIdeasModal(true)}
                           onMarkForImplementation={handleMarkForImplementation}
                           onMarkSelectedForImplementation={handleMarkSelectedForImplementation}
                           markedIds={markedIds}
@@ -2423,25 +2419,8 @@ export function SpecFilesPage() {
                       </div>
                       <ResizeHandle width={flowsWidth} onResize={setFlowsWidth} minWidth={180} maxWidth={500} />
 
-                      {/* Column 3 — Detail or Smart Ideas (takes remaining space) */}
+                      {/* Column 3 — Detail (takes remaining space) */}
                       <div className="flex-1 flex flex-col overflow-hidden min-w-[200px]">
-                        {smartIdeasActive ? (
-                          <SmartIdeasPanel
-                            currentMode={ideaMode}
-                            isVersionRoot={!!(activePath && /^v\d+\/?$/i.test(activePath))}
-                            onGenerate={({ prompt: p, scope: s, count: c, mode: m }) => {
-                              setIdeaMode(m);
-                              setSmartIdeasActive(false);
-                              if (multiSelectedMdPaths.length > 0) {
-                                const folder = activePath ?? multiSelectedMdPaths[0].split("/").slice(0, -1).join("/");
-                                void handleGenerateFlowIdeas(folder, c, multiSelectedMdPaths, p, s);
-                              } else {
-                                void handleGenerateFlowIdeas(activePath!, c, undefined, p, s);
-                              }
-                            }}
-                            onClose={() => setSmartIdeasActive(false)}
-                          />
-                        ) : (
                         <DetailPanel
                           selectedIdea={selectedIdea}
                           selectedFlow={selectedFlow}
@@ -2459,29 +2438,9 @@ export function SpecFilesPage() {
                           onUnlockFlow={selectedFlowLock ? () => void handleUnlockSelectedFlow() : undefined}
                           folderPath={parentFolderOf(activePath)}
                         />
-                        )}
                       </div>
                     </>
                   )}
-                </div>
-              ) : smartIdeasActive ? (
-                /* Full-width Smart Ideas panel on landing page */
-                <div className="flex-1 flex overflow-hidden">
-                  <SmartIdeasPanel
-                    currentMode={ideaMode}
-                    isVersionRoot={!!(activePath && /^v\d+\/?$/i.test(activePath))}
-                    onGenerate={({ prompt: p, scope: s, count: c, mode: m }) => {
-                      setIdeaMode(m);
-                      setSmartIdeasActive(false);
-                      if (multiSelectedMdPaths.length > 0) {
-                        const folder = activePath ?? multiSelectedMdPaths[0].split("/").slice(0, -1).join("/");
-                        void handleGenerateFlowIdeas(folder, c, multiSelectedMdPaths, p, s);
-                      } else {
-                        void handleGenerateFlowIdeas(activePath!, c, undefined, p, s);
-                      }
-                    }}
-                    onClose={() => setSmartIdeasActive(false)}
-                  />
                 </div>
               ) : activePath && (activePath.includes("/_system") || activePath.includes("/_distilled")) ? (
                 /* System/distilled folder — informational placeholder */
@@ -2542,32 +2501,21 @@ export function SpecFilesPage() {
                       {showLandingModal && (
                         <GenerateIdeasModal
                           currentMode={ideaMode}
-                          onGenerate={(count, mode, prompt) => {
+                          showScope
+                          isVersionRoot={!!(activePath && /^v\d+\/?$/i.test(activePath))}
+                          hasFileSelection={multiSelectedMdPaths.length > 0}
+                          onGenerate={(count, mode, prompt, scope) => {
                             setIdeaMode(mode);
                             if (multiSelectedMdPaths.length > 0) {
                               const folder = activePath ?? multiSelectedMdPaths[0].split("/").slice(0, -1).join("/");
-                              void handleGenerateFlowIdeas(folder, count, multiSelectedMdPaths, prompt);
+                              void handleGenerateFlowIdeas(folder, count, multiSelectedMdPaths, prompt, scope);
                             } else {
-                              void handleGenerateFlowIdeas(activePath!, count, undefined, prompt);
+                              void handleGenerateFlowIdeas(activePath!, count, undefined, prompt, scope);
                             }
                           }}
                           onClose={() => setShowLandingModal(false)}
                         />
                       )}
-                    </div>
-                    <div className="flex flex-col items-center gap-2 pt-2">
-                      <span className="text-xs text-[#656d76]">or customize with a focus prompt</span>
-                      <button
-                        onClick={() => setSmartIdeasActive(true)}
-                        disabled={noSpecFiles}
-                        title={noSpecFiles ? noSpecFilesTooltip : "Generate ideas with custom prompt, scope, and mode"}
-                        className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md px-3 py-2 transition-colors border border-[#1a7f37]/80 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-                        </svg>
-                        New Ideas
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -2699,15 +2647,35 @@ export function SpecFilesPage() {
         />
       )}
 
-      {/* CustomPromptModal removed — replaced by SmartIdeasPanel */}
+      {/* Generate Ideas modal (triggered from header bar "New Ideas" button or FlowsPanel) */}
+      {showNewIdeasModal && (
+        <GenerateIdeasModal
+          currentMode={ideaMode}
+          showScope
+          isVersionRoot={!!(activePath && /^v\d+\/?$/i.test(activePath))}
+          hasFileSelection={multiSelectedMdPaths.length > 0}
+          onGenerate={(count, mode, prompt, scope) => {
+            setIdeaMode(mode);
+            if (multiSelectedMdPaths.length > 0) {
+              const folder = activePath ?? multiSelectedMdPaths[0].split("/").slice(0, -1).join("/");
+              void handleGenerateFlowIdeas(folder, count, multiSelectedMdPaths, prompt, scope);
+            } else {
+              void handleGenerateFlowIdeas(activePath!, count, undefined, prompt, scope);
+            }
+          }}
+          onClose={() => setShowNewIdeasModal(false)}
+        />
+      )}
 
       {/* Generate Ideas modal (triggered from FileTree context menu) */}
       {treeGeneratePath && (
         <GenerateIdeasModal
           currentMode={ideaMode}
-          onGenerate={(count, mode, prompt) => {
+          showScope
+          isVersionRoot={/^v\d+\/?$/i.test(treeGeneratePath)}
+          onGenerate={(count, mode, prompt, scope) => {
             setIdeaMode(mode);
-            void handleGenerateFlowIdeas(treeGeneratePath, count, undefined, prompt);
+            void handleGenerateFlowIdeas(treeGeneratePath, count, undefined, prompt, scope);
           }}
           onClose={() => setTreeGeneratePath(null)}
         />
