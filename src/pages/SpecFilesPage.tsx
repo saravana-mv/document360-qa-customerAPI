@@ -248,6 +248,7 @@ export function SpecFilesPage() {
   const [ideasExhausted, setIdeasExhausted] = useState(false);
   const [ideaMode, setIdeaMode] = useState<IdeaMode>("full");
   const [showLandingModal, setShowLandingModal] = useState(false);
+  const [treeGeneratePath, setTreeGeneratePath] = useState<string | null>(null);
   const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(new Set());
   const [chatActive, setChatActive] = useState(() => {
     try { return localStorage.getItem("specfiles_chat_active") === "true"; } catch { return false; }
@@ -2197,7 +2198,7 @@ export function SpecFilesPage() {
             onRegenerateSystem={(folderPath) => void handleRegenerateSystem(folderPath)}
             regeneratingPaths={regeneratingPaths}
             onReimportSpec={(folderPath) => setReimportFolderPath(folderPath)}
-            onGenerateFlowIdeas={(path, count) => void handleGenerateFlowIdeas(path, count)}
+            onGenerateFlowIdeas={(path) => setTreeGeneratePath(path)}
             onRefresh={loadFiles}
             onNewVersion={() => setShowNewVersionModal(true)}
             onSearch={() => setShowSearch(true)}
@@ -2709,6 +2710,18 @@ export function SpecFilesPage() {
       )}
 
       {/* CustomPromptModal removed — replaced by inline FlowChatPanel */}
+
+      {/* Generate Ideas modal (triggered from FileTree context menu) */}
+      {treeGeneratePath && (
+        <GenerateIdeasModal
+          currentMode={ideaMode}
+          onGenerate={(count, mode) => {
+            setIdeaMode(mode);
+            void handleGenerateFlowIdeas(treeGeneratePath, count);
+          }}
+          onClose={() => setTreeGeneratePath(null)}
+        />
+      )}
     </Layout>
   );
 }

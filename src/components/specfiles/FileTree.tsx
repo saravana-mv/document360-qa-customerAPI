@@ -273,7 +273,7 @@ interface FolderMenuProps {
   onSyncFolder: () => void;
   onRegenerateSystem: () => void;
   onReimportSpec?: () => void;
-  onGenerateFlowIdeas: (count: number) => void;
+  onGenerateFlowIdeas: () => void;
   onRename: () => void;
   onDelete: () => void;
 }
@@ -293,9 +293,7 @@ function FolderMenu({ isSelected, hasSourcedFiles, hasSpecFiles, isRegenerating,
     { label: `Sort by name${currentSort === "name" ? "  ✓" : ""}`, icon: MenuIcons.sortAZ, onClick: () => onSort("name") },
     { label: `Sort by method${currentSort === "method" ? "  ✓" : ""}`, icon: MenuIcons.sortMethod, onClick: () => onSort("method"), disabled: !hasSpecFiles, tooltip: hasSpecFiles ? undefined : noSpecTip },
     "separator",
-    { label: "Generate 1 idea", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(1), disabled: !hasSpecFiles, tooltip: hasSpecFiles ? undefined : noSpecTip },
-    { label: "Generate 3 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(3), disabled: !hasSpecFiles, tooltip: hasSpecFiles ? undefined : noSpecTip },
-    { label: "Generate 5 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(5), disabled: !hasSpecFiles, tooltip: hasSpecFiles ? undefined : noSpecTip },
+    { label: "Generate ideas", icon: MenuIcons.sparkle, onClick: onGenerateFlowIdeas, disabled: !hasSpecFiles, tooltip: hasSpecFiles ? undefined : noSpecTip },
     "separator",
     { label: "Rename", icon: MenuIcons.rename, onClick: onRename },
     { label: "Delete folder", icon: MenuIcons.trash, onClick: onDelete, danger: true },
@@ -364,7 +362,7 @@ interface NodeProps {
   onRegenerateSystem: (folderPath: string) => void;
   regeneratingPaths?: Set<string>;
   onReimportSpec?: (folderPath: string) => void;
-  onGenerateFlowIdeas: (path: string, count: number) => void;
+  onGenerateFlowIdeas: (path: string) => void;
   onCreateCommit: (parentPath: string, name: string) => void;
   onCreateCancel: () => void;
 }
@@ -503,7 +501,7 @@ function TreeNodeRow({
                 onSyncFolder={() => onSyncFolder(node.path)}
                 onRegenerateSystem={() => onRegenerateSystem(node.path)}
                 onReimportSpec={onReimportSpec ? () => onReimportSpec(node.path) : undefined}
-                onGenerateFlowIdeas={(count) => onGenerateFlowIdeas(node.path, count)}
+                onGenerateFlowIdeas={() => onGenerateFlowIdeas(node.path)}
                 onRename={() => onRenameStart(node.path)}
                 onDelete={() => onDeleteNode(node)}
               />
@@ -521,9 +519,7 @@ function TreeNodeRow({
                   }] : []),
                   ...(node.name.endsWith(".md") ? [
                     "separator" as const,
-                    { label: "Generate 1 idea", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(node.path, 1) },
-                    { label: "Generate 3 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(node.path, 3) },
-                    { label: "Generate 5 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(node.path, 5) },
+                    { label: "Generate ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowIdeas(node.path) },
                     "separator" as const,
                   ] : ["separator" as const]),
                   { label: "Rename", icon: MenuIcons.rename, onClick: () => onRenameStart(node.path) },
@@ -636,7 +632,7 @@ interface FileTreeProps {
   onRegenerateSystem: (folderPath: string) => void;
   regeneratingPaths?: Set<string>;
   onReimportSpec?: (folderPath: string) => void;
-  onGenerateFlowIdeas: (path: string, count: number) => void;
+  onGenerateFlowIdeas: (path: string) => void;
   onRefresh: () => void;
   onNewVersion: () => void;
   onSearch: () => void;
