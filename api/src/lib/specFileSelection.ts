@@ -25,6 +25,62 @@ interface IdeaLike {
 }
 
 /**
+ * Precise cross-folder dependency resolution.
+ * For each idea step, check if `alreadySelected` covers that resource.
+ * If not, find exactly one matching spec file from the full blob list.
+ */
+export function resolveCrossFolderDeps(
+  steps: string[],
+  alreadySelected: string[],
+  allFiles: string[],
+): string[] {
+  const selectedLower = new Set(alreadySelected.map(f => f.toLowerCase()));
+  const extras: string[] = [];
+
+  // Pre-filter eligible files (no system/distilled)
+  const eligible = allFiles.filter(f =>
+    !f.includes("/_system/") && !f.includes("/_distilled/")
+  );
+
+  for (const step of steps) {
+    const match = step.match(/(GET|POST|PUT|PATCH|DELETE)\s+(\/\S+)/i);
+    if (!match) continue;
+    const method = match[1].toUpperCase();
+    const path = match[2];
+    const segments = path.split("/").filter(
+      s => s && !s.startsWith("{") && !/^v\d+$/i.test(s) && s !== "projects"
+    );
+    const resource = segments[0]?.toLowerCase();
+    if (!resource) continue;
+
+    // Skip if already covered
+    if (alreadySelected.some(f => f.toLowerCase().includes(`/${resource}/`))) continue;
+
+    // Find best match for this method+resource
+    const singular = singularize(resource);
+    const candidates: Record<string, string[]> = {
+      POST: [`create-${singular}.md`, "create.md"],
+      GET: [`get-${singular}.md`, `list-${resource}.md`, "get.md", "list.md"],
+      DELETE: [`delete-${singular}.md`, "delete.md"],
+      PUT: [`update-${singular}.md`, "update.md"],
+      PATCH: [`patch-${singular}.md`, `update-${singular}.md`, "patch.md", "update.md"],
+    };
+    for (const candidate of candidates[method] ?? []) {
+      const found = eligible.find(f => {
+        const lower = f.toLowerCase();
+        return lower.includes(`/${resource}/`) && lower.endsWith(`/${candidate}`);
+      });
+      if (found && !selectedLower.has(found.toLowerCase())) {
+        extras.push(found);
+        selectedLower.add(found.toLowerCase());
+        break;
+      }
+    }
+  }
+  return extras;
+}
+
+/**
  * Parse idea steps to find exactly the spec files needed for each endpoint.
  *
  * Each step like "POST /v3/projects/{project_id}/categories" is parsed to

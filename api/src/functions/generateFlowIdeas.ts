@@ -29,11 +29,14 @@ const DIGEST_THRESHOLD = 20;
 
 const MAX_IDEAS_PER_RUN = 10;
 
-const SYSTEM_PROMPT = `You are an expert QA test architect analyzing API specifications.
+type IdeaMode = "full" | "no-prereqs" | "no-prereqs-no-teardown";
+
+function buildSystemPrompt(mode: IdeaMode, maxIdeas: number, useDigest: boolean): string {
+  const base = `You are an expert QA test architect analyzing API specifications.
 
 Your job: given a set of API endpoint specifications, generate test flow ideas. A "flow" is a sequence of API calls that tests a real user journey or lifecycle.
 
-IMPORTANT: Generate exactly up to ${MAX_IDEAS_PER_RUN} NEW ideas per request. If the user provides a list of existing ideas, do NOT repeat any of them — generate only fresh, different ideas.
+IMPORTANT: Generate exactly up to ${maxIdeas} NEW ideas per request. If the user provides a list of existing ideas, do NOT repeat any of them — generate only fresh, different ideas.
 
 ## What to analyze
 - Each spec file describes one API endpoint (method, path, request/response schema, business rules)
@@ -52,7 +55,7 @@ Return a JSON array. Each item:
   "description": "One sentence describing the test scenario",
   "steps": ["POST /v1/resources", "GET /v1/resources/{id}", ...],
   "entities": ["resources", "sub-resources"],
-  "complexity": "simple|moderate|complex"
+  "complexity": "simple|moderate|complex"${useDigest ? "" : ',\n  "specFiles": ["path/to/resource/create-resource.md", ...]'}
 }
 
 ## Complexity guide
@@ -74,22 +77,44 @@ Generate ideas in this priority order (first ideas should be simplest):
 5. **State transitions & business logic**: workflow state changes, bulk operations
 6. **Complex multi-entity scenarios**: Cross-entity dependencies, ordering constraints, edge cases
 
-Always start with the simplest scenarios before progressing to complex ones. The first 3-4 ideas should be simple or moderate complexity.
+Always start with the simplest scenarios before progressing to complex ones. The first 3-4 ideas should be simple or moderate complexity.`;
 
-## Rules
-1. Generate up to ${MAX_IDEAS_PER_RUN} ideas maximum per request
-2. **STRICT SCOPE — NO PRIOR KNOWLEDGE**: Only use API endpoints explicitly described in the provided spec files. Do NOT use your training data or prior knowledge about this API — treat the specs as if you are seeing this API for the first time. For prerequisite setup/teardown steps not in the specs, construct the path by following the EXACT same URL pattern and version prefix as the provided specs.
+  // Mode-specific rules for prerequisites and teardown
+  let modeRules: string;
+  if (mode === "no-prereqs") {
+    modeRules = `
+3. **NO PREREQUISITES — USE PROJECT VARIABLES**: Do NOT create prerequisite entities (no setup steps for parent resources). Instead, use \`{{proj.variableName}}\` for any foreign key IDs (e.g., \`{{proj.categoryId}}\`). The user will configure these in Settings → Variables. Only include the core API operations in the steps.
+8. **TEARDOWN — FLOW-CREATED RESOURCES ONLY**: Include DELETE teardown steps ONLY for resources this flow creates (not for project-variable resources). If the flow creates an article, delete that article at the end. Do NOT delete the prerequisite entities referenced via \`{{proj.*}}\` variables.`;
+  } else if (mode === "no-prereqs-no-teardown") {
+    modeRules = `
+3. **NO PREREQUISITES — USE PROJECT VARIABLES**: Do NOT create prerequisite entities (no setup steps for parent resources). Instead, use \`{{proj.variableName}}\` for any foreign key IDs (e.g., \`{{proj.categoryId}}\`). The user will configure these in Settings → Variables. Only include the core API operations in the steps.
+8. **NO TEARDOWN**: Do NOT include teardown/DELETE steps. The flow tests only the core operations. This mode is for quick smoke tests and debugging.`;
+  } else {
+    // "full" mode — current behavior
+    modeRules = `
 3. **ENTITY DEPENDENCIES — CRITICAL**: Scan every endpoint's request body for foreign-key fields (any field ending in \`_id\` that references another resource, e.g. \`category_id\`, \`parent_id\`, \`folder_id\`, \`group_id\`). If a field description says "retrieve from GET /…" or the field name matches a sibling resource, the idea MUST include:
    - A setup step BEFORE the main logic: \`POST /vN/…/{resource}\` to create the dependency
    - A teardown step AFTER the main logic: \`DELETE /vN/…/{resource}/{id}\` to clean up
    Even if the field is marked optional/nullable. Example: an article idea must include "POST /v3/projects/{project_id}/categories — create prerequisite category" as step 1 and "DELETE /v3/projects/{project_id}/categories/{category_id} — teardown category" as the final step before other teardown. Use the SAME version prefix as the provided specs
+8. **TEARDOWN IS MANDATORY**: Every flow — no matter how simple — MUST include cleanup/teardown steps that delete all resources created during the flow. The testing environment must be left exactly as it was before the flow ran. Even a simple "POST creates a resource" test must include a DELETE step at the end. Include these teardown steps in the "steps" array.`;
+  }
+
+  // Spec file references rule — only when NOT using digest
+  const specFilesRule = useDigest ? "" : `
+9. **SPEC FILE REFERENCES**: For each idea, populate "specFiles" with the EXACT file paths from the "## {path}" headers in the spec content below. Include spec files for ALL steps in this idea (including setup/teardown steps if their specs are visible). If you cannot see the spec file for a prerequisite step (it is from a different folder), omit it — the system will resolve it automatically. Only include paths you can see in the provided spec headers.`;
+
+  return `${base}
+
+## Rules
+1. Generate up to ${maxIdeas} ideas maximum per request
+2. **STRICT SCOPE — NO PRIOR KNOWLEDGE**: Only use API endpoints explicitly described in the provided spec files. Do NOT use your training data or prior knowledge about this API — treat the specs as if you are seeing this API for the first time. For prerequisite setup/teardown steps not in the specs, construct the path by following the EXACT same URL pattern and version prefix as the provided specs.${modeRules}
 4. Include both happy-path and error-path flows
 5. Group related flows logically
 6. Return ONLY valid JSON — no markdown fences, no explanation text
-7. If existing ideas are provided, generate DIFFERENT ideas that cover new scenarios
-8. **TEARDOWN IS MANDATORY**: Every flow — no matter how simple — MUST include cleanup/teardown steps that delete all resources created during the flow. The testing environment must be left exactly as it was before the flow ran. Even a simple "POST creates a resource" test must include a DELETE step at the end. Include these teardown steps in the "steps" array.
+7. If existing ideas are provided, generate DIFFERENT ideas that cover new scenarios${specFilesRule}
 
 Return the JSON array directly.`;
+}
 
 
 function ok(data: unknown): HttpResponseInit {
@@ -116,7 +141,7 @@ export async function generateFlowIdeasHandler(
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
 
   // ── Parse body ──
-  let body: { folderPath?: string; maxBudgetUsd?: number; existingIdeas?: string[]; model?: string; maxCount?: number; filePaths?: string[] };
+  let body: { folderPath?: string; maxBudgetUsd?: number; existingIdeas?: string[]; model?: string; maxCount?: number; filePaths?: string[]; mode?: IdeaMode };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -126,6 +151,8 @@ export async function generateFlowIdeasHandler(
   if (!body.folderPath) {
     return err(400, "folderPath is required");
   }
+
+  const mode: IdeaMode = (body.mode === "no-prereqs" || body.mode === "no-prereqs-no-teardown") ? body.mode : "full";
 
   const budget = typeof body.maxBudgetUsd === "number" && body.maxBudgetUsd > 0
     ? body.maxBudgetUsd
@@ -279,8 +306,16 @@ export async function generateFlowIdeasHandler(
   const requestedCount = typeof body.maxCount === "number" && body.maxCount > 0 && body.maxCount <= MAX_IDEAS_PER_RUN
     ? body.maxCount
     : MAX_IDEAS_PER_RUN;
-  const userMessage = `Analyze these API specifications and generate up to ${requestedCount} NEW test flow ideas.${scopeNote}${versionDirective}${existingList}${dependencyMap}\n\n## Spec Files\n\n${specText}`;
 
+  const modeNote = mode === "no-prereqs"
+    ? `\n\n**MODE: No Prerequisites** — Do NOT create prerequisite entities. Use \`{{proj.variableName}}\` for foreign key IDs. Include DELETE teardown only for resources this flow creates.`
+    : mode === "no-prereqs-no-teardown"
+      ? `\n\n**MODE: Minimal (No Prerequisites, No Teardown)** — Do NOT create prerequisite entities. Use \`{{proj.variableName}}\` for foreign key IDs. Do NOT include teardown/DELETE steps.`
+      : "";
+
+  const userMessage = `Analyze these API specifications and generate up to ${requestedCount} NEW test flow ideas.${scopeNote}${versionDirective}${modeNote}${existingList}${dependencyMap}\n\n## Spec Files\n\n${specText}`;
+
+  const SYSTEM_PROMPT = buildSystemPrompt(mode, requestedCount, useDigest);
   const systemPrompt = ctx.enrichSystemPrompt(SYSTEM_PROMPT);
 
   // ── Pre-estimate cost and enforce budget ──
@@ -354,16 +389,22 @@ export async function generateFlowIdeasHandler(
     });
   }
 
-  // Post-process: fix wrong API version prefixes in step paths.
-  // The AI sometimes uses memorised paths from training data (e.g. /v2/)
-  // instead of the version found in the specs (e.g. /v3/).
-  if (canonicalVersion) {
-    for (const idea of ideas) {
-      if (Array.isArray(idea.steps)) {
-        idea.steps = idea.steps.map((step: string) =>
-          step.replace(/\/v\d+\//g, `/${canonicalVersion}/`)
-        );
-      }
+  // Post-process ideas
+  for (const idea of ideas) {
+    // Fix wrong API version prefixes in step paths
+    if (canonicalVersion && Array.isArray(idea.steps)) {
+      idea.steps = idea.steps.map((step: string) =>
+        step.replace(/\/v\d+\//g, `/${canonicalVersion}/`)
+      );
+    }
+    // Store mode on each idea for flow generation to use
+    idea.mode = mode;
+    // Validate specFiles entries (must end with .md, must contain /)
+    if (Array.isArray(idea.specFiles)) {
+      idea.specFiles = idea.specFiles.filter(
+        (f: string) => typeof f === "string" && f.endsWith(".md") && f.includes("/")
+      );
+      if (idea.specFiles.length === 0) delete idea.specFiles;
     }
   }
 

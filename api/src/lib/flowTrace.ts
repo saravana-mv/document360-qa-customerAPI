@@ -37,7 +37,7 @@ export interface FlowTraceDocument {
   } | null;
 
   specSelection: {
-    source: "server" | "client";
+    source: "server" | "client" | "ai-provided";
     totalBlobFiles: number;
     selectedFiles: string[];
     cappedAt: number;

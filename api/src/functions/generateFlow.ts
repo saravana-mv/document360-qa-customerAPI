@@ -7,7 +7,7 @@ import { extractCommonRequiredFields, analyzeCrossStepDependencies, injectCrossS
 import { readDistilledContent } from "../lib/specDistillCache";
 import { loadAiContext } from "../lib/aiContext";
 import { getIdeasContainer } from "../lib/cosmosClient";
-import { filterRelevantSpecs } from "../lib/specFileSelection";
+import { filterRelevantSpecs, resolveCrossFolderDeps } from "../lib/specFileSelection";
 import { createTraceBuilder, TraceBuilder } from "../lib/flowTrace";
 
 /** Strip markdown fences AND any preamble text before the XML declaration. */
@@ -429,7 +429,8 @@ function ideasDocId(folderPath: string): string {
 interface SpecResolution {
   files: string[];
   totalBlobFiles: number;
-  idea: { id: string; steps: string[]; entities: string[]; description: string };
+  idea: { id: string; steps: string[]; entities: string[]; description: string; specFiles?: string[]; mode?: string };
+  specSource: "server" | "ai-provided";
 }
 
 async function resolveSpecFilesFromIdea(
@@ -440,13 +441,13 @@ async function resolveSpecFilesFromIdea(
 ): Promise<SpecResolution> {
   // 1. Find the idea in Cosmos DB
   const container = await getIdeasContainer();
-  let idea: { steps: string[]; entities: string[]; description: string } | null = null;
+  let idea: { steps: string[]; entities: string[]; description: string; specFiles?: string[]; mode?: string } | null = null;
 
   if (folderPath) {
     // Direct lookup — we know the folder path
     try {
       const { resource } = await container.item(ideasDocId(folderPath), projectId).read<{
-        ideas: { id: string; steps: string[]; entities: string[]; description: string }[];
+        ideas: { id: string; steps: string[]; entities: string[]; description: string; specFiles?: string[]; mode?: string }[];
       }>();
       if (resource?.ideas) {
         idea = resource.ideas.find(i => i.id === ideaId) ?? null;
@@ -461,7 +462,7 @@ async function resolveSpecFilesFromIdea(
       parameters: [{ name: "@pid", value: projectId }],
     };
     const { resources } = await container.items.query<{
-      ideas: { id: string; steps: string[]; entities: string[]; description: string }[];
+      ideas: { id: string; steps: string[]; entities: string[]; description: string; specFiles?: string[]; mode?: string }[];
     }>(query).fetchAll();
     for (const doc of resources) {
       const found = doc.ideas?.find(i => i.id === ideaId);
@@ -490,11 +491,24 @@ async function resolveSpecFilesFromIdea(
 
   console.log(`[generateFlow] Blob listing for ${prefix}: ${allMdFiles.length} .md files`);
 
-  // 3. Run server-side spec selection
+  // 3. Try AI-provided specFiles first, then fall back to filterRelevantSpecs
+  if (idea.specFiles && idea.specFiles.length > 0) {
+    const allMdLower = new Set(allMdFiles.map(f => f.toLowerCase()));
+    const validated = idea.specFiles.filter(f => allMdLower.has(f.toLowerCase()));
+    if (validated.length > 0) {
+      const crossFolderFiles = resolveCrossFolderDeps(idea.steps, validated, allMdFiles);
+      const combined = [...validated, ...crossFolderFiles];
+      console.log(`[generateFlow] AI specFiles: ${validated.length} validated, ${crossFolderFiles.length} cross-folder, total=${combined.length}`);
+      return { files: combined, totalBlobFiles: allMdFiles.length, idea: { id: ideaId, ...idea }, specSource: "ai-provided" };
+    }
+    console.warn(`[generateFlow] AI specFiles all invalid, falling back to filterRelevantSpecs`);
+  }
+
+  // Fallback: heuristic spec selection
   const selected = filterRelevantSpecs(idea, allMdFiles);
   console.log(`[generateFlow] filterRelevantSpecs selected ${selected.length} from ${allMdFiles.length}:`, selected);
 
-  return { files: selected, totalBlobFiles: allMdFiles.length, idea: { id: ideaId, ...idea } };
+  return { files: selected, totalBlobFiles: allMdFiles.length, idea: { id: ideaId, ...idea }, specSource: "server" };
 }
 
 /** POST /api/generate-flow
@@ -548,8 +562,9 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   // Server-side selection: look up idea from Cosmos, list blobs, run filterRelevantSpecs
   // Falls back to client-provided specFiles for backward compatibility
   let specFiles: string[];
-  let specSource: "server" | "client" = "client";
+  let specSource: "server" | "client" | "ai-provided" = "client";
   let totalBlobFiles = 0;
+  let ideaMode: string | undefined;
   if (body.ideaId && body.versionFolder) {
     try {
       const resolution = await resolveSpecFilesFromIdea(
@@ -557,9 +572,10 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       );
       specFiles = resolution.files;
       totalBlobFiles = resolution.totalBlobFiles;
-      specSource = "server";
+      specSource = resolution.specSource;
+      ideaMode = resolution.idea.mode;
       trace.setIdeaRef(resolution.idea);
-      console.log(`[generateFlow] Server-side spec selection: ${specFiles.length} files from idea ${body.ideaId}`, specFiles);
+      console.log(`[generateFlow] Spec selection (${specSource}): ${specFiles.length} files from idea ${body.ideaId}`, specFiles);
     } catch (e) {
       console.warn(`[generateFlow] Server-side spec resolution failed, falling back to client specFiles:`, e);
       specFiles = (body.specFiles ?? []).filter(
@@ -660,6 +676,13 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   if (commonFields.length > 0) {
     const fieldList = commonFields.map(f => `\`${f}\``).join(", ");
     flowSystemPrompt += `\n\n**COMMON REQUIRED FIELDS**: These fields appear as required across multiple endpoints in this API: ${fieldList}. When creating ANY resource (including prerequisite/setup steps without a spec file), include these fields using project variables (\`{{proj.X}}\`) or state variables (\`{{state.X}}\`).`;
+  }
+
+  // Inject mode-specific instructions for flow generation
+  if (ideaMode === "no-prereqs") {
+    flowSystemPrompt += `\n\n**MODE: No Prerequisites** — Do NOT create prerequisite/setup steps for parent resources. Use \`{{proj.variableName}}\` for any foreign key IDs (e.g., \`{{proj.categoryId}}\`). Include DELETE teardown steps ONLY for resources this flow creates (not for project-variable resources).`;
+  } else if (ideaMode === "no-prereqs-no-teardown") {
+    flowSystemPrompt += `\n\n**MODE: Minimal (No Prerequisites, No Teardown)** — Do NOT create prerequisite/setup steps. Use \`{{proj.variableName}}\` for any foreign key IDs. Do NOT include any teardown/DELETE steps. Only generate the core test operations.`;
   }
 
   // Inject dependency info from shared context

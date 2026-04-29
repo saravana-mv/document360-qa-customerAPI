@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ContextMenu, MenuIcons } from "../common/ContextMenu";
-import type { FlowIdea } from "../../lib/api/specFilesApi";
+import type { FlowIdea, IdeaMode } from "../../lib/api/specFilesApi";
 
 function formatRelativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -57,6 +57,10 @@ interface Props {
   thisLevelOnly?: boolean;
   /** Toggle handler — only provided when sub-level ideas exist */
   onToggleThisLevel?: () => void;
+  /** Current idea generation mode */
+  ideaMode: IdeaMode;
+  /** Mode change handler */
+  onModeChange: (mode: IdeaMode) => void;
 }
 
 export function FlowIdeasPanel({
@@ -66,6 +70,7 @@ export function FlowIdeasPanel({
   onGenerateFlows, onGenerateFlowForIdea, onGenerateMore, onDeleteSelected, onDeleteIdea, onClickIdea, generatingFlows,
   ideasExhausted, maxIdeasTotal = 30, markedIds,
   thisLevelOnly, onToggleThisLevel,
+  ideaMode, onModeChange,
 }: Props) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [rowDeleteId, setRowDeleteId] = useState<string | null>(null);
@@ -88,6 +93,14 @@ export function FlowIdeasPanel({
         )}
         {lockedCount > 0 && (
           <span className="text-xs px-1.5 py-px rounded-full font-medium bg-[#dafbe1] text-[#1a7f37] border border-[#aceebb]">{lockedCount} done</span>
+        )}
+        {ideaMode !== "full" && (
+          <span
+            title={ideaMode === "no-prereqs" ? "No prerequisites (with teardown)" : "No prerequisites, no teardown"}
+            className="text-xs px-1.5 py-px rounded-full font-medium bg-[#ddf4ff] text-[#0969da] border border-[#b6e3ff] truncate max-w-[100px]"
+          >
+            {ideaMode === "no-prereqs" ? "no prereqs" : "minimal"}
+          </span>
         )}
         {onToggleThisLevel && (
           <button
@@ -154,6 +167,10 @@ export function FlowIdeasPanel({
                 { label: "Generate 1 idea", icon: MenuIcons.sparkle, onClick: () => onGenerateMore(1), disabled: moreDisabled, tooltip: moreTooltip },
                 { label: "Generate 3 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateMore(3), disabled: moreDisabled, tooltip: moreTooltip },
                 { label: "Generate 5 ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateMore(5), disabled: moreDisabled, tooltip: moreTooltip },
+                "separator",
+                { label: "Full lifecycle", icon: ideaMode === "full" ? MenuIcons.check : undefined, onClick: () => onModeChange("full") },
+                { label: "No prerequisites", icon: ideaMode === "no-prereqs" ? MenuIcons.check : undefined, onClick: () => onModeChange("no-prereqs") },
+                { label: "Minimal (no prereqs/teardown)", icon: ideaMode === "no-prereqs-no-teardown" ? MenuIcons.check : undefined, onClick: () => onModeChange("no-prereqs-no-teardown") },
               ]}
             />
           );

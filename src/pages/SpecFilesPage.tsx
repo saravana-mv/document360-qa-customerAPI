@@ -28,6 +28,7 @@ import {
   type FlowIdea,
   type FlowIdeasUsage,
   type FlowUsage,
+  type IdeaMode,
 } from "../lib/api/specFilesApi";
 import type { SourceEntry } from "../types/spec.types";
 import { generateFlowXml } from "../lib/api/flowApi";
@@ -244,6 +245,7 @@ export function SpecFilesPage() {
   const [ideasRawText, setIdeasRawText] = useState<string | undefined>();
   const [ideasMessage, setIdeasMessage] = useState<string | null>(null);
   const [ideasExhausted, setIdeasExhausted] = useState(false);
+  const [ideaMode, setIdeaMode] = useState<IdeaMode>("full");
   const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(new Set());
   const [chatActive, setChatActive] = useState(() => {
     try { return localStorage.getItem("specfiles_chat_active") === "true"; } catch { return false; }
@@ -1260,7 +1262,7 @@ export function SpecFilesPage() {
       setIdeasLoading(true);
     }
     try {
-      const result = await generateFlowIdeas(contextPath, existingTitles, undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN, filePaths);
+      const result = await generateFlowIdeas(contextPath, existingTitles, undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN, filePaths, ideaMode);
       const perIdeaCost = result.usage && result.ideas.length > 0
         ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
         : undefined;
@@ -1343,7 +1345,7 @@ export function SpecFilesPage() {
     // Exclude ALL visible idea titles (including from child contexts)
     const existingTitles = ideas.map((i) => i.title);
     try {
-      const result = await generateFlowIdeas(currentPath, existingTitles, undefined, aiModel, count);
+      const result = await generateFlowIdeas(currentPath, existingTitles, undefined, aiModel, count, undefined, ideaMode);
       if (result.ideas.length > 0) {
         const perIdeaCost = result.usage && result.ideas.length > 0
           ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
@@ -2400,6 +2402,8 @@ export function SpecFilesPage() {
                       maxIdeasTotal={MAX_IDEAS_TOTAL}
                       thisLevelOnly={thisLevelOnly}
                       onToggleThisLevel={(hasSubLevelIdeas || hasSubLevelFlows) ? () => setThisLevelOnly((v) => !v) : undefined}
+                      ideaMode={ideaMode}
+                      onModeChange={setIdeaMode}
                     />
                   </div>
 

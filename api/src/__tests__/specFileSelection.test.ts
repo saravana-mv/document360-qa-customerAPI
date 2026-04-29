@@ -1,4 +1,4 @@
-import { filterRelevantSpecs } from "../lib/specFileSelection";
+import { filterRelevantSpecs, resolveCrossFolderDeps } from "../lib/specFileSelection";
 
 // Legacy-style filenames (prefixed: create-article.md, get-category.md)
 const allFiles = [
@@ -314,5 +314,68 @@ describe("filterRelevantSpecs", () => {
       );
       expect(result).toContain("V3/categories/create-category.md");
     });
+  });
+});
+
+describe("resolveCrossFolderDeps", () => {
+  const allFiles = [
+    "V3/articles/create-article.md",
+    "V3/articles/get-article.md",
+    "V3/articles/delete-article.md",
+    "V3/categories/create-category.md",
+    "V3/categories/get-category.md",
+    "V3/categories/delete-category.md",
+    "V3/projects/get-project.md",
+    "V3/_system/_rules.json",
+  ];
+
+  it("finds cross-folder deps for steps not covered by selected files", () => {
+    const steps = [
+      "POST /v3/projects/{project_id}/categories — create prerequisite",
+      "POST /v3/projects/{project_id}/articles — create article",
+      "DELETE /v3/projects/{project_id}/articles/{id} — teardown",
+      "DELETE /v3/projects/{project_id}/categories/{id} — teardown",
+    ];
+    const selected = ["V3/articles/create-article.md", "V3/articles/delete-article.md"];
+    const extras = resolveCrossFolderDeps(steps, selected, allFiles);
+    expect(extras).toContain("V3/categories/create-category.md");
+    expect(extras).toContain("V3/categories/delete-category.md");
+    // Should NOT include articles files (already selected)
+    expect(extras).not.toContain("V3/articles/create-article.md");
+  });
+
+  it("returns empty array when all resources already covered", () => {
+    const steps = [
+      "POST /v3/projects/{project_id}/articles",
+      "DELETE /v3/projects/{project_id}/articles/{id}",
+    ];
+    const selected = ["V3/articles/create-article.md", "V3/articles/delete-article.md"];
+    const extras = resolveCrossFolderDeps(steps, selected, allFiles);
+    expect(extras).toEqual([]);
+  });
+
+  it("returns empty array for unparseable steps", () => {
+    const extras = resolveCrossFolderDeps(["some random text"], [], allFiles);
+    expect(extras).toEqual([]);
+  });
+
+  it("skips system and distilled files", () => {
+    const filesWithSystem = [
+      ...allFiles,
+      "V3/_system/_distilled/categories/create-category.md",
+    ];
+    const steps = ["POST /v3/projects/{project_id}/categories"];
+    const extras = resolveCrossFolderDeps(steps, [], filesWithSystem);
+    expect(extras).toContain("V3/categories/create-category.md");
+    expect(extras).not.toContain("V3/_system/_distilled/categories/create-category.md");
+  });
+
+  it("does not duplicate files already in selected set", () => {
+    const steps = [
+      "GET /v3/projects/{project_id}/categories/{id}",
+    ];
+    const selected = ["V3/categories/get-category.md"];
+    const extras = resolveCrossFolderDeps(steps, selected, allFiles);
+    expect(extras).toEqual([]);
   });
 });

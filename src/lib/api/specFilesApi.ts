@@ -291,6 +291,8 @@ export async function searchSpecFiles(query: string, version?: string): Promise<
 
 // ── Flow Ideas (AI) ───────────────────────────────────────────────────────────
 
+export type IdeaMode = "full" | "no-prereqs" | "no-prereqs-no-teardown";
+
 export interface FlowIdea {
   id: string;
   title: string;
@@ -298,6 +300,8 @@ export interface FlowIdea {
   steps: string[];
   entities: string[];
   complexity: "simple" | "moderate" | "complex";
+  specFiles?: string[];
+  mode?: IdeaMode;
   costUsd?: number;
   createdAt?: string;
 }
@@ -333,6 +337,7 @@ export async function generateFlowIdeas(
   model?: string,
   maxCount?: number,
   filePaths?: string[],
+  mode?: IdeaMode,
 ): Promise<GenerateFlowIdeasResponse> {
   const res = await apiFetch("/api/generate-flow-ideas", {
     method: "POST",
@@ -344,6 +349,7 @@ export async function generateFlowIdeas(
       ...(model ? { model } : {}),
       ...(maxCount ? { maxCount } : {}),
       ...(filePaths && filePaths.length > 0 ? { filePaths } : {}),
+      ...(mode ? { mode } : {}),
     }),
   });
   return res.json() as Promise<GenerateFlowIdeasResponse>;
