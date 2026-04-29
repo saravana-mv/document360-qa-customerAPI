@@ -260,9 +260,51 @@ describe("ideas router", () => {
 
   // 11. Unsupported method -> 405
   it("unsupported method returns 405", async () => {
-    const res = await handler(mockRequest("PATCH"), ctx);
+    const res = await handler(mockRequest("POST"), ctx);
     expect(res.status).toBe(405);
     const body = parseBody(res);
     expect(body.error).toBe("Method Not Allowed");
+  });
+
+  // 12. PATCH rename — missing params returns 400
+  it("PATCH rename requires oldPath and newPath", async () => {
+    const res = await handler(mockRequest("PATCH", {}, { oldPath: "V3/articles" }), ctx);
+    expect(res.status).toBe(400);
+    const body = parseBody(res);
+    expect(body.error).toBe("oldPath and newPath are required");
+  });
+
+  // 13. PATCH rename — migrates documents
+  it("PATCH rename migrates ideas to new path", async () => {
+    mockFetchAll.mockResolvedValueOnce({
+      resources: [
+        {
+          id: "ideas:V3|articles",
+          projectId: "test-project",
+          type: "ideas",
+          folderPath: "V3/articles",
+          ideas: [{ id: "idea-1", title: "Test", specFiles: ["V3/articles/create.md"] }],
+          usage: null,
+          flowsUsage: null,
+          generatedFlows: [],
+          updatedAt: "2026-01-01",
+          updatedBy: { oid: "x", name: "X" },
+        },
+      ],
+    });
+    const res = await handler(
+      mockRequest("PATCH", {}, { oldPath: "V3/articles", newPath: "V3/items" }),
+      ctx
+    );
+    expect(res.status).toBe(200);
+    const body = parseBody(res);
+    expect(body.migrated).toBe(1);
+    // Verify delete was called for old doc
+    expect(mockDelete).toHaveBeenCalled();
+    // Verify upsert was called with updated paths
+    const upsertCall = mockUpsert.mock.calls[0][0];
+    expect(upsertCall.folderPath).toBe("V3/items");
+    expect(upsertCall.id).toBe("ideas:V3|items");
+    expect(upsertCall.ideas[0].specFiles[0]).toBe("V3/items/create.md");
   });
 });
