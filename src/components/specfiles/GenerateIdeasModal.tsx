@@ -50,11 +50,26 @@ export function GenerateIdeasModal({ onGenerate, onClose, currentMode, disabled,
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
       <div
-        className="w-[560px] max-w-[92vw]"
+        className="w-[640px] max-w-[92vw] bg-white rounded-2xl shadow-xl border border-[#d1d9e0]/70 overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
-        {/* Main input card */}
-        <div className="bg-white rounded-2xl shadow-lg border border-[#d1d9e0]/70 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-4 pb-2">
+          <h2 className="text-sm font-semibold text-[#1f2328]">Generate your ideas</h2>
+          <button
+            onClick={onClose}
+            className="text-[#656d76] hover:text-[#1f2328] transition-colors p-1 -mr-1 rounded-md hover:bg-[#f6f8fa]"
+            title="Close"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Main input area */}
+        <div className="px-5">
+          <div className="rounded-xl border border-[#d1d9e0]/70 overflow-hidden">
           {/* Textarea */}
           <textarea
             ref={textareaRef}
@@ -134,10 +149,11 @@ export function GenerateIdeasModal({ onGenerate, onClose, currentMode, disabled,
               </svg>
             </button>
           </div>
+          </div>
         </div>
 
-        {/* Template chips — below the card */}
-        <div className="flex flex-wrap items-center justify-center gap-2 mt-3 px-2">
+        {/* Template chips */}
+        <div className="flex flex-wrap items-center justify-center gap-2 mt-3 px-5">
           {IDEA_TEMPLATES.map((t) => (
             <button
               key={t.key}
@@ -147,8 +163,8 @@ export function GenerateIdeasModal({ onGenerate, onClose, currentMode, disabled,
               }}
               className={`inline-flex items-center gap-1.5 text-xs font-medium pl-2.5 pr-3 py-1.5 rounded-full border transition-all ${
                 prompt === t.prompt
-                  ? "bg-white text-[#0969da] border-[#0969da]/30 shadow-sm"
-                  : "bg-white/80 text-[#656d76] border-[#d1d9e0]/70 hover:border-[#afb8c1] hover:text-[#1f2328] hover:shadow-sm"
+                  ? "bg-[#ddf4ff] text-[#0969da] border-[#0969da]/30 shadow-sm"
+                  : "bg-[#f6f8fa] text-[#656d76] border-[#d1d9e0]/70 hover:border-[#afb8c1] hover:text-[#1f2328] hover:shadow-sm"
               }`}
             >
               <span className="opacity-60">{chipIcon(t.key)}</span>
@@ -158,7 +174,7 @@ export function GenerateIdeasModal({ onGenerate, onClose, currentMode, disabled,
         </div>
 
         {/* Mode description hint */}
-        <p className="text-center text-xs text-[#656d76]/70 mt-2.5">
+        <p className="text-center text-xs text-[#656d76]/70 mt-2.5 pb-4">
           {MODE_DESCRIPTIONS[mode]}
         </p>
       </div>
