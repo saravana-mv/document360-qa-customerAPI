@@ -7,6 +7,7 @@ import { DEFAULT_IDEAS_MODEL, priceFor } from "../lib/modelPricing";
 import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../lib/auth";
 import { extractVersionFolder } from "../lib/apiRules";
 import { loadAiContext } from "../lib/aiContext";
+import { resolveCrossFolderDeps } from "../lib/specFileSelection";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -405,6 +406,36 @@ export async function generateFlowIdeasHandler(
         (f: string) => typeof f === "string" && f.endsWith(".md") && f.includes("/")
       );
       if (idea.specFiles.length === 0) delete idea.specFiles;
+    }
+  }
+
+  // ── Cross-folder spec augmentation ──
+  // Ideas may reference prerequisite endpoints from sibling folders (e.g., articles
+  // ideas needing categories specs). Resolve those now so specFiles is complete.
+  if (versionFolder && mode === "full") {
+    try {
+      const versionPrefix = scopedPath(projectId, versionFolder.endsWith("/") ? versionFolder : `${versionFolder}/`);
+      const allVersionBlobs = await listBlobs(versionPrefix);
+      const allMdFiles = allVersionBlobs
+        .filter(b => b.name.endsWith(".md") && !b.name.includes("/_system/") && !b.name.includes("/_distilled/"))
+        .map(b => {
+          // Strip projectId prefix to get relative paths matching specFiles format
+          const projPrefix = projectId !== "unknown" ? projectId + "/" : "";
+          return projPrefix && b.name.startsWith(projPrefix) ? b.name.slice(projPrefix.length) : b.name;
+        });
+
+      for (const idea of ideas) {
+        if (!Array.isArray(idea.steps) || idea.steps.length === 0) continue;
+        const currentSpecFiles: string[] = idea.specFiles ?? [];
+        const crossFolderFiles = resolveCrossFolderDeps(idea.steps, currentSpecFiles, allMdFiles);
+        if (crossFolderFiles.length > 0) {
+          idea.specFiles = [...currentSpecFiles, ...crossFolderFiles];
+          console.log(`[generateFlowIdeas] Augmented idea "${idea.title}" with ${crossFolderFiles.length} cross-folder spec(s): ${crossFolderFiles.join(", ")}`);
+        }
+      }
+    } catch (e) {
+      // Non-fatal — ideas still work, flow generator will attempt resolution at generation time
+      console.warn(`[generateFlowIdeas] Cross-folder spec resolution failed (non-fatal):`, e);
     }
   }
 
