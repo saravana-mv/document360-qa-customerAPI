@@ -109,6 +109,26 @@ function injectMissingRequiredFields(
   });
 }
 
+/**
+ * Fix assertions that use {{timestamp}} in their value — the token re-evaluates
+ * at assertion time to a different value than was used in the request, so the
+ * assertion always fails. Convert these to field-exists instead.
+ */
+function fixTimestampAssertions(xml: string): string {
+  let count = 0;
+  const result = xml.replace(
+    /<assertion\s+type="field-equals"\s+field="([^"]+)"\s+value="[^"]*\{\{timestamp\}\}[^"]*"\s*\/>/g,
+    (_match, field) => {
+      count++;
+      return `<assertion type="field-exists" field="${field}"/>`;
+    },
+  );
+  if (count > 0) {
+    console.log(`[fixTimestampAssertions] Converted ${count} field-equals assertion(s) using {{timestamp}} to field-exists`);
+  }
+  return result;
+}
+
 /** Build a map from required field names to their best project variable token. */
 function buildProjVarMap(
   fields: string[],
@@ -340,6 +360,8 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
    - PUT/PATCH (update) → \`200\`
    - DELETE → \`204\` (No Content) — the response body is typically EMPTY. Do not add body-level assertions on DELETE steps unless the spec explicitly documents a response body.
 9. **Spec-driven assertions**: When spec files are provided, read the documented response schema and status codes carefully. The spec is the source of truth. Assertions (especially \`field-exists\`) must only reference fields that appear in the spec's response example — never assert on fields you assume exist but that aren't in the spec.
+   **NEVER use \`{{timestamp}}\` in assertion values** — the token re-evaluates at assertion time to a DIFFERENT value than was used in the request. To verify a field matches the sent value, capture the field from the response and use \`{{state.X}}\` in subsequent step assertions. For same-step assertions on request-derived values, use \`field-exists\` instead.
+   **NEVER assert a field equals a value captured from the SAME response** — this is circular and always passes. Either assert against a value from a PRIOR step (\`{{state.X}}\` captured earlier) or against a known constant. For example, assert \`data.category_id\` equals \`{{state.categoryId}}\` (captured from the create step), NOT a value captured from the same GET response.
 10. **Schema exactness**: Elements must appear in the order listed above. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status. Use \`field-exists\` / \`field-equals\` / \`array-not-empty\` — no other assertion types exist.
 11. **Request body fields MUST match the SPECIFIC endpoint's schema — ZERO TOLERANCE FOR EXTRA FIELDS**: Only include fields that are defined in the endpoint's request body schema. Do NOT add extra fields — even if other steps in this flow send those fields. Each endpoint has its OWN schema; a field like \`workspace_id\` that is required on endpoint A is INVALID on endpoint B unless endpoint B's spec explicitly lists it. Before writing EACH step's body, re-read THAT step's spec section and list ONLY the fields defined there. Many APIs use \`additionalProperties: false\` and will reject unknown fields with a 400 error. Also never send fields marked \`readOnly: true\` in request bodies — those are response-only fields. **CRITICAL for PATCH/PUT update steps**: Create and update endpoints often have DIFFERENT request schemas. A field accepted on POST (create) may not exist on PATCH (update). Always consult each endpoint's own request body schema independently — do NOT assume the update body is the same as the create body.
 12. **Cross-step data flow — CAPTURE fields needed by downstream steps (CRITICAL)**: Before writing any step, scan ALL later steps' request body schemas for required fields. If a later step requires a field (e.g., \`version_number\`, \`slug\`, \`status\`) that appears in an earlier step's RESPONSE example/schema, you MUST:
@@ -755,6 +777,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
           xml = trace.wrapPostProcessor("injectEndpointRefs", xml, (x) => injectEndpointRefs(x, specContext));
           xml = trace.wrapPostProcessor("injectRulesRequiredFields", xml, (x) => injectRulesRequiredFields(x, ctx.rules, projVars));
           xml = trace.wrapPostProcessor("validateCaptures", xml, (x) => validateCaptures(x, specContext));
+          xml = trace.wrapPostProcessor("fixTimestampAssertions", xml, (x) => fixTimestampAssertions(x));
           xml = injectModeComment(xml, ideaMode);
 
           // Send the corrected XML so the frontend can replace the raw streamed text
