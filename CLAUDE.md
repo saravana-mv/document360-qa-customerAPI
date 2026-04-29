@@ -156,6 +156,19 @@ Must wait for `useFlowStatusStore` to finish loading before building `parsedTags
 ### Batch Save Pattern
 Never call `loadFlowsFromQueue` in a loop after parallel saves. Batch all saves, activate all, then load once.
 
+### Spec Selection Pipeline (CRITICAL — read before touching filterRelevantSpecs, injectEndpointRefs, or buildSpecContext)
+**MAX_SPEC_FILES = 15**: `filterRelevantSpecs` can return 50+ files but `buildSpecContext` only uses the first 15 via `slice(0, 15)`. Files past position 15 silently disappear — no error. Always ensure critical files (especially same-folder delete specs for teardown) land within the cap.
+
+**Prefix matching is greedy**: `startsWith("create-")` matches `create-category.md` AND all action variants (`create-category-bulk-publish.md`, `create-category-fork.md`, etc.). One step can consume 7+ slots. Fix: use canonical `{action}-{resource}.md` matching for standard CRUD; broad prefix only for action/bulk endpoints.
+
+**Insertion order = priority**: `Set` preserves insertion order, and `slice(0, 15)` keeps the first 15. Order must be: primary matches → same-folder deps (create/delete for teardown) → sibling folder deps. If siblings are added before same-folder deps, the important ones get pushed past the cap.
+
+**Double-header bug in distilled content**: Splitter embeds `## filename.md` in raw content; `distillAndStore` wraps with another `## filename.md`. `buildSpecContext` must strip ALL inner `## filename.md` headers (global regex with `gm` flag) before adding its own outer `## path/filename.md` header — otherwise `injectEndpointRefs` maps endpoints to bare inner filenames instead of full paths.
+
+**Same-folder delete spec**: Ideas for "Create and Retrieve" flows don't include DELETE steps — the AI adds teardown on its own. `filterRelevantSpecs` must auto-include `delete-*` from the same resource folder so `injectEndpointRefs` can correct the teardown step's endpointRef.
+
+**Debug approach**: When post-processors produce wrong results in production, add Application Insights logging FIRST (log selected files, endpointMap contents, file headers), deploy, reproduce, read logs — then fix. Don't deploy blind guesses. KQL: `traces | where message has "filterRelevantSpecs" or message has "injectEndpointRefs"`
+
 ### esbuild Cross-Function Import Ban (CRITICAL)
 NEVER import from one `api/src/functions/` file into another. esbuild bundles each function file as a separate entry point and inlines all imports — including the imported file's `app.http()` registration. This causes duplicate route registration that **crashes the entire Azure Functions runtime** (all endpoints return 404). Always extract shared code into `api/src/lib/` modules.
 
