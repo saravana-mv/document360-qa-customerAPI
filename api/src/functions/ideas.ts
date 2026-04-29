@@ -4,7 +4,7 @@ import { withAuth, getUserInfo, getProjectId, ProjectIdMissingError } from "../l
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, PUT, PATCH, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-FlowForge-ProjectId",
 };
 
@@ -160,18 +160,82 @@ async function deleteIdeas(req: HttpRequest): Promise<HttpResponseInit> {
   }
 }
 
+/** PATCH /api/ideas — rename: migrate ideas from old path to new path,
+ *  updating specFiles references and folderPath inside ideas.
+ *  Body: { oldPath: string; newPath: string } */
+async function renameIdeas(req: HttpRequest): Promise<HttpResponseInit> {
+  try {
+    const projectId = getProjectId(req);
+    const user = getUserInfo(req);
+    const body = (await req.json()) as { oldPath?: string; newPath?: string };
+    if (!body.oldPath || !body.newPath) return err(400, "oldPath and newPath are required");
+
+    const { oldPath, newPath } = body;
+    const container = await getIdeasContainer();
+
+    // Find all idea documents whose folderPath starts with oldPath (exact or prefix)
+    const query = `SELECT * FROM c WHERE c.type="ideas" AND c.projectId=@pid AND (c.folderPath=@exact OR STARTSWITH(c.folderPath, @prefix))`;
+    const params = [
+      { name: "@pid", value: projectId },
+      { name: "@exact", value: oldPath },
+      { name: "@prefix", value: oldPath.endsWith("/") ? oldPath : oldPath + "/" },
+    ];
+    const { resources } = await container.items.query<IdeasDocument>({ query, parameters: params }, { partitionKey: projectId }).fetchAll();
+
+    let migrated = 0;
+    for (const doc of resources) {
+      const updatedFolderPath = doc.folderPath === oldPath
+        ? newPath
+        : newPath + doc.folderPath.slice(oldPath.length);
+
+      // Update specFiles paths inside each idea
+      const updatedIdeas = (doc.ideas as Array<{ specFiles?: string[]; [k: string]: unknown }>).map(idea => {
+        if (!Array.isArray(idea.specFiles)) return idea;
+        return {
+          ...idea,
+          specFiles: idea.specFiles.map((f: string) =>
+            f.startsWith(oldPath + "/") || f.startsWith(oldPath)
+              ? newPath + f.slice(oldPath.length)
+              : f
+          ),
+        };
+      });
+
+      // Delete old document, create new one with updated paths
+      try { await container.item(doc.id, projectId).delete(); } catch { /* may already be gone */ }
+
+      const newDoc: IdeasDocument = {
+        ...doc,
+        id: ideasDocId(updatedFolderPath),
+        folderPath: updatedFolderPath,
+        ideas: updatedIdeas,
+        updatedAt: new Date().toISOString(),
+        updatedBy: { oid: user.oid, name: user.name },
+      };
+      await container.items.upsert(newDoc);
+      migrated++;
+    }
+
+    return ok({ migrated, oldPath, newPath });
+  } catch (e) {
+    if (e instanceof ProjectIdMissingError) return err(400, e.message);
+    return err(500, e instanceof Error ? e.message : String(e));
+  }
+}
+
 async function ideasRouter(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
   switch (req.method) {
     case "OPTIONS": return { status: 204, headers: CORS_HEADERS };
     case "GET":     return getIdeas(req);
     case "PUT":     return putIdeas(req);
+    case "PATCH":   return renameIdeas(req);
     case "DELETE":  return deleteIdeas(req);
     default:        return err(405, "Method Not Allowed");
   }
 }
 
 app.http("ideas", {
-  methods: ["GET", "PUT", "DELETE", "OPTIONS"],
+  methods: ["GET", "PUT", "PATCH", "DELETE", "OPTIONS"],
   authLevel: "anonymous",
   route: "ideas",
   handler: withAuth(ideasRouter),

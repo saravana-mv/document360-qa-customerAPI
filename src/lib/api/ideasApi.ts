@@ -74,6 +74,46 @@ export async function deleteIdeas(folderPath: string): Promise<void> {
   await apiFetch(`/api/ideas?folderPath=${encodeURIComponent(folderPath)}`, { method: "DELETE" });
 }
 
+/** Rename ideas: migrate Cosmos docs from old path to new path, updating specFiles references */
+export async function renameIdeas(oldPath: string, newPath: string): Promise<{ migrated: number }> {
+  const res = await apiFetch("/api/ideas", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ oldPath, newPath }),
+  });
+  return res.json() as Promise<{ migrated: number }>;
+}
+
+/** Re-key workshopMap entries from oldPath to newPath (in-memory migration) */
+export function reKeyWorkshopMap(map: WorkshopMap, oldPath: string, newPath: string): WorkshopMap {
+  const result: WorkshopMap = {};
+  const oldPrefix = oldPath.endsWith("/") ? oldPath : oldPath + "/";
+  for (const [key, ctx] of Object.entries(map)) {
+    let newKey: string;
+    if (key === oldPath) {
+      newKey = newPath;
+    } else if (key.startsWith(oldPrefix)) {
+      newKey = newPath + key.slice(oldPath.length);
+    } else {
+      newKey = key;
+    }
+    // Also update specFiles inside ideas
+    const updatedIdeas = ctx.ideas.map(idea => {
+      if (!idea.specFiles?.length) return idea;
+      return {
+        ...idea,
+        specFiles: idea.specFiles.map(f =>
+          f.startsWith(oldPath + "/") || f === oldPath
+            ? newPath + f.slice(oldPath.length)
+            : f
+        ),
+      };
+    });
+    result[newKey] = { ...ctx, ideas: updatedIdeas };
+  }
+  return result;
+}
+
 /** Aggregate ideas from a map for a given path + descendants */
 export function aggregateForPath(map: WorkshopMap, path: string | null): ContextData {
   if (!path) return EMPTY_CONTEXT;

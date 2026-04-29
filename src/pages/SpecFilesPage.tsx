@@ -69,6 +69,8 @@ import {
   getAllIdeas,
   saveIdeas,
   deleteIdeas,
+  renameIdeas,
+  reKeyWorkshopMap,
   aggregateForPath,
   migrateFromLocalStorage as migrateIdeasFromLocalStorage,
   type WorkshopMap,
@@ -1058,9 +1060,30 @@ export function SpecFilesPage() {
         if (selectedPath?.startsWith(`${oldPath}/`)) {
           setSelectedPath(selectedPath.replace(oldPath, newPath));
         }
+        // Migrate ideas in Cosmos (re-key doc IDs, update specFiles paths)
+        renameIdeas(oldPath, newPath).catch(e =>
+          console.warn("[handleRename] Ideas migration failed (non-fatal):", e)
+        );
+        // Re-key in-memory workshopMap so ideas remain visible
+        setWorkshopMap(prev => reKeyWorkshopMap(prev, oldPath, newPath));
       } else {
         await renameSpecFile(oldPath, newPath);
         if (selectedPath === oldPath) setSelectedPath(newPath);
+        // Update specFiles references inside workshopMap ideas for file renames
+        setWorkshopMap(prev => {
+          const updated: WorkshopMap = {};
+          for (const [key, ctx] of Object.entries(prev)) {
+            const updatedIdeas = ctx.ideas.map(idea => {
+              if (!idea.specFiles?.length) return idea;
+              return {
+                ...idea,
+                specFiles: idea.specFiles.map(f => f === oldPath ? newPath : f),
+              };
+            });
+            updated[key] = { ...ctx, ideas: updatedIdeas };
+          }
+          return updated;
+        });
       }
       await loadFiles();
     } catch (e) {
