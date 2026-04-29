@@ -6,6 +6,13 @@ import { resolveScenario, ScenarioNotFoundError } from "../lib/flowRunner/scenar
 import { parseFlowXml } from "../lib/flowRunner/parser";
 import { getTestRunsContainer } from "../lib/cosmosClient";
 
+/** Extract the generation mode from a flowforge:mode XML comment, if present. */
+function extractFlowMode(xml: string | undefined): string | null {
+  if (!xml) return null;
+  const match = xml.match(/<!--\s*flowforge:mode=(\S+)\s*-->/);
+  return match ? match[1] : null;
+}
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -524,6 +531,17 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
     }
   }
 
+  // ── Detect flow generation mode from XML comment ──
+  const flowMode = extractFlowMode(flowXml);
+  if (flowMode && flowMode !== "full") {
+    const modeExplanation = flowMode === "no-prereqs"
+      ? `This flow was generated in **"no-prereqs" mode** — prerequisite entities (parent resources) are NOT created by the flow. Instead, they are referenced via \`{{proj.*}}\` project variables configured in Settings → Variables. If a step fails because a referenced entity doesn't exist (e.g., 404 on a parent resource), the most likely cause is that the corresponding project variable is missing, empty, or points to a deleted/invalid resource. Recommend the user check Settings → Variables and ensure the referenced IDs exist in the target environment.`
+      : flowMode === "no-prereqs-no-teardown"
+        ? `This flow was generated in **"minimal" mode** (no prerequisites, no teardown) — prerequisite entities are referenced via \`{{proj.*}}\` project variables, and there are NO cleanup/DELETE steps. If a step fails because a referenced entity doesn't exist, the user should check Settings → Variables. If resources created by this flow accumulate, that is expected behavior for this mode.`
+        : `This flow was generated in **"${flowMode}" mode**.`;
+    parts.push(`\n\n## Flow Generation Mode\n\n${modeExplanation}`);
+  }
+
   // Check if the failing step's spec defines a request body
   const failingStepSpec = ctx.flowStepSpecs.find(
     s => s.stepNumber === body.stepNumber && s.spec,
@@ -637,6 +655,7 @@ async function debugAnalyze(req: HttpRequest, _ctx: InvocationContext): Promise<
             hasRequestBody: s.spec ? /### Request Body/i.test(s.spec) : null,
           })),
           model: result.usage.model,
+          flowMode: flowMode ?? "full",
           // Diagnostic context availability
           hasRunContext: !!runDiagCtx,
           hasFlowXmlSnapshot: !!runDiagCtx?.flowXmlSnapshot,

@@ -10,6 +10,19 @@ import { getIdeasContainer } from "../lib/cosmosClient";
 import { filterRelevantSpecs, resolveCrossFolderDeps } from "../lib/specFileSelection";
 import { createTraceBuilder, TraceBuilder } from "../lib/flowTrace";
 
+/** Inject a metadata comment after the XML declaration so diagnostics can detect the generation mode. */
+function injectModeComment(xml: string, mode: string | undefined): string {
+  if (!mode || mode === "full") return xml;
+  const comment = `<!-- flowforge:mode=${mode} -->`;
+  // Insert after the XML declaration line
+  const declEnd = xml.indexOf("?>");
+  if (declEnd >= 0) {
+    return xml.slice(0, declEnd + 2) + "\n" + comment + xml.slice(declEnd + 2);
+  }
+  // No declaration found — prepend
+  return comment + "\n" + xml;
+}
+
 /** Strip markdown fences AND any preamble text before the XML declaration. */
 function cleanXmlResponse(raw: string): string {
   let xml = raw
@@ -737,6 +750,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
           xml = trace.wrapPostProcessor("injectEndpointRefs", xml, (x) => injectEndpointRefs(x, specContext));
           xml = trace.wrapPostProcessor("injectRulesRequiredFields", xml, (x) => injectRulesRequiredFields(x, ctx.rules, projVars));
           xml = trace.wrapPostProcessor("validateCaptures", xml, (x) => validateCaptures(x, specContext));
+          xml = injectModeComment(xml, ideaMode);
 
           // Send the corrected XML so the frontend can replace the raw streamed text
           const correctedData = `data: ${JSON.stringify({ corrected: xml })}\n\n`;
@@ -811,6 +825,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       xml = trace.wrapPostProcessor("injectEndpointRefs", xml, (x) => injectEndpointRefs(x, specContext));
       xml = trace.wrapPostProcessor("injectRulesRequiredFields", xml, (x) => injectRulesRequiredFields(x, ctx.rules, projVars));
       xml = trace.wrapPostProcessor("validateCaptures", xml, (x) => validateCaptures(x, specContext));
+      xml = injectModeComment(xml, ideaMode);
 
       // Save debug trace (fire-and-forget)
       trace.setModelUsage({ name: body.model ?? "default", inputTokens: result.usage.inputTokens, outputTokens: result.usage.outputTokens, costUsd: result.usage.costUsd });
