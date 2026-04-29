@@ -60,6 +60,11 @@ function injectMissingRequiredFields(
     const methodMatch = stepXml.match(/<method>(POST|PUT|PATCH)<\/method>/i);
     if (!methodMatch) return stepXml;
 
+    // Skip steps with an endpointRef — those have a spec file and their
+    // request body fields are managed by the spec. Only inject common
+    // required fields into prerequisite/dependency steps that lack a spec.
+    if (/<endpointRef>/.test(stepXml)) return stepXml;
+
     // Find the CDATA body
     const cdataRe = /(<body><!\[CDATA\[)([\s\S]*?)(\]\]><\/body>)/;
     const cdataMatch = stepXml.match(cdataRe);
