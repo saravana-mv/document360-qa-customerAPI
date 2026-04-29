@@ -111,7 +111,14 @@ Output ONLY valid JSON (no markdown, no commentary):
   "category": "extra_field|missing_field|wrong_value|schema_mismatch|auth_error|upstream_error|no_spec|other",
   "canYouFixIt": true,
   "howToFix": "Step-by-step instructions for QA to fix in the flow XML. Set to null if you cannot confidently determine the fix.",
-  "fixPrompt": "Precise instruction for an AI to edit the flow XML. Only present when canYouFixIt is true AND you have high confidence. Omit otherwise.",
+  "fixPrompt": "Precise instruction for an AI to edit the flow XML. Only present when canYouFixIt is true AND you have high confidence. Omit otherwise. Use this ONLY when there is exactly one clear fix approach.",
+  "fixOptions": [
+    {
+      "title": "Short label for this fix approach (e.g., 'Remove Step 3', 'Add version_number capture')",
+      "description": "1-2 sentence explanation of what this fix does and why it should work.",
+      "fixPrompt": "Precise AI-ready instruction to apply THIS specific fix to the flow XML."
+    }
+  ],
   "developerNote": "Technical root cause details for developers — schema details, field names, types, status codes. When spec is missing, note this explicitly.",
   "problematicFields": [{ "field": "name", "issue": "why it's wrong", "suggestion": "how to fix" }],
   "suggestedFix": { "description": "what to change", "before": "snippet before", "after": "corrected snippet" },
@@ -122,7 +129,8 @@ Rules:
 - "summary" replaces both rootCause and details — write ONE clear paragraph for QA.
 - "canYouFixIt" is true ONLY when you have the spec AND the fix is a clear flow XML edit. False for anything uncertain, upstream bugs, auth issues, environment problems, or missing spec.
 - "howToFix" should be step-by-step. Null when canYouFixIt is false or when you're not confident.
-- "fixPrompt" must be a precise AI-ready instruction to edit the XML. Omit when canYouFixIt is false or confidence is low.
+- "fixOptions" — Use when there are MULTIPLE possible fix strategies the user should choose between (e.g., "remove the step" vs "change the step's input"). Each option must have its own fixPrompt. Order from most recommended to least. If there is only one approach, use the single "fixPrompt" field instead. Omit fixOptions entirely when canYouFixIt is false.
+- "fixPrompt" — Use for the single-fix case. When fixOptions is present, omit fixPrompt (each option carries its own).
 - "developerNote" is technical — include schema details, field types, HTTP status analysis.
 - Omit problematicFields if none or if you're guessing. Omit suggestedFix if not applicable.
 - When confidence is "low", do NOT suggest specific field changes — only describe what you observe.`;

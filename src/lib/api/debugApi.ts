@@ -13,6 +13,12 @@ export interface SuggestedFix {
   after: string;
 }
 
+export interface FixOption {
+  title: string;
+  description: string;
+  fixPrompt: string;
+}
+
 export interface DebugDiagnosis {
   // New fields (v2)
   summary: string;
@@ -21,6 +27,8 @@ export interface DebugDiagnosis {
   canYouFixIt: boolean;
   howToFix?: string | null;
   fixPrompt?: string | null;
+  /** Multiple fix strategies the user can choose from */
+  fixOptions?: FixOption[];
   developerNote?: string;
   problematicFields?: ProblematicField[];
   suggestedFix?: SuggestedFix;

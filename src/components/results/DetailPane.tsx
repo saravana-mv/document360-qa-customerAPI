@@ -896,82 +896,115 @@ function DiagnoseTab({ testId }: { testId: string }) {
 
       {/* B. What to do next */}
       {diagnosis.canYouFixIt ? (() => {
-        // Build list of actionable fixes — per-field fixes take priority over the single fixPrompt
+        // Build list of fix options — fixOptions (strategy-level) > problematicFields (field-level) > single fixPrompt
         const fixes: Array<{ label: string; description: string; prompt: string }> = [];
-        if (diagnosis.problematicFields && diagnosis.problematicFields.length > 0) {
+        if (diagnosis.fixOptions && diagnosis.fixOptions.length > 0) {
+          for (const opt of diagnosis.fixOptions) {
+            fixes.push({ label: opt.title, description: opt.description, prompt: opt.fixPrompt });
+          }
+        } else if (diagnosis.problematicFields && diagnosis.problematicFields.length > 0) {
           for (const f of diagnosis.problematicFields) {
             const prompt = f.fixPrompt ?? `In the flow XML, fix the "${f.field}" field: ${f.suggestion}`;
             fixes.push({ label: f.field, description: `${f.issue} — ${f.suggestion}`, prompt });
           }
         }
-        // Fall back to single fixPrompt if no per-field fixes
+        // Fall back to single fixPrompt if no multi-fix options
         if (fixes.length === 0 && diagnosis.fixPrompt) {
           fixes.push({ label: "Fix", description: diagnosis.howToFix ?? "", prompt: diagnosis.fixPrompt });
         }
         const total = fixes.length;
-        const safeIdx = Math.min(fixIndex, total - 1);
-        const current = fixes[safeIdx];
+        const hasMultiple = total > 1;
 
         return (
           <div className="px-3 py-3 rounded-md bg-[#dafbe1] border border-[#aceebb]">
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-xs font-semibold text-[#1a7f37] uppercase tracking-wide">How to fix</span>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-semibold text-[#1a7f37] uppercase tracking-wide">
+                {hasMultiple ? "Fix options" : "How to fix"}
+              </span>
               <CopyButton
                 value={(() => {
                   const parts: string[] = [];
-                  if (total === 1 && diagnosis.howToFix) {
-                    parts.push(diagnosis.howToFix);
-                  }
-                  for (const f of fixes) {
-                    parts.push(`${f.label}: ${f.description}`);
-                  }
+                  if (!hasMultiple && diagnosis.howToFix) parts.push(diagnosis.howToFix);
+                  for (const f of fixes) parts.push(`${f.label}: ${f.description}`);
                   return parts.join("\n");
                 })()}
                 className="cursor-pointer"
               />
-              {total > 1 && (
-                <div className="flex items-center gap-1 ml-auto">
-                  <button
-                    onClick={() => { setFixIndex(Math.max(0, safeIdx - 1)); if (fixState === "done") setFixState("idle"); }}
-                    disabled={safeIdx === 0}
-                    className="p-0.5 rounded hover:bg-[#aceebb]/50 disabled:opacity-30 cursor-pointer disabled:cursor-default"
-                    title="Previous fix"
-                  >
-                    <svg className="w-3.5 h-3.5 text-[#1a7f37]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-                    </svg>
-                  </button>
-                  <span className="text-xs font-medium text-[#1a7f37] tabular-nums">{safeIdx + 1} of {total}</span>
-                  <button
-                    onClick={() => { setFixIndex(Math.min(total - 1, safeIdx + 1)); if (fixState === "done") setFixState("idle"); }}
-                    disabled={safeIdx === total - 1}
-                    className="p-0.5 rounded hover:bg-[#aceebb]/50 disabled:opacity-30 cursor-pointer disabled:cursor-default"
-                    title="Next fix"
-                  >
-                    <svg className="w-3.5 h-3.5 text-[#1a7f37]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                    </svg>
-                  </button>
-                </div>
+              {hasMultiple && (
+                <span className="text-xs text-[#1a7f37]/70 ml-auto">Choose one approach</span>
               )}
             </div>
-            {current && (
+            {!hasMultiple && diagnosis.howToFix && <HowToFixSteps text={diagnosis.howToFix} />}
+            {hasMultiple ? (
+              /* Multiple fix strategies — show as selectable cards */
+              <div className="space-y-2">
+                {fixes.map((fix, idx) => {
+                  const isApplying = fixIndex === idx && fixState === "fixing";
+                  const isApplied = fixIndex === idx && fixState === "done";
+                  const isError = fixIndex === idx && fixState === "error";
+                  const anyFixing = fixState === "fixing";
+                  return (
+                    <div
+                      key={idx}
+                      className={`rounded-md border px-3 py-2.5 transition-colors ${
+                        isApplied
+                          ? "bg-[#dafbe1] border-[#1a7f37]/40"
+                          : "bg-white border-[#aceebb] hover:border-[#1a7f37]/60"
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs font-bold text-[#1a7f37] bg-[#dafbe1] border border-[#aceebb] rounded px-1.5 py-0.5 shrink-0 mt-px">
+                          {idx + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-[#1f2328]">{fix.label}</p>
+                          <p className="text-xs text-[#656d76] mt-0.5 leading-relaxed">{fix.description}</p>
+                        </div>
+                      </div>
+                      <div className="mt-2 ml-7">
+                        {isApplied ? (
+                          <div className="flex items-center gap-1.5 text-sm text-[#1a7f37] font-medium">
+                            <span>✓</span> Applied. Re-run the scenario to verify.
+                          </div>
+                        ) : isApplying ? (
+                          <div className="flex items-center gap-2 text-sm text-[#656d76]">
+                            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
+                            </svg>
+                            Applying fix...
+                          </div>
+                        ) : isError ? (
+                          <div className="text-sm text-[#d1242f]">{fixError}</div>
+                        ) : (
+                          <button
+                            onClick={() => { setFixIndex(idx); void handleFixIt(fix.prompt); }}
+                            disabled={anyFixing}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-white bg-[#1a7f37] hover:bg-[#16653a] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.049.58.025 1.193-.14 1.743" />
+                            </svg>
+                            Apply this fix
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : fixes[0] && (
+              /* Single fix — original inline button */
               <>
-                {total > 1 && (
-                  <p className="text-xs font-mono text-[#1a7f37] mb-1">
-                    <span className="font-semibold">{current.label}</span>: {current.description}
-                  </p>
-                )}
-                {total === 1 && diagnosis.howToFix && <HowToFixSteps text={diagnosis.howToFix} />}
                 {fixState === "idle" && (
                   <button
-                    onClick={() => void handleFixIt(current.prompt)}
+                    onClick={() => void handleFixIt(fixes[0].prompt)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#16653a] transition-colors cursor-pointer"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.049.58.025 1.193-.14 1.743" />
                     </svg>
-                    {total > 1 ? `Fix "${current.label}"` : "Fix it automatically"}
+                    Fix it automatically
                   </button>
                 )}
                 {fixState === "fixing" && (
@@ -985,7 +1018,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
                 )}
                 {fixState === "done" && (
                   <div className="flex items-center gap-1.5 text-sm text-[#1a7f37] font-medium">
-                    <span>✓</span> Flow XML fixed and saved.{total > 1 ? " Navigate to next fix or re-run the scenario." : " Re-run the scenario to verify."}
+                    <span>✓</span> Flow XML fixed and saved. Re-run the scenario to verify.
                   </div>
                 )}
                 {fixState === "error" && (
@@ -993,7 +1026,6 @@ function DiagnoseTab({ testId }: { testId: string }) {
                 )}
               </>
             )}
-            {!current && diagnosis.howToFix && <HowToFixSteps text={diagnosis.howToFix} />}
           </div>
         );
       })() : (
