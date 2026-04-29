@@ -224,6 +224,69 @@ function fixCircularAssertions(xml: string): string {
 }
 
 /**
+ * Post-processor: fix assertion fields missing the `data.` prefix.
+ * When a step has a mix of `data.X` and bare `X` assertion fields, the bare
+ * ones are almost certainly missing the prefix (the API returns `{ data: {...} }`).
+ * Within each step, if ANY field-equals/field-exists assertion uses `data.`,
+ * rewrite bare field names (no dots) to add `data.` prefix.
+ */
+function fixBareAssertionFields(xml: string): string {
+  const stepRe = /<step\b[^>]*>[\s\S]*?<\/step>/g;
+  let result = xml;
+  let count = 0;
+
+  const replacements: { original: string; fixed: string }[] = [];
+  let m: RegExpExecArray | null;
+
+  while ((m = stepRe.exec(xml)) !== null) {
+    const stepXml = m[0];
+
+    // Collect all assertion field values in this step
+    const fieldRe = /<assertion\s+type="(?:field-equals|field-exists)"\s+field="([^"]+)"/g;
+    const fields: string[] = [];
+    let fm: RegExpExecArray | null;
+    while ((fm = fieldRe.exec(stepXml)) !== null) {
+      fields.push(fm[1]);
+    }
+
+    if (fields.length < 2) continue;
+
+    // Check if any field uses data. prefix
+    const hasDataPrefix = fields.some(f => f.startsWith("data.") || f.startsWith("data["));
+    if (!hasDataPrefix) continue;
+
+    // Find bare fields (no dots at all — like "workspace_id", "title")
+    // Skip fields that already have a prefix or are array paths
+    const bareFields = fields.filter(f => !f.includes(".") && !f.includes("["));
+    if (bareFields.length === 0) continue;
+
+    let fixedStep = stepXml;
+    for (const bare of bareFields) {
+      // Replace field="bare" with field="data.bare" in assertions
+      const bareRe = new RegExp(
+        `(<assertion\\s+type="(?:field-equals|field-exists)"\\s+field=")${bare.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(")`
+      , "g");
+      fixedStep = fixedStep.replace(bareRe, `$1data.${bare}$2`);
+      count++;
+      console.log(`[fixBareAssertionFields] Added data. prefix: "${bare}" → "data.${bare}"`);
+    }
+
+    if (fixedStep !== stepXml) {
+      replacements.push({ original: stepXml, fixed: fixedStep });
+    }
+  }
+
+  for (const { original, fixed } of replacements) {
+    result = result.replace(original, fixed);
+  }
+
+  if (count > 0) {
+    console.log(`[fixBareAssertionFields] Fixed ${count} bare assertion field(s)`);
+  }
+  return result;
+}
+
+/**
  * Post-processor: detect and remove endpointRefs that point to the wrong resource.
  * Example: step path is /v3/projects/{id}/categories but endpointRef is
  * V3/articles/create-article.md — the endpointRef resource "articles" doesn't
@@ -929,6 +992,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
           xml = trace.wrapPostProcessor("validateCaptures", xml, (x) => validateCaptures(x, specContext));
           xml = trace.wrapPostProcessor("fixTimestampAssertions", xml, (x) => fixTimestampAssertions(x));
           xml = trace.wrapPostProcessor("fixCircularAssertions", xml, (x) => fixCircularAssertions(x));
+          xml = trace.wrapPostProcessor("fixBareAssertionFields", xml, (x) => fixBareAssertionFields(x));
           xml = injectModeComment(xml, ideaMode);
 
           // Send the corrected XML so the frontend can replace the raw streamed text
@@ -1007,6 +1071,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       xml = trace.wrapPostProcessor("validateCaptures", xml, (x) => validateCaptures(x, specContext));
       xml = trace.wrapPostProcessor("fixTimestampAssertions", xml, (x) => fixTimestampAssertions(x));
       xml = trace.wrapPostProcessor("fixCircularAssertions", xml, (x) => fixCircularAssertions(x));
+      xml = trace.wrapPostProcessor("fixBareAssertionFields", xml, (x) => fixBareAssertionFields(x));
       xml = injectModeComment(xml, ideaMode);
 
       // Save debug trace (fire-and-forget)
