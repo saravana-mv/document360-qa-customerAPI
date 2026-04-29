@@ -130,6 +130,100 @@ function fixTimestampAssertions(xml: string): string {
 }
 
 /**
+ * Post-processor: detect and fix circular same-step assertions.
+ * A circular assertion captures a field from the response (e.g., state.X from
+ * response.data.Y) and then in the SAME step asserts field-equals data.Y = {{state.X}}.
+ * This always passes and tests nothing.
+ *
+ * Fix strategy:
+ * 1. If the request body sends a known value for that field (e.g., {{proj.workspace_id}}),
+ *    rewrite the assertion to use that value instead.
+ * 2. Otherwise, downgrade to field-exists.
+ */
+function fixCircularAssertions(xml: string): string {
+  const stepRe = /<step\b[^>]*>[\s\S]*?<\/step>/g;
+  let result = xml;
+  let count = 0;
+
+  let m: RegExpExecArray | null;
+  const replacements: { original: string; fixed: string }[] = [];
+
+  while ((m = stepRe.exec(xml)) !== null) {
+    const stepXml = m[0];
+
+    // Collect captures: variable name → source field path
+    // e.g., state.articleWorkspaceId → response.data.workspace_id
+    const captureRe = /<capture\s+variable="state\.([^"]+)"\s+source="response\.(?:data\.)?([^"]+)"\s*\/>/g;
+    const captures = new Map<string, string>(); // stateVar → response field (e.g., "workspace_id")
+    let cm: RegExpExecArray | null;
+    while ((cm = captureRe.exec(stepXml)) !== null) {
+      captures.set(cm[1], cm[2]);
+    }
+    if (captures.size === 0) continue;
+
+    // Extract request body field values for potential replacement
+    // Look for "field": "{{proj.X}}" or "field": "{{state.X}}" patterns
+    const bodyMatch = stepXml.match(/<body><!\[CDATA\[([\s\S]*?)\]\]><\/body>/);
+    const bodyValues = new Map<string, string>(); // field name → value sent
+    if (bodyMatch) {
+      const bodyFieldRe = /"(\w+)"\s*:\s*"([^"]+)"/g;
+      let bm: RegExpExecArray | null;
+      while ((bm = bodyFieldRe.exec(bodyMatch[1])) !== null) {
+        bodyValues.set(bm[1], bm[2]);
+      }
+    }
+
+    // Find circular assertions: field-equals where value is {{state.X}} captured in same step
+    let fixedStep = stepXml;
+    const assertionRe = /<assertion\s+type="field-equals"\s+field="(?:data\.)?([^"]+)"\s+value="\{\{state\.([^}]+)\}\}"\s*\/>/g;
+    let am: RegExpExecArray | null;
+    while ((am = assertionRe.exec(stepXml)) !== null) {
+      const assertField = am[1]; // e.g., "data.workspace_id" or "workspace_id"
+      const stateVar = am[2];    // e.g., "articleWorkspaceId"
+
+      // Check if this state var is captured in this same step
+      if (!captures.has(stateVar)) continue;
+
+      // It's circular — captured and asserted in the same step
+      const capturedField = captures.get(stateVar)!;
+      // Verify the assertion field matches the captured field (strip "data." prefix)
+      const assertFieldBare = assertField.replace(/^data\./, "");
+      const capturedFieldBare = capturedField.replace(/^data\./, "");
+      if (assertFieldBare !== capturedFieldBare) continue;
+
+      // Try to find the input value from the request body
+      const bodyValue = bodyValues.get(assertFieldBare);
+      let replacement: string;
+      if (bodyValue && (bodyValue.startsWith("{{proj.") || bodyValue.startsWith("{{state."))) {
+        // Replace with the input value — this actually tests something
+        replacement = `<assertion type="field-equals" field="${am[1]}" value="${bodyValue}"/>`;
+        console.log(`[fixCircularAssertions] Rewrote circular assertion: data.${assertFieldBare} = {{state.${stateVar}}} → ${bodyValue}`);
+      } else {
+        // No known input value — downgrade to field-exists
+        replacement = `<assertion type="field-exists" field="${am[1]}"/>`;
+        console.log(`[fixCircularAssertions] Downgraded circular assertion: data.${assertFieldBare} = {{state.${stateVar}}} → field-exists`);
+      }
+
+      fixedStep = fixedStep.replace(am[0], replacement);
+      count++;
+    }
+
+    if (fixedStep !== stepXml) {
+      replacements.push({ original: stepXml, fixed: fixedStep });
+    }
+  }
+
+  for (const { original, fixed } of replacements) {
+    result = result.replace(original, fixed);
+  }
+
+  if (count > 0) {
+    console.log(`[fixCircularAssertions] Fixed ${count} circular same-step assertion(s)`);
+  }
+  return result;
+}
+
+/**
  * Post-processor: detect and remove endpointRefs that point to the wrong resource.
  * Example: step path is /v3/projects/{id}/categories but endpointRef is
  * V3/articles/create-article.md — the endpointRef resource "articles" doesn't
@@ -834,6 +928,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
           xml = trace.wrapPostProcessor("injectRulesRequiredFields", xml, (x) => injectRulesRequiredFields(x, ctx.rules, projVars));
           xml = trace.wrapPostProcessor("validateCaptures", xml, (x) => validateCaptures(x, specContext));
           xml = trace.wrapPostProcessor("fixTimestampAssertions", xml, (x) => fixTimestampAssertions(x));
+          xml = trace.wrapPostProcessor("fixCircularAssertions", xml, (x) => fixCircularAssertions(x));
           xml = injectModeComment(xml, ideaMode);
 
           // Send the corrected XML so the frontend can replace the raw streamed text
@@ -911,6 +1006,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       xml = trace.wrapPostProcessor("injectRulesRequiredFields", xml, (x) => injectRulesRequiredFields(x, ctx.rules, projVars));
       xml = trace.wrapPostProcessor("validateCaptures", xml, (x) => validateCaptures(x, specContext));
       xml = trace.wrapPostProcessor("fixTimestampAssertions", xml, (x) => fixTimestampAssertions(x));
+      xml = trace.wrapPostProcessor("fixCircularAssertions", xml, (x) => fixCircularAssertions(x));
       xml = injectModeComment(xml, ideaMode);
 
       // Save debug trace (fire-and-forget)
