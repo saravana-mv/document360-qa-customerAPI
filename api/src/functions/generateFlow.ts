@@ -175,10 +175,10 @@ function fixCircularAssertions(xml: string): string {
 
     // Find circular assertions: field-equals where value is {{state.X}} captured in same step
     let fixedStep = stepXml;
-    const assertionRe = /<assertion\s+type="field-equals"\s+field="(?:data\.)?([^"]+)"\s+value="\{\{state\.([^}]+)\}\}"\s*\/>/g;
+    const assertionRe = /<assertion\s+type="field-equals"\s+field="([^"]+)"\s+value="\{\{state\.([^}]+)\}\}"\s*\/>/g;
     let am: RegExpExecArray | null;
     while ((am = assertionRe.exec(stepXml)) !== null) {
-      const assertField = am[1]; // e.g., "data.workspace_id" or "workspace_id"
+      const assertField = am[1]; // e.g., "data.workspace_id" or "workspace_id" — full field path preserved
       const stateVar = am[2];    // e.g., "articleWorkspaceId"
 
       // Check if this state var is captured in this same step
