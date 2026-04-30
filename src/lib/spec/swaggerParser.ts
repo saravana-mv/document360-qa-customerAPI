@@ -18,6 +18,8 @@ export interface ParsedEndpointDoc {
     contentType: string;
     schema?: Schema;
     example?: unknown;
+    /** OAS3 named examples map (example name → value) */
+    examples?: Record<string, unknown>;
   };
   responses: Array<{
     status: string;
@@ -93,12 +95,23 @@ export function parseSwaggerSpec(raw: string): ParsedSpec {
         if (rb?.content) {
           const [contentType, media] = Object.entries(rb.content)[0] ?? [];
           if (contentType && media) {
+            // Collect named examples from OAS3 `examples` map
+            const namedExamples: Record<string, unknown> = {};
+            const rawExamples = (media as Record<string, unknown>).examples as Record<string, { value?: unknown; summary?: string }> | undefined;
+            if (rawExamples && typeof rawExamples === "object") {
+              for (const [exName, exObj] of Object.entries(rawExamples)) {
+                if (exObj && typeof exObj === "object" && "value" in exObj) {
+                  namedExamples[exName] = exObj.value;
+                }
+              }
+            }
             requestBody = {
               required: rb.required,
               description: rb.description,
               contentType,
               schema: media.schema ? resolveSchemaRefs(media.schema, spec) : undefined,
               example: media.example,
+              examples: Object.keys(namedExamples).length > 0 ? namedExamples : undefined,
             };
           }
         }

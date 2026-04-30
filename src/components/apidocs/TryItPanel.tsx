@@ -34,6 +34,28 @@ const STATUS_COLORS: Record<string, string> = {
   "5": "text-[#d1242f] bg-[#ffebe9]",
 };
 
+/** Inline copy button with checkmark feedback. */
+function CopyButton({ value, label }: { value: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => { void navigator.clipboard.writeText(value).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1200); }); }}
+      title={copied ? "Copied!" : label ?? "Copy to clipboard"}
+      className={`shrink-0 p-1 rounded-md transition-colors ${copied ? "text-[#1a7f37] bg-[#dafbe1]" : "text-[#656d76] hover:text-[#1f2328] hover:bg-[#eef1f6]"}`}
+    >
+      {copied ? (
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+        </svg>
+      ) : (
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 /** Small icon button to fill a param from a matching project variable. */
 function UseVarButton({ paramName, varMap, onApply }: {
   paramName: string;
@@ -56,10 +78,11 @@ function UseVarButton({ paramName, varMap, onApply }: {
 }
 
 /** Collapsible accordion section — same design as Scenario Manager Run tab. */
-function Accordion({ title, badge, defaultOpen = false, children }: {
+function Accordion({ title, badge, defaultOpen = false, actions, children }: {
   title: string;
   badge?: React.ReactNode;
   defaultOpen?: boolean;
+  actions?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -80,10 +103,62 @@ function Accordion({ title, badge, defaultOpen = false, children }: {
           {title}
         </span>
         {badge}
+        {actions && <span onClick={(e) => e.stopPropagation()}>{actions}</span>}
       </button>
       {open && <div className="border-t border-[#d1d9e0]">{children}</div>}
     </div>
   );
+}
+
+/** Build a list of named examples from the endpoint spec. */
+interface NamedExample {
+  name: string;
+  params: Record<string, string>;
+  body: string;
+}
+
+function collectExamples(endpoint: ParsedEndpointDoc): NamedExample[] {
+  const results: NamedExample[] = [];
+
+  // Build param examples from schema.example
+  const paramExamples: Record<string, string> = {};
+  for (const p of endpoint.parameters) {
+    const ex = p.example ?? p.schema?.example;
+    if (ex != null) paramExamples[p.name] = String(ex);
+  }
+
+  // Request body examples (OAS3 `examples` map — named examples)
+  const bodyExamples = endpoint.requestBody?.examples;
+  if (bodyExamples && typeof bodyExamples === "object") {
+    for (const [exName, exValue] of Object.entries(bodyExamples)) {
+      results.push({
+        name: exName,
+        params: { ...paramExamples },
+        body: typeof exValue === "string" ? exValue : JSON.stringify(exValue, null, 2),
+      });
+    }
+  }
+
+  // Single `example` from the media type
+  if (results.length === 0 && endpoint.requestBody?.example != null) {
+    const ex = endpoint.requestBody.example;
+    results.push({
+      name: "Example",
+      params: { ...paramExamples },
+      body: typeof ex === "string" ? ex : JSON.stringify(ex, null, 2),
+    });
+  }
+
+  // If we only have param examples but no body example, still offer one entry
+  if (results.length === 0 && Object.keys(paramExamples).length > 0) {
+    results.push({
+      name: "Example",
+      params: { ...paramExamples },
+      body: "",
+    });
+  }
+
+  return results;
 }
 
 export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectionWarning }: Props) {
@@ -105,6 +180,9 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
     for (const v of variables) m.set(v.name, v.value);
     return m;
   }, [variables]);
+
+  // Collect available examples from the spec
+  const examples = useMemo(() => collectExamples(endpoint), [endpoint]);
 
   // Initialize param values — blank by default
   const [paramValues, setParamValues] = useState<Record<string, string>>(() => {
@@ -133,6 +211,17 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
   const updateParam = useCallback((name: string, value: string) => {
     setParamValues((prev) => ({ ...prev, [name]: value }));
   }, []);
+
+  function applyExample(ex: NamedExample) {
+    setParamValues((prev) => {
+      const next = { ...prev };
+      for (const [k, v] of Object.entries(ex.params)) {
+        if (k in next) next[k] = v;
+      }
+      return next;
+    });
+    if (ex.body) setBody(ex.body);
+  }
 
   async function handleSend() {
     setSending(true);
@@ -219,6 +308,27 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
           </div>
         )}
 
+        {/* ── Examples dropdown ─────────────────────────────────────── */}
+        {examples.length > 0 && (
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-semibold text-[#656d76] uppercase tracking-wide shrink-0">Examples</label>
+            <select
+              onChange={(e) => {
+                const idx = parseInt(e.target.value);
+                if (!isNaN(idx) && examples[idx]) applyExample(examples[idx]);
+                e.target.value = "";
+              }}
+              defaultValue=""
+              className="flex-1 text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2 py-1.5 outline-none focus:border-[#0969da] cursor-pointer"
+            >
+              <option value="" disabled>Select an example to auto-fill…</option>
+              {examples.map((ex, i) => (
+                <option key={i} value={i}>{ex.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* ── Path Parameters ──────────────────────────────────────── */}
         {pathParams.length > 0 && (
           <div className="space-y-1.5">
@@ -239,7 +349,7 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
                     type="text"
                     value={paramValues[p.name] ?? ""}
                     onChange={(e) => updateParam(p.name, e.target.value)}
-                    placeholder={p.schema?.type ?? ""}
+                    placeholder={p.schema?.example != null ? String(p.schema.example) : p.schema?.type ?? ""}
                     className="flex-1 text-sm border border-[#d1d9e0] rounded-md px-2 py-1 bg-white text-[#1f2328] placeholder-[#afb8c1] outline-none focus:border-[#0969da] font-mono"
                   />
                   <UseVarButton paramName={p.name} varMap={varMap} onApply={(v) => updateParam(p.name, v)} />
@@ -269,7 +379,7 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
                     type="text"
                     value={paramValues[p.name] ?? ""}
                     onChange={(e) => updateParam(p.name, e.target.value)}
-                    placeholder={p.schema?.type ?? ""}
+                    placeholder={p.schema?.example != null ? String(p.schema.example) : p.schema?.type ?? ""}
                     className="flex-1 text-sm border border-[#d1d9e0] rounded-md px-2 py-1 bg-white text-[#1f2328] placeholder-[#afb8c1] outline-none focus:border-[#0969da] font-mono"
                   />
                   <UseVarButton paramName={p.name} varMap={varMap} onApply={(v) => updateParam(p.name, v)} />
@@ -291,7 +401,7 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
                     type="text"
                     value={paramValues[p.name] ?? ""}
                     onChange={(e) => updateParam(p.name, e.target.value)}
-                    placeholder={p.schema?.type ?? ""}
+                    placeholder={p.schema?.example != null ? String(p.schema.example) : p.schema?.type ?? ""}
                     className="flex-1 text-sm border border-[#d1d9e0] rounded-md px-2 py-1 bg-white text-[#1f2328] placeholder-[#afb8c1] outline-none focus:border-[#0969da] font-mono"
                   />
                   <UseVarButton paramName={p.name} varMap={varMap} onApply={(v) => updateParam(p.name, v)} />
@@ -400,9 +510,13 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
                 )}
                 {/* Request Body */}
                 {response.requestBody && (
-                  <Accordion title="Request Body" defaultOpen={true}>
+                  <Accordion
+                    title="Request Body"
+                    defaultOpen={true}
+                    actions={<CopyButton value={response.requestBody} label="Copy request body" />}
+                  >
                     <div className="p-0">
-                      <JsonCodeBlock value={(() => { try { return JSON.parse(response.requestBody); } catch { return response.requestBody; } })()} height="14rem" />
+                      <JsonCodeBlock value={(() => { try { return JSON.parse(response.requestBody); } catch { return response.requestBody; } })()} height="28rem" />
                     </div>
                   </Accordion>
                 )}
@@ -422,12 +536,16 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
                   </Accordion>
                 )}
                 {/* Response Body */}
-                <Accordion title="Response Body" defaultOpen={true}>
+                <Accordion
+                  title="Response Body"
+                  defaultOpen={true}
+                  actions={response.body != null ? <CopyButton value={typeof response.body === "object" ? JSON.stringify(response.body, null, 2) : String(response.body)} label="Copy response body" /> : undefined}
+                >
                   <div className="p-0">
                     {response.body != null ? (
                       <JsonCodeBlock
                         value={typeof response.body === "object" ? response.body : (() => { try { return JSON.parse(String(response.body)); } catch { return String(response.body); } })()}
-                        height="14rem"
+                        height="28rem"
                       />
                     ) : (
                       <p className="text-xs text-[#afb8c1] italic px-3 py-2">No content</p>

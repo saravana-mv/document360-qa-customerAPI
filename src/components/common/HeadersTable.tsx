@@ -1,5 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+function CopyIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className ?? "w-3.5 h-3.5"} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
+    </svg>
+  );
+}
+
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className ?? "w-3.5 h-3.5"} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+    </svg>
+  );
+}
+
+function RowCopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => { void navigator.clipboard.writeText(value).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1200); }); }}
+      title={copied ? "Copied!" : "Copy"}
+      className={`shrink-0 p-0.5 rounded transition-colors opacity-0 group-hover/row:opacity-100 ${copied ? "text-[#1a7f37]" : "text-[#656d76] hover:text-[#1f2328] hover:bg-[#eef1f6]"}`}
+    >
+      {copied ? <CheckIcon className="w-3 h-3" /> : <CopyIcon className="w-3 h-3" />}
+    </button>
+  );
+}
+
 interface Props {
   headers: Record<string, string>;
   /** Header keys whose values should be masked (e.g. Authorization) */
@@ -88,6 +117,9 @@ export function HeadersTable({ headers, maskKeys = [] }: Props) {
             <div className="shrink-0 w-[5px] self-stretch" />
             <div className="flex-1 px-3 py-1.5 text-xs font-mono text-[#1f2328] break-all min-w-0">
               {maskValue(key, value)}
+            </div>
+            <div className="shrink-0 pr-2 py-1.5">
+              <RowCopyButton value={`${key}: ${value}`} />
             </div>
           </div>
         ))}
