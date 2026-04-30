@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { MethodBadge } from "./MethodBadge";
 import { JsonCodeBlock } from "../common/JsonCodeBlock";
 import { useConnectionsStore } from "../../store/connections.store";
 import { useProjectVariablesStore } from "../../store/projectVariables.store";
@@ -144,22 +143,6 @@ export function TryItPanel({ endpoint, versionFolder }: Props) {
     setParamValues((prev) => ({ ...prev, [name]: value }));
   }, []);
 
-  // Build the full URL
-  const resolvedUrl = useMemo(() => {
-    let path = endpoint.path;
-    for (const p of pathParams) {
-      const val = paramValues[p.name] || `{${p.name}}`;
-      path = path.replace(`{${p.name}}`, encodeURIComponent(val));
-    }
-    const queryParts: string[] = [];
-    for (const p of queryParams) {
-      const val = paramValues[p.name];
-      if (val) queryParts.push(`${encodeURIComponent(p.name)}=${encodeURIComponent(val)}`);
-    }
-    const qs = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
-    return `${path}${qs}`;
-  }, [endpoint.path, pathParams, queryParams, paramValues]);
-
   async function handleSend() {
     setSending(true);
     setError(null);
@@ -229,12 +212,6 @@ export function TryItPanel({ endpoint, versionFolder }: Props) {
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Endpoint summary */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
-        <MethodBadge method={endpoint.method} size="xs" />
-        <code className="text-xs font-mono text-[#656d76] truncate flex-1">{resolvedUrl}</code>
-      </div>
-
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
         {/* ── Connection (same pattern as ConnectEndpointModal) ───────── */}
         <div className="space-y-1.5">

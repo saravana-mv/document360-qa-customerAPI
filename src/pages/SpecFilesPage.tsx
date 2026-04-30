@@ -34,6 +34,7 @@ import { useScenarioOrgStore } from "../store/scenarioOrg.store";
 import { useWorkshopStore } from "../store/workshop.store";
 import { renameIdeas } from "../lib/api/ideasApi";
 import { EndpointDocView } from "../components/apidocs/EndpointDocView";
+import { MethodBadge } from "../components/apidocs/MethodBadge";
 import { TryItPanel } from "../components/apidocs/TryItPanel";
 import { parseSwaggerSpec, buildEndpointFileMap, type ParsedSpec, type ParsedEndpointDoc } from "../lib/spec/swaggerParser";
 
@@ -1230,8 +1231,8 @@ export function SpecFilesPage() {
           <>
             <ResizeHandle width={rhsWidth} onResize={setRhsWidth} minWidth={320} maxWidth={700} side="right" />
             <aside className="shrink-0 flex flex-col overflow-hidden bg-white" style={{ width: rhsWidth }}>
-              {/* Tab bar */}
-              <div className="flex items-center gap-1 px-3 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+              {/* Row 1 — matches breadcrumb bar h-10 */}
+              <div className="flex items-center gap-1 px-3 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
                 {(["tryit"] as const).map((tab) => (
                   <button
                     key={tab}
@@ -1254,6 +1255,11 @@ export function SpecFilesPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="m5.25 4.5 7.5 7.5-7.5 7.5m6-15 7.5 7.5-7.5 7.5" />
                   </svg>
                 </button>
+              </div>
+              {/* Row 2 — endpoint summary, matches Documentation/Markdown tab bar h-9 */}
+              <div className="flex items-center gap-2 px-3 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+                <MethodBadge method={selectedEndpoint.method} size="xs" />
+                <code className="text-xs font-mono text-[#656d76] truncate flex-1">{selectedEndpoint.path}</code>
               </div>
               {/* Tab content */}
               <div className="flex-1 overflow-hidden">
