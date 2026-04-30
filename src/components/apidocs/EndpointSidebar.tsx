@@ -8,15 +8,29 @@ interface Props {
   onSelectEndpoint: (ep: ParsedEndpointDoc) => void;
 }
 
+/** Convert PascalCase / camelCase tag names to spaced words.
+ *  e.g. "AISearchAnalytics" → "AI Search Analytics"
+ *       "projectVersions" → "Project Versions"
+ */
+function humanizeTag(tag: string): string {
+  // Insert space before uppercase letters that follow a lowercase, or before a new uppercase group
+  return tag
+    .replace(/([a-z])([A-Z])/g, "$1 $2")         // camelCase boundary
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")    // ABCDef → ABC Def
+    .replace(/[-_]/g, " ")                          // kebab/snake → spaces
+    .replace(/\b\w/g, c => c.toUpperCase())         // capitalize first letter of each word
+    .trim();
+}
+
 export function EndpointSidebar({ groups, selectedEndpoint, onSelectEndpoint }: Props) {
-  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     () => new Set(groups.map(g => g.tag)),
   );
 
   const filteredGroups = useMemo(() => {
-    if (!search.trim()) return groups;
-    const q = search.toLowerCase();
+    if (!filter.trim()) return groups;
+    const q = filter.toLowerCase();
     return groups
       .map(g => ({
         ...g,
@@ -28,7 +42,7 @@ export function EndpointSidebar({ groups, selectedEndpoint, onSelectEndpoint }: 
         ),
       }))
       .filter(g => g.endpoints.length > 0);
-  }, [groups, search]);
+  }, [groups, filter]);
 
   function toggleGroup(tag: string) {
     setExpandedGroups(prev => {
@@ -42,17 +56,17 @@ export function EndpointSidebar({ groups, selectedEndpoint, onSelectEndpoint }: 
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Search */}
+      {/* Filter */}
       <div className="px-3 py-2 border-b border-[#d1d9e0] shrink-0">
         <div className="relative">
           <svg className="w-3.5 h-3.5 text-[#656d76] absolute left-2 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z" />
           </svg>
           <input
             type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search endpoints..."
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter endpoints..."
             className="w-full text-sm pl-7 pr-2 py-1.5 border border-[#d1d9e0] rounded-md outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] bg-white text-[#1f2328] placeholder-[#afb8c1]"
           />
         </div>
@@ -72,7 +86,7 @@ export function EndpointSidebar({ groups, selectedEndpoint, onSelectEndpoint }: 
                 <svg className={`w-3 h-3 text-[#656d76] shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`} fill="currentColor" viewBox="0 0 16 16">
                   <path d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06Z" />
                 </svg>
-                <span className="text-sm font-semibold text-[#1f2328] truncate">{group.tag}</span>
+                <span className="text-sm font-semibold text-[#1f2328] truncate">{humanizeTag(group.tag)}</span>
                 <span className="text-xs text-[#656d76] ml-auto shrink-0">{group.endpoints.length}</span>
               </button>
               {isExpanded && (
@@ -105,7 +119,7 @@ export function EndpointSidebar({ groups, selectedEndpoint, onSelectEndpoint }: 
         })}
         {filteredGroups.length === 0 && (
           <div className="px-3 py-6 text-center text-sm text-[#656d76]">
-            No endpoints match your search.
+            No endpoints match your filter.
           </div>
         )}
       </div>

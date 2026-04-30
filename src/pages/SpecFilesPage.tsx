@@ -152,12 +152,12 @@ export function SpecFilesPage() {
   const [multiSelectedPaths, setMultiSelectedPaths] = useState<Set<string>>(new Set());
   const lastClickedPathRef = useRef<string | null>(null);
 
-  // ── API Docs / Files tab toggle ──────────────────────────────────────────
-  const [specTab, setSpecTab] = useState<"api-docs" | "files">(() => {
-    try { const v = localStorage.getItem("specfiles_tab"); if (v === "files") return "files"; } catch { /* ignore */ }
-    return "api-docs";
+  // ── RHS content tab (Documentation / Markdown) ──────────────────────────
+  const [contentTab, setContentTab] = useState<"documentation" | "markdown">(() => {
+    try { const v = localStorage.getItem("specfiles_content_tab"); if (v === "markdown") return "markdown"; } catch { /* ignore */ }
+    return "documentation";
   });
-  useEffect(() => { try { localStorage.setItem("specfiles_tab", specTab); } catch { /* ignore */ } }, [specTab]);
+  useEffect(() => { try { localStorage.setItem("specfiles_content_tab", contentTab); } catch { /* ignore */ } }, [contentTab]);
 
   // Derive version folder from current selection (first path segment)
   const versionFolder = useMemo(() => {
@@ -866,57 +866,9 @@ export function SpecFilesPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  const showApiDocs = specTab === "api-docs" && hasSwagger && !!versionFolder;
-
   return (
     <Layout>
-      <div className="h-full flex flex-col overflow-hidden">
-        {/* Tab toggle — only when swagger available */}
-        {hasSwagger && (
-          <div className="flex items-center gap-1 px-3 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
-            <button
-              onClick={() => setSpecTab("api-docs")}
-              className={[
-                "text-sm font-medium px-2.5 py-1 rounded-md transition-colors",
-                specTab === "api-docs"
-                  ? "bg-white text-[#1f2328] border border-[#d1d9e0] shadow-sm"
-                  : "text-[#656d76] hover:text-[#1f2328] hover:bg-white/60",
-              ].join(" ")}
-            >
-              <span className="inline-flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
-                </svg>
-                API Docs
-              </span>
-            </button>
-            <button
-              onClick={() => setSpecTab("files")}
-              className={[
-                "text-sm font-medium px-2.5 py-1 rounded-md transition-colors",
-                specTab === "files"
-                  ? "bg-white text-[#1f2328] border border-[#d1d9e0] shadow-sm"
-                  : "text-[#656d76] hover:text-[#1f2328] hover:bg-white/60",
-              ].join(" ")}
-            >
-              <span className="inline-flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
-                  <path d="M.513 1.513A1.75 1.75 0 0 1 1.75 0h3.5c.465 0 .91.185 1.239.513l.61.61c.109.109.257.17.411.17h6.74a1.75 1.75 0 0 1 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15.5H1.75A1.75 1.75 0 0 1 0 13.75V1.75c0-.465.185-.91.513-1.237Z" />
-                </svg>
-                Files
-              </span>
-            </button>
-            {versionFolder && (
-              <span className="ml-2 text-xs text-[#656d76]">{versionFolder}</span>
-            )}
-          </div>
-        )}
-
-        {/* Main layout — either API Docs or Files */}
-        {showApiDocs ? (
-          <ApiDocsViewer versionFolder={versionFolder!} />
-        ) : (
-        <div className="flex-1 flex overflow-hidden">
+      <div className="h-full flex overflow-hidden">
         {/* LHS tree */}
         <aside className="shrink-0 bg-white flex flex-col overflow-hidden" style={{ width: treeWidth }}>
           {error && (
@@ -1015,18 +967,6 @@ export function SpecFilesPage() {
                   </>
                 )}
 
-                {/* Generate Ideas link — navigates to Ideas & Flows page */}
-                {!isFileContext && (
-                  <button
-                    onClick={() => handleNavigateToIdeas(selectedFolderPath!)}
-                    className="ml-auto inline-flex items-center gap-1 text-sm font-medium text-[#0969da] hover:text-[#0860ca] px-2 py-1 rounded-md hover:bg-[#ddf4ff] transition-colors shrink-0"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
-                    </svg>
-                    Ideas & Flows
-                  </button>
-                )}
               </div>
 
               {/* Source URL info bar */}
@@ -1156,8 +1096,61 @@ export function SpecFilesPage() {
                     </div>
                   </div>
                 </div>
+              ) : hasSwagger && versionFolder ? (
+                /* Folder selected with swagger — show Documentation / Markdown tabs */
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  {/* Tab bar */}
+                  <div className="flex items-center gap-1 px-4 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+                    {(["documentation", "markdown"] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => setContentTab(tab)}
+                        className={`px-3 py-1 text-sm font-semibold border-b-2 transition-colors ${
+                          contentTab === tab
+                            ? "border-[#fd8c73] text-[#1f2328]"
+                            : "border-transparent text-[#656d76] hover:text-[#1f2328]"
+                        }`}
+                      >
+                        <span className="capitalize">{tab}</span>
+                      </button>
+                    ))}
+
+                    {/* Ideas & Flows link — far right */}
+                    <button
+                      onClick={() => handleNavigateToIdeas(selectedFolderPath!)}
+                      className="ml-auto inline-flex items-center gap-1 text-sm font-medium text-[#0969da] hover:text-[#0860ca] px-2 py-1 rounded-md hover:bg-[#ddf4ff] transition-colors shrink-0"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+                      </svg>
+                      Ideas & Flows
+                    </button>
+                  </div>
+
+                  {/* Tab content */}
+                  {contentTab === "documentation" ? (
+                    <ApiDocsViewer versionFolder={versionFolder} />
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center bg-white">
+                      <div className="text-center space-y-4 max-w-sm">
+                        <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto bg-[#0969da]/10">
+                          <svg className="w-7 h-7 text-[#0969da]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v8.25m19.5 0v2.25a2.25 2.25 0 0 1-2.25 2.25H4.5A2.25 2.25 0 0 1 2.25 16.5v-2.25" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-[#1f2328] mb-1">{selectedFolderPath}</p>
+                          <p className="text-sm text-[#656d76]">
+                            {specFileCount} spec file{specFileCount !== 1 ? "s" : ""} in this folder.
+                            Select a file to view its markdown content.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : (
-                /* Folder selected — show folder info + link to Ideas */
+                /* Folder selected without swagger — show folder info + link to Ideas */
                 <div className="flex-1 flex items-center justify-center bg-white">
                   <div className="text-center space-y-4 max-w-sm">
                     <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto bg-[#0969da]/10">
@@ -1196,8 +1189,6 @@ export function SpecFilesPage() {
             </div>
           )}
         </div>
-        </div>
-        )}
       </div>
 
       {/* Search modal */}
