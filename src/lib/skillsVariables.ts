@@ -6,7 +6,9 @@
 
 /** The canonical line written for a variable in _skills.md. */
 export function buildVariableLine(name: string): string {
-  return `- \`{${name}}\` → use \`{{proj.${name}}}\` — pre-provisioned, do NOT create a setup step for this entity`;
+  // Strip trailing _id to get the entity label (e.g. workspace_id → workspace)
+  const entity = name.replace(/_id$/i, "").replace(/_/g, " ");
+  return `- Never create a ${entity} as a prerequisite step. A ${entity} already exists and its ID is available via \`{{proj.${name}}}\`. Always use \`{{proj.${name}}}\` wherever \`${name}\` is required in URL paths or request bodies — never attempt to create, set up, or tear down a ${entity} resource.`;
 }
 
 /**
