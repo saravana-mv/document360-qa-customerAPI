@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { JsonCodeBlock } from "../common/JsonCodeBlock";
+import { JsonEditor } from "../common/JsonEditor";
 import { HeadersTable } from "../common/HeadersTable";
 import { useProjectVariablesStore } from "../../store/projectVariables.store";
 import type { ParsedEndpointDoc } from "../../lib/spec/swaggerParser";
@@ -418,13 +419,11 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
               <label className="text-xs font-semibold text-[#656d76] uppercase tracking-wide">Request body</label>
               <span className="text-xs text-[#656d76]">{endpoint.requestBody.contentType}</span>
             </div>
-            <textarea
+            <JsonEditor
               value={body}
-              onChange={(e) => setBody(e.target.value)}
-              rows={6}
+              onChange={setBody}
+              height="12rem"
               placeholder="{}"
-              className="w-full text-sm border border-[#d1d9e0] rounded-md px-3 py-2 bg-white text-[#1f2328] placeholder-[#afb8c1] outline-none focus:border-[#0969da] font-mono resize-y"
-              spellCheck={false}
             />
           </div>
         )}
