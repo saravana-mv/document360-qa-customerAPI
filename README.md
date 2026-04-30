@@ -58,13 +58,13 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 - **AI step debugging** — Analyze failed/errored steps with Claude (user-selected model, Sonnet default), cross-referencing request/response against OpenAPI specs (with normalized path-param matching and raw spec fallback) for inline diagnosis with structured output (summary, root cause, fix guidance). API rules and learned lessons are injected into diagnosis context. **Anti-hallucination safeguards** prevent the AI from fabricating schemas when spec context is unavailable — diagnosis transparently reports `no_spec` category and disables auto-fix. **"Fix it automatically"** button applies AI-suggested XML fixes, validates, saves, and reactivates the flow. Successful fixes auto-save lessons to `_system/_skills.md` per version folder — these are automatically injected into all AI prompts so the same mistakes are not repeated.
 
 ### Connections & Connect Endpoint (Generic API Support)
-- Centralized connection management in Settings → Connections (all auth types)
+- Centralized connection management in Settings → Connections — each connection stores auth credentials, Base URL, and API Version in one place (single source of truth for endpoint configuration)
 - Supported providers: OAuth 2.0, Bearer, API Key (header/query), Basic, Cookie
 - Credentials stored server-side — browser never holds API secrets (`hasCredential` flag only)
-- Simplified Connect Endpoint modal: Base URL, API Version, Connection picker
+- Simplified Connect Endpoint modal: Connection picker only (Base URL and API Version are read from the selected connection)
 - Version accordion shows connection status badge ("Not connected" / endpoint label)
 - Run gating — prompts Connect Endpoint modal if version not connected
-- **OpenAPI auto-detection** — Automatically detects endpoint config from uploaded/imported OpenAPI 3.x / Swagger 2.x specs, shown as pre-fill in Connect modal
+- **OpenAPI auto-detection** — Automatically detects endpoint config (base URL, API version, security schemes) from uploaded/imported OpenAPI 3.x / Swagger 2.x specs; draft connections include detected base URL and API version
 - **Per-scenario environment overrides** — Override version-level endpoint config on individual scenarios (TagNode context menu), with blue badge indicator
 
 ### Authentication & Access Control
@@ -72,7 +72,7 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 - Five roles: Owner (Super) > Project Owner > QA Manager > QA Engineer > Member
 - Per-project membership with `ProjectGate` route guard
 - Centralized Connections (Settings → Connections) supporting all auth types — credentials stored server-side
-- Generic proxy (`/api/proxy/*`) injects appropriate auth based on connection provider type via `X-FF-Connection-Id` lookup
+- Generic proxy (`/api/proxy/*`) injects appropriate auth based on connection provider type via `X-FF-Connection-Id` lookup (connection doc includes base URL, API version, and credentials)
 
 ### Public API
 - `POST /api/run-scenario` with `X-API-Key` authentication
