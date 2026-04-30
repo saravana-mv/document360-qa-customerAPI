@@ -245,7 +245,7 @@ export function SpecFilesPage() {
       const oaStatus = oauthStatus ?? connAuthStatus[tryItConnectionId];
       if (oaStatus?.authenticated) return { canSend: true, connected: true, expired: false, label: currentVersionConfig?.endpointLabel || "Connected" };
       if (oaStatus?.expired) return { canSend: false, connected: false, expired: true, warning: "OAuth token expired. Go to Settings \u2192 Connections to re-authenticate.", label: "Expired" };
-      return { canSend: false, connected: false, expired: false, warning: "Not authenticated. Go to Settings \u2192 Connections to sign in with OAuth.", label: "Not connected" };
+      return { canSend: false, connected: false, expired: false, warning: "NOT AUTHENTICATED. Go to Settings > Connections to Authenticate", label: "Not connected" };
     }
     // Non-OAuth: check hasCredential on the actual connection doc
     if (tryItConnection.hasCredential) return { canSend: true, connected: true, expired: false, label: currentVersionConfig?.endpointLabel || "Connected" };

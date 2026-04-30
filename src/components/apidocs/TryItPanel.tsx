@@ -1,9 +1,34 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { JsonCodeBlock } from "../common/JsonCodeBlock";
 import { JsonEditor } from "../common/JsonEditor";
 import { HeadersTable } from "../common/HeadersTable";
 import { useProjectVariablesStore } from "../../store/projectVariables.store";
 import type { ParsedEndpointDoc } from "../../lib/spec/swaggerParser";
+
+// Renders a warning string, turning "Settings > Connections" or
+// "Settings → Connections" into a clickable link to /settings/connections.
+function ConnectionWarning({ text }: { text: string }) {
+  const linkPattern = /(Settings\s*[→>]\s*Connections)/;
+  const parts = text.split(linkPattern);
+  return (
+    <p className="text-xs text-[#9a6700]">
+      {parts.map((part, i) =>
+        linkPattern.test(part) ? (
+          <Link
+            key={i}
+            to="/settings/connections"
+            className="font-semibold underline hover:text-[#7a5200]"
+          >
+            {part}
+          </Link>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </p>
+  );
+}
 
 interface Props {
   endpoint: ParsedEndpointDoc;
@@ -305,7 +330,7 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
             <svg className="w-4 h-4 text-[#9a6700] shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
             </svg>
-            <p className="text-xs text-[#9a6700]">{connectionWarning}</p>
+            <ConnectionWarning text={connectionWarning} />
           </div>
         )}
 
