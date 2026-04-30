@@ -509,6 +509,8 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
 - \`{{timestamp}}\` — Unix ms timestamp at execution time
 - \`{{!state.boolVar}}\` — logical NOT of a boolean state variable
 
+**NEVER hardcode literal IDs or environment-specific values.** Any ID, key, or value that varies by environment or project must be expressed as a variable reference — never as a raw string or integer. Use \`{{proj.variableName}}\` for values pre-configured in project settings (e.g. a project ID that exists before the flow runs) and \`{{state.X}}\` for IDs created during the flow and captured from a prior step's response. A literal like \`"project_id": 42\` or \`"token": "abc-123"\` in flow XML is always wrong.
+
 ## Golden example — copy this structure exactly
 
 \`\`\`xml
