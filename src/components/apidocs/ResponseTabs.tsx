@@ -66,39 +66,37 @@ export function ResponseTabs({ responses }: Props) {
 
       {/* Active response content */}
       {active && (
-        <div className="border border-[#d1d9e0] rounded-lg p-4 space-y-3">
-          {active.description && (
-            <p className="text-sm text-[#656d76]">{active.description}</p>
-          )}
-
-          {active.contentType && (
-            <div className="flex items-center gap-2 text-sm text-[#656d76]">
-              <span className="font-semibold">Content-Type:</span>
-              <code className="text-xs bg-[#f6f8fa] border border-[#d1d9e0] rounded px-1.5 py-0.5 text-[#1f2328]">
-                {active.contentType}
-              </code>
+        <>
+          {/* Description (LHS) + toolbar (RHS) on same row */}
+          {(active.description || active.schema) && (
+            <div className="flex items-start justify-between gap-4">
+              {active.description ? (
+                <p className="text-sm text-[#656d76] leading-relaxed flex-1 min-w-0">{active.description}</p>
+              ) : (
+                <div className="flex-1" />
+              )}
+              {active.schema && (
+                <div className="flex items-center gap-3 shrink-0">
+                  <button
+                    onClick={() => setShowExample(v => !v)}
+                    className="text-sm font-medium text-[#0969da] hover:underline"
+                  >
+                    {showExample ? "Hide Example" : "Show Example"}
+                  </button>
+                  <span className="text-sm text-[#d1d9e0]">|</span>
+                  <button
+                    onClick={toggleAll}
+                    className="text-sm font-medium text-[#0969da] hover:underline"
+                  >
+                    {allExpanded ? "Collapse All" : "Expand All"}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
           {active.schema && (
-            <>
-              {/* Right-aligned toolbar */}
-              <div className="flex items-center justify-end gap-3">
-                <button
-                  onClick={() => setShowExample(v => !v)}
-                  className="text-sm font-medium text-[#0969da] hover:underline"
-                >
-                  {showExample ? "Hide Example" : "Show Example"}
-                </button>
-                <span className="text-sm text-[#d1d9e0]">|</span>
-                <button
-                  onClick={toggleAll}
-                  className="text-sm font-medium text-[#0969da] hover:underline"
-                >
-                  {allExpanded ? "Collapse All" : "Expand All"}
-                </button>
-              </div>
-
+            <div className="border border-[#d1d9e0] rounded-lg p-4 space-y-3">
               {/* Schema tree */}
               <SchemaTree key={schemaResetKey} schema={active.schema} defaultExpanded={allExpanded} />
 
@@ -121,13 +119,13 @@ export function ResponseTabs({ responses }: Props) {
                   />
                 </div>
               )}
-            </>
+            </div>
           )}
 
           {!active.schema && !active.description && (
             <p className="text-sm text-[#656d76] italic">No response body</p>
           )}
-        </div>
+        </>
       )}
     </div>
   );

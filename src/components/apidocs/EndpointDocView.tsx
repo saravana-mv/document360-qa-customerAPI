@@ -101,15 +101,16 @@ function RequestBodySection({ requestBody }: { requestBody: NonNullable<ParsedEn
         )}
       </div>
 
-      {requestBody.description && (
-        <p className="text-sm text-[#656d76] leading-relaxed">{requestBody.description}</p>
-      )}
-
-      <div className="border border-[#d1d9e0] rounded-lg p-4 space-y-3">
-        {requestBody.schema && (
-          <>
-            {/* Right-aligned toolbar */}
-            <div className="flex items-center justify-end gap-3">
+      {/* Description (LHS) + toolbar (RHS) on same row */}
+      {(requestBody.description || requestBody.schema) && (
+        <div className="flex items-start justify-between gap-4">
+          {requestBody.description ? (
+            <p className="text-sm text-[#656d76] leading-relaxed flex-1 min-w-0">{requestBody.description}</p>
+          ) : (
+            <div className="flex-1" />
+          )}
+          {requestBody.schema && (
+            <div className="flex items-center gap-3 shrink-0">
               <button
                 onClick={() => setShowExample(v => !v)}
                 className="text-sm font-medium text-[#0969da] hover:underline"
@@ -124,32 +125,36 @@ function RequestBodySection({ requestBody }: { requestBody: NonNullable<ParsedEn
                 {allExpanded ? "Collapse All" : "Expand All"}
               </button>
             </div>
+          )}
+        </div>
+      )}
 
-            {/* Schema tree */}
-            <SchemaTree key={schemaResetKey} schema={requestBody.schema} defaultExpanded={allExpanded} />
+      {requestBody.schema && (
+        <div className="border border-[#d1d9e0] rounded-lg p-4 space-y-3">
+          {/* Schema tree */}
+          <SchemaTree key={schemaResetKey} schema={requestBody.schema} defaultExpanded={allExpanded} />
 
-            {/* Example JSON */}
-            {showExample && example != null && (
-              <div className="border border-[#d1d9e0] rounded-lg overflow-hidden">
-                <div className="flex items-center justify-between bg-[#f6f8fa] border-b border-[#d1d9e0] px-3 py-1.5">
-                  <span className="text-sm font-semibold text-[#656d76]">Example</span>
-                  <button
-                    onClick={() => { navigator.clipboard.writeText(JSON.stringify(example, null, 2)); }}
-                    className="text-sm text-[#0969da] hover:underline"
-                  >
-                    Copy
-                  </button>
-                </div>
-                <JsonCodeBlock
-                  value={example}
-                  className="max-h-80"
-                  height="auto"
-                />
+          {/* Example JSON */}
+          {showExample && example != null && (
+            <div className="border border-[#d1d9e0] rounded-lg overflow-hidden">
+              <div className="flex items-center justify-between bg-[#f6f8fa] border-b border-[#d1d9e0] px-3 py-1.5">
+                <span className="text-sm font-semibold text-[#656d76]">Example</span>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(JSON.stringify(example, null, 2)); }}
+                  className="text-sm text-[#0969da] hover:underline"
+                >
+                  Copy
+                </button>
               </div>
-            )}
-          </>
-        )}
-      </div>
+              <JsonCodeBlock
+                value={example}
+                className="max-h-80"
+                height="auto"
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
