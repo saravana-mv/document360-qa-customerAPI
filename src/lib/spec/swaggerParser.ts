@@ -299,3 +299,86 @@ function normalizeSwagger2(spec: Record<string, unknown>) {
     spec.paths = newPaths;
   }
 }
+
+// ── File path mapping (mirrors server-side swaggerSplitter naming) ──────────
+
+/** Convert a tag name to a kebab-case folder name (mirrors server tagToFolder). */
+function tagToFolder(tag: string): string {
+  return tag
+    .replace(/([a-z])([A-Z])/g, "$1-$2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2")
+    .replace(/[\s_]+/g, "-")
+    .replace(/[^a-zA-Z0-9-]/g, "")
+    .toLowerCase();
+}
+
+function singularize(word: string): string {
+  if (word.endsWith("ies")) return word.slice(0, -3) + "y";
+  if (word.endsWith("ses") || word.endsWith("xes") || word.endsWith("zes"))
+    return word.slice(0, -2);
+  if (word.endsWith("s") && !word.endsWith("ss")) return word.slice(0, -1);
+  return word;
+}
+
+function endsWithParam(path: string): boolean {
+  const segments = path.split("/").filter(Boolean);
+  const last = segments[segments.length - 1];
+  return !!last && /^\{.+\}$/.test(last);
+}
+
+function methodToBaseName(method: string): string {
+  const map: Record<string, string> = { post: "create", put: "update", patch: "update", delete: "delete" };
+  return map[method.toLowerCase()] ?? method.toLowerCase();
+}
+
+function pathDiscriminator(method: string, path: string, resourceFolder?: string): string {
+  const segments = path.split("/").filter(Boolean);
+  const skip = new Set(["projects", resourceFolder?.toLowerCase()].filter(Boolean));
+  const meaningful = segments.filter(s =>
+    !/^\{.+\}$/.test(s) && !/^v\d+$/i.test(s) && !skip.has(s.toLowerCase())
+  );
+  const suffix = meaningful.slice(-2).join("-");
+  return suffix ? `-${suffix}` : `-${method.toLowerCase()}`;
+}
+
+function operationToFilename(
+  method: string,
+  path: string,
+  existingNames: Set<string>,
+  resourceFolder?: string,
+): string {
+  const m = method.toLowerCase();
+  const action = m === "get" ? (endsWithParam(path) ? "get" : "list") : methodToBaseName(m);
+  const resource = resourceFolder ? singularize(resourceFolder) : "";
+  const suffix = resourceFolder ? (action === "list" ? resourceFolder : resource) : "";
+  const base = suffix ? `${action}-${suffix}` : action;
+  const candidate = `${base}.md`;
+  if (!existingNames.has(candidate)) {
+    existingNames.add(candidate);
+    return candidate;
+  }
+  const disc = pathDiscriminator(method, path, resourceFolder);
+  const fallback = `${base}${disc}.md`;
+  existingNames.add(fallback);
+  return fallback;
+}
+
+/**
+ * Build a mapping from spec file paths to parsed endpoints.
+ * Keys are relative paths like "articles/create-article.md" (no version prefix).
+ */
+export function buildEndpointFileMap(spec: ParsedSpec): Map<string, ParsedEndpointDoc> {
+  const map = new Map<string, ParsedEndpointDoc>();
+  const folderFileNames: Record<string, Set<string>> = {};
+
+  for (const group of spec.groups) {
+    const folder = tagToFolder(group.tag);
+    if (!folderFileNames[folder]) folderFileNames[folder] = new Set();
+
+    for (const ep of group.endpoints) {
+      const filename = operationToFilename(ep.method, ep.path, folderFileNames[folder], folder);
+      map.set(`${folder}/${filename}`, ep);
+    }
+  }
+  return map;
+}

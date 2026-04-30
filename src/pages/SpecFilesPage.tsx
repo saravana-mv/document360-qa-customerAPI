@@ -33,7 +33,8 @@ import { detectEndpointFromSpec, type DetectedEndpoint } from "../lib/spec/autoD
 import { useScenarioOrgStore } from "../store/scenarioOrg.store";
 import { useWorkshopStore } from "../store/workshop.store";
 import { renameIdeas } from "../lib/api/ideasApi";
-import { ApiDocsViewer } from "../components/apidocs/ApiDocsViewer";
+import { EndpointDocView } from "../components/apidocs/EndpointDocView";
+import { parseSwaggerSpec, buildEndpointFileMap, type ParsedSpec, type ParsedEndpointDoc } from "../lib/spec/swaggerParser";
 
 /** Modal prompting the user for an access token when sync detects auth failure. */
 function AccessTokenPrompt({ message, initialToken, onSubmit, onClose }: {
@@ -172,6 +173,43 @@ export function SpecFilesPage() {
     return files.some(f => f.name === `${versionFolder}/_system/_swagger.json`);
   }, [versionFolder, files]);
 
+  // ── Parsed swagger spec + file-to-endpoint map ─────────────────────────
+  const [parsedSpec, setParsedSpec] = useState<ParsedSpec | null>(null);
+  const [endpointFileMap, setEndpointFileMap] = useState<Map<string, ParsedEndpointDoc>>(new Map());
+  const loadedSwaggerVersionRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!hasSwagger || !versionFolder) {
+      setParsedSpec(null);
+      setEndpointFileMap(new Map());
+      loadedSwaggerVersionRef.current = null;
+      return;
+    }
+    if (loadedSwaggerVersionRef.current === versionFolder) return;
+    loadedSwaggerVersionRef.current = versionFolder;
+    void (async () => {
+      try {
+        const raw = await getSpecFileContent(`${versionFolder}/_system/_swagger.json`);
+        const spec = parseSwaggerSpec(raw);
+        setParsedSpec(spec);
+        setEndpointFileMap(buildEndpointFileMap(spec));
+      } catch {
+        setParsedSpec(null);
+        setEndpointFileMap(new Map());
+      }
+    })();
+  }, [hasSwagger, versionFolder]);
+
+  // Resolve the current file's endpoint (if any)
+  const selectedEndpoint = useMemo<ParsedEndpointDoc | null>(() => {
+    if (!selectedPath || !versionFolder || endpointFileMap.size === 0) return null;
+    // Strip version folder prefix: "v3/articles/create-article.md" → "articles/create-article.md"
+    const relative = selectedPath.startsWith(versionFolder + "/")
+      ? selectedPath.slice(versionFolder.length + 1)
+      : selectedPath;
+    return endpointFileMap.get(relative) ?? null;
+  }, [selectedPath, versionFolder, endpointFileMap]);
+
   // ── Auto-detected endpoint notification ──────────────────────────────────
   const [specDetection, setSpecDetection] = useState<DetectedEndpoint | null>(null);
 
@@ -276,7 +314,6 @@ export function SpecFilesPage() {
   async function selectFile(path: string) {
     setMultiSelectedPaths(new Set());
     setSelectedPath(path);
-    if (contentTab === "documentation") setContentTab("markdown");
     setSelectedFolderPath(null);
     const isSystemFile = path.includes("/_system/");
     const isSkills = path.endsWith("/_skills.md") || path.endsWith("/Skills.md");
@@ -300,7 +337,6 @@ export function SpecFilesPage() {
     setSelectedPath(null);
     setViewingContent(false);
     setContent("");
-    if (hasSwagger) setContentTab("documentation");
   }
 
   // ── Multi-select handlers ────────────────────────────────────────────────
@@ -938,40 +974,7 @@ export function SpecFilesPage() {
 
         {/* Main content area */}
         <div className="flex-1 flex flex-col overflow-hidden bg-white">
-          {/* Documentation / Markdown tab bar — only when swagger exists */}
-          {hasSwagger && hasSelection && (
-            <div className="flex items-center gap-1 px-4 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
-              {(["documentation", "markdown"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setContentTab(tab)}
-                  className={`px-3 py-1 text-sm font-semibold border-b-2 transition-colors ${
-                    contentTab === tab
-                      ? "border-[#fd8c73] text-[#1f2328]"
-                      : "border-transparent text-[#656d76] hover:text-[#1f2328]"
-                  }`}
-                >
-                  <span className="capitalize">{tab}</span>
-                </button>
-              ))}
-
-              {/* Ideas & Flows link — far right */}
-              <button
-                onClick={() => handleNavigateToIdeas(versionFolder ?? selectedFolderPath ?? "")}
-                className="ml-auto inline-flex items-center gap-1 text-sm font-medium text-[#0969da] hover:text-[#0860ca] px-2 py-1 rounded-md hover:bg-[#ddf4ff] transition-colors shrink-0"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
-                </svg>
-                Ideas & Flows
-              </button>
-            </div>
-          )}
-
-          {/* API Documentation viewer — shown when Documentation tab is active */}
-          {hasSwagger && hasSelection && contentTab === "documentation" && versionFolder ? (
-            <ApiDocsViewer versionFolder={versionFolder} />
-          ) : hasSelection ? (
+          {hasSelection ? (
             <>
               {/* Header bar — file/folder breadcrumb */}
               <div className="flex items-center gap-1.5 px-4 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
@@ -1073,8 +1076,32 @@ export function SpecFilesPage() {
                 </div>
               )}
 
+              {/* Documentation / Markdown tab bar — when file maps to a swagger endpoint */}
+              {selectedEndpoint && (
+                <div className="flex items-center gap-1 px-4 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+                  {(["documentation", "markdown"] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setContentTab(tab)}
+                      className={`px-3 py-1 text-sm font-semibold border-b-2 transition-colors ${
+                        contentTab === tab
+                          ? "border-[#fd8c73] text-[#1f2328]"
+                          : "border-transparent text-[#656d76] hover:text-[#1f2328]"
+                      }`}
+                    >
+                      <span className="capitalize">{tab}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Content area */}
-              {viewingContent && isFileContext && (selectedPath?.endsWith("/_skills.md") || selectedPath?.endsWith("/Skills.md")) ? (
+              {selectedEndpoint && contentTab === "documentation" ? (
+                <EndpointDocView
+                  endpoint={selectedEndpoint}
+                  securitySchemes={parsedSpec?.securitySchemes}
+                />
+              ) : viewingContent && isFileContext && (selectedPath?.endsWith("/_skills.md") || selectedPath?.endsWith("/Skills.md")) ? (
                 loadingContent ? (
                   <div className="flex-1 flex items-center justify-center text-[#656d76] text-sm">Loading…</div>
                 ) : (
