@@ -33,6 +33,7 @@ import { detectEndpointFromSpec, type DetectedEndpoint } from "../lib/spec/autoD
 import { useScenarioOrgStore } from "../store/scenarioOrg.store";
 import { useWorkshopStore } from "../store/workshop.store";
 import { renameIdeas } from "../lib/api/ideasApi";
+import { ApiDocsViewer } from "../components/apidocs/ApiDocsViewer";
 
 /** Modal prompting the user for an access token when sync detects auth failure. */
 function AccessTokenPrompt({ message, initialToken, onSubmit, onClose }: {
@@ -150,6 +151,26 @@ export function SpecFilesPage() {
   // ── Multi-select state ─────────────────────────────────────────────────────
   const [multiSelectedPaths, setMultiSelectedPaths] = useState<Set<string>>(new Set());
   const lastClickedPathRef = useRef<string | null>(null);
+
+  // ── API Docs / Files tab toggle ──────────────────────────────────────────
+  const [specTab, setSpecTab] = useState<"api-docs" | "files">(() => {
+    try { const v = localStorage.getItem("specfiles_tab"); if (v === "files") return "files"; } catch { /* ignore */ }
+    return "api-docs";
+  });
+  useEffect(() => { try { localStorage.setItem("specfiles_tab", specTab); } catch { /* ignore */ } }, [specTab]);
+
+  // Derive version folder from current selection (first path segment)
+  const versionFolder = useMemo(() => {
+    const p = selectedFolderPath ?? selectedPath;
+    if (!p) return null;
+    return p.split("/")[0] ?? null;
+  }, [selectedFolderPath, selectedPath]);
+
+  // Check if swagger exists for the selected version folder
+  const hasSwagger = useMemo(() => {
+    if (!versionFolder) return false;
+    return files.some(f => f.name === `${versionFolder}/_system/_swagger.json`);
+  }, [versionFolder, files]);
 
   // ── Auto-detected endpoint notification ──────────────────────────────────
   const [specDetection, setSpecDetection] = useState<DetectedEndpoint | null>(null);
@@ -845,9 +866,57 @@ export function SpecFilesPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  const showApiDocs = specTab === "api-docs" && hasSwagger && !!versionFolder;
+
   return (
     <Layout>
-      <div className="h-full flex overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden">
+        {/* Tab toggle — only when swagger available */}
+        {hasSwagger && (
+          <div className="flex items-center gap-1 px-3 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+            <button
+              onClick={() => setSpecTab("api-docs")}
+              className={[
+                "text-sm font-medium px-2.5 py-1 rounded-md transition-colors",
+                specTab === "api-docs"
+                  ? "bg-white text-[#1f2328] border border-[#d1d9e0] shadow-sm"
+                  : "text-[#656d76] hover:text-[#1f2328] hover:bg-white/60",
+              ].join(" ")}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+                </svg>
+                API Docs
+              </span>
+            </button>
+            <button
+              onClick={() => setSpecTab("files")}
+              className={[
+                "text-sm font-medium px-2.5 py-1 rounded-md transition-colors",
+                specTab === "files"
+                  ? "bg-white text-[#1f2328] border border-[#d1d9e0] shadow-sm"
+                  : "text-[#656d76] hover:text-[#1f2328] hover:bg-white/60",
+              ].join(" ")}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M.513 1.513A1.75 1.75 0 0 1 1.75 0h3.5c.465 0 .91.185 1.239.513l.61.61c.109.109.257.17.411.17h6.74a1.75 1.75 0 0 1 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15.5H1.75A1.75 1.75 0 0 1 0 13.75V1.75c0-.465.185-.91.513-1.237Z" />
+                </svg>
+                Files
+              </span>
+            </button>
+            {versionFolder && (
+              <span className="ml-2 text-xs text-[#656d76]">{versionFolder}</span>
+            )}
+          </div>
+        )}
+
+        {/* Main layout — either API Docs or Files */}
+        {showApiDocs ? (
+          <ApiDocsViewer versionFolder={versionFolder!} />
+        ) : (
+        <div className="flex-1 flex overflow-hidden">
         {/* LHS tree */}
         <aside className="shrink-0 bg-white flex flex-col overflow-hidden" style={{ width: treeWidth }}>
           {error && (
@@ -1127,6 +1196,8 @@ export function SpecFilesPage() {
             </div>
           )}
         </div>
+        </div>
+        )}
       </div>
 
       {/* Search modal */}

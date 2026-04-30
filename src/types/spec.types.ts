@@ -1,8 +1,11 @@
 export interface SwaggerSpec {
   openapi: string;
-  info: { title: string; version: string };
+  info: { title: string; version: string; description?: string };
   paths: Record<string, PathItem>;
   tags?: TagObject[];
+  components?: { schemas?: Record<string, Schema>; securitySchemes?: Record<string, SecurityScheme> };
+  security?: Array<Record<string, string[]>>;
+  servers?: Array<{ url: string; description?: string }>;
 }
 
 export interface TagObject {
@@ -22,10 +25,13 @@ export interface PathItem {
 export interface Operation {
   operationId?: string;
   summary?: string;
+  description?: string;
   tags?: string[];
   parameters?: Parameter[];
   requestBody?: RequestBody;
   responses?: Record<string, Response>;
+  security?: Array<Record<string, string[]>>;
+  deprecated?: boolean;
 }
 
 export interface Parameter {
@@ -33,11 +39,15 @@ export interface Parameter {
   in: "path" | "query" | "header" | "cookie";
   required?: boolean;
   schema?: Schema;
+  description?: string;
+  example?: unknown;
+  $ref?: string;
 }
 
 export interface RequestBody {
   required?: boolean;
-  content?: Record<string, { schema?: Schema }>;
+  description?: string;
+  content?: Record<string, { schema?: Schema; example?: unknown }>;
 }
 
 export interface Response {
@@ -50,6 +60,36 @@ export interface Schema {
   properties?: Record<string, Schema>;
   items?: Schema;
   $ref?: string;
+  description?: string;
+  example?: unknown;
+  format?: string;
+  enum?: (string | number)[];
+  required?: string[];
+  allOf?: Schema[];
+  oneOf?: Schema[];
+  anyOf?: Schema[];
+  nullable?: boolean;
+  default?: unknown;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: string;
+  minimum?: number;
+  maximum?: number;
+  readOnly?: boolean;
+  writeOnly?: boolean;
+  deprecated?: boolean;
+  title?: string;
+  additionalProperties?: boolean | Schema;
+}
+
+export interface SecurityScheme {
+  type: string;
+  scheme?: string;
+  bearerFormat?: string;
+  name?: string;
+  in?: string;
+  flows?: Record<string, { authorizationUrl?: string; tokenUrl?: string; scopes?: Record<string, string> }>;
+  description?: string;
 }
 
 export interface ParsedTag {
