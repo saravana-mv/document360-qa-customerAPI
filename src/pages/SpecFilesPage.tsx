@@ -179,6 +179,8 @@ export function SpecFilesPage() {
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [oauthStatus, setOauthStatus] = useState<OAuthStatus | null>(null);
   const versionConfigs = useScenarioOrgStore((s) => s.versionConfigs);
+  const connections = useConnectionsStore((s) => s.connections);
+  const connAuthStatus = useConnectionsStore((s) => s.authStatus);
 
   // Derive version folder from current selection (first path segment)
   const versionFolder = useMemo(() => {
@@ -224,7 +226,9 @@ export function SpecFilesPage() {
   const currentVersionConfig = versionFolder ? versionConfigs[versionFolder] : undefined;
   const tryItConnectionId = currentVersionConfig?.connectionId;
   const tryItBaseUrl = currentVersionConfig?.baseUrl ?? "";
-  const tryItIsOAuth = currentVersionConfig?.authType === "oauth";
+  const tryItConnection = connections.find((c) => c.id === tryItConnectionId);
+  const tryItIsOAuth = tryItConnection?.provider === "oauth2";
+
   useEffect(() => {
     if (!tryItIsOAuth || !tryItConnectionId) { setOauthStatus(null); return; }
     let cancelled = false;
@@ -232,9 +236,22 @@ export function SpecFilesPage() {
     return () => { cancelled = true; };
   }, [tryItIsOAuth, tryItConnectionId]);
 
-  const tryItHasCredential = currentVersionConfig?.credentialConfigured || (tryItIsOAuth && !!tryItConnectionId);
-  const tryItIsOAuthExpired = tryItIsOAuth && oauthStatus?.expired === true;
-  const tryItIsConnected = tryItHasCredential && !tryItIsOAuthExpired;
+  // Derive connection readiness and warning message
+  const tryItStatus = useMemo<{ canSend: boolean; connected: boolean; expired: boolean; warning?: string; label: string }>(() => {
+    if (!tryItConnectionId || !tryItConnection) {
+      if (!tryItBaseUrl) return { canSend: false, connected: false, expired: false, warning: "No endpoint configured. Click the link icon to configure a connection and base URL.", label: "No auth" };
+      return { canSend: false, connected: false, expired: false, warning: "No connection configured. Click the link icon to select a connection.", label: "No auth" };
+    }
+    if (tryItIsOAuth) {
+      const oaStatus = oauthStatus ?? connAuthStatus[tryItConnectionId];
+      if (oaStatus?.authenticated) return { canSend: true, connected: true, expired: false, label: currentVersionConfig?.endpointLabel || "Connected" };
+      if (oaStatus?.expired) return { canSend: false, connected: false, expired: true, warning: "OAuth token expired. Go to Settings \u2192 Connections to re-authenticate.", label: "Expired" };
+      return { canSend: false, connected: false, expired: false, warning: "Not authenticated. Go to Settings \u2192 Connections to sign in with OAuth.", label: "Not connected" };
+    }
+    // Non-OAuth: check hasCredential on the actual connection doc
+    if (tryItConnection.hasCredential) return { canSend: true, connected: true, expired: false, label: currentVersionConfig?.endpointLabel || "Connected" };
+    return { canSend: false, connected: false, expired: false, warning: "No credential stored for this connection. Go to Settings \u2192 Connections to add credentials.", label: "No credential" };
+  }, [tryItConnectionId, tryItConnection, tryItIsOAuth, oauthStatus, connAuthStatus, tryItBaseUrl, currentVersionConfig?.endpointLabel]);
 
   // Resolve the current file's endpoint (if any)
   const selectedEndpoint = useMemo<ParsedEndpointDoc | null>(() => {
@@ -1271,23 +1288,23 @@ export function SpecFilesPage() {
                   ))}
                   <div className="ml-auto flex items-center gap-1.5">
                     {/* Connection status badge */}
-                    {tryItIsConnected ? (
-                      <span className="text-xs text-[#1a7f37] font-medium px-1.5 py-0.5 rounded-full bg-[#dafbe1] border border-[#aceebb] truncate max-w-[100px]"
-                        title={`Connected: ${currentVersionConfig?.endpointLabel || tryItBaseUrl || "configured"}`}
+                    {tryItStatus.connected ? (
+                      <span className="text-xs text-[#1a7f37] font-medium px-1.5 py-0.5 rounded-full bg-[#dafbe1] border border-[#aceebb] truncate max-w-[120px]"
+                        title={`Connected: ${tryItStatus.label}`}
                       >
-                        {currentVersionConfig?.endpointLabel || "Connected"}
+                        {tryItStatus.label}
                       </span>
-                    ) : tryItIsOAuthExpired ? (
+                    ) : tryItStatus.expired ? (
                       <span className="text-xs text-[#d1242f] font-medium px-1.5 py-0.5 rounded-full bg-[#ffebe9] border border-[#d1242f]/30">
-                        Expired
+                        {tryItStatus.label}
                       </span>
                     ) : tryItConnectionId ? (
                       <span className="text-xs text-[#9a6700] font-medium px-1.5 py-0.5 rounded-full bg-[#fff8c5] border border-[#d4a72c]/30">
-                        Disconnected
+                        {tryItStatus.label}
                       </span>
                     ) : (
                       <span className="text-xs text-[#656d76] font-medium px-1.5 py-0.5 rounded-full bg-[#f6f8fa] border border-[#d1d9e0]">
-                        No auth
+                        {tryItStatus.label}
                       </span>
                     )}
                     {/* Connect button — opens ConnectEndpointModal */}
@@ -1326,6 +1343,8 @@ export function SpecFilesPage() {
                       endpoint={selectedEndpoint}
                       connectionId={tryItConnectionId}
                       baseUrl={tryItBaseUrl}
+                      canSend={tryItStatus.canSend}
+                      connectionWarning={tryItStatus.warning}
                     />
                   )}
                 </div>
