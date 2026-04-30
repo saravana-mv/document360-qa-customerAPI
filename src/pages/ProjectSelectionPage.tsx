@@ -46,6 +46,8 @@ export function ProjectSelectionPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [confirmName, setConfirmName] = useState("");
+  /** Normalize a project name for comparison — collapses all Unicode whitespace to single spaces. */
+  const normalizeName = (s: string) => s.replace(/\s+/g, " ").trim();
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -80,7 +82,7 @@ export function ProjectSelectionPage() {
   }
 
   const handleDelete = useCallback(async () => {
-    if (!deleteTarget || confirmName.trim() !== deleteTarget.name.trim()) return;
+    if (!deleteTarget || normalizeName(confirmName) !== normalizeName(deleteTarget.name)) return;
     setDeleting(true);
     setDeleteError(null);
     try {
@@ -313,7 +315,7 @@ export function ProjectSelectionPage() {
             </div>
             <div className="px-5 py-4 space-y-3">
               <p className="text-sm text-[#1f2328]">
-                This will <strong>permanently delete</strong> the project <strong>{deleteTarget.name.trim()}</strong> and all its resources:
+                This will <strong>permanently delete</strong> the project <strong>{normalizeName(deleteTarget.name)}</strong> and all its resources:
               </p>
               <ul className="text-xs text-[#656d76] list-disc ml-4 space-y-1">
                 <li>All spec files and imported documents</li>
@@ -326,13 +328,13 @@ export function ProjectSelectionPage() {
               <p className="text-sm text-[#d1242f] font-medium">This action cannot be undone.</p>
               <div>
                 <label className="block text-xs font-medium text-[#1f2328] mb-1">
-                  Type <strong>{deleteTarget.name.trim()}</strong> to confirm
+                  Type <strong>{normalizeName(deleteTarget.name)}</strong> to confirm
                 </label>
                 <input
                   type="text"
                   value={confirmName}
                   onChange={(e) => setConfirmName(e.target.value)}
-                  placeholder={deleteTarget.name.trim()}
+                  placeholder={normalizeName(deleteTarget.name)}
                   className="w-full px-3 py-2 border border-[#d1d9e0] rounded-md text-sm focus:border-[#d1242f] focus:ring-1 focus:ring-[#d1242f] outline-none"
                   autoFocus
                 />
@@ -352,7 +354,7 @@ export function ProjectSelectionPage() {
               </button>
               <button
                 onClick={() => void handleDelete()}
-                disabled={deleting || confirmName.trim() !== deleteTarget.name.trim()}
+                disabled={deleting || normalizeName(confirmName) !== normalizeName(deleteTarget.name)}
                 className="text-sm font-medium text-white bg-[#d1242f] hover:bg-[#cf222e] disabled:opacity-40 disabled:cursor-not-allowed rounded-md px-3 py-1.5 transition-colors"
               >
                 {deleting ? "Deleting..." : "Delete this project"}
