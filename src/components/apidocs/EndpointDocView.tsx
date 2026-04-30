@@ -59,7 +59,7 @@ export function EndpointDocView({ endpoint, securitySchemes }: Props) {
         </div>
 
         {endpoint.description && (
-          <p className="text-sm text-[#656d76] whitespace-pre-line">{endpoint.description}</p>
+          <p className="text-sm text-[#656d76] leading-relaxed">{endpoint.description}</p>
         )}
 
         <div className="flex items-center gap-3 flex-wrap">
