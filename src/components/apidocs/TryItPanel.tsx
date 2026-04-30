@@ -6,26 +6,40 @@ import { HeadersTable } from "../common/HeadersTable";
 import { useProjectVariablesStore } from "../../store/projectVariables.store";
 import type { ParsedEndpointDoc } from "../../lib/spec/swaggerParser";
 
-// Renders a warning string, turning "Settings > Connections" or
-// "Settings → Connections" into a clickable link to /settings/connections.
-function ConnectionWarning({ text }: { text: string }) {
-  const linkPattern = /(Settings\s*[→>]\s*Connections)/;
+// Renders a warning string with two clickable hot-words:
+//   • "Settings > Connections" / "Settings → Connections" → routes to /settings/connections
+//   • "Connect now" → triggers onConnect (opens the ConnectEndpointModal)
+function ConnectionWarning({ text, onConnect }: { text: string; onConnect?: () => void }) {
+  const linkPattern = /(Settings\s*[→>]\s*Connections|Connect now)/;
   const parts = text.split(linkPattern);
   return (
     <p className="text-xs text-[#9a6700]">
-      {parts.map((part, i) =>
-        linkPattern.test(part) ? (
-          <Link
-            key={i}
-            to="/settings/connections"
-            className="font-semibold underline hover:text-[#7a5200]"
-          >
-            {part}
-          </Link>
-        ) : (
-          <span key={i}>{part}</span>
-        )
-      )}
+      {parts.map((part, i) => {
+        if (/^Settings/.test(part) && /Connections$/.test(part)) {
+          return (
+            <Link
+              key={i}
+              to="/settings/connections"
+              className="font-semibold underline hover:text-[#7a5200]"
+            >
+              {part}
+            </Link>
+          );
+        }
+        if (part === "Connect now" && onConnect) {
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={onConnect}
+              className="font-semibold underline hover:text-[#7a5200]"
+            >
+              {part}
+            </button>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
     </p>
   );
 }
@@ -40,6 +54,8 @@ interface Props {
   canSend: boolean;
   /** Message to show when connection is not ready */
   connectionWarning?: string;
+  /** Opens the Connect Endpoint modal — used by the "Connect now" link in warnings */
+  onOpenConnect?: () => void;
 }
 
 interface TryItResponse {
@@ -187,7 +203,7 @@ function collectExamples(endpoint: ParsedEndpointDoc): NamedExample[] {
   return results;
 }
 
-export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectionWarning }: Props) {
+export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectionWarning, onOpenConnect }: Props) {
   const variables = useProjectVariablesStore((s) => s.variables);
 
   const [sending, setSending] = useState(false);
@@ -330,7 +346,7 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
             <svg className="w-4 h-4 text-[#9a6700] shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
             </svg>
-            <ConnectionWarning text={connectionWarning} />
+            <ConnectionWarning text={connectionWarning} onConnect={onOpenConnect} />
           </div>
         )}
 

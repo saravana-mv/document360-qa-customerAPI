@@ -239,7 +239,7 @@ export function SpecFilesPage() {
   // Derive connection readiness and warning message
   const tryItStatus = useMemo<{ canSend: boolean; connected: boolean; expired: boolean; warning?: string; label: string }>(() => {
     if (!tryItConnectionId || !tryItConnection) {
-      return { canSend: false, connected: false, expired: false, warning: "No connection configured. Click the link icon to select a connection.", label: "No auth" };
+      return { canSend: false, connected: false, expired: false, warning: "Connection not configured - Connect now", label: "No auth" };
     }
     if (tryItIsOAuth) {
       const oaStatus = oauthStatus ?? connAuthStatus[tryItConnectionId];
@@ -1346,6 +1346,7 @@ export function SpecFilesPage() {
                       baseUrl={tryItBaseUrl}
                       canSend={tryItStatus.canSend}
                       connectionWarning={tryItStatus.warning}
+                      onOpenConnect={() => setShowConnectModal(true)}
                     />
                   )}
                 </div>
