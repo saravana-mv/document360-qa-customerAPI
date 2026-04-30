@@ -31,6 +31,8 @@ import { useProjectVariablesStore } from "../store/projectVariables.store";
 import { useConnectionsStore } from "../store/connections.store";
 import { detectEndpointFromSpec, type DetectedEndpoint } from "../lib/spec/autoDetectEndpoint";
 import { useScenarioOrgStore } from "../store/scenarioOrg.store";
+import { ConnectEndpointModal } from "../components/explorer/ConnectEndpointModal";
+import { getOAuthStatus, type OAuthStatus } from "../lib/api/oauthApi";
 import { useWorkshopStore } from "../store/workshop.store";
 import { renameIdeas } from "../lib/api/ideasApi";
 import { EndpointDocView } from "../components/apidocs/EndpointDocView";
@@ -173,6 +175,11 @@ export function SpecFilesPage() {
   useEffect(() => { try { localStorage.setItem("specfiles_rhs_width", String(rhsWidth)); } catch { /* ignore */ } }, [rhsWidth]);
   useEffect(() => { try { localStorage.setItem("specfiles_rhs_collapsed", String(rhsPanelCollapsed)); } catch { /* ignore */ } }, [rhsPanelCollapsed]);
 
+  // ── Connection status for Try It panel ──────────────────────────────
+  const [showConnectModal, setShowConnectModal] = useState(false);
+  const [oauthStatus, setOauthStatus] = useState<OAuthStatus | null>(null);
+  const versionConfigs = useScenarioOrgStore((s) => s.versionConfigs);
+
   // Derive version folder from current selection (first path segment)
   const versionFolder = useMemo(() => {
     const p = selectedFolderPath ?? selectedPath;
@@ -212,6 +219,22 @@ export function SpecFilesPage() {
       }
     })();
   }, [hasSwagger, versionFolder]);
+
+  // ── Connection status for current version ──────────────────────────────
+  const currentVersionConfig = versionFolder ? versionConfigs[versionFolder] : undefined;
+  const tryItConnectionId = currentVersionConfig?.connectionId;
+  const tryItBaseUrl = currentVersionConfig?.baseUrl ?? "";
+  const tryItIsOAuth = currentVersionConfig?.authType === "oauth";
+  useEffect(() => {
+    if (!tryItIsOAuth || !tryItConnectionId) { setOauthStatus(null); return; }
+    let cancelled = false;
+    getOAuthStatus(tryItConnectionId).then((s) => { if (!cancelled) setOauthStatus(s); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [tryItIsOAuth, tryItConnectionId]);
+
+  const tryItHasCredential = currentVersionConfig?.credentialConfigured || (tryItIsOAuth && !!tryItConnectionId);
+  const tryItIsOAuthExpired = tryItIsOAuth && oauthStatus?.expired === true;
+  const tryItIsConnected = tryItHasCredential && !tryItIsOAuthExpired;
 
   // Resolve the current file's endpoint (if any)
   const selectedEndpoint = useMemo<ParsedEndpointDoc | null>(() => {
@@ -1105,21 +1128,6 @@ export function SpecFilesPage() {
                       <span className="capitalize">{tab}</span>
                     </button>
                   ))}
-                  {/* Try It toggle button — pushed to the right */}
-                  <button
-                    onClick={() => setRhsPanelCollapsed((prev) => !prev)}
-                    className={`ml-auto flex items-center gap-1.5 px-2.5 py-1 text-sm font-medium rounded-md transition-colors ${
-                      !rhsPanelCollapsed
-                        ? "bg-[#0969da] text-white"
-                        : "text-[#0969da] hover:bg-[#ddf4ff]"
-                    }`}
-                    title={rhsPanelCollapsed ? "Show Try It panel" : "Hide Try It panel"}
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
-                    </svg>
-                    Try It
-                  </button>
                 </div>
               )}
 
@@ -1227,48 +1235,108 @@ export function SpecFilesPage() {
         </div>
 
         {/* ── RHS Panel: Try It (+ future tabs) ───────────────────────── */}
-        {!rhsPanelCollapsed && selectedEndpoint && versionFolder && (
-          <>
-            <ResizeHandle width={rhsWidth} onResize={setRhsWidth} minWidth={320} maxWidth={700} side="right" />
-            <aside className="shrink-0 flex flex-col overflow-hidden bg-white" style={{ width: rhsWidth }}>
-              {/* Row 1 — matches breadcrumb bar h-10 */}
-              <div className="flex items-center gap-1 px-3 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
-                {(["tryit"] as const).map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setRhsTab(tab)}
-                    className={`px-3 py-1 text-sm font-semibold border-b-2 transition-colors ${
-                      rhsTab === tab
-                        ? "border-[#fd8c73] text-[#1f2328]"
-                        : "border-transparent text-[#656d76] hover:text-[#1f2328]"
-                    }`}
-                  >
-                    {tab === "tryit" ? "Try It" : tab}
-                  </button>
-                ))}
-                <button
-                  onClick={() => setRhsPanelCollapsed(true)}
-                  className="ml-auto text-[#656d76] hover:text-[#1f2328] rounded p-0.5"
-                  title="Collapse panel"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m5.25 4.5 7.5 7.5-7.5 7.5m6-15 7.5 7.5-7.5 7.5" />
-                  </svg>
-                </button>
-              </div>
-              {/* Row 2 — endpoint summary, matches Documentation/Markdown tab bar h-9 */}
-              <div className="flex items-center gap-2 px-3 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
-                <MethodBadge method={selectedEndpoint.method} size="xs" />
-                <code className="text-xs font-mono text-[#656d76] truncate flex-1">{selectedEndpoint.path}</code>
-              </div>
-              {/* Tab content */}
-              <div className="flex-1 overflow-hidden">
-                {rhsTab === "tryit" && (
-                  <TryItPanel endpoint={selectedEndpoint} versionFolder={versionFolder} />
-                )}
-              </div>
-            </aside>
-          </>
+        {selectedEndpoint && versionFolder && (
+          rhsPanelCollapsed ? (
+            /* Collapsed — show vertical "Try It" expand button */
+            <div className="shrink-0 flex flex-col items-center border-l border-[#d1d9e0] bg-[#f6f8fa] w-10">
+              <button
+                onClick={() => setRhsPanelCollapsed(false)}
+                className="flex flex-col items-center gap-1 py-3 text-[#0969da] hover:text-[#0860ca] transition-colors w-full"
+                title="Open Try It panel"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+                </svg>
+                <span className="text-xs font-medium [writing-mode:vertical-lr]">Try It</span>
+              </button>
+            </div>
+          ) : (
+            <>
+              <ResizeHandle width={rhsWidth} onResize={setRhsWidth} minWidth={320} maxWidth={700} side="right" />
+              <aside className="shrink-0 flex flex-col overflow-hidden bg-white" style={{ width: rhsWidth }}>
+                {/* Row 1 — matches breadcrumb bar h-10: tab bar + connection status + connect + collapse */}
+                <div className="flex items-center gap-1 px-3 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+                  {(["tryit"] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setRhsTab(tab)}
+                      className={`px-3 py-1 text-sm font-semibold border-b-2 transition-colors ${
+                        rhsTab === tab
+                          ? "border-[#fd8c73] text-[#1f2328]"
+                          : "border-transparent text-[#656d76] hover:text-[#1f2328]"
+                      }`}
+                    >
+                      {tab === "tryit" ? "Try It" : tab}
+                    </button>
+                  ))}
+                  <div className="ml-auto flex items-center gap-1.5">
+                    {/* Connection status badge */}
+                    {tryItIsConnected ? (
+                      <span className="text-xs text-[#1a7f37] font-medium px-1.5 py-0.5 rounded-full bg-[#dafbe1] border border-[#aceebb] truncate max-w-[100px]"
+                        title={`Connected: ${currentVersionConfig?.endpointLabel || tryItBaseUrl || "configured"}`}
+                      >
+                        {currentVersionConfig?.endpointLabel || "Connected"}
+                      </span>
+                    ) : tryItIsOAuthExpired ? (
+                      <span className="text-xs text-[#d1242f] font-medium px-1.5 py-0.5 rounded-full bg-[#ffebe9] border border-[#d1242f]/30">
+                        Expired
+                      </span>
+                    ) : tryItConnectionId ? (
+                      <span className="text-xs text-[#9a6700] font-medium px-1.5 py-0.5 rounded-full bg-[#fff8c5] border border-[#d4a72c]/30">
+                        Disconnected
+                      </span>
+                    ) : (
+                      <span className="text-xs text-[#656d76] font-medium px-1.5 py-0.5 rounded-full bg-[#f6f8fa] border border-[#d1d9e0]">
+                        No auth
+                      </span>
+                    )}
+                    {/* Connect button — opens ConnectEndpointModal */}
+                    <button
+                      onClick={() => setShowConnectModal(true)}
+                      className="text-[#656d76] hover:text-[#0969da] rounded p-1 hover:bg-[#ddf4ff] transition-colors"
+                      title="Configure connection"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m9.86-1.135a4.5 4.5 0 0 0-1.242-7.244l-4.5-4.5a4.5 4.5 0 0 0-6.364 6.364L4.34 8.303" />
+                      </svg>
+                    </button>
+                    {/* Collapse button */}
+                    <button
+                      onClick={() => setRhsPanelCollapsed(true)}
+                      className="text-[#656d76] hover:text-[#1f2328] rounded p-0.5"
+                      title="Collapse panel"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m5.25 4.5 7.5 7.5-7.5 7.5m6-15 7.5 7.5-7.5 7.5" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                {/* Row 2 — matches Documentation/Markdown tab bar h-9: method + base URL + path */}
+                <div className="flex items-center gap-2 px-3 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+                  <MethodBadge method={selectedEndpoint.method} size="xs" />
+                  <code className="text-xs font-mono text-[#656d76] truncate flex-1">
+                    {tryItBaseUrl ? `${tryItBaseUrl}${selectedEndpoint.path}` : selectedEndpoint.path}
+                  </code>
+                </div>
+                {/* Tab content */}
+                <div className="flex-1 overflow-hidden">
+                  {rhsTab === "tryit" && (
+                    <TryItPanel
+                      endpoint={selectedEndpoint}
+                      connectionId={tryItConnectionId}
+                      baseUrl={tryItBaseUrl}
+                    />
+                  )}
+                </div>
+              </aside>
+            </>
+          )
+        )}
+
+        {/* ConnectEndpointModal for Try It panel */}
+        {showConnectModal && versionFolder && (
+          <ConnectEndpointModal version={versionFolder} onClose={() => setShowConnectModal(false)} />
         )}
       </div>
 
