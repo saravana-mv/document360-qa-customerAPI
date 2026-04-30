@@ -10,6 +10,7 @@ export function ProjectVariablesPage() {
   const [dirty, setDirty] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [skillsWarnings, setSkillsWarnings] = useState<string[]>([]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -67,8 +68,12 @@ export function ProjectVariablesPage() {
       await save(cleaned);
 
       // Sync added/removed variable lines into every version folder's _skills.md
+      // and warn about orphaned references for removed variables
       if (added.length > 0 || removed.length > 0) {
         void syncSkillsFiles(added, removed);
+      }
+      if (removed.length > 0) {
+        void checkOrphanedSkillsRules(removed);
       }
 
       setDirty(false);
@@ -95,6 +100,31 @@ export function ProjectVariablesPage() {
         }),
       );
     } catch { /* best-effort — don't surface skills sync errors to the user */ }
+  }, []);
+
+  /** After deleting variables, scan _skills.md files for any remaining references
+   *  to {{proj.NAME}} and warn the user to review them manually. */
+  const checkOrphanedSkillsRules = useCallback(async (removed: string[]) => {
+    try {
+      const allFiles = await listSpecFiles();
+      const skillsFiles = allFiles.filter((f) => f.name.endsWith("/_system/_skills.md"));
+      const warnings: string[] = [];
+      await Promise.all(
+        skillsFiles.map(async (f) => {
+          try {
+            const content = await getSpecFileContent(f.name);
+            for (const name of removed) {
+              if (content.includes(`{{proj.${name}}}`)) {
+                // Extract the version folder name for a friendly label
+                const folder = f.name.split("/")[0] ?? f.name;
+                warnings.push(`"${name}" is still referenced in ${folder}/_skills.md — review and remove any rules that mention {{proj.${name}}}.`);
+              }
+            }
+          } catch { /* skip */ }
+        }),
+      );
+      if (warnings.length > 0) setSkillsWarnings(warnings);
+    } catch { /* best-effort */ }
   }, []);
 
   if (loading) {
@@ -192,6 +222,21 @@ export function ProjectVariablesPage() {
           {saveSuccess && (
             <div className="text-sm text-[#1a7f37] bg-[#dafbe1] border border-[#1a7f37]/20 rounded-md px-3 py-2">
               Variables saved successfully.
+            </div>
+          )}
+          {skillsWarnings.length > 0 && (
+            <div className="border border-[#9a6700]/30 bg-[#fff8c5] rounded-md px-3 py-2.5 space-y-1">
+              <p className="text-xs font-semibold text-[#9a6700]">Review _skills.md — orphaned rules detected</p>
+              {skillsWarnings.map((w, i) => (
+                <p key={i} className="text-xs text-[#9a6700]">{w}</p>
+              ))}
+              <p className="text-xs text-[#9a6700] mt-1">Open the file in Spec Manager and remove any rules that reference the deleted variable.</p>
+              <button
+                onClick={() => setSkillsWarnings([])}
+                className="text-xs text-[#9a6700] underline mt-1"
+              >
+                Dismiss
+              </button>
             </div>
           )}
 
