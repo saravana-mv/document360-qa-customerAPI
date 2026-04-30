@@ -34,6 +34,7 @@ import { useScenarioOrgStore } from "../store/scenarioOrg.store";
 import { useWorkshopStore } from "../store/workshop.store";
 import { renameIdeas } from "../lib/api/ideasApi";
 import { EndpointDocView } from "../components/apidocs/EndpointDocView";
+import { TryItPanel } from "../components/apidocs/TryItPanel";
 import { parseSwaggerSpec, buildEndpointFileMap, type ParsedSpec, type ParsedEndpointDoc } from "../lib/spec/swaggerParser";
 
 /** Modal prompting the user for an access token when sync detects auth failure. */
@@ -159,6 +160,9 @@ export function SpecFilesPage() {
     return "documentation";
   });
   useEffect(() => { try { localStorage.setItem("specfiles_content_tab", contentTab); } catch { /* ignore */ } }, [contentTab]);
+
+  // ── Try It panel toggle ────────────────────────────────────────────────
+  const [tryItOpen, setTryItOpen] = useState(false);
 
   // Derive version folder from current selection (first path segment)
   const versionFolder = useMemo(() => {
@@ -1097,10 +1101,43 @@ export function SpecFilesPage() {
 
               {/* Content area */}
               {selectedEndpoint && contentTab === "documentation" ? (
-                <EndpointDocView
-                  endpoint={selectedEndpoint}
-                  securitySchemes={parsedSpec?.securitySchemes}
-                />
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                  <div className="flex-1 overflow-y-auto">
+                    <EndpointDocView
+                      endpoint={selectedEndpoint}
+                      securitySchemes={parsedSpec?.securitySchemes}
+                    />
+                    {/* Try It toggle */}
+                    {!tryItOpen && (
+                      <div className="px-4 py-3 border-t border-[#d1d9e0]">
+                        <button
+                          onClick={() => setTryItOpen(true)}
+                          className="flex items-center gap-2 text-sm font-medium text-[#0969da] hover:text-[#0860ca] transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+                          </svg>
+                          Try It
+                        </button>
+                      </div>
+                    )}
+                    {/* Try It panel */}
+                    {tryItOpen && versionFolder && (
+                      <div className="relative">
+                        <button
+                          onClick={() => setTryItOpen(false)}
+                          className="absolute top-2.5 right-3 text-[#656d76] hover:text-[#1f2328] z-10"
+                          title="Close Try It"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                        <TryItPanel endpoint={selectedEndpoint} versionFolder={versionFolder} />
+                      </div>
+                    )}
+                  </div>
+                </div>
               ) : viewingContent && isFileContext && (selectedPath?.endsWith("/_skills.md") || selectedPath?.endsWith("/Skills.md")) ? (
                 loadingContent ? (
                   <div className="flex-1 flex items-center justify-center text-[#656d76] text-sm">Loading…</div>
