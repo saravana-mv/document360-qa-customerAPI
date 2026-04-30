@@ -13,6 +13,7 @@ import { ProjectSelectionPage } from "./pages/ProjectSelectionPage";
 import { GlobalSettingsPage } from "./pages/GlobalSettingsPage";
 
 const SpecFilesPage = lazy(() => import("./pages/SpecFilesPage").then((m) => ({ default: m.SpecFilesPage })));
+const IdeasFlowsPage = lazy(() => import("./pages/IdeasFlowsPage").then((m) => ({ default: m.IdeasFlowsPage })));
 const SettingsPage = lazy(() => import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
 const SetupPanel = lazy(() => import("./components/setup/SetupPanel").then((m) => ({ default: m.SetupPanel })));
 const AuditLogContent = lazy(() => import("./pages/AuditLogPage").then((m) => ({ default: m.AuditLogContent })));
@@ -28,6 +29,7 @@ import "./lib/tests/suites/categories.suite";
 import "./lib/tests/suites/drive.suite";
 import { loadFlowsFromQueue } from "./lib/tests/flowXml/loader";
 import { useSetupStore } from "./store/setup.store";
+import { useWorkshopStore } from "./store/workshop.store";
 
 function PageLoader() {
   return (
@@ -55,9 +57,10 @@ function ProjectScopedRoutes() {
           <Route path="audit-log" element={<Suspense fallback={<PageLoader />}><AuditLogContent /></Suspense>} />
         </Route>
         <Route path="/test" element={<TestPage />} />
+        <Route path="/ideas-flows" element={<Suspense fallback={<PageLoader />}><IdeasFlowsPage /></Suspense>} />
         <Route path="/spec-files" element={<Suspense fallback={<PageLoader />}><SpecFilesPage /></Suspense>} />
         {/* Fallback for project-scoped unknown paths */}
-        <Route path="*" element={<Navigate to="/spec-files" replace />} />
+        <Route path="*" element={<Navigate to="/test" replace />} />
       </Routes>
     </div>
   );
@@ -75,6 +78,7 @@ function AppRoutes() {
     // Skip if no project is selected yet (fresh Cosmos — no settings saved).
     if (useSetupStore.getState().selectedProjectId) {
       void loadFlowsFromQueue();
+      void useWorkshopStore.getState().loadAll();
     }
 
     // Global handler: any 401 from the API client means the session is stale.

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Layout } from "../components/common/Layout";
 import { ResizeHandle } from "../components/common/ResizeHandle";
 import { FileTree, buildTree, flattenVisiblePaths, type TreeNode, type FolderNode } from "../components/specfiles/FileTree";
@@ -6,10 +7,6 @@ import { MarkdownViewer } from "../components/specfiles/MarkdownViewer";
 import { FileUploadModal } from "../components/specfiles/FileUploadModal";
 import { ImportFromUrlModal } from "../components/specfiles/ImportFromUrlModal";
 import { SyncFolderModal } from "../components/specfiles/SyncFolderModal";
-import { FlowIdeasPanel } from "../components/specfiles/FlowIdeasPanel";
-import { GenerateIdeasModal } from "../components/specfiles/GenerateIdeasModal";
-import { FlowsPanel, type GeneratedFlow } from "../components/specfiles/FlowsPanel";
-import { DetailPanel } from "../components/specfiles/DetailPanel";
 import { SkillsEditor } from "../components/specfiles/SkillsEditor";
 import { JsonCodeBlock } from "../components/common/JsonCodeBlock";
 import { SearchModal } from "../components/specfiles/SearchModal";
@@ -19,64 +16,23 @@ import {
   uploadSpecFile,
   deleteSpecFile,
   renameSpecFile,
-  generateFlowIdeas,
   importSpecFileFromUrl,
   syncSpecFiles,
   getSourcesManifest,
   updateSourceUrl,
   type SpecFileItem,
-  type FlowIdea,
-  type FlowIdeasUsage,
-  type FlowUsage,
-  type IdeaMode,
-  type IdeaScope,
 } from "../lib/api/specFilesApi";
 import type { SourceEntry } from "../types/spec.types";
-import { generateFlowXml } from "../lib/api/flowApi";
-import { validateFlowXml } from "../lib/tests/flowXml/validate";
-import {
-  saveFlowFile,
-  deleteFlowFile,
-  listFlowFiles,
-  FlowFileConflictError,
-  parentFolderOf,
-  buildFlowFilePath,
-  slugifyFlowTitle,
-  unlockFlow,
-} from "../lib/api/flowFilesApi";
-import { useUserStore } from "../store/user.store";
-import { buildFlowPrompt } from "../lib/flow/buildPrompt";
-import { loadFlowsFromQueue } from "../lib/tests/flowXml/loader";
-import { activateFlow, activateFlows, getActiveFlows } from "../lib/tests/flowXml/activeTests";
-import { buildParsedTagsFromRegistry } from "../lib/tests/buildParsedTags";
-import { useSpecStore } from "../store/spec.store";
-import { useFlowStatusStore } from "../store/flowStatus.store";
-import { useScenarioOrgStore } from "../store/scenarioOrg.store";
-import { useAiCostStore } from "../store/aiCost.store";
-import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
 import { NewVersionModal } from "../components/specfiles/NewVersionModal";
 import { splitSwagger, reimportSpec, regenerateSystemFiles, type SuggestedVariable, type SuggestedConnection, type ProcessingReport } from "../lib/api/specFilesApi";
 import { ImportResultModal } from "../components/specfiles/ImportResultModal";
 import { ReimportSpecModal } from "../components/specfiles/ReimportSpecModal";
-import { CreateScenariosModal } from "../components/specfiles/CreateScenariosModal";
 import { useProjectVariablesStore } from "../store/projectVariables.store";
 import { useConnectionsStore } from "../store/connections.store";
-
-import { useSetupStore } from "../store/setup.store";
 import { detectEndpointFromSpec, type DetectedEndpoint } from "../lib/spec/autoDetectEndpoint";
-import {
-  getAllIdeas,
-  saveIdeas,
-  deleteIdeas,
-  renameIdeas,
-  reKeyWorkshopMap,
-  aggregateForPath,
-  migrateFromLocalStorage as migrateIdeasFromLocalStorage,
-  type WorkshopMap,
-} from "../lib/api/ideasApi";
-
-const MAX_IDEAS_PER_RUN = 5;   // Default max per generation run
-const MAX_IDEAS_TOTAL = 30;    // Hard cap to prevent over-engineering
+import { useScenarioOrgStore } from "../store/scenarioOrg.store";
+import { useWorkshopStore } from "../store/workshop.store";
+import { renameIdeas } from "../lib/api/ideasApi";
 
 /** Modal prompting the user for an access token when sync detects auth failure. */
 function AccessTokenPrompt({ message, initialToken, onSubmit, onClose }: {
@@ -143,19 +99,16 @@ function AccessTokenPrompt({ message, initialToken, onSubmit, onClose }: {
 }
 
 export function SpecFilesPage() {
-  const aiModel = useSetupStore((s) => s.aiModel);
-  const setSpec = useSpecStore((s) => s.setSpec);
+  const navigate = useNavigate();
 
   // ── File tree state ────────────────────────────────────────────────────────
   const [files, setFiles] = useState<SpecFileItem[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
-  // Restore the last-viewed file/folder so navigating to Flow Manager and
-  // back doesn't lose the user's place in the tree.
   const [selectedPath, setSelectedPath] = useState<string | null>(
-    () => localStorage.getItem("specfiles_selected_path") || null
+    () => localStorage.getItem("specfiles_selected_path") || null,
   );
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(
-    () => localStorage.getItem("specfiles_selected_folder_path") || null
+    () => localStorage.getItem("specfiles_selected_folder_path") || null,
   );
   const [content, setContent] = useState("");
   const [loadingContent, setLoadingContent] = useState(false);
@@ -171,12 +124,10 @@ export function SpecFilesPage() {
   // Source URL editing state
   const [editingSourceUrl, setEditingSourceUrl] = useState(false);
   const [sourceUrlDraft, setSourceUrlDraft] = useState("");
-  // Paths currently being synced (for spinner indicators)
   const [syncingPaths, setSyncingPaths] = useState<Set<string>>(new Set());
-  // Paths currently regenerating system files
   const [regeneratingPaths, setRegeneratingPaths] = useState<Set<string>>(new Set());
 
-  // ── Source access token (persisted in-memory for sync/import) ──────────────
+  // ── Source access token ──────────────────────────────────────────────────
   const [sourceAccessToken, setSourceAccessToken] = useState("");
   const [tokenPrompt, setTokenPrompt] = useState<{
     message: string;
@@ -193,38 +144,31 @@ export function SpecFilesPage() {
     processing?: ProcessingReport;
   } | null>(null);
 
-  // ── Reimport state ───────────────────────────────────────────────────────────
+  // ── Reimport state ───────────────────────────────────────────────────────
   const [reimportFolderPath, setReimportFolderPath] = useState<string | null>(null);
 
   // ── Multi-select state ─────────────────────────────────────────────────────
   const [multiSelectedPaths, setMultiSelectedPaths] = useState<Set<string>>(new Set());
   const lastClickedPathRef = useRef<string | null>(null);
 
-  // ── Multi-context workshop state ──────────────────────────────────────────
-  // Loaded from Cosmos DB on mount, saved back per-folder on mutation.
-  const [workshopMap, setWorkshopMap] = useState<WorkshopMap>({});
-  const workshopLoadedRef = useRef(false);
-  const [workshopLoaded, setWorkshopLoaded] = useState(false);
+  // ── Auto-detected endpoint notification ──────────────────────────────────
+  const [specDetection, setSpecDetection] = useState<DetectedEndpoint | null>(null);
 
-  // Paths (file or folder) that have generated ideas — for tree indicators.
-  // For folder-level entries, mark all child .md files so individual file
-  // icons turn green even when ideas were generated at the folder level.
+  // ── Resizable panel width (persisted) ────────────────────────────────────
+  const [treeWidth, setTreeWidth] = useState(() => {
+    try { const v = localStorage.getItem("specfiles_tree_width"); if (v) return parseInt(v, 10); } catch { /* ignore */ }
+    return 280;
+  });
+  useEffect(() => { try { localStorage.setItem("specfiles_tree_width", String(treeWidth)); } catch { /* ignore */ } }, [treeWidth]);
+
+  // pathsWithIdeas from workshop store (for tree indicators)
+  const workshopMap = useWorkshopStore((s) => s.workshopMap);
   const pathsWithIdeas = useMemo(() => {
     const s = new Set<string>();
     for (const [key, ctx] of Object.entries(workshopMap)) {
       if (ctx.ideas.length > 0) s.add(key);
     }
     return s;
-  }, [workshopMap]);
-
-  // Push total workshop cost to global store whenever workshopMap changes
-  useEffect(() => {
-    let total = 0;
-    for (const ctx of Object.values(workshopMap)) {
-      if (ctx.usage) total += ctx.usage.costUsd;
-      if (ctx.flowsUsage) total += ctx.flowsUsage.costUsd;
-    }
-    useAiCostStore.getState().setWorkshopCost(parseFloat(total.toFixed(6)));
   }, [workshopMap]);
 
   // Ctrl+K to open search
@@ -239,174 +183,7 @@ export function SpecFilesPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Working set — flat state loaded from workshopMap when navigating
-  const [ideas, setIdeas] = useState<FlowIdea[]>([]);
-  const [ideasUsage, setIdeasUsage] = useState<FlowIdeasUsage | null>(null);
-  const [ideasLoading, setIdeasLoading] = useState(false);
-  const [ideasAppending, setIdeasAppending] = useState(false);
-  const [ideasError, setIdeasError] = useState<string | null>(null);
-  const [ideasRawText, setIdeasRawText] = useState<string | undefined>();
-  const [ideasMessage, setIdeasMessage] = useState<string | null>(null);
-  const [ideasExhausted, setIdeasExhausted] = useState(false);
-  const [ideaMode, setIdeaMode] = useState<IdeaMode>("full");
-  const [showLandingModal, setShowLandingModal] = useState(false);
-  const [treeGeneratePath, setTreeGeneratePath] = useState<string | null>(null);
-  const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(new Set());
-  const [showNewIdeasModal, setShowNewIdeasModal] = useState(false);
-
-  // ── Flow generation state ─────────────────────────────────────────────────
-  const [generatedFlows, setGeneratedFlows] = useState<GeneratedFlow[]>([]);
-  const [generatingFlows, setGeneratingFlows] = useState(false);
-  const [flowsUsage, setFlowsUsage] = useState<FlowUsage | null>(null);
-  const [flowProgress, setFlowProgress] = useState<{ current: number; total: number } | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-
-  // ── Detail panel state (persisted) ────────────────────────────────────────
-  const [activeIdeaId, setActiveIdeaId] = useState<string | null>(() => {
-    try { return localStorage.getItem("specfiles_active_idea_id") || null; } catch { return null; }
-  });
-  const [activeFlowId, setActiveFlowId] = useState<string | null>(() => {
-    try { return localStorage.getItem("specfiles_active_flow_id") || null; } catch { return null; }
-  });
-  useEffect(() => { try { if (activeIdeaId) localStorage.setItem("specfiles_active_idea_id", activeIdeaId); else localStorage.removeItem("specfiles_active_idea_id"); } catch { /* ignore */ } }, [activeIdeaId]);
-  useEffect(() => { try { if (activeFlowId) localStorage.setItem("specfiles_active_flow_id", activeFlowId); else localStorage.removeItem("specfiles_active_flow_id"); } catch { /* ignore */ } }, [activeFlowId]);
-
-  // ── Mark-for-implementation state ─────────────────────────────────────────
-  const [markedIds, setMarkedIds] = useState<Set<string>>(new Set());
-  const [markingIds, setMarkingIds] = useState<Set<string>>(new Set());
-  const [selectedFlowIds, setSelectedFlowIds] = useState<Set<string>>(new Set());
-  const [thisLevelOnly, setThisLevelOnly] = useState(false);
-  const [conflict, setConflict] = useState<{
-    flow: GeneratedFlow;
-    existingName: string;
-    suggestedNewName: string;
-  } | null>(null);
-
-  // ── Auto-detected endpoint notification ──────────────────────────────────
-  const [specDetection, setSpecDetection] = useState<DetectedEndpoint | null>(null);
-
-  // ── Resizable panel widths (persisted) ───────────────────────────────────
-  const [treeWidth, setTreeWidth] = useState(() => {
-    try { const v = localStorage.getItem("specfiles_tree_width"); if (v) return parseInt(v, 10); } catch { /* ignore */ }
-    return 240;
-  });
-  const [ideasWidth, setIdeasWidth] = useState(() => {
-    try { const v = localStorage.getItem("specfiles_ideas_width"); if (v) return parseInt(v, 10); } catch { /* ignore */ }
-    const available = (typeof window !== "undefined" ? window.innerWidth : 1440) - 240;
-    return Math.max(240, Math.floor(available / 3));
-  });
-  const [flowsWidth, setFlowsWidth] = useState(() => {
-    try { const v = localStorage.getItem("specfiles_flows_width"); if (v) return parseInt(v, 10); } catch { /* ignore */ }
-    const available = (typeof window !== "undefined" ? window.innerWidth : 1440) - 240;
-    return Math.max(240, Math.floor(available / 3));
-  });
-  useEffect(() => { try { localStorage.setItem("specfiles_tree_width", String(treeWidth)); } catch { /* ignore */ } }, [treeWidth]);
-  useEffect(() => { try { localStorage.setItem("specfiles_ideas_width", String(ideasWidth)); } catch { /* ignore */ } }, [ideasWidth]);
-  useEffect(() => { try { localStorage.setItem("specfiles_flows_width", String(flowsWidth)); } catch { /* ignore */ } }, [flowsWidth]);
-
-  // Workshop is visible when aggregated data exists for the current path (or loading/error)
-  const activePath = selectedPath ?? selectedFolderPath;
-  const showWorkshop = ideas.length > 0 || ideasLoading || ideasAppending || ideasError !== null || ideasMessage !== null;
-  const hasIdeas = ideas.length > 0 || ideasLoading || ideasAppending;
-
-  // Load workshop data from API on mount (+ migrate from localStorage if needed)
-  useEffect(() => {
-    if (workshopLoadedRef.current) return;
-    workshopLoadedRef.current = true;
-    (async () => {
-      try {
-        // Skip Cosmos-backed ideas loading if no project is selected yet
-        const { hasProject } = await import("../lib/api/projectHeader");
-        if (!hasProject()) {
-          setWorkshopLoaded(true);
-          return;
-        }
-        await migrateIdeasFromLocalStorage();
-        const rawMap = await getAllIdeas();
-        // Normalize — ensure arrays are never null/undefined
-        const map: WorkshopMap = {};
-        for (const [key, ctx] of Object.entries(rawMap)) {
-          map[key] = {
-            ideas: ctx.ideas ?? [],
-            usage: ctx.usage ?? null,
-            flowsUsage: ctx.flowsUsage ?? null,
-            generatedFlows: (ctx.generatedFlows ?? []) as GeneratedFlow[],
-          };
-        }
-        console.log("[SpecFilesPage] Loaded workshopMap from API:", Object.keys(map).length, "entries",
-          Object.entries(map).map(([k, v]) => `${k}: ${v.ideas.length} ideas, ${v.generatedFlows.length} flows`));
-        // Clean up orphaned flows — flows whose ideaId doesn't match any idea
-        // across the ENTIRE map (ideas may live under a child key while flows
-        // are stored at a parent folder key).
-        const allIdeaIds = new Set<string>();
-        for (const ctx of Object.values(map)) {
-          for (const idea of ctx.ideas) allIdeaIds.add(idea.id);
-        }
-        let cleaned = false;
-        for (const [key, ctx] of Object.entries(map)) {
-          const orphans = ctx.generatedFlows.filter(f => !allIdeaIds.has(f.ideaId));
-          if (orphans.length > 0) {
-            console.warn(`[SpecFilesPage] Removing ${orphans.length} orphaned flows from "${key}"`,
-              orphans.map(f => f.ideaId));
-            ctx.generatedFlows = ctx.generatedFlows.filter(f => allIdeaIds.has(f.ideaId));
-            cleaned = true;
-          }
-        }
-        setWorkshopMap(map);
-        setWorkshopLoaded(true);
-        // Persist cleaned data
-        if (cleaned) {
-          for (const [folder, ctx] of Object.entries(map)) {
-            saveIdeas(folder, ctx).catch(e => console.warn("[SpecFilesPage] Failed to save cleaned ideas:", e));
-          }
-        }
-      } catch (e) {
-        console.warn("[SpecFilesPage] Failed to load ideas from API:", e);
-        setWorkshopLoaded(true);
-      }
-    })();
-  }, []);
-
-  // Re-populate the working set when workshopMap loads from API and we have
-  // an active path. This fixes the flash of "generate ideas" on initial nav
-  // from another page (workshopMap starts empty, then fills from the API).
-  // IMPORTANT: Skip while flow generation is running — the async loop manages
-  // generatedFlows directly via localFlows mirror. Letting this effect fire
-  // mid-batch would overwrite pending/generating placeholders with only the
-  // done/error entries from workshopMap, causing them to vanish.
-  useEffect(() => {
-    if (!workshopLoaded || !activePath || generatingFlows) return;
-    const agg = aggregateForPath(workshopMap, activePath);
-    console.log("[SpecFilesPage] Re-populate working set for", activePath,
-      "→", agg.ideas.length, "ideas,", agg.generatedFlows.length, "flows");
-    if (agg.ideas.length > 0 || agg.generatedFlows.length > 0) {
-      setIdeas(agg.ideas);
-      setIdeasUsage(agg.usage);
-      setFlowsUsage(agg.flowsUsage);
-      setGeneratedFlows(agg.generatedFlows.filter(f => f.status === "done" || f.status === "error"));
-    }
-  }, [workshopLoaded, workshopMap, activePath, generatingFlows]);
-
-  // Persist workshopMap changes to API (debounced, per-folder diff)
-  const prevMapRef = useRef<WorkshopMap>({});
-  useEffect(() => {
-    const prev = prevMapRef.current;
-    // Save changed or new entries
-    for (const [folder, data] of Object.entries(workshopMap)) {
-      if (data !== prev[folder]) {
-        saveIdeas(folder, data).catch(e => console.warn("[SpecFilesPage] Failed to save ideas:", e));
-      }
-    }
-    // Delete entries that were removed from the map
-    for (const folder of Object.keys(prev)) {
-      if (!(folder in workshopMap)) {
-        deleteIdeas(folder).catch(e => console.warn("[SpecFilesPage] Failed to delete ideas:", e));
-      }
-    }
-    prevMapRef.current = workshopMap;
-  }, [workshopMap]);
-
-  // Persist tree selection so the view survives navigation away and back
+  // Persist tree selection
   useEffect(() => {
     if (selectedPath) localStorage.setItem("specfiles_selected_path", selectedPath);
     else localStorage.removeItem("specfiles_selected_path");
@@ -415,78 +192,6 @@ export function SpecFilesPage() {
     if (selectedFolderPath) localStorage.setItem("specfiles_selected_folder_path", selectedFolderPath);
     else localStorage.removeItem("specfiles_selected_folder_path");
   }, [selectedFolderPath]);
-
-  // ── Sync marked-for-implementation state ────────────────────────────────────
-  // "Marked" means "registered as an active test" — NOT merely "XML file exists
-  // on the server". Flow XML files are preserved when tests are deleted (they
-  // are reusable assets), so we can't use blob existence as the signal or the
-  // user would be stuck unable to re-create a test after deletion.
-  //
-  // The active-tests set (localStorage-backed) is the authoritative source:
-  // activateFlow adds to it, deactivateFlow removes, and the Test Manager
-  // updates it directly.
-  const syncMarkedFromServer = useCallback(async () => {
-    if (generatedFlows.length === 0) {
-      setMarkedIds(new Set());
-      return;
-    }
-    const folder = parentFolderOf(activePath);
-    try {
-      // We still confirm the blob exists — a flow with no XML can't actually
-      // be active even if its name lingers in the set.
-      const items = await listFlowFiles(folder || undefined);
-      const existingPaths = new Set(items.map(i => i.name));
-      const activeSet = await getActiveFlows();
-      const next = new Set<string>();
-      for (const flow of generatedFlows) {
-        if (flow.status !== "done") continue;
-        const target = buildFlowFilePath(folder, flow.title);
-        if (existingPaths.has(target) && activeSet.has(target)) next.add(flow.ideaId);
-      }
-      setMarkedIds(next);
-    } catch {
-      // Leave existing markedIds in place on network failure
-    }
-  }, [activePath, generatedFlows]);
-
-  useEffect(() => { void syncMarkedFromServer(); }, [syncMarkedFromServer]);
-
-  // Re-sync when the window regains focus (covers the case where the user
-  // removed a flow in Flow Manager and came back to Spec Manager).
-  useEffect(() => {
-    const onFocus = () => { void syncMarkedFromServer(); };
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, [syncMarkedFromServer]);
-
-  // Persist generated flows + flowsUsage back to workshopMap when flow generation completes
-  useEffect(() => {
-    if (!generatingFlows && generatedFlows.length > 0 && activePath) {
-      const flowsToSave = generatedFlows.filter(f => f.status === "done" || f.status === "error");
-      if (flowsToSave.length > 0) {
-        // Compute cumulative flow usage from all done flows
-        const cumulativeFlowsUsage = flowsToSave.reduce<FlowUsage | null>((acc, f) => {
-          if (!f.usage) return acc;
-          if (!acc) return { ...f.usage };
-          return {
-            inputTokens: acc.inputTokens + f.usage.inputTokens,
-            outputTokens: acc.outputTokens + f.usage.outputTokens,
-            totalTokens: acc.totalTokens + f.usage.totalTokens,
-            costUsd: parseFloat((acc.costUsd + f.usage.costUsd).toFixed(6)),
-          };
-        }, null);
-        setWorkshopMap(prev => ({
-          ...prev,
-          [activePath]: {
-            ...(prev[activePath] ?? { ideas: [], usage: null, flowsUsage: null, generatedFlows: [] }),
-            generatedFlows: flowsToSave,
-            flowsUsage: cumulativeFlowsUsage,
-          },
-        }));
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [generatingFlows]);
 
   // ── File list ──────────────────────────────────────────────────────────────
 
@@ -508,36 +213,26 @@ export function SpecFilesPage() {
       const manifest = await getSourcesManifest();
       setSourcesManifest(manifest);
     } catch {
-      // Non-critical — sourced indicators just won't show
+      // Non-critical
     }
   }, []);
 
   useEffect(() => { void loadFiles(); void loadSourcedPaths(); }, [loadFiles, loadSourcedPaths]);
 
-  // After the file list loads for the first time, rehydrate the restored
-  // selection: drop it if the file/folder no longer exists, otherwise
-  // pre-load the working set (and content for a file) so the panels appear
-  // as the user left them.
+  // Rehydrate selection after file list loads
   const didRehydrateRef = useRef(false);
   useEffect(() => {
     if (didRehydrateRef.current) return;
     if (loadingFiles) return;
     didRehydrateRef.current = true;
-
-    // Empty project — clear any stale paths from localStorage
     if (files.length === 0) {
       if (selectedPath) setSelectedPath(null);
       if (selectedFolderPath) setSelectedFolderPath(null);
       return;
     }
-
     if (selectedPath) {
       const stillExists = files.some(f => f.name === selectedPath);
-      if (!stillExists) {
-        setSelectedPath(null);
-        return;
-      }
-      loadWorkingSet(selectedPath);
+      if (!stillExists) { setSelectedPath(null); return; }
       setLoadingContent(true);
       void (async () => {
         try {
@@ -551,65 +246,20 @@ export function SpecFilesPage() {
       })();
     } else if (selectedFolderPath) {
       const stillExists = files.some(f => f.name === selectedFolderPath || f.name.startsWith(`${selectedFolderPath}/`));
-      if (!stillExists) {
-        setSelectedFolderPath(null);
-        return;
-      }
-      loadWorkingSet(selectedFolderPath);
+      if (!stillExists) setSelectedFolderPath(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadingFiles, files]);
 
-  // ── Select file ────────────────────────────────────────────────────────────
-
-  /** Load aggregated workshop data into the flat working set for a given path */
-  function loadWorkingSet(path: string) {
-    const agg = aggregateForPath(workshopMap, path);
-    setIdeas(agg.ideas);
-    setIdeasUsage(agg.usage);
-    setFlowsUsage(agg.flowsUsage);
-    setGeneratedFlows(agg.generatedFlows.filter(f => f.status === "done" || f.status === "error"));
-    setSelectedIdeaIds(new Set());
-    setIdeasError(null);
-    setIdeasRawText(undefined);
-    setIdeasMessage(null);
-    setIdeasExhausted(false);
-    setActiveIdeaId(null);
-    setActiveFlowId(null);
-  }
-
-  /**
-   * Guard: navigation while flow generation is running is unsafe — the async
-   * loop keeps writing to generatedFlows state, which loadWorkingSet has just
-   * overwritten with the destination path's data. Results end up mixed
-   * between paths or lost entirely. Confirm, abort, then proceed.
-   */
-  function confirmLeaveGeneration(): boolean {
-    if (!generatingFlows) return true;
-    const ok = window.confirm(
-      "Flow generation is still running. Switching now will cancel it and any " +
-      "flows not yet completed will be lost.\n\nContinue anyway?",
-    );
-    if (!ok) return false;
-    abortRef.current?.abort();
-    return true;
-  }
-
-  function handleCancelGeneration() {
-    abortRef.current?.abort();
-  }
+  // ── Select file / folder ──────────────────────────────────────────────────
 
   async function selectFile(path: string) {
-    if (!confirmLeaveGeneration()) return;
     setMultiSelectedPaths(new Set());
     setSelectedPath(path);
     setSelectedFolderPath(null);
     const isSystemFile = path.includes("/_system/");
     const isSkills = path.endsWith("/_skills.md") || path.endsWith("/Skills.md");
-    setViewingContent(isSkills || isSystemFile); // Auto-open for Skills or any system file
+    setViewingContent(isSkills || isSystemFile);
     setEditingSourceUrl(false);
-    loadWorkingSet(path);
-    // Pre-load content for when user clicks the filename link
     setContent("");
     setLoadingContent(true);
     try {
@@ -623,18 +273,15 @@ export function SpecFilesPage() {
   }
 
   function selectFolder(path: string) {
-    if (!confirmLeaveGeneration()) return;
     setMultiSelectedPaths(new Set());
     setSelectedFolderPath(path);
     setSelectedPath(null);
     setViewingContent(false);
     setContent("");
-    loadWorkingSet(path);
   }
 
   // ── Multi-select handlers ────────────────────────────────────────────────
 
-  /** Collect all descendant paths (files + subfolders) under a folder path from the tree. */
   function collectDescendants(folderPath: string, tree: TreeNode[]): string[] {
     const results: string[] = [];
     function walk(nodes: TreeNode[]) {
@@ -643,7 +290,6 @@ export function SpecFilesPage() {
         if (n.type === "folder") walk(n.children);
       }
     }
-    // Find the target folder node in the tree
     function findFolder(nodes: TreeNode[]): FolderNode | undefined {
       for (const n of nodes) {
         if (n.type === "folder" && n.path === folderPath) return n;
@@ -659,7 +305,6 @@ export function SpecFilesPage() {
     return results;
   }
 
-  /** Check if all descendants of a folder are currently selected. */
   function allDescendantsSelected(folderPath: string, tree: TreeNode[]): boolean {
     const descendants = collectDescendants(folderPath, tree);
     return descendants.length > 0 && descendants.every(p => multiSelectedPaths.has(p));
@@ -668,7 +313,6 @@ export function SpecFilesPage() {
   function handleMultiSelect(path: string, e: React.MouseEvent) {
     const tree = buildTree(files);
     if (e.shiftKey && lastClickedPathRef.current) {
-      // Shift+click: range select
       const sortState: Record<string, string> = {};
       try {
         const raw = localStorage.getItem("specfiles_folder_sort");
@@ -687,7 +331,6 @@ export function SpecFilesPage() {
           const next = new Set(prev);
           for (const p of range) {
             next.add(p);
-            // If range includes a folder, also select all its descendants
             const isFolder = !files.some(f => f.name === p);
             if (isFolder) {
               for (const d of collectDescendants(p, tree)) next.add(d);
@@ -697,7 +340,6 @@ export function SpecFilesPage() {
         });
       }
     } else {
-      // Toggle single item — if folder, also toggle all descendants
       const isFolderNode = (() => {
         function find(nodes: TreeNode[]): TreeNode | undefined {
           for (const n of nodes) {
@@ -719,11 +361,9 @@ export function SpecFilesPage() {
           const descendants = collectDescendants(path, tree);
           const isCurrentlySelected = next.has(path) && allDescendantsSelected(path, tree);
           if (isCurrentlySelected) {
-            // Deselect folder + all descendants
             next.delete(path);
             for (const d of descendants) next.delete(d);
           } else {
-            // Select folder + all descendants
             next.add(path);
             for (const d of descendants) next.add(d);
           }
@@ -737,12 +377,9 @@ export function SpecFilesPage() {
     lastClickedPathRef.current = path;
   }
 
-  function handleClearMultiSelect() {
-    setMultiSelectedPaths(new Set());
-  }
+  function handleClearMultiSelect() { setMultiSelectedPaths(new Set()); }
 
   function handleSelectAll() {
-    // Select all visible tree nodes (files + folders) — not raw blob names
     const tree = buildTree(files);
     const allPaths: string[] = [];
     function walk(nodes: TreeNode[]) {
@@ -756,20 +393,14 @@ export function SpecFilesPage() {
   }
 
   async function handleBulkDelete() {
-    // Resolve selected paths to actual blob names to delete
     const allBlobsToDelete = new Set<string>();
     for (const p of multiSelectedPaths) {
-      // Check if it's an actual file blob
-      if (files.some(f => f.name === p)) {
-        allBlobsToDelete.add(p);
-      }
-      // Also find any blobs under this path (folder expansion)
+      if (files.some(f => f.name === p)) allBlobsToDelete.add(p);
       for (const f of files) {
         if (f.name.startsWith(p + "/")) allBlobsToDelete.add(f.name);
       }
     }
     if (allBlobsToDelete.size === 0) return;
-
     const count = multiSelectedPaths.size;
     if (!confirm(`Delete ${count} selected item${count !== 1 ? "s" : ""} (${allBlobsToDelete.size} blob${allBlobsToDelete.size !== 1 ? "s" : ""})?`)) return;
     setError(null);
@@ -786,7 +417,7 @@ export function SpecFilesPage() {
     }
   }
 
-  // ── Skills template builder ─────────────────────────────────────────────
+  // ── Skills template builder ───────────────────────────────────────────────
 
   function buildSkillsTemplate(folderPath: string, variables?: SuggestedVariable[]): string {
     const varLines = variables && variables.length > 0
@@ -842,11 +473,9 @@ export function SpecFilesPage() {
   // ── CRUD handlers ─────────────────────────────────────────────────────────
 
   async function handleCreateFolder(folderPath: string) {
-    console.log("[SpecFilesPage] handleCreateFolder:", folderPath);
     setError(null);
     try {
       await uploadSpecFile(`${folderPath}/.keep`, "");
-      // Auto-create _skills.md under _system/ for top-level version folders
       if (!folderPath.includes("/")) {
         const skillsContent = buildSkillsTemplate(folderPath);
         await uploadSpecFile(`${folderPath}/_system/_skills.md`, skillsContent);
@@ -860,18 +489,13 @@ export function SpecFilesPage() {
   async function handleCreateVersion(folderName: string, specContent?: string, specUrl?: string) {
     setError(null);
     try {
-      // Create the folder with .keep + _skills.md (same as handleCreateFolder for root)
       await handleCreateFolder(folderName);
-
       if (specContent) {
-        // Upload spec as _system/_swagger.json
         await uploadSpecFile(`${folderName}/_system/_swagger.json`, specContent, "application/json");
-        // Split into per-endpoint .md files
         const result = await splitSwagger(folderName);
         await loadFiles();
         setShowNewVersionModal(false);
         setError(null);
-        // Load project variables + connections so modal can check existing names
         await Promise.all([
           useProjectVariablesStore.getState().load(),
           useConnectionsStore.getState().load(),
@@ -884,11 +508,9 @@ export function SpecFilesPage() {
           processing: result.processing,
         });
       } else if (specUrl) {
-        // Backend fetches URL, saves as _system/_swagger.json, and splits
         const result = await splitSwagger(folderName, { specUrl });
         await loadFiles();
         setShowNewVersionModal(false);
-        // Load project variables + connections so modal can check existing names
         await Promise.all([
           useProjectVariablesStore.getState().load(),
           useConnectionsStore.getState().load(),
@@ -901,16 +523,14 @@ export function SpecFilesPage() {
           processing: result.processing,
         });
       } else {
-        // Just create the folder (already done above)
         setShowNewVersionModal(false);
       }
     } catch (e) {
-      throw e; // Let the modal handle the error display
+      throw e;
     }
   }
 
   async function handleImportDone(selectedVarNames: string[], selectedConnections: SuggestedConnection[]) {
-    // Save project variables
     const varStore = useProjectVariablesStore.getState();
     const existing = varStore.variables;
     const existingNames = new Set(existing.map(v => v.name));
@@ -921,7 +541,6 @@ export function SpecFilesPage() {
       await varStore.save([...existing, ...newVars]);
     }
 
-    // Create draft connections
     const connStore = useConnectionsStore.getState();
     for (const conn of selectedConnections) {
       try {
@@ -935,12 +554,9 @@ export function SpecFilesPage() {
           ...(conn.authHeaderName ? { authHeaderName: conn.authHeaderName } : {}),
           ...(conn.authQueryParam ? { authQueryParam: conn.authQueryParam } : {}),
         });
-      } catch {
-        // Connection creation failed — skip silently (user can create manually)
-      }
+      } catch { /* skip */ }
     }
 
-    // Rewrite _skills.md with only the user-selected variables
     if (importResult && selectedVarNames.length > 0) {
       const selected = (importResult.suggestedVariables ?? []).filter(v => selectedVarNames.includes(v.name));
       if (selected.length > 0) {
@@ -954,9 +570,7 @@ export function SpecFilesPage() {
     setImportResult(null);
   }
 
-  function handleImportSkip() {
-    setImportResult(null);
-  }
+  function handleImportSkip() { setImportResult(null); }
 
   async function handleReimport(specContent?: string, specUrl?: string) {
     if (!reimportFolderPath) return;
@@ -965,9 +579,9 @@ export function SpecFilesPage() {
     await loadFiles();
     setReimportFolderPath(null);
 
-    // Clear wiped ideas/flows from workshopMap (remove entries under this folder)
-    setWorkshopMap(prev => {
-      const next: WorkshopMap = {};
+    // Clear wiped ideas/flows from workshop store
+    useWorkshopStore.getState().setWorkshopMap(prev => {
+      const next: Record<string, typeof prev[string]> = {};
       for (const [key, val] of Object.entries(prev)) {
         if (key === folderPath || key.startsWith(folderPath + "/")) continue;
         next[key] = val;
@@ -975,19 +589,6 @@ export function SpecFilesPage() {
       return next;
     });
 
-    // Clear working set (ideas/flows panels)
-    setIdeas([]);
-    setIdeasUsage(null);
-    setGeneratedFlows([]);
-    setFlowsUsage(null);
-    setSelectedIdeaIds(new Set());
-    setMarkedIds(new Set());
-    setSelectedFlowIds(new Set());
-
-    // Reload flow status (active tests were modified server-side)
-    loadFlowsFromQueue().catch(() => {});
-
-    // Load project variables + connections so modal can check existing names
     await Promise.all([
       useProjectVariablesStore.getState().load(),
       useConnectionsStore.getState().load(),
@@ -1004,8 +605,6 @@ export function SpecFilesPage() {
   async function handleUpload(name: string, fileContent: string, contentType: string) {
     await uploadSpecFile(name, fileContent, contentType);
     await loadFiles();
-
-    // Try auto-detecting endpoint config from uploaded JSON spec
     if (name.toLowerCase().endsWith(".json") && fileContent) {
       const detected = detectEndpointFromSpec(fileContent);
       if (detected) {
@@ -1019,10 +618,7 @@ export function SpecFilesPage() {
     setError(null);
     try {
       await deleteSpecFile(path);
-      if (selectedPath === path) {
-        setSelectedPath(null);
-        setContent("");
-      }
+      if (selectedPath === path) { setSelectedPath(null); setContent(""); }
       await loadFiles();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -1034,10 +630,7 @@ export function SpecFilesPage() {
     try {
       const toDelete = files.filter((f) => f.name.startsWith(`${folderPath}/`));
       await Promise.all(toDelete.map((f) => deleteSpecFile(f.name)));
-      if (selectedPath?.startsWith(`${folderPath}/`)) {
-        setSelectedPath(null);
-        setContent("");
-      }
+      if (selectedPath?.startsWith(`${folderPath}/`)) { setSelectedPath(null); setContent(""); }
       await loadFiles();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -1051,23 +644,22 @@ export function SpecFilesPage() {
       if (isFolder) {
         const toRename = files.filter((f) => f.name.startsWith(`${oldPath}/`));
         await Promise.all(
-          toRename.map((f) => renameSpecFile(f.name, f.name.replace(oldPath, newPath)))
+          toRename.map((f) => renameSpecFile(f.name, f.name.replace(oldPath, newPath))),
         );
         if (selectedPath?.startsWith(`${oldPath}/`)) {
           setSelectedPath(selectedPath.replace(oldPath, newPath));
         }
-        // Migrate ideas in Cosmos (re-key doc IDs, update specFiles paths)
+        // Migrate ideas in Cosmos + re-key in workshop store
         renameIdeas(oldPath, newPath).catch(e =>
-          console.warn("[handleRename] Ideas migration failed (non-fatal):", e)
+          console.warn("[handleRename] Ideas migration failed (non-fatal):", e),
         );
-        // Re-key in-memory workshopMap so ideas remain visible
-        setWorkshopMap(prev => reKeyWorkshopMap(prev, oldPath, newPath));
+        void useWorkshopStore.getState().renameFolder(oldPath, newPath);
       } else {
         await renameSpecFile(oldPath, newPath);
         if (selectedPath === oldPath) setSelectedPath(newPath);
-        // Update specFiles references inside workshopMap ideas for file renames
-        setWorkshopMap(prev => {
-          const updated: WorkshopMap = {};
+        // Update specFiles references in workshop store
+        useWorkshopStore.getState().setWorkshopMap(prev => {
+          const updated: Record<string, typeof prev[string]> = {};
           for (const [key, ctx] of Object.entries(prev)) {
             const updatedIdeas = ctx.ideas.map(idea => {
               if (!idea.specFiles?.length) return idea;
@@ -1090,21 +682,15 @@ export function SpecFilesPage() {
   // ── Import from URL ────────────────────────────────────────────────────────
 
   async function handleImportFromUrl(url: string, folderPath: string, filename?: string, userAccessToken?: string) {
-    // If user provided an explicit access token, persist it for future sync/import
     if (userAccessToken) {
       setSourceAccessToken(userAccessToken);
       await importSpecFileFromUrl(url, folderPath, filename, userAccessToken);
       await loadFiles();
       await loadSourcedPaths();
-      // Try auto-detect on imported JSON files
       await tryDetectAfterImport(url, folderPath, filename);
       return;
     }
-
-    // Use stored token if available
     const effectiveToken = sourceAccessToken.trim() || "";
-
-    // Try client-side fetch first — the browser may have session cookies for this URL
     let clientContent: string | undefined;
     if (!effectiveToken) {
       try {
@@ -1115,16 +701,11 @@ export function SpecFilesPage() {
             clientContent = text;
           }
         }
-      } catch {
-        // CORS or network error — will fall back to server-side fetch
-      }
+      } catch { /* CORS fallback */ }
     }
-
     await importSpecFileFromUrl(url, folderPath, filename, effectiveToken, clientContent);
     await loadFiles();
     await loadSourcedPaths();
-
-    // Try auto-detect: use clientContent if available, otherwise read back
     const resolvedName = filename || url.split("/").pop() || "";
     if (resolvedName.toLowerCase().endsWith(".json")) {
       if (clientContent) {
@@ -1139,7 +720,6 @@ export function SpecFilesPage() {
     }
   }
 
-  /** Read back an imported JSON file and try endpoint auto-detection. */
   async function tryDetectAfterImport(url: string, folderPath: string, filename?: string) {
     const resolvedName = filename || url.split("/").pop() || "";
     if (!resolvedName.toLowerCase().endsWith(".json")) return;
@@ -1153,9 +733,7 @@ export function SpecFilesPage() {
           useScenarioOrgStore.getState().setDetectedEndpoint(detected);
         }
       }
-    } catch {
-      // Not critical — silently skip detection
-    }
+    } catch { /* skip */ }
   }
 
   // ── Sync from URL source ──────────────────────────────────────────────────
@@ -1200,7 +778,6 @@ export function SpecFilesPage() {
   }
 
   function handleSyncFolder(folderPath: string) {
-    // Open the sync modal — it handles progress, auth, and retry
     setSyncFolderPath(folderPath);
   }
 
@@ -1224,7 +801,6 @@ export function SpecFilesPage() {
     }
   }
 
-  /** Called by SyncFolderModal for individual file sync. */
   async function handleSyncForModal(
     folderPath: string,
     filename?: string,
@@ -1233,8 +809,6 @@ export function SpecFilesPage() {
     const token = accessToken || sourceAccessToken.trim() || "";
     return syncSpecFiles(folderPath, filename, token);
   }
-
-  // ── Update source URL ──────────────────────────────────────────────────────
 
   async function handleSaveSourceUrl(filePath: string, newUrl: string) {
     try {
@@ -1246,837 +820,18 @@ export function SpecFilesPage() {
     }
   }
 
-  // ── Generate flow ideas (AI) ──────────────────────────────────────────────
+  // ── Navigate to Ideas & Flows page ────────────────────────────────────────
 
-  async function handleGenerateFlowIdeas(contextPath: string, maxCount?: number, filePaths?: string[], prompt?: string, scope?: IdeaScope) {
-    // contextPath can be a folder path or a file path (.md)
-    if (contextPath.endsWith(".md")) {
-      setSelectedPath(contextPath);
-      setSelectedFolderPath(null);
-    } else {
-      setSelectedFolderPath(contextPath);
-      setSelectedPath(null);
-    }
-    setViewingContent(false);
-
-    // Collect existing idea titles so the AI generates different ones
-    const existing = aggregateForPath(workshopMap, contextPath);
-    const existingTitles = existing.ideas.map(i => i.title);
-
-    setIdeasError(null);
-    setIdeasRawText(undefined);
-    setIdeasMessage(null);
-    setIdeasExhausted(false);
-    if (existing.ideas.length > 0) {
-      // Keep existing ideas visible while generating new ones
-      setIdeas(existing.ideas);
-      setIdeasUsage(existing.usage);
-      setFlowsUsage(existing.flowsUsage);
-      setGeneratedFlows(existing.generatedFlows.filter(f => f.status === "done" || f.status === "error"));
-      setIdeasAppending(true);
-    } else {
-      setIdeas([]);
-      setIdeasUsage(null);
-      setFlowsUsage(null);
-      setGeneratedFlows([]);
-      setSelectedIdeaIds(new Set());
-      setActiveIdeaId(null);
-      setActiveFlowId(null);
-      setIdeasLoading(true);
-    }
-    try {
-      const result = await generateFlowIdeas(contextPath, existingTitles, undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN, filePaths, ideaMode, prompt, scope);
-      const perIdeaCost = result.usage && result.ideas.length > 0
-        ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
-        : undefined;
-      const now = new Date().toISOString();
-      const base = Date.now();
-      const newIdeas = result.ideas.map((idea, i) => ({
-        ...idea,
-        id: `idea-${base}-${i}`,
-        costUsd: perIdeaCost,
-        createdAt: now,
-      }));
-      // Save to workshopMap under this context
-      if (newIdeas.length > 0) {
-        setWorkshopMap(prev => {
-          const prevCtx = prev[contextPath];
-          const mergedIdeas = [...(prevCtx?.ideas ?? []), ...newIdeas];
-          const mergedUsage = result.usage && prevCtx?.usage
-            ? {
-                inputTokens: prevCtx.usage.inputTokens + result.usage.inputTokens,
-                outputTokens: prevCtx.usage.outputTokens + result.usage.outputTokens,
-                totalTokens: prevCtx.usage.totalTokens + result.usage.totalTokens,
-                costUsd: parseFloat((prevCtx.usage.costUsd + result.usage.costUsd).toFixed(6)),
-                filesAnalyzed: result.usage.filesAnalyzed,
-                totalSpecCharacters: result.usage.totalSpecCharacters,
-              }
-            : result.usage;
-          return {
-            ...prev,
-            [contextPath]: {
-              ideas: mergedIdeas,
-              usage: mergedUsage,
-              flowsUsage: prevCtx?.flowsUsage ?? null,
-              generatedFlows: prevCtx?.generatedFlows ?? [],
-            },
-          };
-        });
-      }
-      // Update flat working set — merge with existing ideas from aggregate
-      const allIdeas = [...existing.ideas, ...newIdeas];
-      setIdeas(allIdeas);
-      const mergedUsage = result.usage && existing.usage
-        ? {
-            inputTokens: existing.usage.inputTokens + result.usage.inputTokens,
-            outputTokens: existing.usage.outputTokens + result.usage.outputTokens,
-            totalTokens: existing.usage.totalTokens + result.usage.totalTokens,
-            costUsd: parseFloat((existing.usage.costUsd + result.usage.costUsd).toFixed(6)),
-            filesAnalyzed: result.usage.filesAnalyzed,
-            totalSpecCharacters: result.usage.totalSpecCharacters,
-          }
-        : result.usage;
-      setIdeasUsage(mergedUsage);
-      // Mark exhausted if AI returned fewer than requested
-      const requested = maxCount ?? MAX_IDEAS_PER_RUN;
-      if (newIdeas.length < requested) {
-        setIdeasExhausted(true);
-      }
-      if (result.parseError && result.rawText) {
-        setIdeasRawText(result.rawText);
-      }
-      // Show message when API returns 0 ideas
-      if (newIdeas.length === 0) {
-        setIdeasMessage(result.message || "AI could not generate any test flow ideas for this specification. The file may be too short or not contain enough API detail.");
-      }
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error("[SpecFiles] generateFlowIdeas failed", e);
-      setIdeasError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setIdeasLoading(false);
-      setIdeasAppending(false);
-    }
+  function handleNavigateToIdeas(path: string) {
+    navigate(`/ideas-flows?folder=${encodeURIComponent(path)}`);
   }
 
-  async function handleGenerateMoreIdeas(count?: number, prompt?: string) {
-    const currentPath = activePath;
-    if (!currentPath) return;
-    setIdeasError(null);
-    setIdeasRawText(undefined);
-    setIdeasAppending(true);
-    // Exclude ALL visible idea titles (including from child contexts)
-    const existingTitles = ideas.map((i) => i.title);
-    try {
-      const result = await generateFlowIdeas(currentPath, existingTitles, undefined, aiModel, count, undefined, ideaMode, prompt);
-      if (result.ideas.length > 0) {
-        const perIdeaCost = result.usage && result.ideas.length > 0
-          ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
-          : undefined;
-        const now = new Date().toISOString();
-        const base = Date.now();
-        const newIdeas = result.ideas.map((idea, i) => ({
-          ...idea,
-          id: `idea-${base}-${i}`,
-          costUsd: perIdeaCost,
-          createdAt: now,
-        }));
-        // Save to workshopMap under this exact context
-        setWorkshopMap(prev => {
-          const existing = prev[currentPath] ?? { ideas: [], usage: null, flowsUsage: null, generatedFlows: [] };
-          const mergedUsage = result.usage
-            ? existing.usage
-              ? {
-                  inputTokens: existing.usage.inputTokens + result.usage.inputTokens,
-                  outputTokens: existing.usage.outputTokens + result.usage.outputTokens,
-                  totalTokens: existing.usage.totalTokens + result.usage.totalTokens,
-                  costUsd: parseFloat((existing.usage.costUsd + result.usage.costUsd).toFixed(6)),
-                  filesAnalyzed: result.usage.filesAnalyzed,
-                  totalSpecCharacters: result.usage.totalSpecCharacters,
-                }
-              : result.usage
-            : existing.usage;
-          return {
-            ...prev,
-            [currentPath]: {
-              ...existing,
-              ideas: [...existing.ideas, ...newIdeas],
-              usage: mergedUsage,
-            },
-          };
-        });
-        // Update flat working set
-        setIdeas((prev) => [...prev, ...newIdeas]);
-      }
-      if (result.usage) {
-        setIdeasUsage((prev) => prev ? {
-          inputTokens: prev.inputTokens + result.usage.inputTokens,
-          outputTokens: prev.outputTokens + result.usage.outputTokens,
-          totalTokens: prev.totalTokens + result.usage.totalTokens,
-          costUsd: parseFloat((prev.costUsd + result.usage.costUsd).toFixed(6)),
-          filesAnalyzed: result.usage.filesAnalyzed,
-          totalSpecCharacters: result.usage.totalSpecCharacters,
-        } : result.usage);
-      }
-      // Mark exhausted if AI returned fewer than requested
-      const requested = count ?? MAX_IDEAS_PER_RUN;
-      if (result.ideas.length < requested) {
-        setIdeasExhausted(true);
-      }
-      if (result.parseError && result.rawText) {
-        setIdeasRawText(result.rawText);
-      }
-    } catch (e) {
-      setIdeasError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setIdeasAppending(false);
-    }
-  }
+  // ── Derived info ──────────────────────────────────────────────────────────
 
-  // ── Idea/flow locking — ideas with completed flows are locked ────────────
-
-  const completedFlowIdeaIds = new Set(
-    generatedFlows.filter(f => f.status === "done").map(f => f.ideaId)
-  );
-
-  // ── Idea selection ──────────────────────────────────────────────────────
-
-  function toggleIdeaSelect(id: string) {
-    setSelectedIdeaIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }
-
-  function selectAllIdeas() {
-    setSelectedIdeaIds(new Set(ideas.map(i => i.id)));
-  }
-
-  function deselectAllIdeas() {
-    setSelectedIdeaIds(new Set());
-  }
-
-  function handleDeleteSelectedIdeas(ids: Set<string>) {
-    if (ids.size === 0) return;
-
-    // Remove ideas from flat working set
-    setIdeas(prev => prev.filter(i => !ids.has(i.id)));
-    // Remove corresponding flows
-    setGeneratedFlows(prev => prev.filter(f => !ids.has(f.ideaId)));
-    // Clear selection
-    setSelectedIdeaIds(new Set());
-    // Clear detail panel if showing a deleted item
-    if (activeIdeaId && ids.has(activeIdeaId)) setActiveIdeaId(null);
-    if (activeFlowId && ids.has(activeFlowId)) setActiveFlowId(null);
-
-    // Remove from workshopMap (persist to localStorage)
-    setWorkshopMap(prev => {
-      const next = { ...prev };
-      for (const key of Object.keys(next)) {
-        const ctx = next[key];
-        const hadIdeas = ctx.ideas.some(i => ids.has(i.id));
-        if (hadIdeas) {
-          const remainingIdeas = ctx.ideas.filter(i => !ids.has(i.id));
-          const remainingFlows = ctx.generatedFlows.filter(f => !ids.has(f.ideaId));
-          if (remainingIdeas.length === 0 && remainingFlows.length === 0) {
-            // Remove context entirely if empty
-            delete next[key];
-          } else {
-            next[key] = { ...ctx, ideas: remainingIdeas, generatedFlows: remainingFlows };
-          }
-        }
-      }
-      return next;
-    });
-
-    // Reset exhausted flag — deletion opens room for more ideas
-    setIdeasExhausted(false);
-  }
-
-  // ── Detail panel click handlers ───────────────────────────────────────────
-
-  const flowIdeaIds = new Set(
-    generatedFlows.filter(f => f.status === "done" || f.status === "error").map(f => f.ideaId)
-  );
-
-  function handleClickIdea(id: string) {
-    // If this idea has a completed or errored flow, show the flow view (so errors are visible)
-    if (flowIdeaIds.has(id)) {
-      setActiveFlowId(id);
-      setActiveIdeaId(null);
-    } else {
-      setActiveIdeaId(id);
-      setActiveFlowId(null);
-    }
-  }
-
-  function handleDeleteFlow(ideaId: string) {
-    // Prevent deletion of flows that have active tests
-    if (markedIds.has(ideaId)) return;
-
-    // Clean up orphaned Cosmos doc (best-effort, fire-and-forget)
-    const flow = generatedFlows.find(f => f.ideaId === ideaId);
-    if (flow?.status === "done" && flow.title) {
-      const folder = parentFolderOf(activePath);
-      const blobName = buildFlowFilePath(folder, flow.title);
-      void deleteFlowFile(blobName).catch(() => { /* orphan already gone or never saved */ });
-    }
-
-    setGeneratedFlows(prev => prev.filter(f => f.ideaId !== ideaId));
-    if (activeFlowId === ideaId) setActiveFlowId(null);
-    // Remove from workshopMap
-    setWorkshopMap(prev => {
-      const next = { ...prev };
-      for (const key of Object.keys(next)) {
-        const ctx = next[key];
-        const had = ctx.generatedFlows.some(f => f.ideaId === ideaId);
-        if (had) {
-          const remaining = ctx.generatedFlows.filter(f => f.ideaId !== ideaId);
-          // Recompute flowsUsage from remaining done flows
-          const recomputed = remaining.reduce<FlowUsage | null>((acc, f) => {
-            if (!f.usage || f.status !== "done") return acc;
-            if (!acc) return { ...f.usage };
-            return {
-              inputTokens: acc.inputTokens + f.usage.inputTokens,
-              outputTokens: acc.outputTokens + f.usage.outputTokens,
-              totalTokens: acc.totalTokens + f.usage.totalTokens,
-              costUsd: parseFloat((acc.costUsd + f.usage.costUsd).toFixed(6)),
-            };
-          }, null);
-          next[key] = { ...ctx, generatedFlows: remaining, flowsUsage: recomputed };
-        }
-      }
-      return next;
-    });
-    // Recompute flat flowsUsage
-    setFlowsUsage(() => {
-      const remaining = generatedFlows.filter(f => f.ideaId !== ideaId && f.status === "done");
-      return remaining.reduce<FlowUsage | null>((acc, f) => {
-        if (!f.usage) return acc;
-        if (!acc) return { ...f.usage };
-        return {
-          inputTokens: acc.inputTokens + f.usage.inputTokens,
-          outputTokens: acc.outputTokens + f.usage.outputTokens,
-          totalTokens: acc.totalTokens + f.usage.totalTokens,
-          costUsd: parseFloat((acc.costUsd + f.usage.costUsd).toFixed(6)),
-        };
-      }, null);
-    });
-  }
-
-  function handleDeleteAllFlows() {
-    // Keep flows that have active tests (markedIds) — they can't be deleted
-    const keep = generatedFlows.filter(f => markedIds.has(f.ideaId));
-
-    // Clean up orphaned Cosmos docs for all deleted flows (best-effort)
-    const folder = parentFolderOf(activePath);
-    for (const f of generatedFlows) {
-      if (!markedIds.has(f.ideaId) && f.status === "done" && f.title) {
-        const blobName = buildFlowFilePath(folder, f.title);
-        void deleteFlowFile(blobName).catch(() => { /* orphan already gone or never saved */ });
-      }
-    }
-
-    setGeneratedFlows(keep);
-    if (activeFlowId && !markedIds.has(activeFlowId)) setActiveFlowId(null);
-    // Recompute usage from remaining
-    const keepUsage = keep.reduce<FlowUsage | null>((acc, f) => {
-      if (!f.usage || f.status !== "done") return acc;
-      if (!acc) return { ...f.usage };
-      return {
-        inputTokens: acc.inputTokens + f.usage.inputTokens,
-        outputTokens: acc.outputTokens + f.usage.outputTokens,
-        totalTokens: acc.totalTokens + f.usage.totalTokens,
-        costUsd: parseFloat((acc.costUsd + f.usage.costUsd).toFixed(6)),
-      };
-    }, null);
-    setFlowsUsage(keepUsage);
-    // Remove non-marked flows from workshopMap
-    setWorkshopMap(prev => {
-      const next = { ...prev };
-      for (const key of Object.keys(next)) {
-        const ctx = next[key];
-        if (ctx.generatedFlows.length > 0) {
-          const remaining = ctx.generatedFlows.filter(f => markedIds.has(f.ideaId));
-          const recomputed = remaining.reduce<FlowUsage | null>((acc, f) => {
-            if (!f.usage || f.status !== "done") return acc;
-            if (!acc) return { ...f.usage };
-            return {
-              inputTokens: acc.inputTokens + f.usage.inputTokens,
-              outputTokens: acc.outputTokens + f.usage.outputTokens,
-              totalTokens: acc.totalTokens + f.usage.totalTokens,
-              costUsd: parseFloat((acc.costUsd + f.usage.costUsd).toFixed(6)),
-            };
-          }, null);
-          next[key] = { ...ctx, generatedFlows: remaining, flowsUsage: recomputed };
-        }
-      }
-      return next;
-    });
-  }
-
-  function handleClickFlow(ideaId: string) {
-    setActiveFlowId(ideaId);
-    setActiveIdeaId(null);
-  }
-
-  // ── Download helpers ──────────────────────────────────────────────────────
-
-  function downloadFlow(flow: GeneratedFlow) {
-    const idea = ideas.find((i) => i.id === flow.ideaId);
-    const filename = (idea?.title ?? flow.ideaId)
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 80 - ".flow.xml".length) + ".flow.xml";
-    const blob = new Blob([flow.xml], { type: "application/xml" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function downloadAllFlows() {
-    for (const f of generatedFlows.filter((f) => f.status === "done")) {
-      downloadFlow(f);
-    }
-  }
-
-  // ── Update flow XML (manual or AI edit) ──────────────────────────────────
-
-  function handleUpdateFlowXml(ideaId: string, newXml: string) {
-    const flow = generatedFlows.find((f) => f.ideaId === ideaId);
-    setGeneratedFlows((prev) =>
-      prev.map((f) => (f.ideaId === ideaId ? { ...f, xml: newXml } : f))
-    );
-    // Persist to workshopMap
-    if (activePath) {
-      const updated = generatedFlows.map((f) =>
-        f.ideaId === ideaId ? { ...f, xml: newXml } : f
-      );
-      persistFlowsForPath(activePath, updated);
-
-      // Sync updated XML to Cosmos flows container (best-effort)
-      if (flow?.title) {
-        const flowBlobName = buildFlowFilePath(activePath, flow.title);
-        void saveFlowFile(flowBlobName, newXml, true).catch(() => { /* best-effort */ });
-      }
-    }
-  }
-
-  // ── Generate flows from selected ideas ────────────────────────────────────
-
-  function handleGenerateFlowForIdea(ideaId: string) {
-    setSelectedIdeaIds(new Set([ideaId]));
-    // Defer to next tick so state update is picked up by handleGenerateFlows
-    setTimeout(() => void handleGenerateFlows(new Set([ideaId])), 0);
-  }
-
-  /**
-   * Write completed flows straight to workshopMap for a specific path, so we
-   * never lose progress mid-batch. Called after each flow completes.
-   */
-  function persistFlowsForPath(path: string, flows: GeneratedFlow[]) {
-    const flowsToSave = flows.filter((f) => f.status === "done" || f.status === "error");
-    if (flowsToSave.length === 0) return;
-    console.log("[SpecFilesPage] persistFlowsForPath:", path, flowsToSave.length, "flows",
-      flowsToSave.map(f => `${f.ideaId}:${f.status}`));
-    const cumulativeFlowsUsage = flowsToSave.reduce<FlowUsage | null>((acc, f) => {
-      if (!f.usage) return acc;
-      if (!acc) return { ...f.usage };
-      return {
-        inputTokens: acc.inputTokens + f.usage.inputTokens,
-        outputTokens: acc.outputTokens + f.usage.outputTokens,
-        totalTokens: acc.totalTokens + f.usage.totalTokens,
-        costUsd: parseFloat((acc.costUsd + f.usage.costUsd).toFixed(6)),
-      };
-    }, null);
-    setWorkshopMap((prev) => ({
-      ...prev,
-      [path]: {
-        ...(prev[path] ?? { ideas: [], usage: null, flowsUsage: null, generatedFlows: [] }),
-        generatedFlows: flowsToSave,
-        flowsUsage: cumulativeFlowsUsage,
-      },
-    }));
-  }
-
-  async function handleGenerateFlows(overrideIds?: Set<string>) {
-    // Guard against React event objects being passed as overrideIds (e.g. from onClick)
-    const idsToUse = overrideIds instanceof Set ? overrideIds : selectedIdeaIds;
-    if (idsToUse.size === 0 || !activePath) return;
-    // Capture the path at generation start — if the user navigates away mid-batch
-    // we still persist completed flows into this originating path's workshop.
-    const generationPath = activePath;
-
-    // Filter out ideas that already have completed flows — don't waste resources
-    const selectedIdeas = ideas.filter(
-      (i) => idsToUse.has(i.id) && !completedFlowIdeaIds.has(i.id)
-    );
-    if (selectedIdeas.length === 0) return;
-
-    // Server-side spec selection: extract version folder from the active path
-    // so the backend can list blobs and run filterRelevantSpecs itself.
-    const versionRoot = activePath.split("/")[0] ?? "";
-
-    // Preserve existing completed flows, add pending entries for new ones.
-    // Exclude ideas being re-generated to avoid duplicates in the list.
-    const regenIds = new Set(selectedIdeas.map(i => i.id));
-    const newPending: GeneratedFlow[] = selectedIdeas.map((idea) => ({
-      ideaId: idea.id,
-      title: idea.title,
-      status: "pending" as const,
-      xml: "",
-    }));
-    const existingCompleted = generatedFlows.filter(
-      f => (f.status === "done" || f.status === "error") && !regenIds.has(f.ideaId),
-    );
-
-    // Local mirror of flow state — we maintain this alongside React state so we
-    // always have the latest snapshot available for persistence without relying
-    // on state updater timing.
-    let localFlows: GeneratedFlow[] = [...existingCompleted, ...newPending];
-    setGeneratedFlows(localFlows);
-    setGeneratingFlows(true);
-    setFlowProgress({ current: 0, total: selectedIdeas.length });
-
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-
-    console.log(`[FlowGen] Starting batch: ${selectedIdeas.length} ideas`, selectedIdeas.map(i => i.id));
-
-    try {
-      for (let i = 0; i < selectedIdeas.length; i++) {
-        if (ctrl.signal.aborted) {
-          console.warn(`[FlowGen] Aborted before idea ${i + 1}/${selectedIdeas.length}`);
-          break;
-        }
-
-        const idea = selectedIdeas[i];
-        console.log(`[FlowGen] Processing idea ${i + 1}/${selectedIdeas.length}: ${idea.id} — "${idea.title}"`);
-
-        localFlows = localFlows.map((f) =>
-          f.ideaId === idea.id ? { ...f, status: "generating" as const } : f
-        );
-        setGeneratedFlows(localFlows);
-        // Auto-select the currently generating flow in the detail panel
-        setActiveFlowId(idea.id);
-        setActiveIdeaId(null);
-
-        try {
-          const prompt = buildFlowPrompt(idea);
-          console.log(`[FlowGen] Calling API for "${idea.title}" with server-side spec selection (idea=${idea.id}, version=${versionRoot}, folder=${generationPath})`);
-          const result = await generateFlowXml(
-            prompt, [], aiModel, ctrl.signal,
-            idea.id, versionRoot, generationPath,
-          );
-          console.log(`[FlowGen] Success for "${idea.title}" — ${result.xml.length} chars`);
-
-          localFlows = localFlows.map((f) =>
-            f.ideaId === idea.id
-              ? { ...f, status: "done" as const, xml: result.xml, usage: result.usage, traceId: result.traceId, createdAt: new Date().toISOString() }
-              : f
-          );
-          setGeneratedFlows(localFlows);
-          persistFlowsForPath(generationPath, localFlows);
-
-          // Persist flow XML to Cosmos flows container immediately (best-effort)
-          const flowBlobName = buildFlowFilePath(generationPath, idea.title);
-          void saveFlowFile(flowBlobName, result.xml, true).catch((e) =>
-            console.warn(`[FlowGen] Failed to persist flow XML for "${idea.title}":`, e),
-          );
-
-          // Auto-select the newly generated flow
-          setSelectedFlowIds((prev) => { const n = new Set(prev); n.add(idea.id); return n; });
-          // Accumulate flow usage
-          if (result.usage) {
-            setFlowsUsage(prev => prev ? {
-              inputTokens: prev.inputTokens + result.usage!.inputTokens,
-              outputTokens: prev.outputTokens + result.usage!.outputTokens,
-              totalTokens: prev.totalTokens + result.usage!.totalTokens,
-              costUsd: parseFloat((prev.costUsd + result.usage!.costUsd).toFixed(6)),
-            } : result.usage!);
-          }
-        } catch (e) {
-          const errMsg = e instanceof Error ? e.message : String(e);
-          console.error(`[FlowGen] Error for idea ${i + 1} "${idea.title}":`, errMsg);
-          if (ctrl.signal.aborted) {
-            console.warn("[FlowGen] Signal was aborted — stopping batch");
-            break;
-          }
-          localFlows = localFlows.map((f) =>
-            f.ideaId === idea.id
-              ? { ...f, status: "error" as const, error: errMsg }
-              : f
-          );
-          setGeneratedFlows(localFlows);
-          persistFlowsForPath(generationPath, localFlows);
-          // Auto-open the errored flow so the user sees the error message
-          setActiveFlowId(idea.id);
-          setActiveIdeaId(null);
-          // Continue to next idea — don't stop the batch on individual failures
-        }
-
-        setFlowProgress({ current: i + 1, total: selectedIdeas.length });
-        console.log(`[FlowGen] Progress: ${i + 1}/${selectedIdeas.length} complete`);
-      }
-    } finally {
-      console.log("[FlowGen] Batch complete — cleaning up");
-      // Clean up any flows still stuck in "pending" or "generating" state
-      localFlows = localFlows.map((f) =>
-        f.status === "pending" || f.status === "generating"
-          ? { ...f, status: "error" as const, error: "Generation interrupted" }
-          : f
-      );
-      setGeneratedFlows(localFlows);
-      persistFlowsForPath(generationPath, localFlows);
-      setGeneratingFlows(false);
-      abortRef.current = null;
-      console.log("[FlowGen] Final state:", localFlows.map(f => `${f.ideaId}: ${f.status}`));
-    }
-  }
-
-
-
-  // ── Create tests — save flow XML to blob and register as runnable tests ──
-
-  async function markFlow(flow: GeneratedFlow, targetName: string, overwrite: boolean) {
-    setMarkingIds(prev => { const n = new Set(prev); n.add(flow.ideaId); return n; });
-    try {
-      await saveFlowFile(targetName, flow.xml, overwrite);
-      // Mark this flow as an active test so the loader picks it up
-      await activateFlow(targetName);
-      useScenarioOrgStore.getState().placeNewScenarios([targetName]);
-      setMarkedIds(prev => { const n = new Set(prev); n.add(flow.ideaId); return n; });
-      // Immediately register the saved flow as runnable tests and rebuild
-      // the Test Manager's tag list so new tests appear without a refresh.
-      await loadFlowsFromQueue();
-      const built = buildParsedTagsFromRegistry();
-      setSpec(null as never, built, null as never);
-    } catch (e) {
-      if (e instanceof FlowFileConflictError) {
-        // Suggest `<slug>-2.flow.xml`, `-3.flow.xml`, etc. when collisions occur
-        const folder = parentFolderOf(activePath);
-        const slug = slugifyFlowTitle(flow.title);
-        const maxBase = 80 - ".flow.xml".length;
-        let n = 2;
-        let suggestedBase = `${slug}-${n}`.slice(0, maxBase);
-        let suggested = folder ? `${folder}/${suggestedBase}.flow.xml` : `${suggestedBase}.flow.xml`;
-        // Not perfect (no server-side re-check) but good enough UX — user can edit freely
-        while (suggested === targetName && n < 99) {
-          n += 1;
-          suggestedBase = `${slug}-${n}`.slice(0, maxBase);
-          suggested = folder ? `${folder}/${suggestedBase}.flow.xml` : `${suggestedBase}.flow.xml`;
-        }
-        setConflict({ flow, existingName: targetName, suggestedNewName: suggested });
-      } else {
-        console.error("Failed to mark flow for implementation:", e);
-      }
-    } finally {
-      setMarkingIds(prev => { const n = new Set(prev); n.delete(flow.ideaId); return n; });
-    }
-  }
-
-  function handleMarkForImplementation(flow: GeneratedFlow) {
-    // Defensive: UI already blocks this, but don't let an invalid flow slip into the queue.
-    if (!validateFlowXml(flow.xml).ok) return;
-    setPendingCreateScenarios([flow]);
-  }
-
-  // State for the "Create scenarios" modal — holds flows pending folder selection
-  const [pendingCreateScenarios, setPendingCreateScenarios] = useState<GeneratedFlow[] | null>(null);
-
-  /** Show the folder-picker modal before creating scenarios (batch) */
-  function handleMarkSelectedForImplementation() {
-    const toMark = generatedFlows.filter(
-      (f) =>
-        f.status === "done" &&
-        selectedFlowIds.has(f.ideaId) &&
-        !markedIds.has(f.ideaId) &&
-        validateFlowXml(f.xml).ok,
-    );
-    if (toMark.length === 0) return;
-    setPendingCreateScenarios(toMark);
-  }
-
-  /** Actually create scenarios after the user picks a folder */
-  async function executeCreateScenarios(flowsToCreate: GeneratedFlow[], scenarioTargetFolder?: string) {
-    const folder = parentFolderOf(activePath);
-
-    // Mark all as "in progress" up-front so the UI reflects the batch.
-    setMarkingIds(prev => {
-      const n = new Set(prev);
-      for (const f of flowsToCreate) n.add(f.ideaId);
-      return n;
-    });
-
-    const jobs = flowsToCreate.map((flow) => ({
-      flow,
-      target: buildFlowFilePath(folder, flow.title),
-    }));
-
-    // Save all flows in parallel but DON'T trigger per-flow loads — that
-    // creates a race where the first load's listFlowFiles snapshot misses
-    // flows that are still saving, and their registrations get discarded
-    // when the shared in-flight promise resolves.
-    const results = await Promise.allSettled(
-      jobs.map((j) => saveFlowFile(j.target, j.flow.xml, true)),
-    );
-
-    let firstConflict: { flow: GeneratedFlow; existingName: string; suggestedNewName: string } | null = null;
-    const succeededIds: string[] = [];
-    const toActivate: string[] = [];
-
-    for (let i = 0; i < jobs.length; i += 1) {
-      const { flow, target } = jobs[i];
-      const result = results[i];
-      if (result.status === "fulfilled") {
-        toActivate.push(target);
-        succeededIds.push(flow.ideaId);
-      } else if (result.reason instanceof FlowFileConflictError) {
-        // Only surface the first conflict — the user will resolve it through
-        // the modal and can retry the remaining items.
-        if (!firstConflict) {
-          const slug = slugifyFlowTitle(flow.title);
-          const maxBase = 80 - ".flow.xml".length;
-          let n = 2;
-          let suggestedBase = `${slug}-${n}`.slice(0, maxBase);
-          let suggested = folder ? `${folder}/${suggestedBase}.flow.xml` : `${suggestedBase}.flow.xml`;
-          while (suggested === target && n < 99) {
-            n += 1;
-            suggestedBase = `${slug}-${n}`.slice(0, maxBase);
-            suggested = folder ? `${folder}/${suggestedBase}.flow.xml` : `${suggestedBase}.flow.xml`;
-          }
-          firstConflict = { flow, existingName: target, suggestedNewName: suggested };
-        }
-      } else {
-        console.error("Failed to mark flow for implementation:", result.reason);
-      }
-    }
-
-    // Batch-activate all succeeded flows in a single API call
-    if (toActivate.length > 0) {
-      await activateFlows(toActivate);
-      useScenarioOrgStore.getState().placeNewScenarios(toActivate, scenarioTargetFolder);
-    }
-
-    // Mark succeeded flows and clear "in progress" state in one go.
-    setMarkedIds(prev => {
-      const n = new Set(prev);
-      for (const id of succeededIds) n.add(id);
-      return n;
-    });
-    setMarkingIds(prev => {
-      const n = new Set(prev);
-      for (const f of flowsToCreate) n.delete(f.ideaId);
-      return n;
-    });
-
-    // Now that every blob is on disk and every name is in the active set,
-    // do exactly ONE load + rebuild so all new tests appear together.
-    if (succeededIds.length > 0) {
-      await loadFlowsFromQueue();
-      const built = buildParsedTagsFromRegistry();
-      setSpec(null as never, built, null as never);
-    }
-
-    if (firstConflict) setConflict(firstConflict);
-  }
-
-  function toggleSelectFlow(ideaId: string) {
-    setSelectedFlowIds(prev => {
-      const n = new Set(prev);
-      if (n.has(ideaId)) n.delete(ideaId); else n.add(ideaId);
-      return n;
-    });
-  }
-
-  function selectAllFlows() {
-    setSelectedFlowIds(new Set(generatedFlows.filter(f => f.status === "done" || f.status === "error").map(f => f.ideaId)));
-  }
-
-  function deselectAllFlows() {
-    setSelectedFlowIds(new Set());
-  }
-
-  function handleConflictResolve(resolution: import("../components/specfiles/MarkConflictModal").ConflictResolution) {
-    if (!conflict) return;
-    const { flow, existingName } = conflict;
-    setConflict(null);
-    if (resolution.kind === "keep") {
-      // User kept existing — treat this as "marked"
-      setMarkedIds(prev => { const n = new Set(prev); n.add(flow.ideaId); return n; });
-      return;
-    }
-    if (resolution.kind === "overwrite") {
-      void markFlow(flow, existingName, true);
-      return;
-    }
-    // rename
-    void markFlow(flow, resolution.newName, false);
-  }
-
-  // ── Derived detail data ───────────────────────────────────────────────────
-
-  const selectedIdea = activeIdeaId ? ideas.find((i) => i.id === activeIdeaId) ?? null : null;
-  const selectedFlow = activeFlowId ? generatedFlows.find((f) => f.ideaId === activeFlowId) ?? null : null;
-
-  // ── Lock status for the selected flow ──────────────────────────────────
-  const flowStatusByName = useFlowStatusStore((s) => s.byName);
-  const canUnlockFlow = useUserStore((s) => s.hasRole("qa_manager"));
-  const selectedFlowLock = useMemo(() => {
-    if (!selectedFlow || selectedFlow.status !== "done") return null;
-    const folder = parentFolderOf(activePath);
-    const target = buildFlowFilePath(folder, selectedFlow.title);
-    const entry = flowStatusByName[target];
-    return entry?.lockedBy ? { lockedBy: entry.lockedBy, lockedAt: entry.lockedAt, filePath: target } : null;
-  }, [selectedFlow, activePath, flowStatusByName]);
-
-  async function handleUnlockSelectedFlow() {
-    if (!selectedFlowLock) return;
-    try {
-      await unlockFlow(selectedFlowLock.filePath);
-      const store = useFlowStatusStore.getState();
-      const entry = store.byName[selectedFlowLock.filePath];
-      if (entry) store.setEntry({ ...entry, lockedBy: undefined, lockedAt: undefined });
-    } catch (err) {
-      alert(`Failed to unlock: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-
-  // ── Derived header info ──────────────────────────────────────────────────
-
+  const activePath = selectedPath ?? selectedFolderPath;
   const isFileContext = !!selectedPath;
   const hasSelection = !!activePath;
 
-  // Project-wide: any .md spec files at all?
-  const projectHasSpecFiles = files.some(f => f.name.endsWith(".md"));
-
-  // Count .md spec files under the active folder (recursive)
-  const folderMdCount = (!isFileContext && activePath)
-    ? (() => {
-        const prefix = activePath.endsWith("/") ? activePath : `${activePath}/`;
-        return files.filter((f) => f.name.startsWith(prefix) && f.name.endsWith(".md")).length;
-      })()
-    : 0;
-
-  // True when the active context has no spec files to work with
-  const noSpecFiles = !projectHasSpecFiles
-    || (isFileContext ? !files.some(f => f.name === selectedPath) : folderMdCount === 0);
-  const noSpecFilesTooltip = !projectHasSpecFiles
-    ? "Upload spec files (.md) to your project first"
-    : "No spec files (.md) in this folder";
-
-  // Multi-select: count of selected .md files
-  const multiSelectedMdPaths = useMemo(() =>
-    [...multiSelectedPaths].filter(p => p.endsWith(".md")),
-    [multiSelectedPaths],
-  );
-
-  // For file context: split path into parent + filename (without extension)
   const fileDisplayName = isFileContext && selectedPath
     ? selectedPath.replace(/\.md$/i, "").split("/").pop() ?? ""
     : "";
@@ -2084,27 +839,9 @@ export function SpecFilesPage() {
     ? selectedPath.replace(/\.md$/i, "").split("/").slice(0, -1).join("/")
     : "";
 
-  // Spec file count for folder context
   const specFileCount = selectedFolderPath
     ? files.filter((f) => f.name.startsWith(`${selectedFolderPath}/`) && f.name.endsWith(".md")).length
     : 0;
-
-  // Filter ideas when "this level only" is active — show only ideas stored
-  // directly under the current path, not aggregated from sub-paths.
-  const thisLevelIdeas = (!isFileContext && activePath && thisLevelOnly)
-    ? workshopMap[activePath]?.ideas ?? []
-    : ideas;
-  // Show the toggle only when there are sub-level ideas (i.e. aggregated > this level)
-  const hasSubLevelIdeas = !isFileContext && activePath
-    && (workshopMap[activePath]?.ideas.length ?? 0) < ideas.length;
-
-  // Filter flows the same way — "this level only" shows only this folder's flows.
-  // During active generation, always show the full generatedFlows (includes pending/generating placeholders).
-  const thisLevelFlows = (!isFileContext && activePath && thisLevelOnly && !generatingFlows)
-    ? (workshopMap[activePath]?.generatedFlows ?? []).filter(f => f.status === "done" || f.status === "error")
-    : generatedFlows;
-  const hasSubLevelFlows = !isFileContext && activePath
-    && ((workshopMap[activePath]?.generatedFlows ?? []).filter(f => f.status === "done" || f.status === "error").length) < generatedFlows.length;
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -2168,13 +905,13 @@ export function SpecFilesPage() {
             onRegenerateSystem={(folderPath) => void handleRegenerateSystem(folderPath)}
             regeneratingPaths={regeneratingPaths}
             onReimportSpec={(folderPath) => setReimportFolderPath(folderPath)}
-            onGenerateFlowIdeas={(path) => setTreeGeneratePath(path)}
+            onGenerateFlowIdeas={handleNavigateToIdeas}
             onRefresh={loadFiles}
             onNewVersion={() => setShowNewVersionModal(true)}
             onSearch={() => setShowSearch(true)}
           />
         </aside>
-        <ResizeHandle width={treeWidth} onResize={setTreeWidth} minWidth={160} maxWidth={400} />
+        <ResizeHandle width={treeWidth} onResize={setTreeWidth} minWidth={160} maxWidth={500} />
 
         {/* Main content area */}
         <div className="flex-1 flex flex-col overflow-hidden bg-white">
@@ -2208,42 +945,22 @@ export function SpecFilesPage() {
                     </span>
                   </>
                 )}
-                {/* New Ideas button */}
-                <button
-                  onClick={() => setShowNewIdeasModal(true)}
-                  disabled={noSpecFiles}
-                  title={noSpecFiles ? noSpecFilesTooltip : "Generate test ideas with AI"}
-                  className="ml-auto inline-flex items-center gap-1 text-sm font-medium text-[#0969da] hover:text-[#0860ca] px-2 py-1 rounded-md hover:bg-[#ddf4ff] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-                  </svg>
-                  New Ideas
-                </button>
 
-                {/* Cost summary */}
-                {(ideasUsage || flowsUsage) && (() => {
-                  const totalCost = (ideasUsage?.costUsd ?? 0) + (flowsUsage?.costUsd ?? 0);
-                  return (
-                    <div className="flex items-center gap-3 text-xs text-[#656d76]">
-                      {ideasUsage && (
-                        <span>Ideas <span className="font-medium text-[#1f2328]">${ideasUsage.costUsd.toFixed(4)}</span></span>
-                      )}
-                      {flowsUsage && (
-                        <span>Flows <span className="font-medium text-[#1f2328]">${flowsUsage.costUsd.toFixed(4)}</span></span>
-                      )}
-                      {ideasUsage && flowsUsage && (
-                        <>
-                          <span className="text-[#d1d9e0]">|</span>
-                          <span className="font-semibold text-[#1f2328]">${totalCost.toFixed(4)}</span>
-                        </>
-                      )}
-                    </div>
-                  );
-                })()}
+                {/* Generate Ideas link — navigates to Ideas & Flows page */}
+                {!isFileContext && (
+                  <button
+                    onClick={() => handleNavigateToIdeas(selectedFolderPath!)}
+                    className="ml-auto inline-flex items-center gap-1 text-sm font-medium text-[#0969da] hover:text-[#0860ca] px-2 py-1 rounded-md hover:bg-[#ddf4ff] transition-colors shrink-0"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+                    </svg>
+                    Ideas & Flows
+                  </button>
+                )}
               </div>
 
-              {/* Source URL info bar — shown for URL-sourced files */}
+              {/* Source URL info bar */}
               {isFileContext && selectedPath && sourcesManifest[selectedPath] && (
                 <div className="flex items-center gap-2 px-4 h-8 border-b border-[#d1d9e0] bg-[#ddf4ff]/50 shrink-0">
                   <svg className="w-3.5 h-3.5 text-[#0969da] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -2313,9 +1030,8 @@ export function SpecFilesPage() {
                 </div>
               )}
 
-              {/* Content area — Skills editor, JSON viewer, markdown viewer, or workshop */}
+              {/* Content area */}
               {viewingContent && isFileContext && (selectedPath?.endsWith("/_skills.md") || selectedPath?.endsWith("/Skills.md")) ? (
-                /* _skills.md — editable CodeMirror markdown editor */
                 loadingContent ? (
                   <div className="flex-1 flex items-center justify-center text-[#656d76] text-sm">Loading…</div>
                 ) : (
@@ -2324,7 +1040,6 @@ export function SpecFilesPage() {
                   </div>
                 )
               ) : viewingContent && isFileContext && selectedPath?.includes("/_system/") && selectedPath?.endsWith(".json") ? (
-                /* System JSON files — read-only CodeMirror JSON viewer */
                 loadingContent ? (
                   <div className="flex-1 flex items-center justify-center text-[#656d76] text-sm">Loading…</div>
                 ) : (
@@ -2338,112 +1053,23 @@ export function SpecFilesPage() {
                   </div>
                 )
               ) : viewingContent && isFileContext ? (
-                /* Markdown content viewer (replaces workshop when filename link is clicked) */
                 loadingContent ? (
                   <div className="flex-1 flex items-center justify-center text-[#656d76] text-sm">Loading…</div>
                 ) : (
                   <MarkdownViewer path={selectedPath!} content={content} onClose={selectedPath?.includes("/_system/") ? undefined : () => setViewingContent(false)} />
                 )
-              ) : showWorkshop ? (
-                /* Workshop layout — full-width Ideas panel when no ideas, 3-column when ideas exist */
-                <div className="flex-1 flex overflow-hidden">
-                  {/* Column 1 — Ideas (full width when no ideas to show empty state) */}
-                  <div className={`flex flex-col overflow-hidden ${hasIdeas ? "shrink-0" : "flex-1"}`} style={hasIdeas ? { width: ideasWidth } : undefined}>
-                    <FlowIdeasPanel
-                      ideas={thisLevelIdeas.length > 0 ? thisLevelIdeas : null}
-                      loading={ideasLoading}
-                      appending={ideasAppending}
-                      error={ideasError}
-                      rawText={ideasRawText}
-                      message={ideasMessage}
-                      selectedIds={selectedIdeaIds}
-                      lockedIds={completedFlowIdeaIds}
-                      activeIdeaId={activeIdeaId}
-                      activeFlowId={activeFlowId}
-                      onToggleSelect={toggleIdeaSelect}
-                      onSelectAll={selectAllIdeas}
-                      onDeselectAll={deselectAllIdeas}
-                      onGenerateFlows={handleGenerateFlows}
-                      onGenerateFlowForIdea={handleGenerateFlowForIdea}
-                      onGenerateMore={handleGenerateMoreIdeas}
-                      onDeleteSelected={handleDeleteSelectedIdeas}
-                      onDeleteIdea={(id) => handleDeleteSelectedIdeas(new Set([id]))}
-                      onClickIdea={handleClickIdea}
-                      markedIds={markedIds}
-                      generatingFlows={generatingFlows}
-                      ideasExhausted={ideasExhausted}
-                      maxIdeasTotal={MAX_IDEAS_TOTAL}
-                      thisLevelOnly={thisLevelOnly}
-                      onToggleThisLevel={(hasSubLevelIdeas || hasSubLevelFlows) ? () => setThisLevelOnly((v) => !v) : undefined}
-                      ideaMode={ideaMode}
-                      onModeChange={setIdeaMode}
-                    />
+              ) : isFileContext ? (
+                /* File selected but not viewing content — show markdown viewer */
+                loadingContent ? (
+                  <div className="flex-1 flex items-center justify-center text-[#656d76] text-sm">Loading…</div>
+                ) : content ? (
+                  <MarkdownViewer path={selectedPath!} content={content} onClose={() => setViewingContent(false)} />
+                ) : (
+                  <div className="flex-1 flex items-center justify-center text-[#656d76] text-sm">
+                    Select a file to view its contents
                   </div>
-
-                  {/* Flows + Detail columns — only shown when ideas exist */}
-                  {hasIdeas && (
-                    <>
-                      <ResizeHandle width={ideasWidth} onResize={setIdeasWidth} minWidth={200} maxWidth={500} />
-
-                      {/* Column 2 — Flows */}
-                      <div className="shrink-0 flex flex-col overflow-hidden" style={{ width: flowsWidth }}>
-                        <FlowsPanel
-                          flows={thisLevelFlows}
-                          ideas={ideas}
-                          generating={generatingFlows}
-                          progress={flowProgress}
-                          activeFlowId={activeFlowId}
-                          onClickFlow={handleClickFlow}
-                          onDownloadFlow={downloadFlow}
-                          onDownloadAll={downloadAllFlows}
-                          onDeleteFlow={handleDeleteFlow}
-                          onDeleteAllFlows={handleDeleteAllFlows}
-                          onStartNewIdeas={() => setShowNewIdeasModal(true)}
-                          onMarkForImplementation={handleMarkForImplementation}
-                          onMarkSelectedForImplementation={handleMarkSelectedForImplementation}
-                          markedIds={markedIds}
-                          markingIds={markingIds}
-                          selectedFlowIds={selectedFlowIds}
-                          onToggleSelectFlow={toggleSelectFlow}
-                          onSelectAllFlows={selectAllFlows}
-                          onDeselectAllFlows={deselectAllFlows}
-                          thisLevelOnly={thisLevelOnly}
-                          onToggleThisLevel={(hasSubLevelFlows || hasSubLevelIdeas) ? () => setThisLevelOnly((v) => !v) : undefined}
-                          onCancelGeneration={generatingFlows ? handleCancelGeneration : undefined}
-                          onCopyFlowId={(flow) => {
-                            const folder = parentFolderOf(activePath);
-                            const path = buildFlowFilePath(folder, flow.title);
-                            navigator.clipboard.writeText(path);
-                          }}
-                        />
-                      </div>
-                      <ResizeHandle width={flowsWidth} onResize={setFlowsWidth} minWidth={180} maxWidth={500} />
-
-                      {/* Column 3 — Detail (takes remaining space) */}
-                      <div className="flex-1 flex flex-col overflow-hidden min-w-[200px]">
-                        <DetailPanel
-                          selectedIdea={selectedIdea}
-                          selectedFlow={selectedFlow}
-                          flowIdea={selectedFlow ? ideas.find((i) => i.id === selectedFlow.ideaId) ?? null : null}
-                          onDownloadFlow={downloadFlow}
-                          onGenerateFlow={handleGenerateFlowForIdea}
-                          generatingFlows={generatingFlows}
-                          isFlowMarked={selectedFlow ? markedIds.has(selectedFlow.ideaId) : false}
-                          onCreateTest={handleMarkForImplementation}
-                          creatingTest={selectedFlow ? markingIds.has(selectedFlow.ideaId) : false}
-                          onUpdateFlowXml={handleUpdateFlowXml}
-                          isFlowLocked={!!selectedFlowLock}
-                          flowLockTooltip={selectedFlowLock ? `Locked by ${selectedFlowLock.lockedBy.name}${canUnlockFlow ? " — click to unlock" : ". Unlock the scenario before editing."}` : undefined}
-                          canUnlockFlow={canUnlockFlow}
-                          onUnlockFlow={selectedFlowLock ? () => void handleUnlockSelectedFlow() : undefined}
-                          folderPath={parentFolderOf(activePath)}
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
+                )
               ) : activePath && (activePath.includes("/_system") || activePath.includes("/_distilled")) ? (
-                /* System/distilled folder — informational placeholder */
                 <div className="flex-1 flex items-center justify-center bg-white">
                   <div className="text-center space-y-3 max-w-sm">
                     <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto bg-[#656d76]/10">
@@ -2455,74 +1081,42 @@ export function SpecFilesPage() {
                       <p className="text-sm font-medium text-[#1f2328] mb-1">System folder</p>
                       <p className="text-sm text-[#656d76]">
                         {activePath.includes("/_distilled")
-                          ? "This folder contains optimized versions of your API specs, automatically generated to reduce AI processing costs. These files are managed internally and update whenever source specs change."
-                          : "This folder contains internal system files such as API rules, diagnostic lessons, and spec digests. These are generated and managed automatically to support AI-powered features."}
+                          ? "This folder contains optimized versions of your API specs, automatically generated to reduce AI processing costs."
+                          : "This folder contains internal system files such as API rules, diagnostic lessons, and spec digests."}
                       </p>
                     </div>
                   </div>
                 </div>
               ) : (
-                /* Generate Ideas landing */
+                /* Folder selected — show folder info + link to Ideas */
                 <div className="flex-1 flex items-center justify-center bg-white">
                   <div className="text-center space-y-4 max-w-sm">
-                    <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto ${
-                      !isFileContext && folderMdCount === 0 ? "bg-[#656d76]/10" : "bg-[#0969da]/10"
-                    }`}>
-                      <svg className={`w-7 h-7 ${!isFileContext && folderMdCount === 0 ? "text-[#656d76]" : "text-[#0969da]"}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+                    <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto bg-[#0969da]/10">
+                      <svg className="w-7 h-7 text-[#0969da]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v8.25m19.5 0v2.25a2.25 2.25 0 0 1-2.25 2.25H4.5A2.25 2.25 0 0 1 2.25 16.5v-2.25" />
                       </svg>
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-[#1f2328] mb-1">Generate test flow ideas</p>
+                      <p className="text-sm font-medium text-[#1f2328] mb-1">{selectedFolderPath}</p>
                       <p className="text-sm text-[#656d76]">
-                        {multiSelectedMdPaths.length > 0
-                          ? `${multiSelectedMdPaths.length} spec file${multiSelectedMdPaths.length > 1 ? "s" : ""} selected — AI will use them as combined context.`
-                          : noSpecFiles
-                            ? (!projectHasSpecFiles
-                                ? "Upload spec files (.md) to your project to get started with AI-powered test flow generation."
-                                : "No spec files (.md) found in this folder. Upload spec files to generate ideas.")
-                            : isFileContext
-                              ? "AI will analyze this spec file and suggest test scenarios."
-                              : `AI will analyze ${folderMdCount} spec file${folderMdCount === 1 ? "" : "s"} in this folder and suggest test scenarios.`}
+                        {specFileCount} spec file{specFileCount !== 1 ? "s" : ""} in this folder.
+                        Select a file to view its API documentation, or generate ideas.
                       </p>
                     </div>
-                    <div className="flex items-center gap-2 justify-center">
-                      <button
-                        onClick={() => setShowLandingModal(true)}
-                        disabled={noSpecFiles}
-                        title={noSpecFiles ? noSpecFilesTooltip : "Generate test flow ideas with AI"}
-                        className="inline-flex items-center gap-1.5 bg-[#0969da] hover:bg-[#0860ca] text-white text-sm font-medium rounded-md px-3 py-2 transition-colors border border-[#0969da]/80 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-                        </svg>
-                        Generate ideas
-                      </button>
-                      {showLandingModal && (
-                        <GenerateIdeasModal
-                          currentMode={ideaMode}
-                          showScope
-                          isVersionRoot={!!(activePath && /^v\d+\/?$/i.test(activePath))}
-                          hasFileSelection={multiSelectedMdPaths.length > 0}
-                          onGenerate={(count, mode, prompt, scope) => {
-                            setIdeaMode(mode);
-                            if (multiSelectedMdPaths.length > 0) {
-                              const folder = activePath ?? multiSelectedMdPaths[0].split("/").slice(0, -1).join("/");
-                              void handleGenerateFlowIdeas(folder, count, multiSelectedMdPaths, prompt, scope);
-                            } else {
-                              void handleGenerateFlowIdeas(activePath!, count, undefined, prompt, scope);
-                            }
-                          }}
-                          onClose={() => setShowLandingModal(false)}
-                        />
-                      )}
-                    </div>
+                    <button
+                      onClick={() => handleNavigateToIdeas(selectedFolderPath!)}
+                      className="inline-flex items-center gap-1.5 bg-[#0969da] hover:bg-[#0860ca] text-white text-sm font-medium rounded-md px-3 py-2 transition-colors border border-[#0969da]/80"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+                      </svg>
+                      Go to Ideas & Flows
+                    </button>
                   </div>
                 </div>
               )}
             </>
           ) : (
-            /* Nothing selected — empty state */
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center space-y-2">
                 <svg className="w-12 h-12 mx-auto text-[#d1d9e0]" fill="none" stroke="currentColor" strokeWidth={0.8} viewBox="0 0 24 24">
@@ -2612,7 +1206,7 @@ export function SpecFilesPage() {
         />
       )}
 
-      {/* Access token prompt (shown when single-file sync fails with auth error) */}
+      {/* Access token prompt */}
       {tokenPrompt && (
         <AccessTokenPrompt
           message={tokenPrompt.message}
@@ -2621,66 +1215,6 @@ export function SpecFilesPage() {
           onClose={() => setTokenPrompt(null)}
         />
       )}
-
-      {/* Create scenarios folder picker modal */}
-      {pendingCreateScenarios && pendingCreateScenarios.length > 0 && (
-        <CreateScenariosModal
-          flows={pendingCreateScenarios}
-          version={activePath?.split("/")[0] ?? ""}
-          onConfirm={(targetFolder) => {
-            const flows = pendingCreateScenarios;
-            setPendingCreateScenarios(null);
-            void executeCreateScenarios(flows, targetFolder);
-          }}
-          onClose={() => setPendingCreateScenarios(null)}
-        />
-      )}
-
-      {/* Mark-for-implementation conflict modal */}
-      {conflict && (
-        <MarkConflictModal
-          flowTitle={conflict.flow.title}
-          existingName={conflict.existingName}
-          suggestedNewName={conflict.suggestedNewName}
-          onResolve={handleConflictResolve}
-          onCancel={() => setConflict(null)}
-        />
-      )}
-
-      {/* Generate Ideas modal (triggered from header bar "New Ideas" button or FlowsPanel) */}
-      {showNewIdeasModal && (
-        <GenerateIdeasModal
-          currentMode={ideaMode}
-          showScope
-          isVersionRoot={!!(activePath && /^v\d+\/?$/i.test(activePath))}
-          hasFileSelection={multiSelectedMdPaths.length > 0}
-          onGenerate={(count, mode, prompt, scope) => {
-            setIdeaMode(mode);
-            if (multiSelectedMdPaths.length > 0) {
-              const folder = activePath ?? multiSelectedMdPaths[0].split("/").slice(0, -1).join("/");
-              void handleGenerateFlowIdeas(folder, count, multiSelectedMdPaths, prompt, scope);
-            } else {
-              void handleGenerateFlowIdeas(activePath!, count, undefined, prompt, scope);
-            }
-          }}
-          onClose={() => setShowNewIdeasModal(false)}
-        />
-      )}
-
-      {/* Generate Ideas modal (triggered from FileTree context menu) */}
-      {treeGeneratePath && (
-        <GenerateIdeasModal
-          currentMode={ideaMode}
-          showScope
-          isVersionRoot={/^v\d+\/?$/i.test(treeGeneratePath)}
-          onGenerate={(count, mode, prompt, scope) => {
-            setIdeaMode(mode);
-            void handleGenerateFlowIdeas(treeGeneratePath, count, undefined, prompt, scope);
-          }}
-          onClose={() => setTreeGeneratePath(null)}
-        />
-      )}
     </Layout>
   );
 }
-
