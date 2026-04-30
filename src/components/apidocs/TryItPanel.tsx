@@ -1,9 +1,10 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { MethodBadge } from "./MethodBadge";
 import { JsonCodeBlock } from "../common/JsonCodeBlock";
 import { useConnectionsStore } from "../../store/connections.store";
 import { useProjectVariablesStore } from "../../store/projectVariables.store";
 import { useScenarioOrgStore } from "../../store/scenarioOrg.store";
+import { ProviderBadge } from "../connections/ConnectionFormModal";
 import type { ParsedEndpointDoc } from "../../lib/spec/swaggerParser";
 import type { Schema } from "../../types/spec.types";
 
@@ -57,10 +58,33 @@ const STATUS_COLORS: Record<string, string> = {
   "5": "text-[#d1242f] bg-[#ffebe9]",
 };
 
+/** Small icon button to fill a param from a matching project variable. */
+function UseVarButton({ paramName, varMap, onApply }: {
+  paramName: string;
+  varMap: Map<string, string>;
+  onApply: (value: string) => void;
+}) {
+  const varValue = varMap.get(paramName);
+  if (!varValue) return null;
+  return (
+    <button
+      onClick={() => onApply(varValue)}
+      className="text-[#0969da] hover:text-[#0860ca] shrink-0 p-0.5 rounded hover:bg-[#ddf4ff] transition-colors"
+      title={`Use project variable: ${paramName} = ${varValue}`}
+    >
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.745 3A23.933 23.933 0 0 0 3 12c0 3.183.62 6.22 1.745 9M19.5 3c.967 2.78 1.5 5.817 1.5 9s-.533 6.22-1.5 9M8.25 8.885l1.444-.89a.75.75 0 0 1 1.105.402l2.402 7.206a.75.75 0 0 0 1.104.401l1.445-.889" />
+      </svg>
+    </button>
+  );
+}
+
 export function TryItPanel({ endpoint, versionFolder }: Props) {
-  const connections = useConnectionsStore((s) => s.connections);
+  const { connections, authStatus: connAuthStatus, load: loadConnections } = useConnectionsStore();
   const variables = useProjectVariablesStore((s) => s.variables);
   const versionConfigs = useScenarioOrgStore((s) => s.versionConfigs);
+
+  useEffect(() => { void loadConnections(); }, [loadConnections]);
 
   // Resolve version config for this version folder
   const versionConfig = versionConfigs[versionFolder];
@@ -72,6 +96,12 @@ export function TryItPanel({ endpoint, versionFolder }: Props) {
   const [sending, setSending] = useState(false);
   const [response, setResponse] = useState<TryItResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Sync defaults when version config changes
+  useEffect(() => {
+    setConnectionId(versionConfig?.connectionId ?? "");
+    setBaseUrl(versionConfig?.baseUrl ?? "");
+  }, [versionConfig?.connectionId, versionConfig?.baseUrl]);
 
   // Build param input state from endpoint parameters
   const pathParams = endpoint.parameters.filter((p) => p.in === "path");
@@ -89,7 +119,6 @@ export function TryItPanel({ endpoint, versionFolder }: Props) {
   const [paramValues, setParamValues] = useState<Record<string, string>>(() => {
     const vals: Record<string, string> = {};
     for (const p of [...pathParams, ...queryParams, ...headerParams]) {
-      // Try to auto-fill from project variables
       const projVar = varMap.get(p.name);
       if (projVar) {
         vals[p.name] = projVar;
@@ -118,12 +147,10 @@ export function TryItPanel({ endpoint, versionFolder }: Props) {
   // Build the full URL
   const resolvedUrl = useMemo(() => {
     let path = endpoint.path;
-    // Replace path params
     for (const p of pathParams) {
       const val = paramValues[p.name] || `{${p.name}}`;
       path = path.replace(`{${p.name}}`, encodeURIComponent(val));
     }
-    // Build query string
     const queryParts: string[] = [];
     for (const p of queryParams) {
       const val = paramValues[p.name];
@@ -140,7 +167,6 @@ export function TryItPanel({ endpoint, versionFolder }: Props) {
 
     const start = Date.now();
     try {
-      // Build the proxy URL
       let path = endpoint.path;
       for (const p of pathParams) {
         const val = paramValues[p.name] || "";
@@ -159,7 +185,6 @@ export function TryItPanel({ endpoint, versionFolder }: Props) {
       if (connectionId) headers["X-FF-Connection-Id"] = connectionId;
       if (baseUrl) headers["X-FF-Base-Url"] = baseUrl;
 
-      // Add custom header params
       for (const p of headerParams) {
         const val = paramValues[p.name];
         if (val) headers[p.name] = val;
@@ -199,119 +224,163 @@ export function TryItPanel({ endpoint, versionFolder }: Props) {
     }
   }
 
-  const selectedConnection = connections.find((c) => c.id === connectionId);
+  const selectedConn = connections.find((c) => c.id === connectionId);
   const statusColorClass = response ? (STATUS_COLORS[String(response.status)[0]] ?? "text-[#656d76] bg-[#f6f8fa]") : "";
 
   return (
-    <div className="bg-white">
+    <div className="flex flex-col h-full bg-white">
       {/* Endpoint summary */}
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#d1d9e0] bg-[#f6f8fa]">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
         <MethodBadge method={endpoint.method} size="xs" />
         <code className="text-xs font-mono text-[#656d76] truncate flex-1">{resolvedUrl}</code>
       </div>
 
-      <div className="px-4 py-3 space-y-4">
-        {/* Connection + Base URL */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#656d76] uppercase tracking-wide">Connection</label>
-            <select
-              value={connectionId}
-              onChange={(e) => setConnectionId(e.target.value)}
-              className="w-full text-sm border border-[#d1d9e0] rounded-md px-2 py-1.5 bg-white text-[#1f2328] outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da]"
-            >
-              <option value="">None</option>
-              {connections.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.provider})
-                </option>
-              ))}
-            </select>
-            {selectedConnection && (
-              <div className="flex items-center gap-1">
-                <span className={`w-1.5 h-1.5 rounded-full ${selectedConnection.hasCredential || selectedConnection.hasSecret ? "bg-[#1a7f37]" : "bg-[#9a6700]"}`} />
-                <span className="text-xs text-[#656d76]">
-                  {selectedConnection.hasCredential || selectedConnection.hasSecret ? "Configured" : "No credentials"}
-                </span>
-              </div>
-            )}
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#656d76] uppercase tracking-wide">Base URL</label>
-            <input
-              type="text"
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="https://api.example.com"
-              className="w-full text-sm border border-[#d1d9e0] rounded-md px-2 py-1.5 bg-white text-[#1f2328] placeholder-[#afb8c1] outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] font-mono"
-            />
-          </div>
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+        {/* ── Connection (same pattern as ConnectEndpointModal) ───────── */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-[#656d76] uppercase tracking-wide">Connection</label>
+          <select
+            value={connectionId}
+            onChange={(e) => setConnectionId(e.target.value)}
+            className="w-full text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
+          >
+            <option value="">No auth</option>
+            {connections.map((c) => {
+              const isOAuth = c.provider === "oauth2";
+              const oauthOk = isOAuth && connAuthStatus[c.id]?.authenticated;
+              const tokenOk = !isOAuth && c.hasCredential;
+              const suffix = oauthOk ? " \u2713" : tokenOk ? " \u2713" : "";
+              return (
+                <option key={c.id} value={c.id}>{c.name}{suffix}</option>
+              );
+            })}
+          </select>
+          {/* Status indicator — mirrors ConnectEndpointModal */}
+          {selectedConn && selectedConn.provider === "oauth2" && connAuthStatus[selectedConn.id]?.authenticated && (
+            <p className="text-xs text-[#1a7f37] flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-[#1a7f37] shrink-0" />
+              OAuth connected
+            </p>
+          )}
+          {selectedConn && selectedConn.provider === "oauth2" && !connAuthStatus[selectedConn.id]?.authenticated && (
+            <p className="text-xs text-[#656d76]">
+              Not connected — go to Settings &rarr; Connections to authenticate.
+            </p>
+          )}
+          {selectedConn && selectedConn.provider !== "oauth2" && selectedConn.hasCredential && (
+            <p className="text-xs text-[#1a7f37] flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#1a7f37] shrink-0" />
+              <ProviderBadge provider={selectedConn.provider} />
+              <span>Credential configured</span>
+            </p>
+          )}
+          {selectedConn && selectedConn.provider !== "oauth2" && !selectedConn.hasCredential && (
+            <p className="text-xs text-[#656d76]">
+              No credential stored — go to Settings &rarr; Connections to add one.
+            </p>
+          )}
+          {connections.length === 0 && (
+            <p className="text-xs text-[#656d76]">
+              No connections registered. Go to Settings &rarr; Connections to create one.
+            </p>
+          )}
         </div>
 
-        {/* Path Parameters */}
+        {/* ── Base URL ──────────────────────────────────────────────── */}
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-[#656d76] uppercase tracking-wide">Base URL</label>
+          <input
+            type="text"
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            placeholder="https://api.example.com"
+            className="w-full text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono placeholder-[#afb8c1]"
+          />
+        </div>
+
+        {/* ── Path Parameters ──────────────────────────────────────── */}
         {pathParams.length > 0 && (
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-[#656d76] uppercase tracking-wide">Path parameters</label>
             {pathParams.map((p) => (
-              <div key={p.name} className="flex items-center gap-2">
-                <span className="text-sm font-mono text-[#1f2328] min-w-[120px] shrink-0">
-                  {p.name}
-                  {p.required && <span className="text-[#d1242f] ml-0.5">*</span>}
-                </span>
-                <input
-                  type="text"
-                  value={paramValues[p.name] ?? ""}
-                  onChange={(e) => updateParam(p.name, e.target.value)}
-                  placeholder={p.schema?.example != null ? String(p.schema.example) : p.schema?.type ?? ""}
-                  className="flex-1 text-sm border border-[#d1d9e0] rounded-md px-2 py-1 bg-white text-[#1f2328] placeholder-[#afb8c1] outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] font-mono"
-                />
+              <div key={p.name} className="space-y-0.5">
+                <div className="flex items-center gap-1">
+                  <span className="text-sm font-mono text-[#1f2328]">
+                    {p.name}
+                    {p.required && <span className="text-[#d1242f] ml-0.5">*</span>}
+                  </span>
+                  {p.schema?.type && (
+                    <span className="text-xs text-[#656d76]">{p.schema.type}{p.schema.format ? ` (${p.schema.format})` : ""}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={paramValues[p.name] ?? ""}
+                    onChange={(e) => updateParam(p.name, e.target.value)}
+                    placeholder={p.schema?.example != null ? String(p.schema.example) : p.schema?.type ?? ""}
+                    className="flex-1 text-sm border border-[#d1d9e0] rounded-md px-2 py-1 bg-white text-[#1f2328] placeholder-[#afb8c1] outline-none focus:border-[#0969da] font-mono"
+                  />
+                  <UseVarButton paramName={p.name} varMap={varMap} onApply={(v) => updateParam(p.name, v)} />
+                </div>
               </div>
             ))}
           </div>
         )}
 
-        {/* Query Parameters */}
+        {/* ── Query Parameters ─────────────────────────────────────── */}
         {queryParams.length > 0 && (
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-[#656d76] uppercase tracking-wide">Query parameters</label>
             {queryParams.map((p) => (
-              <div key={p.name} className="flex items-center gap-2">
-                <span className="text-sm font-mono text-[#1f2328] min-w-[120px] shrink-0">
-                  {p.name}
-                  {p.required && <span className="text-[#d1242f] ml-0.5">*</span>}
-                </span>
-                <input
-                  type="text"
-                  value={paramValues[p.name] ?? ""}
-                  onChange={(e) => updateParam(p.name, e.target.value)}
-                  placeholder={p.schema?.example != null ? String(p.schema.example) : p.schema?.type ?? ""}
-                  className="flex-1 text-sm border border-[#d1d9e0] rounded-md px-2 py-1 bg-white text-[#1f2328] placeholder-[#afb8c1] outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] font-mono"
-                />
+              <div key={p.name} className="space-y-0.5">
+                <div className="flex items-center gap-1">
+                  <span className="text-sm font-mono text-[#1f2328]">
+                    {p.name}
+                    {p.required && <span className="text-[#d1242f] ml-0.5">*</span>}
+                  </span>
+                  {p.schema?.type && (
+                    <span className="text-xs text-[#656d76]">{p.schema.type}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={paramValues[p.name] ?? ""}
+                    onChange={(e) => updateParam(p.name, e.target.value)}
+                    placeholder={p.schema?.example != null ? String(p.schema.example) : p.schema?.type ?? ""}
+                    className="flex-1 text-sm border border-[#d1d9e0] rounded-md px-2 py-1 bg-white text-[#1f2328] placeholder-[#afb8c1] outline-none focus:border-[#0969da] font-mono"
+                  />
+                  <UseVarButton paramName={p.name} varMap={varMap} onApply={(v) => updateParam(p.name, v)} />
+                </div>
               </div>
             ))}
           </div>
         )}
 
-        {/* Header Parameters */}
+        {/* ── Header Parameters ────────────────────────────────────── */}
         {headerParams.length > 0 && (
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-[#656d76] uppercase tracking-wide">Headers</label>
             {headerParams.map((p) => (
-              <div key={p.name} className="flex items-center gap-2">
-                <span className="text-sm font-mono text-[#1f2328] min-w-[120px] shrink-0">{p.name}</span>
-                <input
-                  type="text"
-                  value={paramValues[p.name] ?? ""}
-                  onChange={(e) => updateParam(p.name, e.target.value)}
-                  placeholder={p.schema?.type ?? ""}
-                  className="flex-1 text-sm border border-[#d1d9e0] rounded-md px-2 py-1 bg-white text-[#1f2328] placeholder-[#afb8c1] outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] font-mono"
-                />
+              <div key={p.name} className="space-y-0.5">
+                <span className="text-sm font-mono text-[#1f2328]">{p.name}</span>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={paramValues[p.name] ?? ""}
+                    onChange={(e) => updateParam(p.name, e.target.value)}
+                    placeholder={p.schema?.type ?? ""}
+                    className="flex-1 text-sm border border-[#d1d9e0] rounded-md px-2 py-1 bg-white text-[#1f2328] placeholder-[#afb8c1] outline-none focus:border-[#0969da] font-mono"
+                  />
+                  <UseVarButton paramName={p.name} varMap={varMap} onApply={(v) => updateParam(p.name, v)} />
+                </div>
               </div>
             ))}
           </div>
         )}
 
-        {/* Request Body */}
+        {/* ── Request Body ─────────────────────────────────────────── */}
         {endpoint.requestBody && (
           <div className="space-y-1.5">
             <div className="flex items-baseline gap-2">
@@ -322,17 +391,17 @@ export function TryItPanel({ endpoint, versionFolder }: Props) {
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={Math.min(12, Math.max(4, body.split("\n").length + 1))}
-              className="w-full text-sm border border-[#d1d9e0] rounded-md px-3 py-2 bg-white text-[#1f2328] outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] font-mono resize-y"
+              className="w-full text-sm border border-[#d1d9e0] rounded-md px-3 py-2 bg-white text-[#1f2328] outline-none focus:border-[#0969da] font-mono resize-y"
               spellCheck={false}
             />
           </div>
         )}
 
-        {/* Send button */}
+        {/* ── Send button (fixed width) ────────────────────────────── */}
         <button
           onClick={() => void handleSend()}
           disabled={sending}
-          className="w-full flex items-center justify-center gap-2 bg-[#0969da] hover:bg-[#0860ca] disabled:bg-[#eef1f6] disabled:text-[#656d76] text-white text-sm font-medium rounded-md px-4 py-2 transition-colors"
+          className="w-[180px] flex items-center justify-center gap-2 bg-[#0969da] hover:bg-[#0860ca] disabled:bg-[#eef1f6] disabled:text-[#656d76] text-white text-sm font-medium rounded-md px-4 py-2 transition-colors"
         >
           {sending ? (
             <>
@@ -352,14 +421,14 @@ export function TryItPanel({ endpoint, versionFolder }: Props) {
           )}
         </button>
 
-        {/* Error */}
+        {/* ── Error ────────────────────────────────────────────────── */}
         {error && (
           <div className="text-sm text-[#d1242f] bg-[#ffebe9] border border-[#ffcecb] rounded-md px-3 py-2">
             {error}
           </div>
         )}
 
-        {/* Response */}
+        {/* ── Response ─────────────────────────────────────────────── */}
         {response && (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
