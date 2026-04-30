@@ -203,18 +203,14 @@ export function TryItPanel({ endpoint, versionFolder }: Props) {
   const statusColorClass = response ? (STATUS_COLORS[String(response.status)[0]] ?? "text-[#656d76] bg-[#f6f8fa]") : "";
 
   return (
-    <div className="border-t border-[#d1d9e0] bg-[#f6f8fa]">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#d1d9e0]">
-        <svg className="w-4 h-4 text-[#0969da]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
-        </svg>
-        <span className="text-sm font-semibold text-[#1f2328]">Try It</span>
+    <div className="bg-white">
+      {/* Endpoint summary */}
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#d1d9e0] bg-[#f6f8fa]">
         <MethodBadge method={endpoint.method} size="xs" />
         <code className="text-xs font-mono text-[#656d76] truncate flex-1">{resolvedUrl}</code>
       </div>
 
-      <div className="px-4 py-3 space-y-4 max-h-[500px] overflow-y-auto">
+      <div className="px-4 py-3 space-y-4">
         {/* Connection + Base URL */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">

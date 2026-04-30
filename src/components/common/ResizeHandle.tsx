@@ -11,6 +11,8 @@ interface ResizeHandleProps {
   maxWidth?: number;
   /** Orientation — "vertical" means the handle is a vertical bar between left/right panels */
   direction?: "vertical";
+  /** Which side the panel is on. "left" (default): drag right = wider. "right": drag left = wider. */
+  side?: "left" | "right";
 }
 
 export function ResizeHandle({
@@ -18,6 +20,7 @@ export function ResizeHandle({
   onResize,
   minWidth = 120,
   maxWidth = 600,
+  side = "left",
 }: ResizeHandleProps) {
   const [dragging, setDragging] = useState(false);
   const startXRef = useRef(0);
@@ -37,7 +40,8 @@ export function ResizeHandle({
     if (!dragging) return;
 
     function onMouseMove(e: MouseEvent) {
-      const delta = e.clientX - startXRef.current;
+      const rawDelta = e.clientX - startXRef.current;
+      const delta = side === "right" ? -rawDelta : rawDelta;
       const newWidth = Math.min(maxWidth, Math.max(minWidth, startWidthRef.current + delta));
       onResize(newWidth);
     }

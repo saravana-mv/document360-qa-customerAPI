@@ -161,8 +161,13 @@ export function SpecFilesPage() {
   });
   useEffect(() => { try { localStorage.setItem("specfiles_content_tab", contentTab); } catch { /* ignore */ } }, [contentTab]);
 
-  // ── Try It panel toggle ────────────────────────────────────────────────
-  const [tryItOpen, setTryItOpen] = useState(false);
+  // ── RHS panel (Try It + future tabs) ──────────────────────────────────
+  const [rhsPanelOpen, setRhsPanelOpen] = useState(false);
+  const [rhsTab, setRhsTab] = useState<"tryit">("tryit");
+  const [rhsWidth, setRhsWidth] = useState(() => {
+    try { const v = parseInt(localStorage.getItem("specfiles_rhs_width") ?? ""); return v > 0 ? v : 420; } catch { return 420; }
+  });
+  useEffect(() => { try { localStorage.setItem("specfiles_rhs_width", String(rhsWidth)); } catch { /* ignore */ } }, [rhsWidth]);
 
   // Derive version folder from current selection (first path segment)
   const versionFolder = useMemo(() => {
@@ -1096,48 +1101,30 @@ export function SpecFilesPage() {
                       <span className="capitalize">{tab}</span>
                     </button>
                   ))}
+                  {/* Try It toggle button — pushed to the right */}
+                  <button
+                    onClick={() => setRhsPanelOpen((prev) => !prev)}
+                    className={`ml-auto flex items-center gap-1.5 px-2.5 py-1 text-sm font-medium rounded-md transition-colors ${
+                      rhsPanelOpen
+                        ? "bg-[#0969da] text-white"
+                        : "text-[#0969da] hover:bg-[#ddf4ff]"
+                    }`}
+                    title={rhsPanelOpen ? "Close Try It panel" : "Open Try It panel"}
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+                    </svg>
+                    Try It
+                  </button>
                 </div>
               )}
 
               {/* Content area */}
               {selectedEndpoint && contentTab === "documentation" ? (
-                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-                  <div className="flex-1 overflow-y-auto">
-                    <EndpointDocView
-                      endpoint={selectedEndpoint}
-                      securitySchemes={parsedSpec?.securitySchemes}
-                    />
-                    {/* Try It toggle */}
-                    {!tryItOpen && (
-                      <div className="px-4 py-3 border-t border-[#d1d9e0]">
-                        <button
-                          onClick={() => setTryItOpen(true)}
-                          className="flex items-center gap-2 text-sm font-medium text-[#0969da] hover:text-[#0860ca] transition-colors"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
-                          </svg>
-                          Try It
-                        </button>
-                      </div>
-                    )}
-                    {/* Try It panel */}
-                    {tryItOpen && versionFolder && (
-                      <div className="relative">
-                        <button
-                          onClick={() => setTryItOpen(false)}
-                          className="absolute top-2.5 right-3 text-[#656d76] hover:text-[#1f2328] z-10"
-                          title="Close Try It"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                        <TryItPanel endpoint={selectedEndpoint} versionFolder={versionFolder} />
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <EndpointDocView
+                  endpoint={selectedEndpoint}
+                  securitySchemes={parsedSpec?.securitySchemes}
+                />
               ) : viewingContent && isFileContext && (selectedPath?.endsWith("/_skills.md") || selectedPath?.endsWith("/Skills.md")) ? (
                 loadingContent ? (
                   <div className="flex-1 flex items-center justify-center text-[#656d76] text-sm">Loading…</div>
@@ -1234,6 +1221,46 @@ export function SpecFilesPage() {
             </div>
           )}
         </div>
+
+        {/* ── RHS Panel: Try It (+ future tabs) ───────────────────────── */}
+        {rhsPanelOpen && selectedEndpoint && versionFolder && (
+          <>
+            <ResizeHandle width={rhsWidth} onResize={setRhsWidth} minWidth={320} maxWidth={700} side="right" />
+            <aside className="shrink-0 flex flex-col overflow-hidden border-l border-[#d1d9e0] bg-white" style={{ width: rhsWidth }}>
+              {/* Tab bar */}
+              <div className="flex items-center gap-1 px-3 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+                {(["tryit"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setRhsTab(tab)}
+                    className={`px-3 py-1 text-sm font-semibold border-b-2 transition-colors ${
+                      rhsTab === tab
+                        ? "border-[#fd8c73] text-[#1f2328]"
+                        : "border-transparent text-[#656d76] hover:text-[#1f2328]"
+                    }`}
+                  >
+                    {tab === "tryit" ? "Try It" : tab}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setRhsPanelOpen(false)}
+                  className="ml-auto text-[#656d76] hover:text-[#1f2328] rounded p-0.5"
+                  title="Close panel"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              {/* Tab content */}
+              <div className="flex-1 overflow-y-auto">
+                {rhsTab === "tryit" && (
+                  <TryItPanel endpoint={selectedEndpoint} versionFolder={versionFolder} />
+                )}
+              </div>
+            </aside>
+          </>
+        )}
       </div>
 
       {/* Search modal */}
