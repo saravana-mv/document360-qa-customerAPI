@@ -10,6 +10,7 @@ import type { SecurityScheme } from "../../types/spec.types";
 
 interface Props {
   endpoint: ParsedEndpointDoc;
+  /** Kept for backward compatibility; security details are no longer rendered per-endpoint. */
   securitySchemes?: Record<string, SecurityScheme>;
 }
 
@@ -22,23 +23,10 @@ const METHOD_BOX_STYLES: Record<string, string> = {
   delete: "border-[#ffcecb] bg-[#fff5f5]",
 };
 
-export function EndpointDocView({ endpoint, securitySchemes }: Props) {
+export function EndpointDocView({ endpoint }: Props) {
   const pathParams = endpoint.parameters.filter(p => p.in === "path");
   const queryParams = endpoint.parameters.filter(p => p.in === "query");
   const headerParams = endpoint.parameters.filter(p => p.in === "header");
-
-  // Resolve security schemes for display
-  const securityDetails = useMemo(() => {
-    if (!endpoint.security || !securitySchemes) return [];
-    const result: { name: string; scheme: SecurityScheme }[] = [];
-    for (const req of endpoint.security) {
-      for (const name of Object.keys(req)) {
-        const scheme = securitySchemes[name];
-        if (scheme) result.push({ name, scheme });
-      }
-    }
-    return result;
-  }, [endpoint.security, securitySchemes]);
 
   const methodBox = METHOD_BOX_STYLES[endpoint.method.toLowerCase()] ?? "border-[#d1d9e0] bg-[#f6f8fa]";
 
@@ -46,9 +34,16 @@ export function EndpointDocView({ endpoint, securitySchemes }: Props) {
     <div className="flex-1 overflow-y-auto p-8 space-y-8">
       {/* ── Header ────────────────────────────────────────────────── */}
       <div className="space-y-3">
-        {endpoint.summary && (
-          <h1 className="text-lg font-semibold text-[#1f2328]">{endpoint.summary}</h1>
-        )}
+        <div className="flex items-center gap-3 flex-wrap">
+          {endpoint.summary && (
+            <h1 className="text-lg font-semibold text-[#1f2328]">{endpoint.summary}</h1>
+          )}
+          {endpoint.deprecated && (
+            <span className="text-xs bg-[#fff8c5] text-[#9a6700] border border-[#f5e0a0] rounded px-1.5 py-0.5 font-semibold">
+              DEPRECATED
+            </span>
+          )}
+        </div>
 
         {/* Method + Path box */}
         <div className={`flex items-center gap-2.5 border rounded-lg px-4 py-2.5 ${methodBox}`}>
@@ -61,67 +56,7 @@ export function EndpointDocView({ endpoint, securitySchemes }: Props) {
         {endpoint.description && (
           <p className="text-sm text-[#656d76] leading-relaxed">{endpoint.description}</p>
         )}
-
-        <div className="flex items-center gap-3 flex-wrap">
-          {endpoint.operationId && (
-            <p className="text-sm text-[#656d76]">
-              Operation ID: <code className="bg-[#f6f8fa] px-1 rounded text-[#1f2328]">{endpoint.operationId}</code>
-            </p>
-          )}
-          {endpoint.deprecated && (
-            <span className="text-xs bg-[#fff8c5] text-[#9a6700] border border-[#f5e0a0] rounded px-1.5 py-0.5 font-semibold">
-              DEPRECATED
-            </span>
-          )}
-        </div>
       </div>
-
-      {/* ── Security ──────────────────────────────────────────────── */}
-      {securityDetails.length > 0 && (
-        <div className="space-y-3">
-          <h4 className="text-sm font-semibold text-[#1f2328] pb-2 border-b border-[#d1d9e0]">Security</h4>
-          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-            {securityDetails.map(({ name, scheme }, i) => (
-              <div key={i} className="bg-[#f6f8fa] border border-[#d1d9e0] rounded-lg p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <svg className="w-4 h-4 text-[#656d76] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-                  </svg>
-                  <span className="text-sm font-semibold text-[#1f2328]">{name}</span>
-                </div>
-                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-                  <dt className="text-[#656d76] font-medium">Type</dt>
-                  <dd className="text-[#1f2328]">{formatSchemeType(scheme)}</dd>
-                  {scheme.name && (
-                    <>
-                      <dt className="text-[#656d76] font-medium">Name</dt>
-                      <dd className="text-[#1f2328] font-mono">{scheme.name}</dd>
-                    </>
-                  )}
-                  {scheme.in && (
-                    <>
-                      <dt className="text-[#656d76] font-medium">In</dt>
-                      <dd className="text-[#1f2328]">{scheme.in}</dd>
-                    </>
-                  )}
-                  {scheme.scheme && (
-                    <>
-                      <dt className="text-[#656d76] font-medium">Scheme</dt>
-                      <dd className="text-[#1f2328]">{scheme.scheme}</dd>
-                    </>
-                  )}
-                  {scheme.bearerFormat && (
-                    <>
-                      <dt className="text-[#656d76] font-medium">Format</dt>
-                      <dd className="text-[#1f2328]">{scheme.bearerFormat}</dd>
-                    </>
-                  )}
-                </dl>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* ── Parameters ────────────────────────────────────────────── */}
       <ParameterTable title="Path Parameters" parameters={pathParams} />
@@ -219,12 +154,3 @@ function RequestBodySection({ requestBody }: { requestBody: NonNullable<ParsedEn
   );
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatSchemeType(scheme: SecurityScheme): string {
-  if (scheme.type === "oauth2") return "OAuth 2.0";
-  if (scheme.type === "http" && scheme.scheme === "bearer") return "Bearer Token";
-  if (scheme.type === "http" && scheme.scheme === "basic") return "Basic Auth";
-  if (scheme.type === "apiKey") return "API Key";
-  return scheme.type;
-}
