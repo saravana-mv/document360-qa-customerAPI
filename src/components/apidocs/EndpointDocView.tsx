@@ -144,13 +144,18 @@ export function EndpointDocView({ endpoint, securitySchemes }: Props) {
 function RequestBodySection({ requestBody }: { requestBody: NonNullable<ParsedEndpointDoc["requestBody"]> }) {
   const [showExample, setShowExample] = useState(false);
   const [schemaResetKey, setSchemaResetKey] = useState(0);
-  const [schemaDefaultExpanded, setSchemaDefaultExpanded] = useState(true);
+  const [allExpanded, setAllExpanded] = useState(false);
 
   const example = useMemo(() => {
     if (requestBody.example !== undefined) return requestBody.example;
     if (!requestBody.schema) return null;
     return generateSchemaExample(requestBody.schema);
   }, [requestBody]);
+
+  const toggleAll = () => {
+    setAllExpanded(prev => !prev);
+    setSchemaResetKey(k => k + 1);
+  };
 
   return (
     <div className="space-y-3">
@@ -162,47 +167,31 @@ function RequestBodySection({ requestBody }: { requestBody: NonNullable<ParsedEn
       </div>
 
       {requestBody.description && (
-        <p className="text-sm text-[#656d76]">{requestBody.description}</p>
+        <p className="text-sm text-[#656d76] leading-relaxed">{requestBody.description}</p>
       )}
 
       <div className="border border-[#d1d9e0] rounded-lg p-4 space-y-3">
-        {/* Content type */}
-        <div className="flex items-center gap-2 text-sm text-[#656d76]">
-          <span className="font-semibold">Content-Type:</span>
-          <code className="text-xs bg-[#f6f8fa] border border-[#d1d9e0] rounded px-1.5 py-0.5 text-[#1f2328]">
-            {requestBody.contentType}
-          </code>
-        </div>
-
         {requestBody.schema && (
           <>
-            {/* Toolbar */}
-            <div className="flex items-center justify-between">
+            {/* Right-aligned toolbar */}
+            <div className="flex items-center justify-end gap-3">
               <button
                 onClick={() => setShowExample(v => !v)}
                 className="text-sm font-medium text-[#0969da] hover:underline"
               >
-                {showExample ? "Close Example" : "Show Example"}
+                {showExample ? "Hide Example" : "Show Example"}
               </button>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => { setSchemaDefaultExpanded(true); setSchemaResetKey(k => k + 1); }}
-                  className="text-sm text-[#656d76] hover:text-[#1f2328]"
-                >
-                  Expand All
-                </button>
-                <span className="text-sm text-[#d1d9e0]">|</span>
-                <button
-                  onClick={() => { setSchemaDefaultExpanded(false); setSchemaResetKey(k => k + 1); }}
-                  className="text-sm text-[#656d76] hover:text-[#1f2328]"
-                >
-                  Collapse All
-                </button>
-              </div>
+              <span className="text-sm text-[#d1d9e0]">|</span>
+              <button
+                onClick={toggleAll}
+                className="text-sm font-medium text-[#0969da] hover:underline"
+              >
+                {allExpanded ? "Collapse All" : "Expand All"}
+              </button>
             </div>
 
             {/* Schema tree */}
-            <SchemaTree key={schemaResetKey} schema={requestBody.schema} defaultExpanded={schemaDefaultExpanded} />
+            <SchemaTree key={schemaResetKey} schema={requestBody.schema} defaultExpanded={allExpanded} />
 
             {/* Example JSON */}
             {showExample && example != null && (

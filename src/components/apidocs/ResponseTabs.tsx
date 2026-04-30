@@ -23,13 +23,18 @@ export function ResponseTabs({ responses }: Props) {
   const [activeStatus, setActiveStatus] = useState(responses[0]?.status ?? "200");
   const [showExample, setShowExample] = useState(false);
   const [schemaResetKey, setSchemaResetKey] = useState(0);
-  const [schemaDefaultExpanded, setSchemaDefaultExpanded] = useState(true);
+  const [allExpanded, setAllExpanded] = useState(false);
   const active = responses.find(r => r.status === activeStatus) ?? responses[0];
 
   const example = useMemo(() => {
     if (!active?.schema) return null;
     return generateSchemaExample(active.schema);
   }, [active]);
+
+  const toggleAll = () => {
+    setAllExpanded(prev => !prev);
+    setSchemaResetKey(k => k + 1);
+  };
 
   if (responses.length === 0) return null;
 
@@ -77,35 +82,25 @@ export function ResponseTabs({ responses }: Props) {
 
           {active.schema && (
             <>
-              {/* Toolbar */}
-              <div className="flex items-center justify-between">
+              {/* Right-aligned toolbar */}
+              <div className="flex items-center justify-end gap-3">
                 <button
                   onClick={() => setShowExample(v => !v)}
                   className="text-sm font-medium text-[#0969da] hover:underline"
                 >
-                  {showExample ? "Close Example" : "Show Example"}
+                  {showExample ? "Hide Example" : "Show Example"}
                 </button>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => { setSchemaDefaultExpanded(true); setSchemaResetKey(k => k + 1); }}
-                    className="text-sm text-[#656d76] hover:text-[#1f2328]"
-                    title="Expand all"
-                  >
-                    Expand All
-                  </button>
-                  <span className="text-sm text-[#d1d9e0]">|</span>
-                  <button
-                    onClick={() => { setSchemaDefaultExpanded(false); setSchemaResetKey(k => k + 1); }}
-                    className="text-sm text-[#656d76] hover:text-[#1f2328]"
-                    title="Collapse all"
-                  >
-                    Collapse All
-                  </button>
-                </div>
+                <span className="text-sm text-[#d1d9e0]">|</span>
+                <button
+                  onClick={toggleAll}
+                  className="text-sm font-medium text-[#0969da] hover:underline"
+                >
+                  {allExpanded ? "Collapse All" : "Expand All"}
+                </button>
               </div>
 
               {/* Schema tree */}
-              <SchemaTree key={schemaResetKey} schema={active.schema} defaultExpanded={schemaDefaultExpanded} />
+              <SchemaTree key={schemaResetKey} schema={active.schema} defaultExpanded={allExpanded} />
 
               {/* Example JSON */}
               {showExample && example != null && (
