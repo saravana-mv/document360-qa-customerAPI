@@ -31,7 +31,7 @@ export function SchemaTree({
     return (
       <div className="flex items-start">
         <TreeConnector depth={depth} isLast={_isLast} parentConnectors={_parentConnectors} />
-        <span className="text-xs text-[#656d76] italic">...(max depth)</span>
+        <span className="text-sm text-[#656d76] italic">...(max depth)</span>
       </div>
     );
   }
@@ -60,7 +60,7 @@ export function SchemaTree({
         )}
         <div className="flex items-start">
           <TreeConnector depth={name ? depth + 1 : depth} isLast={false} parentConnectors={name ? [..._parentConnectors, !_isLast] : _parentConnectors} />
-          <span className="text-xs text-[#656d76] italic">{label}</span>
+          <span className="text-sm text-[#656d76] italic">{label}</span>
         </div>
         {variants.map((v, i) => (
           <SchemaTree
@@ -97,11 +97,11 @@ export function SchemaTree({
           <div className="flex items-center gap-1.5 py-0.5">
             <button
               onClick={() => setExpanded(e => !e)}
-              className="text-xs text-[#656d76] hover:text-[#1f2328] select-none"
+              className="text-sm text-[#656d76] hover:text-[#1f2328] select-none"
             >
               {expanded ? "▾" : "▸"}
             </button>
-            <span className="text-xs font-mono text-[#656d76]">object</span>
+            <span className="text-sm font-mono text-[#656d76]">object</span>
           </div>
         ) : null}
 
@@ -126,7 +126,7 @@ export function SchemaTree({
                 isLast={true}
                 parentConnectors={name ? [..._parentConnectors, !_isLast] : _parentConnectors}
               />
-              <span className="text-xs text-[#656d76] italic">[additional properties]</span>
+              <span className="text-sm text-[#656d76] italic">[additional properties]</span>
             </div>
             <SchemaTree
               schema={schema.additionalProperties as Schema}
@@ -198,10 +198,7 @@ function TreeConnector({ depth, isLast, parentConnectors }: {
   if (depth === 0) return null;
 
   return (
-    <span
-      className="inline-flex shrink-0 font-mono text-[#d1d9e0] select-none leading-none"
-      style={{ fontSize: "13px" }}
-    >
+    <span className="inline-flex shrink-0 font-mono text-sm text-[#d1d9e0] select-none leading-none">
       {parentConnectors.map((hasMore, i) => (
         <span key={i} className="inline-block w-5 text-center">
           {hasMore ? "│" : "\u00A0"}
@@ -234,12 +231,12 @@ function PropertyRow({ name, schema, required, depth, isLast, parentConnectors, 
   return (
     <div className="group">
       {/* Name + type + badges line */}
-      <div className="flex items-center py-0.5 min-h-[26px]">
+      <div className="flex items-center py-0.5 min-h-[28px]">
         <TreeConnector depth={depth} isLast={isLast} parentConnectors={parentConnectors} />
         {isExpandable && (
           <button
             onClick={onToggle}
-            className="text-xs text-[#656d76] hover:text-[#1f2328] select-none w-4 shrink-0 text-center"
+            className="text-sm text-[#656d76] hover:text-[#1f2328] select-none w-4 shrink-0 text-center"
           >
             {expanded ? "▾" : "▸"}
           </button>
@@ -275,10 +272,7 @@ function PropertyRow({ name, schema, required, depth, isLast, parentConnectors, 
       {schema.description && (
         <div className="flex">
           {depth > 0 && (
-            <span
-              className="inline-flex shrink-0 font-mono text-[#d1d9e0] select-none leading-none"
-              style={{ fontSize: "13px" }}
-            >
+            <span className="inline-flex shrink-0 font-mono text-sm text-[#d1d9e0] select-none leading-none">
               {parentConnectors.map((hasMore, i) => (
                 <span key={i} className="inline-block w-5 text-center">
                   {hasMore ? "│" : "\u00A0"}
@@ -290,17 +284,14 @@ function PropertyRow({ name, schema, required, depth, isLast, parentConnectors, 
             </span>
           )}
           {depth > 0 && <span className="w-4 shrink-0" />}
-          <p className="text-xs text-[#656d76] pl-0.5">{schema.description}</p>
+          <p className="text-sm text-[#656d76] pl-0.5">{schema.description}</p>
         </div>
       )}
       {/* Enum values */}
       {schema.enum && schema.enum.length > 0 && (expanded || !isExpandable) && (
         <div className="flex">
           {depth > 0 && (
-            <span
-              className="inline-flex shrink-0 font-mono text-[#d1d9e0] select-none leading-none"
-              style={{ fontSize: "13px" }}
-            >
+            <span className="inline-flex shrink-0 font-mono text-sm text-[#d1d9e0] select-none leading-none">
               {parentConnectors.map((hasMore, i) => (
                 <span key={i} className="inline-block w-5 text-center">
                   {hasMore ? "│" : "\u00A0"}
@@ -315,7 +306,7 @@ function PropertyRow({ name, schema, required, depth, isLast, parentConnectors, 
           <div className="pl-0.5">
             <span className="text-xs font-semibold text-[#656d76]">VALID VALUES: </span>
             {schema.enum.map((v, i) => (
-              <span key={i} className="text-xs font-mono text-[#1f2328]">
+              <span key={i} className="text-sm font-mono text-[#1f2328]">
                 {i > 0 && <span className="text-[#656d76]"> · </span>}
                 {String(v)}
               </span>

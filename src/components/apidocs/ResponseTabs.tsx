@@ -67,9 +67,9 @@ export function ResponseTabs({ responses }: Props) {
           )}
 
           {active.contentType && (
-            <div className="flex items-center gap-2 text-xs text-[#656d76]">
+            <div className="flex items-center gap-2 text-sm text-[#656d76]">
               <span className="font-semibold">Content-Type:</span>
-              <code className="bg-[#f6f8fa] border border-[#d1d9e0] rounded px-1.5 py-0.5 text-[#1f2328]">
+              <code className="text-xs bg-[#f6f8fa] border border-[#d1d9e0] rounded px-1.5 py-0.5 text-[#1f2328]">
                 {active.contentType}
               </code>
             </div>
@@ -81,22 +81,22 @@ export function ResponseTabs({ responses }: Props) {
               <div className="flex items-center justify-between">
                 <button
                   onClick={() => setShowExample(v => !v)}
-                  className="text-xs font-medium text-[#0969da] hover:underline"
+                  className="text-sm font-medium text-[#0969da] hover:underline"
                 >
                   {showExample ? "Close Example" : "Show Example"}
                 </button>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => { setSchemaDefaultExpanded(true); setSchemaResetKey(k => k + 1); }}
-                    className="text-xs text-[#656d76] hover:text-[#1f2328]"
+                    className="text-sm text-[#656d76] hover:text-[#1f2328]"
                     title="Expand all"
                   >
                     Expand All
                   </button>
-                  <span className="text-xs text-[#d1d9e0]">|</span>
+                  <span className="text-sm text-[#d1d9e0]">|</span>
                   <button
                     onClick={() => { setSchemaDefaultExpanded(false); setSchemaResetKey(k => k + 1); }}
-                    className="text-xs text-[#656d76] hover:text-[#1f2328]"
+                    className="text-sm text-[#656d76] hover:text-[#1f2328]"
                     title="Collapse all"
                   >
                     Collapse All
@@ -111,10 +111,10 @@ export function ResponseTabs({ responses }: Props) {
               {showExample && example != null && (
                 <div className="border border-[#d1d9e0] rounded-lg overflow-hidden">
                   <div className="flex items-center justify-between bg-[#f6f8fa] border-b border-[#d1d9e0] px-3 py-1.5">
-                    <span className="text-xs font-semibold text-[#656d76]">Example</span>
+                    <span className="text-sm font-semibold text-[#656d76]">Example</span>
                     <button
                       onClick={() => { navigator.clipboard.writeText(JSON.stringify(example, null, 2)); }}
-                      className="text-xs text-[#0969da] hover:underline"
+                      className="text-sm text-[#0969da] hover:underline"
                     >
                       Copy
                     </button>
@@ -130,7 +130,7 @@ export function ResponseTabs({ responses }: Props) {
           )}
 
           {!active.schema && !active.description && (
-            <p className="text-xs text-[#656d76] italic">No response body</p>
+            <p className="text-sm text-[#656d76] italic">No response body</p>
           )}
         </div>
       )}

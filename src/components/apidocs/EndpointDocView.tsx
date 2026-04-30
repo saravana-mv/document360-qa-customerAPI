@@ -64,7 +64,7 @@ export function EndpointDocView({ endpoint, securitySchemes }: Props) {
 
         <div className="flex items-center gap-3 flex-wrap">
           {endpoint.operationId && (
-            <p className="text-xs text-[#656d76]">
+            <p className="text-sm text-[#656d76]">
               Operation ID: <code className="bg-[#f6f8fa] px-1 rounded text-[#1f2328]">{endpoint.operationId}</code>
             </p>
           )}
@@ -89,7 +89,7 @@ export function EndpointDocView({ endpoint, securitySchemes }: Props) {
                   </svg>
                   <span className="text-sm font-semibold text-[#1f2328]">{name}</span>
                 </div>
-                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
                   <dt className="text-[#656d76] font-medium">Type</dt>
                   <dd className="text-[#1f2328]">{formatSchemeType(scheme)}</dd>
                   {scheme.name && (
@@ -167,9 +167,9 @@ function RequestBodySection({ requestBody }: { requestBody: NonNullable<ParsedEn
 
       <div className="border border-[#d1d9e0] rounded-lg p-4 space-y-3">
         {/* Content type */}
-        <div className="flex items-center gap-2 text-xs text-[#656d76]">
+        <div className="flex items-center gap-2 text-sm text-[#656d76]">
           <span className="font-semibold">Content-Type:</span>
-          <code className="bg-[#f6f8fa] border border-[#d1d9e0] rounded px-1.5 py-0.5 text-[#1f2328]">
+          <code className="text-xs bg-[#f6f8fa] border border-[#d1d9e0] rounded px-1.5 py-0.5 text-[#1f2328]">
             {requestBody.contentType}
           </code>
         </div>
@@ -180,21 +180,21 @@ function RequestBodySection({ requestBody }: { requestBody: NonNullable<ParsedEn
             <div className="flex items-center justify-between">
               <button
                 onClick={() => setShowExample(v => !v)}
-                className="text-xs font-medium text-[#0969da] hover:underline"
+                className="text-sm font-medium text-[#0969da] hover:underline"
               >
                 {showExample ? "Close Example" : "Show Example"}
               </button>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => { setSchemaDefaultExpanded(true); setSchemaResetKey(k => k + 1); }}
-                  className="text-xs text-[#656d76] hover:text-[#1f2328]"
+                  className="text-sm text-[#656d76] hover:text-[#1f2328]"
                 >
                   Expand All
                 </button>
-                <span className="text-xs text-[#d1d9e0]">|</span>
+                <span className="text-sm text-[#d1d9e0]">|</span>
                 <button
                   onClick={() => { setSchemaDefaultExpanded(false); setSchemaResetKey(k => k + 1); }}
-                  className="text-xs text-[#656d76] hover:text-[#1f2328]"
+                  className="text-sm text-[#656d76] hover:text-[#1f2328]"
                 >
                   Collapse All
                 </button>
@@ -208,10 +208,10 @@ function RequestBodySection({ requestBody }: { requestBody: NonNullable<ParsedEn
             {showExample && example != null && (
               <div className="border border-[#d1d9e0] rounded-lg overflow-hidden">
                 <div className="flex items-center justify-between bg-[#f6f8fa] border-b border-[#d1d9e0] px-3 py-1.5">
-                  <span className="text-xs font-semibold text-[#656d76]">Example</span>
+                  <span className="text-sm font-semibold text-[#656d76]">Example</span>
                   <button
                     onClick={() => { navigator.clipboard.writeText(JSON.stringify(example, null, 2)); }}
-                    className="text-xs text-[#0969da] hover:underline"
+                    className="text-sm text-[#0969da] hover:underline"
                   >
                     Copy
                   </button>

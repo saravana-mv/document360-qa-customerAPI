@@ -79,7 +79,7 @@ export function ParameterTable({ title, parameters }: Props) {
                 </span>
                 <ul className="mt-1.5 space-y-0.5 ml-1">
                   {p.schema.enum.map((v, j) => (
-                    <li key={j} className="flex items-baseline gap-1.5 text-xs">
+                    <li key={j} className="flex items-baseline gap-1.5 text-sm">
                       <span className="text-[#656d76]">•</span>
                       <code className="font-mono text-[#1f2328]">{String(v)}</code>
                     </li>
@@ -106,8 +106,8 @@ function TypeBadge({ type, format }: { type: string; format?: string }) {
 
 function MetaItem({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <span className="text-xs flex items-baseline gap-1.5">
-      <span className="font-semibold text-[#656d76] bg-[#f6f8fa] border border-[#d1d9e0] rounded px-1 py-px">
+    <span className="text-sm flex items-baseline gap-1.5">
+      <span className="text-xs font-semibold text-[#656d76] bg-[#f6f8fa] border border-[#d1d9e0] rounded px-1 py-px">
         {label}
       </span>
       {children}
