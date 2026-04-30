@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react"
 import { JsonCodeBlock } from "../common/JsonCodeBlock";
 import { XmlCodeBlock } from "../common/XmlCodeBlock";
 import { XmlDiffView } from "../common/XmlDiffView";
+import { HeadersTable } from "../common/HeadersTable";
 import { useRunnerStore } from "../../store/runner.store";
 import { useSpecStore } from "../../store/spec.store";
 import { useSetupStore } from "../../store/setup.store";
@@ -1229,15 +1230,7 @@ function RunTab({ testId, onDiagnose }: { testId: string; onDiagnose?: () => voi
           title="Request Headers"
           badge={<span className="text-[11px] text-[#656d76] tabular-nums">{reqHeaderCount}</span>}
         >
-          <div className="divide-y divide-[#d1d9e0]">
-            {Object.entries(result.requestHeaders!).map(([key, value]) => (
-              <div key={key} className="flex items-start gap-2 px-3 py-1.5 text-xs group/hdr">
-                <span className="font-mono font-medium text-[#0969da] shrink-0">{key}</span>
-                <span className="font-mono text-[#1f2328] break-all flex-1">{key === "Authorization" ? value.slice(0, 12) + "••••••" : value}</span>
-                <CopyButton value={`${key}: ${value}`} className="opacity-0 group-hover/hdr:opacity-100 transition-opacity shrink-0" />
-              </div>
-            ))}
-          </div>
+          <HeadersTable headers={result.requestHeaders!} maskKeys={["Authorization"]} />
         </Accordion>
       )}
 
@@ -1256,15 +1249,7 @@ function RunTab({ testId, onDiagnose }: { testId: string; onDiagnose?: () => voi
           title="Response Headers"
           badge={<span className="text-[11px] text-[#656d76] tabular-nums">{resHeaderCount}</span>}
         >
-          <div className="divide-y divide-[#d1d9e0]">
-            {Object.entries(result.responseHeaders!).map(([key, value]) => (
-              <div key={key} className="flex items-start gap-2 px-3 py-1.5 text-xs group/hdr">
-                <span className="font-mono font-medium text-[#0969da] shrink-0">{key}</span>
-                <span className="font-mono text-[#1f2328] break-all flex-1">{value}</span>
-                <CopyButton value={`${key}: ${value}`} className="opacity-0 group-hover/hdr:opacity-100 transition-opacity shrink-0" />
-              </div>
-            ))}
-          </div>
+          <HeadersTable headers={result.responseHeaders!} />
         </Accordion>
       )}
 

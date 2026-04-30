@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { JsonCodeBlock } from "../common/JsonCodeBlock";
+import { HeadersTable } from "../common/HeadersTable";
 import { useProjectVariablesStore } from "../../store/projectVariables.store";
 import type { ParsedEndpointDoc } from "../../lib/spec/swaggerParser";
 
@@ -394,18 +395,7 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
                     title="Request Headers"
                     badge={<span className="text-xs text-[#656d76] tabular-nums">{Object.keys(response.requestHeaders).length}</span>}
                   >
-                    <div className="divide-y divide-[#d1d9e0]">
-                      {Object.entries(response.requestHeaders).map(([key, value]) => (
-                        <div key={key} className="flex items-start gap-2 px-3 py-1.5 text-xs">
-                          <span className="font-mono font-medium text-[#0969da] shrink-0">{key}</span>
-                          <span className="font-mono text-[#1f2328] break-all flex-1">
-                            {key.toLowerCase().includes("authorization") || key.toLowerCase().includes("connection-id")
-                              ? value.slice(0, 12) + "••••••"
-                              : value}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                    <HeadersTable headers={response.requestHeaders} maskKeys={["Authorization", "X-FF-Connection-Id"]} />
                   </Accordion>
                 )}
                 {/* Request Body */}
@@ -428,14 +418,7 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
                     title="Response Headers"
                     badge={<span className="text-xs text-[#656d76] tabular-nums">{Object.keys(response.responseHeaders).length}</span>}
                   >
-                    <div className="divide-y divide-[#d1d9e0]">
-                      {Object.entries(response.responseHeaders).map(([key, value]) => (
-                        <div key={key} className="flex items-start gap-2 px-3 py-1.5 text-xs">
-                          <span className="font-mono font-medium text-[#0969da] shrink-0">{key}</span>
-                          <span className="font-mono text-[#1f2328] break-all flex-1">{value}</span>
-                        </div>
-                      ))}
-                    </div>
+                    <HeadersTable headers={response.responseHeaders} />
                   </Accordion>
                 )}
                 {/* Response Body */}
