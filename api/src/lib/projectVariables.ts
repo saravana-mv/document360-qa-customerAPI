@@ -53,5 +53,7 @@ ${varList.join("\n")}
 <param name="project_id">proj.projectId</param>          <!-- ❌ WRONG — missing {{…}} braces -->
 <param name="project_id">{{proj.project_id}}</param>     <!-- ❌ WRONG — no such variable -->
 <param name="project_id">{{proj.projectID}}</param>      <!-- ❌ WRONG — case mismatch -->
-\`\`\``;
+\`\`\`
+
+**PREREQUISITE SKIP RULE**: For each variable listed above, do NOT generate a setup/prerequisite step to create that entity. The resource already exists in the test environment and its ID is pre-configured. Reference the variable directly wherever that ID appears. Only create prerequisites for entities whose IDs are NOT in this list.`;
 }
