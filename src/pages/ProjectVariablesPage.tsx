@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useProjectVariablesStore } from "../store/projectVariables.store";
 import type { ProjectVariable } from "../lib/api/projectVariablesApi";
+import { listSpecFiles, getSpecFileContent, uploadSpecFile } from "../lib/api/specFilesApi";
+import { patchSkillsVariables } from "../lib/skillsVariables";
 
 export function ProjectVariablesPage() {
   const { variables, loading, saving, error, load, save } = useProjectVariablesStore();
@@ -57,14 +59,43 @@ export function ProjectVariablesPage() {
       return;
     }
     try {
+      const prevNames = new Set(variables.map((v) => v.name));
+      const newNames = new Set(cleaned.map((v) => v.name));
+      const added = cleaned.map((v) => v.name).filter((n) => !prevNames.has(n));
+      const removed = variables.map((v) => v.name).filter((n) => !newNames.has(n));
+
       await save(cleaned);
+
+      // Sync added/removed variable lines into every version folder's _skills.md
+      if (added.length > 0 || removed.length > 0) {
+        void syncSkillsFiles(added, removed);
+      }
+
       setDirty(false);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : String(e));
     }
-  }, [draft, save]);
+  }, [draft, save, variables]);
+
+  const syncSkillsFiles = useCallback(async (added: string[], removed: string[]) => {
+    try {
+      const allFiles = await listSpecFiles();
+      const skillsFiles = allFiles.filter((f) => f.name.endsWith("/_system/_skills.md"));
+      await Promise.all(
+        skillsFiles.map(async (f) => {
+          try {
+            const content = await getSpecFileContent(f.name);
+            const patched = patchSkillsVariables(content, added, removed);
+            if (patched !== content) {
+              await uploadSpecFile(f.name, patched);
+            }
+          } catch { /* skip files that can't be read/written */ }
+        }),
+      );
+    } catch { /* best-effort — don't surface skills sync errors to the user */ }
+  }, []);
 
   if (loading) {
     return (

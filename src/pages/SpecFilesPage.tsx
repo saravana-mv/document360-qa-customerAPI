@@ -35,6 +35,7 @@ import { ConnectEndpointModal } from "../components/explorer/ConnectEndpointModa
 import { getOAuthStatus, type OAuthStatus } from "../lib/api/oauthApi";
 import { useWorkshopStore } from "../store/workshop.store";
 import { renameIdeas } from "../lib/api/ideasApi";
+import { buildVariableLine } from "../lib/skillsVariables";
 import { EndpointDocView } from "../components/apidocs/EndpointDocView";
 import { MethodBadge } from "../components/apidocs/MethodBadge";
 import { TryItPanel } from "../components/apidocs/TryItPanel";
@@ -532,7 +533,7 @@ export function SpecFilesPage() {
 
   function buildSkillsTemplate(folderPath: string, variables?: SuggestedVariable[]): string {
     const varLines = variables && variables.length > 0
-      ? variables.map(v => `- \`{${v.name}}\` → use \`{{proj.${v.name}}}\``).join("\n")
+      ? variables.map(v => buildVariableLine(v.name)).join("\n")
       : "<!-- No path parameters detected. Add mappings after importing an OpenAPI spec. -->";
 
     return [
