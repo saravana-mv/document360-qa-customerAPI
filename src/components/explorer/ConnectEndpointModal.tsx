@@ -14,8 +14,6 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
   const versionConfig = useScenarioOrgStore((s) => s.versionConfigs[version]);
   const setVersionConfig = useScenarioOrgStore((s) => s.setVersionConfig);
 
-  const [baseUrl, setBaseUrl] = useState(versionConfig?.baseUrl ?? "");
-  const [apiVersion, setApiVersion] = useState(versionConfig?.apiVersion ?? "");
   const [connectionId, setConnectionId] = useState(versionConfig?.connectionId ?? "");
 
   const [saving, setSaving] = useState(false);
@@ -32,8 +30,8 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
     try {
       const selectedConn = connections.find((c) => c.id === connectionId);
       const config: VersionConfig = {
-        baseUrl: baseUrl.trim(),
-        apiVersion: apiVersion.trim(),
+        baseUrl: selectedConn?.baseUrl ?? "",
+        apiVersion: selectedConn?.apiVersion ?? "",
         authType: selectedConn?.provider === "oauth2" ? "oauth" : connectionId ? (selectedConn?.provider ?? "none") : "none",
         credentialConfigured: !!connectionId && selectedConn?.provider !== "oauth2",
         endpointLabel: selectedConn?.name || undefined,
@@ -69,7 +67,7 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
   }
 
   const isConnected = !!connectionId || versionConfig?.credentialConfigured || (versionConfig?.authType === "oauth" && !!versionConfig?.connectionId);
-  const canSave = !!(baseUrl.trim() || connectionId);
+  const canSave = !!connectionId;
 
   const selectedConn = connections.find((c) => c.id === connectionId);
 
@@ -104,26 +102,6 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
 
         {/* Body */}
         <div className="flex-1 overflow-auto p-5 space-y-3">
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-[#656d76] w-24 shrink-0">Base URL</label>
-            <input
-              className="flex-1 text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="https://api.example.com"
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-[#656d76] w-24 shrink-0">API Version</label>
-            <input
-              className="flex-1 text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
-              value={apiVersion}
-              onChange={(e) => setApiVersion(e.target.value)}
-              placeholder="v2"
-            />
-          </div>
-
           {/* Connection picker */}
           <div className="flex items-start gap-2">
             <label className="text-xs text-[#656d76] w-24 shrink-0 pt-1.5">Connection</label>
@@ -176,6 +154,24 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
               )}
             </div>
           </div>
+
+          {/* Connection details summary */}
+          {selectedConn && (selectedConn.baseUrl || selectedConn.apiVersion) && (
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs px-2 py-2 bg-[#f6f8fa] border border-[#d1d9e0] rounded-md">
+              {selectedConn.baseUrl && (
+                <>
+                  <span className="text-[#656d76]">Base URL</span>
+                  <span className="text-[#1f2328] font-mono truncate">{selectedConn.baseUrl}</span>
+                </>
+              )}
+              {selectedConn.apiVersion && (
+                <>
+                  <span className="text-[#656d76]">API Version</span>
+                  <span className="text-[#1f2328]">{selectedConn.apiVersion}</span>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Error */}
           {error && (

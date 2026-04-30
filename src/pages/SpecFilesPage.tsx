@@ -225,8 +225,8 @@ export function SpecFilesPage() {
   // ── Connection status for current version ──────────────────────────────
   const currentVersionConfig = versionFolder ? versionConfigs[versionFolder] : undefined;
   const tryItConnectionId = currentVersionConfig?.connectionId;
-  const tryItBaseUrl = currentVersionConfig?.baseUrl ?? "";
   const tryItConnection = connections.find((c) => c.id === tryItConnectionId);
+  const tryItBaseUrl = tryItConnection?.baseUrl ?? currentVersionConfig?.baseUrl ?? "";
   const tryItIsOAuth = tryItConnection?.provider === "oauth2";
 
   useEffect(() => {
@@ -239,7 +239,6 @@ export function SpecFilesPage() {
   // Derive connection readiness and warning message
   const tryItStatus = useMemo<{ canSend: boolean; connected: boolean; expired: boolean; warning?: string; label: string }>(() => {
     if (!tryItConnectionId || !tryItConnection) {
-      if (!tryItBaseUrl) return { canSend: false, connected: false, expired: false, warning: "No endpoint configured. Click the link icon to configure a connection and base URL.", label: "No auth" };
       return { canSend: false, connected: false, expired: false, warning: "No connection configured. Click the link icon to select a connection.", label: "No auth" };
     }
     if (tryItIsOAuth) {
@@ -660,6 +659,8 @@ export function SpecFilesPage() {
           name: conn.name,
           provider: conn.provider,
           draft: true,
+          ...(conn.baseUrl ? { baseUrl: conn.baseUrl } : {}),
+          ...(conn.apiVersion ? { apiVersion: conn.apiVersion } : {}),
           ...(conn.authorizationUrl ? { authorizationUrl: conn.authorizationUrl } : {}),
           ...(conn.tokenUrl ? { tokenUrl: conn.tokenUrl } : {}),
           ...(conn.scopes ? { scopes: conn.scopes } : {}),

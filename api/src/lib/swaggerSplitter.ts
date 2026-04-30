@@ -31,6 +31,9 @@ export interface SuggestedConnection {
   name: string;
   provider: SuggestedConnectionProvider;
   description?: string;
+  // Endpoint config
+  baseUrl?: string;
+  apiVersion?: string;
   // OAuth-specific
   authorizationUrl?: string;
   tokenUrl?: string;
@@ -441,8 +444,9 @@ export function splitSwagger(specJson: Record<string, unknown>): SplitResult {
   // Extract path parameters as suggested project variables
   const suggestedVariables = extractPathParameters(paths, spec);
 
-  // Extract security schemes as suggested connections
-  const suggestedConnections = extractSecuritySchemes(spec);
+  // Extract security schemes as suggested connections (include detected base URL)
+  const { baseUrl: detectedBaseUrl, apiVersion: detectedApiVersion } = extractBaseUrl(spec);
+  const suggestedConnections = extractSecuritySchemes(spec, detectedBaseUrl, detectedApiVersion);
 
   return {
     files,
@@ -517,9 +521,63 @@ function extractPathParameters(
 }
 
 /**
+ * Extract base URL and API version from the spec.
+ */
+function extractBaseUrl(spec: Record<string, unknown>): { baseUrl: string; apiVersion: string } {
+  let baseUrl = "";
+  let apiVersion = "";
+
+  const isOAS3 = typeof spec["openapi"] === "string" && (spec["openapi"] as string).startsWith("3");
+
+  if (isOAS3 && Array.isArray(spec["servers"]) && spec["servers"].length > 0) {
+    const server = spec["servers"][0] as { url?: string };
+    if (server.url) {
+      baseUrl = server.url.replace(/\/$/, "");
+    }
+  } else {
+    const host = spec["host"] as string | undefined;
+    const basePath = spec["basePath"] as string | undefined;
+    const schemes = spec["schemes"] as string[] | undefined;
+    if (host) {
+      const scheme = schemes?.[0] ?? "https";
+      baseUrl = `${scheme}://${host}`;
+      if (basePath && basePath !== "/") {
+        const vMatch = basePath.match(/^\/(v\d+)/i);
+        if (vMatch) apiVersion = vMatch[1];
+      }
+    }
+  }
+
+  // Extract version from URL path
+  if (!apiVersion && baseUrl) {
+    try {
+      const urlObj = new URL(baseUrl);
+      const vMatch = urlObj.pathname.match(/\/(v\d+)\b/i);
+      if (vMatch) {
+        apiVersion = vMatch[1];
+        baseUrl = `${urlObj.protocol}//${urlObj.host}`;
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Fallback: info.version
+  if (!apiVersion) {
+    const info = spec["info"] as { version?: string } | undefined;
+    if (info?.version) {
+      const vMatch = info.version.match(/^(v?\d+)/i);
+      if (vMatch) {
+        apiVersion = vMatch[1].startsWith("v") ? vMatch[1] : `v${vMatch[1]}`;
+      }
+    }
+  }
+
+  return { baseUrl, apiVersion };
+}
+
+/**
  * Extract security schemes from the spec and map them to suggested connections.
  */
-function extractSecuritySchemes(spec: Record<string, unknown>): SuggestedConnection[] {
+function extractSecuritySchemes(spec: Record<string, unknown>, baseUrl: string, apiVersion: string): SuggestedConnection[] {
   const results: SuggestedConnection[] = [];
 
   // OAS3: components.securitySchemes
@@ -541,6 +599,8 @@ function extractSecuritySchemes(spec: Record<string, unknown>): SuggestedConnect
         name: schemeName,
         provider: "oauth2",
         description: scheme["description"] as string | undefined,
+        baseUrl: baseUrl || undefined,
+        apiVersion: apiVersion || undefined,
       };
 
       // OAS3: flows.authorizationCode / implicit / clientCredentials / password
@@ -610,6 +670,12 @@ function extractSecuritySchemes(spec: Record<string, unknown>): SuggestedConnect
         description: scheme["description"] as string | undefined,
       });
     }
+  }
+
+  // Inject detected baseUrl/apiVersion into all connections
+  for (const conn of results) {
+    if (baseUrl && !conn.baseUrl) conn.baseUrl = baseUrl;
+    if (apiVersion && !conn.apiVersion) conn.apiVersion = apiVersion;
   }
 
   return results;

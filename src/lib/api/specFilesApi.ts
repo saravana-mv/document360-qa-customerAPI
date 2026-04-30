@@ -165,6 +165,8 @@ export interface SuggestedConnection {
   name: string;
   provider: SuggestedConnectionProvider;
   description?: string;
+  baseUrl?: string;
+  apiVersion?: string;
   authorizationUrl?: string;
   tokenUrl?: string;
   scopes?: string;

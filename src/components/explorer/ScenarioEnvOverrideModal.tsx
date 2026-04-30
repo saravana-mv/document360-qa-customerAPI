@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useScenarioOrgStore } from "../../store/scenarioOrg.store";
+import { useConnectionsStore } from "../../store/connections.store";
 import type { AuthType, ScenarioEnvOverride } from "../../store/scenarioOrg.store";
 
 interface ScenarioEnvOverrideModalProps {
@@ -27,6 +28,9 @@ export function ScenarioEnvOverrideModal({ flowPath, scenarioName, onClose }: Sc
   // Get version config as reference
   const version = useScenarioOrgStore((s) => s.getVersionForFlow(flowPath));
   const versionConfig = useScenarioOrgStore((s) => version ? s.versionConfigs[version] : undefined);
+  const versionConn = useConnectionsStore((s) => versionConfig?.connectionId ? s.connections.find(c => c.id === versionConfig.connectionId) : undefined);
+  const effectiveBaseUrl = versionConn?.baseUrl || versionConfig?.baseUrl || "";
+  const effectiveApiVersion = versionConn?.apiVersion || versionConfig?.apiVersion || "";
 
   const [baseUrl, setBaseUrl] = useState(existing?.baseUrl ?? "");
   const [apiVersion, setApiVersion] = useState(existing?.apiVersion ?? "");
@@ -100,9 +104,9 @@ export function ScenarioEnvOverrideModal({ flowPath, scenarioName, onClose }: Sc
               <p className="text-xs font-medium text-[#656d76] mb-1.5">Version defaults ({version})</p>
               <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
                 <span className="text-[#656d76]">Base URL</span>
-                <span className="text-[#1f2328] font-mono truncate">{versionConfig.baseUrl || "—"}</span>
+                <span className="text-[#1f2328] font-mono truncate">{effectiveBaseUrl || "—"}</span>
                 <span className="text-[#656d76]">API Version</span>
-                <span className="text-[#1f2328]">{versionConfig.apiVersion || "—"}</span>
+                <span className="text-[#1f2328]">{effectiveApiVersion || "—"}</span>
                 <span className="text-[#656d76]">Auth</span>
                 <span className="text-[#1f2328]">{versionConfig.authType || "—"}</span>
               </div>
@@ -126,7 +130,7 @@ export function ScenarioEnvOverrideModal({ flowPath, scenarioName, onClose }: Sc
                 className="flex-1 text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
-                placeholder={versionConfig?.baseUrl || "https://api.example.com"}
+                placeholder={effectiveBaseUrl || "https://api.example.com"}
               />
             </div>
 

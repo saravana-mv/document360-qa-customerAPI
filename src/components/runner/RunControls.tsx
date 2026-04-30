@@ -161,14 +161,17 @@ export function RunControls() {
       const version = scenarioOrg.getVersionForFlow(flowPath);
       if (!version) continue;
       const vc = scenarioOrg.versionConfigs[version];
-      if (!vc?.baseUrl && !vc?.apiVersion && !vc?.authType) continue;
+      if (!vc?.connectionId && !vc?.baseUrl && !vc?.apiVersion && !vc?.authType) continue;
+
+      // Look up connection doc for baseUrl/apiVersion (connection is source of truth)
+      const conn = vc?.connectionId ? connections.find(c => c.id === vc.connectionId) : undefined;
 
       // Merge scenario-level overrides on top of version config
       const sc = scenarioOrg.scenarioConfigs[flowPath];
       byTag[t.tag] = buildTestContext({
         token: PROXY_TOKEN,
-        apiVersion: sc?.apiVersion || vc.apiVersion || setup.apiVersion,
-        baseUrl: sc?.baseUrl || vc.baseUrl || undefined,
+        apiVersion: sc?.apiVersion || conn?.apiVersion || vc.apiVersion || setup.apiVersion,
+        baseUrl: sc?.baseUrl || conn?.baseUrl || vc.baseUrl || undefined,
         authType: sc?.authType || vc.authType || "none",
         authVersion: version,
         authHeaderName: sc?.authHeaderName || vc.authHeaderName,

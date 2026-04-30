@@ -8,6 +8,10 @@ export interface Connection {
   name: string;
   provider: ConnectionProvider;
 
+  // Endpoint config
+  baseUrl?: string;
+  apiVersion?: string;
+
   // OAuth-specific
   authorizationUrl?: string;
   tokenUrl?: string;
@@ -30,6 +34,9 @@ export interface Connection {
 export interface CreateConnectionPayload {
   name: string;
   provider: ConnectionProvider;
+  // Endpoint config
+  baseUrl?: string;
+  apiVersion?: string;
   // OAuth
   authorizationUrl?: string;
   tokenUrl?: string;

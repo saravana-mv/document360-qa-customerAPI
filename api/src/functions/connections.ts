@@ -41,6 +41,10 @@ interface ConnectionDoc {
   scopes?: string;
   redirectUri?: string;
 
+  // Endpoint config (shared across all providers)
+  baseUrl?: string;               // e.g. https://api.example.com
+  apiVersion?: string;            // e.g. v3
+
   // Token-based (all non-oauth providers)
   credential?: string;            // Stored server-side, never returned to client
   authHeaderName?: string;        // For apikey_header
@@ -109,6 +113,9 @@ async function createConnection(req: HttpRequest): Promise<HttpResponseInit> {
       type: "connection",
       name: body.name.trim(),
       provider,
+      // Endpoint config
+      baseUrl: body.baseUrl?.trim() || undefined,
+      apiVersion: body.apiVersion?.trim() || undefined,
       // OAuth fields
       authorizationUrl: provider === "oauth2" ? (body.authorizationUrl?.trim() || undefined) : undefined,
       tokenUrl: provider === "oauth2" ? (body.tokenUrl?.trim() || undefined) : undefined,
@@ -156,6 +163,8 @@ async function updateConnection(req: HttpRequest): Promise<HttpResponseInit> {
     const body = (await req.json()) as Partial<ConnectionDoc>;
 
     existing.name = body.name?.trim() || existing.name;
+    if (body.baseUrl !== undefined) existing.baseUrl = body.baseUrl.trim() || undefined;
+    if (body.apiVersion !== undefined) existing.apiVersion = body.apiVersion.trim() || undefined;
 
     if (existing.provider === "oauth2") {
       existing.authorizationUrl = body.authorizationUrl?.trim() || existing.authorizationUrl;

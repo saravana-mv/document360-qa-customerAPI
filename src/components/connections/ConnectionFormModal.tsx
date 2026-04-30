@@ -22,6 +22,8 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
 
   const [provider, setProvider] = useState<ConnectionProvider>(connection?.provider ?? "oauth2");
   const [name, setName] = useState(connection?.name ?? "");
+  const [baseUrl, setBaseUrl] = useState(connection?.baseUrl ?? "");
+  const [apiVersion, setApiVersion] = useState(connection?.apiVersion ?? "");
 
   // OAuth fields
   const [authorizationUrl, setAuthorizationUrl] = useState(connection?.authorizationUrl ?? "");
@@ -61,6 +63,8 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
       if (isEdit) {
         const payload: Record<string, string | undefined> = {
           name: name.trim(),
+          baseUrl: baseUrl.trim() || undefined,
+          apiVersion: apiVersion.trim() || undefined,
         };
         if (isOAuth) {
           payload.authorizationUrl = authorizationUrl.trim();
@@ -78,6 +82,8 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
         await add({
           name: name.trim(),
           provider,
+          baseUrl: baseUrl.trim() || undefined,
+          apiVersion: apiVersion.trim() || undefined,
           ...(isOAuth ? {
             authorizationUrl: authorizationUrl.trim(),
             tokenUrl: tokenUrl.trim(),
@@ -161,6 +167,24 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Document360, Stripe, GitHub"
+            />
+          </Field>
+
+          <Field label="Base URL" hint="The upstream API base URL">
+            <input
+              className="w-full text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder="https://api.example.com"
+            />
+          </Field>
+
+          <Field label="API Version" hint="Version prefix for API paths (e.g. v2, v3)">
+            <input
+              className="w-full text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
+              value={apiVersion}
+              onChange={(e) => setApiVersion(e.target.value)}
+              placeholder="v2"
             />
           </Field>
 
