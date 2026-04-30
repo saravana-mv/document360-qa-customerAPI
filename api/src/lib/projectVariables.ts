@@ -37,18 +37,6 @@ export function injectProjectVariables(basePrompt: string, variables: ProjectVar
     return `| \`{{proj.${v.name}}}\` |${hint} |`;
   });
 
-  // Build a concrete skip list: derive the snake_case field name from each variable
-  // (e.g. workspaceId → workspace_id) and call out exactly what NOT to create.
-  const skipLines = variables
-    .map((v) => {
-      const snakeField = v.name.replace(/([A-Z])/g, "_$1").toLowerCase();
-      if (!snakeField.endsWith("_id")) return null;
-      const entity = snakeField.slice(0, -3); // strip '_id'
-      return `- \`${snakeField}\` in any path or body → use \`{{proj.${v.name}}}\` — do NOT add a "Create ${entity}" setup step`;
-    })
-    .filter(Boolean);
-  const skipList = skipLines.length > 0 ? `\n${skipLines.join("\n")}` : "";
-
   return `${basePrompt}
 
 ## Available Project Variables — MANDATORY (read before writing ANY XML)
@@ -67,6 +55,5 @@ ${varList.join("\n")}
 <param name="project_id">{{proj.projectID}}</param>      <!-- ❌ WRONG — case mismatch -->
 \`\`\`
 
-**PREREQUISITE SKIP RULE — MANDATORY**: The variables above represent pre-provisioned resources in the test environment. You MUST NOT generate setup steps to create these entities.${skipList}
-Only generate prerequisites for entities whose IDs are NOT covered by a project variable.`;
+**PREREQUISITE SKIP RULE — MANDATORY**: The variables above represent pre-provisioned resources in the test environment. You MUST NOT generate setup steps to create these entities. Reference their variables directly. Only generate prerequisites for entities whose IDs are NOT in this list.`;
 }
