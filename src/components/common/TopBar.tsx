@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useEntraAuthStore } from "../../store/entraAuth.store";
 import { useAiCostStore } from "../../store/aiCost.store";
 import { useAiCreditsStore } from "../../store/aiCredits.store";
 import { useVersionCheck } from "../../hooks/useVersionCheck";
 import { ProjectPicker } from "./ProjectPicker";
+import { WhatsNewModal } from "./WhatsNewModal";
 
 export function TopBar() {
   const entraStatus = useEntraAuthStore((s) => s.status);
@@ -15,6 +17,7 @@ export function TopBar() {
   const userExhausted = userCredits ? userCredits.remainingUsd <= 0 : false;
   const exhausted = projectExhausted || userExhausted;
   const { currentVersion, updateAvailable, newVersion, relaunch, dismiss } = useVersionCheck();
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
 
   return (
     <header className="h-12 bg-[#1f2328] text-[#e6edf3] flex items-center px-4 gap-3 shrink-0 border-b border-[#31363b]">
@@ -41,7 +44,7 @@ export function TopBar() {
             Updated to <span className="text-[#e6edf3] font-medium">{newVersion}</span>
           </span>
           <button
-            onClick={relaunch}
+            onClick={() => setShowWhatsNew(true)}
             className="text-[11px] font-medium text-[#1f2328] bg-[#3fb950] hover:bg-[#46c258] rounded px-2 py-0.5 transition-colors"
           >
             Relaunch
@@ -112,6 +115,14 @@ export function TopBar() {
         >
           dev
         </span>
+      )}
+      {/* What's New modal */}
+      {showWhatsNew && (
+        <WhatsNewModal
+          newVersion={newVersion ?? ""}
+          onRelaunch={relaunch}
+          onClose={() => setShowWhatsNew(false)}
+        />
       )}
     </header>
   );

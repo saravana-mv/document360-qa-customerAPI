@@ -1,0 +1,13 @@
+[
+  {
+    "version": "1.0",
+    "date": "2026-05-01",
+    "changes": [
+      { "type": "feature", "text": "Ideas Generation Trace — inspect how AI generates test ideas (pattern, spec context, prompts)" },
+      { "type": "fix", "text": "Flow generation now correctly resolves spec files (was showing 0 files due to case mismatch)" },
+      { "type": "improvement", "text": "Independent idea folder hierarchy — folders are decoupled from spec file structure" },
+      { "type": "improvement", "text": "Generate Ideas modal with pattern selection (Random, CRUD, Errors, etc.)" },
+      { "type": "improvement", "text": "Standardized button colors and UI consistency across all pages" }
+    ]
+  }
+]
