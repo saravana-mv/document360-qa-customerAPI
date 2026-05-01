@@ -18,7 +18,11 @@ export function EditFolderSpecsModal({ currentPaths, onSave, onClose }: Props) {
     void (async () => {
       try {
         const files = await listSpecFiles();
-        const mdFiles = files.filter((f) => f.name.endsWith(".md"));
+        const mdFiles = files.filter((f) => {
+          if (!f.name.endsWith(".md")) return false;
+          const segments = f.name.split("/");
+          return !segments.some((s) => s === "_system" || s === "_distilled");
+        });
         setSpecFiles(mdFiles);
         // Auto-expand folders that have selected files
         const folders = new Set<string>();

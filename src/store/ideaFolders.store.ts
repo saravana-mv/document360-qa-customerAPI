@@ -110,7 +110,12 @@ export const useIdeaFoldersStore = create<IdeaFoldersState>((set, get) => ({
 
   syncFromSpecs: async () => {
     const specFiles = await listSpecFiles();
-    const mdFiles = specFiles.filter((f) => f.name.endsWith(".md"));
+    // Filter to .md files, excluding system/distilled internal files
+    const mdFiles = specFiles.filter((f) => {
+      if (!f.name.endsWith(".md")) return false;
+      const segments = f.name.split("/");
+      return !segments.some((s) => s === "_system" || s === "_distilled");
+    });
 
     // Group by parent folder path
     const folderMap = new Map<string, string[]>();
