@@ -1390,8 +1390,19 @@ export function stripExtraRequestFields(
 
     const allowedSet = new Set(spec.allRequestFields);
     // For bulk endpoints, also allow per-item fields from itemSchemas
-    for (const item of spec.itemSchemas) {
-      for (const f of item.allFields) allowedSet.add(f);
+    if (spec.itemSchemas.length > 0) {
+      for (const item of spec.itemSchemas) {
+        for (const f of item.allFields) allowedSet.add(f);
+      }
+    } else {
+      // Fallback: if body contains arrays with objects but spec has no itemSchemas
+      // (stale distillation cache), skip stripping — we can't distinguish top-level
+      // fields from nested array-item fields with a flat regex.
+      const collapsed = bodyText.replace(/\s+/g, "");
+      if (/\[\s*\{/.test(collapsed)) {
+        console.log(`[stripExtraRequestFields] step ${i}: body has array objects but no itemSchemas for ${spec.method} ${spec.path} — skipping to avoid stripping nested fields`);
+        continue;
+      }
     }
     const fieldRe = /"(\w+)"\s*:/g;
     let fm: RegExpExecArray | null;
