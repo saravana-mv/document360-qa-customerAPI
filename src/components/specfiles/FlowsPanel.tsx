@@ -3,6 +3,8 @@ import { ContextMenu, MenuIcons } from "../common/ContextMenu";
 import type { MenuItem } from "../common/ContextMenu";
 import type { FlowIdea, FlowUsage } from "../../lib/api/specFilesApi";
 import { validateFlowXml } from "../../lib/tests/flowXml/validate";
+import { getFlowTrace, type FlowTrace } from "../../lib/api/flowTraceApi";
+import FlowTraceModal from "./FlowTraceModal";
 
 export interface GeneratedFlow {
   ideaId: string;
@@ -92,6 +94,15 @@ const STATUS_ICON: Record<string, React.ReactNode> = {
 export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickFlow, onDownloadFlow, onDownloadAll, onDeleteFlow, onDeleteAllFlows, onStartNewIdeas, onMarkForImplementation, onMarkSelectedForImplementation, markedIds, markingIds, selectedFlowIds, onToggleSelectFlow, onSelectAllFlows, onDeselectAllFlows, thisLevelOnly, onToggleThisLevel, onCancelGeneration, onCopyFlowId }: Props) {
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [deleteFlowId, setDeleteFlowId] = useState<string | null>(null);
+  const [flowTraceData, setFlowTraceData] = useState<FlowTrace | null>(null);
+  const [showFlowTrace, setShowFlowTrace] = useState(false);
+
+  async function handleShowFlowTrace(traceId: string) {
+    try {
+      const data = await getFlowTrace(traceId);
+      if (data) { setFlowTraceData(data); setShowFlowTrace(true); }
+    } catch { /* ignore */ }
+  }
 
   const doneFlows = flows.filter((f) => f.status === "done");
   const completedFlows = flows.filter((f) => f.status === "done" || f.status === "error");
@@ -328,6 +339,9 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
                       if (onCopyFlowId) {
                         items.push({ label: "Copy Flow XML ID", icon: MenuIcons.clipboard, onClick: () => onCopyFlowId(flow) });
                       }
+                      if (flow.traceId) {
+                        items.push({ label: "View generation trace", icon: MenuIcons.inspect, onClick: () => handleShowFlowTrace(flow.traceId!) });
+                      }
                       items.push("separator");
                     }
                     items.push({
@@ -479,6 +493,9 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
             </div>
           </div>
         </div>
+      )}
+      {showFlowTrace && flowTraceData && (
+        <FlowTraceModal trace={flowTraceData} onClose={() => setShowFlowTrace(false)} />
       )}
     </div>
   );
