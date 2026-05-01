@@ -5,6 +5,7 @@ import { SpecFilePicker } from "./SpecFilePicker";
 
 interface Props {
   folderPath: string;
+  folderDisplayName?: string;
   onGenerate: (count: number, mode: IdeaMode, specFiles: string[], prompt?: string) => void;
   onClose: () => void;
   currentMode: IdeaMode;
@@ -27,11 +28,11 @@ const MODES: IdeaMode[] = ["full", "no-prereqs", "no-prereqs-no-teardown"];
 
 const COUNT_OPTIONS = [1, 2, 3, 5, 10];
 
-export function GenerateIdeasModal({ folderPath, onGenerate, onClose, currentMode, disabled }: Props) {
+export function GenerateIdeasModal({ folderPath, folderDisplayName, onGenerate, onClose, currentMode, disabled }: Props) {
   const [count, setCount] = useState(5);
   const [mode, setMode] = useState<IdeaMode>(currentMode);
   const [specFiles, setSpecFiles] = useState<string[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("random");
   const [showPicker, setShowPicker] = useState(false);
 
   const noFiles = specFiles.length === 0;
@@ -58,7 +59,7 @@ export function GenerateIdeasModal({ folderPath, onGenerate, onClose, currentMod
                 <svg className="w-3 h-3 inline-block mr-1 -mt-0.5 text-[#9a6700]" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M.513 1.513A1.75 1.75 0 0 1 1.75 0h3.5c.465 0 .91.185 1.239.513l.61.61c.109.109.257.17.411.17h6.74a1.75 1.75 0 0 1 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15.5H1.75A1.75 1.75 0 0 1 0 13.75V1.75c0-.465.185-.91.513-1.237Z" />
                 </svg>
-                {folderPath}
+                {folderDisplayName || folderPath}
               </p>
             </div>
             <button
@@ -103,7 +104,7 @@ export function GenerateIdeasModal({ folderPath, onGenerate, onClose, currentMod
                 {IDEA_TEMPLATES.map((t) => (
                   <button
                     key={t.key}
-                    onClick={() => setSelectedTemplate(selectedTemplate === t.key ? null : t.key)}
+                    onClick={() => setSelectedTemplate(t.key)}
                     className={`inline-flex items-center gap-1.5 text-xs font-medium pl-2 pr-2.5 py-1.5 rounded-full border transition-all ${
                       selectedTemplate === t.key
                         ? "bg-[#ddf4ff] text-[#0969da] border-[#0969da]/30 shadow-sm"
@@ -119,7 +120,7 @@ export function GenerateIdeasModal({ folderPath, onGenerate, onClose, currentMod
             </div>
 
             {/* Mode + Count row */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-start gap-3">
               <div className="flex-1">
                 <label className="text-xs font-medium text-[#656d76] mb-1.5 block">Mode</label>
                 <div className="relative">
@@ -191,6 +192,8 @@ export function GenerateIdeasModal({ folderPath, onGenerate, onClose, currentMod
 function chipIcon(key: string): React.ReactNode {
   const cls = "w-3 h-3";
   switch (key) {
+    case "random":
+      return <svg className={cls} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" /></svg>;
     case "crud":
       return <svg className={cls} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 0 0-3.7-3.7 48.678 48.678 0 0 0-7.324 0 4.006 4.006 0 0 0-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 0 0 3.7 3.7 48.656 48.656 0 0 0 7.324 0 4.006 4.006 0 0 0 3.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3-3 3" /></svg>;
     case "errors":

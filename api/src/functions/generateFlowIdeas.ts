@@ -319,8 +319,22 @@ export async function generateFlowIdeasHandler(
       ? `\n\n**MODE: Minimal (No Prerequisites, No Teardown)** — Do NOT create prerequisite entities. Use \`{{proj.variableName}}\` for foreign key IDs. Do NOT include teardown/DELETE steps.`
       : "";
 
-  const focusPrompt = body.prompt?.trim()
-    ? `\n\n## Focus Area\nThe QA engineer wants to focus on: ${body.prompt.trim()}\nGenerate ideas aligned with this focus while still covering the provided specs.`
+  // "__random__" sentinel: pick a random focus pattern for variety
+  const RANDOM_PATTERNS = [
+    "Generate CRUD lifecycle flows for each entity — create, read, update, delete with proper setup and teardown.",
+    "Focus on error scenarios: missing required fields (400), unauthorized access (401), resource not found (404), and validation errors (422).",
+    "Test foreign key relationships between resources — verify that child resources correctly reference parent entities and that cascading operations work.",
+    "Test bulk create/update/delete endpoints and verify their interaction with single-resource CRUD endpoints.",
+    "Test state transition workflows: publish/unpublish, lock/unlock, draft/active, enable/disable — verify correct status changes and constraints.",
+    "Test authentication and authorization: missing token (401), invalid token (401), insufficient permissions (403), expired token scenarios.",
+  ];
+
+  const rawPrompt = body.prompt?.trim() === "__random__"
+    ? RANDOM_PATTERNS[Math.floor(Math.random() * RANDOM_PATTERNS.length)]
+    : body.prompt?.trim();
+
+  const focusPrompt = rawPrompt
+    ? `\n\n## Focus Area\nThe QA engineer wants to focus on: ${rawPrompt}\nGenerate ideas aligned with this focus while still covering the provided specs.`
     : "";
 
   const userMessage = `Analyze these API specifications and generate up to ${requestedCount} NEW test flow ideas.${scopeNote}${versionDirective}${modeNote}${focusPrompt}${existingList}${dependencyMap}\n\n## Spec Files\n\n${specText}`;

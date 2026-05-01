@@ -6,6 +6,11 @@ export interface IdeaTemplate {
 
 export const IDEA_TEMPLATES: IdeaTemplate[] = [
   {
+    key: "random",
+    label: "Random",
+    prompt: "__random__",
+  },
+  {
     key: "crud",
     label: "CRUD lifecycle",
     prompt: "Generate CRUD lifecycle flows for each entity — create, read, update, delete with proper setup and teardown.",

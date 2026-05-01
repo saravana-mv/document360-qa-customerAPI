@@ -143,6 +143,19 @@ export function IdeasFlowsPage() {
   useEffect(() => { try { localStorage.setItem("ideasflows_ideas_width", String(ideasWidth)); } catch { /* ignore */ } }, [ideasWidth]);
   useEffect(() => { try { localStorage.setItem("ideasflows_flows_width", String(flowsWidth)); } catch { /* ignore */ } }, [flowsWidth]);
 
+  // Build human-friendly display name from folder tree (e.g. "V3 / AI Search Analytics")
+  const folderDisplayName = useMemo(() => {
+    if (!selectedFolderPath) return "";
+    const parts: string[] = [];
+    let current = selectedFolderPath;
+    while (current) {
+      const folder = folders.find((f) => f.path === current);
+      parts.unshift(folder?.name ?? current.split("/").pop() ?? current);
+      current = folder?.parentPath ?? "";
+    }
+    return parts.join(" / ");
+  }, [selectedFolderPath, folders]);
+
   // Workshop is visible when aggregated data exists for the current path
   const activePath = selectedFolderPath;
   const showWorkshop = ideas.length > 0 || ideasLoading || ideasAppending || ideasError !== null || ideasMessage !== null;
@@ -1217,6 +1230,7 @@ export function IdeasFlowsPage() {
                       ideaMode={ideaMode}
                       onModeChange={setIdeaMode}
                       folderPath={activePath!}
+                      folderDisplayName={folderDisplayName}
                     />
                   </div>
 
@@ -1306,6 +1320,7 @@ export function IdeasFlowsPage() {
                       {showLandingModal && (
                         <GenerateIdeasModal
                           folderPath={activePath!}
+                          folderDisplayName={folderDisplayName}
                           currentMode={ideaMode}
                           onGenerate={(count, mode, specFiles, prompt) => {
                             setIdeaMode(mode);
@@ -1362,6 +1377,7 @@ export function IdeasFlowsPage() {
       {showNewIdeasModal && (
         <GenerateIdeasModal
           folderPath={activePath!}
+          folderDisplayName={folderDisplayName}
           currentMode={ideaMode}
           onGenerate={(count, mode, specFiles, prompt) => {
             setIdeaMode(mode);
