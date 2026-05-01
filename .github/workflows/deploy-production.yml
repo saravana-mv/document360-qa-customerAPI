@@ -29,7 +29,7 @@ jobs:
         with:
           submodules: true
           lfs: false
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Test API functions
         working-directory: api
@@ -48,7 +48,7 @@ jobs:
           npm ci
           npm run build
           APP_VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).appVersion || '1.0'")
-          BUILD_NUM=$(git rev-list --count HEAD)
+          BUILD_NUM=${{ github.run_number }}
           echo "{\"version\":\"${APP_VERSION}.${BUILD_NUM}\"}" > dist/version.json
           cp staticwebapp.config.json dist/staticwebapp.config.json
 
