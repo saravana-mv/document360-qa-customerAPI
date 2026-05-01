@@ -339,7 +339,7 @@ export function FlowIdeasPanel({
         const deletingCount = deletingIds.size;
         const flowsToDelete = ideas?.filter(i => deletingIds.has(i.id) && lockedIds.has(i.id)).length ?? 0;
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
             <div className="bg-white rounded-lg shadow-xl border border-[#d1d9e0] w-[400px] max-w-[90vw]" onClick={e => e.stopPropagation()}>
               <div className="flex items-center gap-2 px-4 py-3 border-b border-[#d1d9e0]">
                 <div className="w-8 h-8 rounded-full bg-[#ffebe9] flex items-center justify-center shrink-0">
@@ -397,7 +397,7 @@ export function FlowIdeasPanel({
         const hasFlow = idea ? lockedIds.has(idea.id) : false;
         const isQueued = idea ? markedIds.has(idea.id) : false;
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setRowDeleteId(null)}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
             <div className="bg-white rounded-lg shadow-xl border border-[#d1d9e0] w-[420px] max-w-[90vw]" onClick={e => e.stopPropagation()}>
               <div className="flex items-center gap-2 px-4 py-3 border-b border-[#d1d9e0]">
                 <div className="w-8 h-8 rounded-full bg-[#ffebe9] flex items-center justify-center shrink-0">

@@ -46,7 +46,6 @@ export function CustomPromptModal({ onSubmit, onClose }: CustomPromptModalProps)
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      onClick={onClose}
     >
       <div
         className="bg-white rounded-lg shadow-xl border border-[#d1d9e0] w-[640px] max-w-[92vw] max-h-[88vh] flex flex-col"

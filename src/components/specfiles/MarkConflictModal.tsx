@@ -20,7 +20,7 @@ export function MarkConflictModal({ existingName, suggestedNewName, flowTitle, o
   useEffect(() => { setRenameValue(suggestedNewName); }, [suggestedNewName]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onCancel}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div
         className="bg-white rounded-lg shadow-xl border border-[#d1d9e0] w-[520px] max-w-[92vw]"
         onClick={(e) => e.stopPropagation()}

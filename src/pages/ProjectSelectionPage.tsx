@@ -298,7 +298,7 @@ export function ProjectSelectionPage() {
 
       {/* Delete confirmation modal */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDeleteTarget(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-lg shadow-xl border border-[#d1d9e0] w-[480px] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 px-5 py-4 border-b border-[#d1d9e0]">
               <div className="w-8 h-8 rounded-full bg-[#ffebe9] flex items-center justify-center shrink-0">

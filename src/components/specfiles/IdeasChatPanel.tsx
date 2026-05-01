@@ -124,7 +124,7 @@ export function IdeasChatPanel({ aiModel, onIdeaAccepted, onClose }: IdeasChatPa
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
         <div
           className="w-[600px] max-w-[92vw] h-[70vh] max-h-[700px] bg-white rounded-xl shadow-xl border border-[#d1d9e0]/70 flex flex-col overflow-hidden"
           onClick={(e) => e.stopPropagation()}

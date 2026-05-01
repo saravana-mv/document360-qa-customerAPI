@@ -99,7 +99,7 @@ export function SpecFilePicker({ currentPaths, onSave, onClose }: Props) {
   const allExpanded = sortedGroups.length > 0 && sortedGroups.every(([f]) => expandedFolders.has(f));
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30">
       <div
         className="w-[520px] max-w-[92vw] max-h-[80vh] bg-white rounded-xl shadow-xl border border-[#d1d9e0]/70 flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}

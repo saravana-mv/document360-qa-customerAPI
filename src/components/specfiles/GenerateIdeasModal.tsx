@@ -45,7 +45,7 @@ export function GenerateIdeasModal({ folderPath, onGenerate, onClose, currentMod
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
         <div
           className="w-[480px] max-w-[92vw] bg-white rounded-2xl shadow-xl border border-[#d1d9e0]/70 overflow-hidden"
           onClick={e => e.stopPropagation()}

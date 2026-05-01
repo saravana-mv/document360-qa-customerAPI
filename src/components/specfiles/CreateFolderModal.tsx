@@ -42,7 +42,7 @@ export function CreateFolderModal({ folders, presetParentPath, onSave, onClose }
     .sort((a, b) => a.path.localeCompare(b.path));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
       <div
         className="w-[420px] max-w-[92vw] bg-white rounded-xl shadow-xl border border-[#d1d9e0]/70 overflow-hidden"
         onClick={(e) => e.stopPropagation()}

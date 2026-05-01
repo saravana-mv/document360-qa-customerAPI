@@ -1394,7 +1394,7 @@ export function IdeasFlowsPage() {
       {renamingFolder && (() => {
         const rf = renamingFolder;
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setRenamingFolder(null)}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
             <div className="w-[360px] bg-white rounded-xl shadow-xl border border-[#d1d9e0]/70 p-5" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-semibold text-[#1f2328]">Rename folder</h2>

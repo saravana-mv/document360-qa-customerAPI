@@ -64,7 +64,7 @@ export function ScenarioEnvOverrideModal({ flowPath, scenarioName, onClose }: Sc
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div
         className="bg-white rounded-lg shadow-xl border border-[#d1d9e0] w-[480px] max-w-[95vw] max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
