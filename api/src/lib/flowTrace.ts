@@ -47,6 +47,8 @@ export interface FlowTraceDocument {
 
   specContextHeaders: string[];
 
+  stepContext: string | null;
+
   prompt: {
     systemPrompt: string;
     userMessage: string;
@@ -123,6 +125,7 @@ export interface TraceBuilder {
   setIdeaRef(idea: { id: string; description: string; steps: string[]; entities: string[] } | null): void;
   setSpecSelection(sel: FlowTraceDocument["specSelection"]): void;
   setSpecContext(specContext: string): void;
+  setStepContext(text: string): void;
   setPrompt(systemPrompt: string, userMessage: string): void;
   /** Wraps a post-processor, recording before/after diff. Returns the processed XML. */
   wrapPostProcessor(name: string, xml: string, fn: (xml: string) => string): string;
@@ -149,6 +152,7 @@ export function createTraceBuilder(
     ideaRef: null,
     specSelection: { source: "client", totalBlobFiles: 0, selectedFiles: [], cappedAt: 0, survivedFiles: [], failedFiles: [] },
     specContextHeaders: [],
+    stepContext: null,
     prompt: { systemPrompt: "", userMessage: "" },
     postProcessing: [],
     model: null,
@@ -165,6 +169,10 @@ export function createTraceBuilder(
 
     setSpecContext(specContext) {
       doc.specContextHeaders = extractHeaders(specContext);
+    },
+
+    setStepContext(text) {
+      doc.stepContext = text.slice(0, MAX_PROMPT_SIZE);
     },
 
     setPrompt(systemPrompt, userMessage) {

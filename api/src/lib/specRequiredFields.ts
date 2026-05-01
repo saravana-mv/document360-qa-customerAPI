@@ -656,12 +656,12 @@ export function analyzeCrossStepDependencies(
     instructions.join("\n");
 }
 
-function toCamelCase(snakeCase: string): string {
+export function toCamelCase(snakeCase: string): string {
   return snakeCase.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 }
 
 /** Check if a field name matches any project variable (snake_case or camelCase). */
-function matchesProjectVariable(
+export function matchesProjectVariable(
   fieldName: string,
   projVars: { name: string; value: string }[],
 ): boolean {
@@ -699,21 +699,29 @@ interface ParsedStep {
   path: string;
 }
 
-interface SpecEndpoint {
+export interface ItemSchema {
+  parentField: string;
+  requiredFields: string[];
+  allFields: string[];
+}
+
+export interface SpecEndpoint {
   method: string;
   path: string;
   requiredRequestFields: string[];
   allRequestFields: string[];   // all field names from the request body table
   responseFields: string[];  // bare field names from response
+  specFilePath: string | null;  // from ## filename.md header preceding the endpoint
+  itemSchemas: ItemSchema[];    // from ### Array Item Schema sections
 }
 
 /** Normalize a path for comparison: replace all {param} with * */
-function normalizePath(p: string): string {
+export function normalizePath(p: string): string {
   return p.replace(/\{[^}]+\}/g, "*").toLowerCase();
 }
 
 /** Parse distilled spec sections into structured endpoint info. */
-function parseSpecEndpoints(distilledContext: string): SpecEndpoint[] {
+export function parseSpecEndpoints(distilledContext: string): SpecEndpoint[] {
   const endpointRe = /## Endpoint: (GET|POST|PUT|PATCH|DELETE) (\S+)/g;
   const sections: { method: string; path: string; text: string; start: number }[] = [];
   let em: RegExpExecArray | null;
@@ -725,32 +733,95 @@ function parseSpecEndpoints(distilledContext: string): SpecEndpoint[] {
     sections[i].text = distilledContext.slice(sections[i].start, end);
   }
 
+  // Build a map from endpoint position to the preceding ## filename.md header
+  const headerRe = /^## ([\w/.-]+\.md)\s*$/gm;
+  const headers: { path: string; pos: number }[] = [];
+  let hm: RegExpExecArray | null;
+  while ((hm = headerRe.exec(distilledContext)) !== null) {
+    headers.push({ path: hm[1], pos: hm.index });
+  }
+
   const endpoints: SpecEndpoint[] = [];
   for (const sec of sections) {
-    // Required request fields
+    // Find the nearest preceding ## filename.md header
+    let specFilePath: string | null = null;
+    for (let h = headers.length - 1; h >= 0; h--) {
+      if (headers[h].pos < sec.start) {
+        specFilePath = headers[h].path;
+        break;
+      }
+    }
+
+    // Top-level required request fields (exclude per-item)
     const reqFields: string[] = [];
-    const reqRe = /\*\*REQUIRED FIELDS(?:\s*\(per item\))?:\s*(.+?)\*\*/g;
+    const topReqRe = /\*\*REQUIRED FIELDS:\s*(.+?)\*\*/g;
     let rm: RegExpExecArray | null;
-    while ((rm = reqRe.exec(sec.text)) !== null) {
+    while ((rm = topReqRe.exec(sec.text)) !== null) {
       const fields = rm[1].match(/`(\w+)`/g)?.map(f => f.replace(/`/g, "")) ?? [];
       reqFields.push(...fields);
     }
-    // Also pick up from table rows (required fields marked **YES**)
-    const tableRowRe = /\|\s*`(\w+)`\s*\|[^|]*\|\s*\*\*YES\*\*\s*\|/g;
-    let tr: RegExpExecArray | null;
-    while ((tr = tableRowRe.exec(sec.text)) !== null) {
-      if (!reqFields.includes(tr[1])) reqFields.push(tr[1]);
+
+    // Per-item required fields (separate bucket)
+    const itemSchemas: ItemSchema[] = [];
+    const itemSchemaRe = /### Array Item Schema: `(\w+)`/g;
+    let ism: RegExpExecArray | null;
+    while ((ism = itemSchemaRe.exec(sec.text)) !== null) {
+      const parentField = ism[1];
+      const itemStart = ism.index;
+      const nextSection = sec.text.indexOf("### ", itemStart + 1);
+      const itemText = sec.text.slice(itemStart, nextSection > itemStart ? nextSection : undefined);
+
+      const itemReqFields: string[] = [];
+      const itemReqRe = /\*\*REQUIRED FIELDS \(per item\):\s*(.+?)\*\*/g;
+      let irm: RegExpExecArray | null;
+      while ((irm = itemReqRe.exec(itemText)) !== null) {
+        const fields = irm[1].match(/`(\w+)`/g)?.map(f => f.replace(/`/g, "")) ?? [];
+        itemReqFields.push(...fields);
+      }
+
+      const itemAllFields: string[] = [];
+      const itemFieldRe = /\|\s*`(\w+)`\s*\|/g;
+      let iaf: RegExpExecArray | null;
+      while ((iaf = itemFieldRe.exec(itemText)) !== null) {
+        if (!itemAllFields.includes(iaf[1])) itemAllFields.push(iaf[1]);
+      }
+
+      itemSchemas.push({ parentField, requiredFields: itemReqFields, allFields: itemAllFields });
+    }
+
+    // Also pick per-item fields into reqFields for backward compatibility
+    // (existing post-processors expect them in requiredRequestFields)
+    const perItemRe = /\*\*REQUIRED FIELDS \(per item\):\s*(.+?)\*\*/g;
+    let pim: RegExpExecArray | null;
+    while ((pim = perItemRe.exec(sec.text)) !== null) {
+      const fields = pim[1].match(/`(\w+)`/g)?.map(f => f.replace(/`/g, "")) ?? [];
+      for (const f of fields) {
+        if (!reqFields.includes(f)) reqFields.push(f);
+      }
+    }
+
+    // Also pick up from table rows (required fields marked **YES**) — only from Request Body section (not item schemas)
+    const reqBodyStart = sec.text.indexOf("### Request Body");
+    const firstItemSchema = sec.text.indexOf("### Array Item Schema");
+    const reqBodyTableEnd = firstItemSchema > reqBodyStart ? firstItemSchema : sec.text.indexOf("### ", reqBodyStart + 1);
+    const reqBodyTopSection = reqBodyStart >= 0
+      ? sec.text.slice(reqBodyStart, reqBodyTableEnd > reqBodyStart ? reqBodyTableEnd : undefined)
+      : "";
+    if (reqBodyTopSection) {
+      const tableRowRe = /\|\s*`(\w+)`\s*\|[^|]*\|\s*\*\*YES\*\*\s*\|/g;
+      let tr: RegExpExecArray | null;
+      while ((tr = tableRowRe.exec(reqBodyTopSection)) !== null) {
+        if (!reqFields.includes(tr[1])) reqFields.push(tr[1]);
+      }
     }
 
     // All request fields (any field in the request body table, required or not)
     const allFields: string[] = [];
     const allFieldRe = /\|\s*`(\w+)`\s*\|/g;
     let af: RegExpExecArray | null;
-    // Only parse fields from the Request Body section
-    const reqBodyStart = sec.text.indexOf("### Request Body");
-    const reqBodyEnd = sec.text.indexOf("### ", reqBodyStart + 1);
+    // Only parse fields from the Request Body section (excluding item schemas)
     const reqBodySection = reqBodyStart >= 0
-      ? sec.text.slice(reqBodyStart, reqBodyEnd > reqBodyStart ? reqBodyEnd : undefined)
+      ? sec.text.slice(reqBodyStart, reqBodyTableEnd > reqBodyStart ? reqBodyTableEnd : undefined)
       : "";
     if (reqBodySection) {
       while ((af = allFieldRe.exec(reqBodySection)) !== null) {
@@ -775,7 +846,12 @@ function parseSpecEndpoints(distilledContext: string): SpecEndpoint[] {
       }
     }
 
-    endpoints.push({ method: sec.method, path: sec.path, requiredRequestFields: reqFields, allRequestFields: allFields, responseFields: respFields });
+    endpoints.push({
+      method: sec.method, path: sec.path,
+      requiredRequestFields: reqFields, allRequestFields: allFields,
+      responseFields: respFields,
+      specFilePath, itemSchemas,
+    });
   }
   return endpoints;
 }

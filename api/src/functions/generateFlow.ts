@@ -9,6 +9,7 @@ import { loadAiContext } from "../lib/aiContext";
 import { getIdeasContainer } from "../lib/cosmosClient";
 import { filterRelevantSpecs, resolveCrossFolderDeps } from "../lib/specFileSelection";
 import { createTraceBuilder, TraceBuilder } from "../lib/flowTrace";
+import { buildStepContext, formatStepContext } from "../lib/stepContext";
 
 /** Inject a metadata comment after the XML declaration so diagnostics can detect the generation mode. */
 function injectModeComment(xml: string, mode: string | undefined): string {
@@ -583,6 +584,8 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
    - Use \`{{state.fieldName}}\` in the later step's request body
    **IMPORTANT**: Only add captures for fields that ACTUALLY EXIST in the producer step's response example. Read the response example carefully — if the field is not listed there, do NOT assume it exists. Many create endpoints return a SIMPLIFIED response schema (e.g., only \`id\`, \`name\`, \`order\`) that is DIFFERENT from the full GET response. If a downstream step needs a field that no prior step's response contains, you MUST add a dedicated GET step to fetch it — NEVER add a capture for a field that isn't in the response schema.
 
+13. **Per-Step Context**: When a "# Per-Step Context" section is provided in the user message, follow it precisely — it maps each step to its spec file, lists the required body fields with recommended values, and specifies which response fields to capture and pass to later steps. Use the exact field names, value sources, and capture variables listed there. Do NOT deviate from the field names or value sources unless the spec reference section shows different information.
+
 ## Output format — MANDATORY
 
 Your response MUST begin with \`<?xml version="1.0" encoding="UTF-8"?>\` as the very first characters.
@@ -845,6 +848,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
   let specSource: "server" | "client" | "ai-provided" = "client";
   let totalBlobFiles = 0;
   let ideaMode: string | undefined;
+  let ideaSteps: string[] | undefined;
   if (body.ideaId && body.versionFolder) {
     try {
       const resolution = await resolveSpecFilesFromIdea(
@@ -854,6 +858,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       totalBlobFiles = resolution.totalBlobFiles;
       specSource = resolution.specSource;
       ideaMode = resolution.idea.mode;
+      ideaSteps = resolution.idea.steps;
       trace.setIdeaRef(resolution.idea);
       console.log(`[generateFlow] Spec selection (${specSource}): ${specFiles.length} files from idea ${body.ideaId}`, specFiles);
     } catch (e) {
@@ -934,9 +939,24 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     console.log(`[generateFlow] Cross-step dependencies detected:\n${crossStepDeps}`);
   }
 
-  const userMessage = specContext
-    ? `${body.prompt}${scopeNote}${versionDirective}\n\n# Relevant API Specification\n\n${specContext}${crossStepDeps}`
-    : body.prompt;
+  // Build per-step context when generating from an idea with steps
+  let userMessage: string;
+  if (ideaSteps?.length && specContext) {
+    const stepEntries = buildStepContext(ideaSteps, specContext, specFiles, projVars);
+    const stepContextText = formatStepContext(stepEntries);
+    console.log(`[generateFlow] Step context built: ${stepEntries.length} steps, ${stepContextText.length} chars`);
+    trace.setStepContext(stepContextText);
+    // Step context first (cheat sheet), full specs second (reference)
+    userMessage = `${body.prompt}${scopeNote}${versionDirective}\n\n` +
+      `# Per-Step Context (follow this precisely)\n\n${stepContextText}\n\n` +
+      `# Full API Specifications (reference)\n\n${specContext}`;
+    // crossStepDeps omitted — step context already contains data flow
+  } else {
+    // Fallback: ad-hoc prompt — current behavior
+    userMessage = specContext
+      ? `${body.prompt}${scopeNote}${versionDirective}\n\n# Relevant API Specification\n\n${specContext}${crossStepDeps}`
+      : body.prompt;
+  }
 
   const shouldStream = body.stream !== false; // default to streaming
   const creditInfo = { projectId, userId: oid, displayName };

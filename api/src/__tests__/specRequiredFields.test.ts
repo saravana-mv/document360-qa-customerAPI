@@ -5,6 +5,9 @@ import {
   injectCrossStepCaptures,
   injectEndpointRefs,
   stripExtraRequestFields,
+  parseSpecEndpoints,
+  normalizePath,
+  toCamelCase,
 } from "../lib/specRequiredFields";
 import { filterRelevantSpecs } from "../lib/specFileSelection";
 
@@ -891,5 +894,81 @@ No content.`;
     // Step 5: DELETE → delete-category.md injected
     const step5 = xml.match(/<step number="5">[\s\S]*?<\/step>/)?.[0] ?? "";
     expect(step5).toContain("<endpointRef>V3/categories/delete-category.md</endpointRef>");
+  });
+});
+
+// ── parseSpecEndpoints (exported helpers) ────────────────────────────
+
+describe("parseSpecEndpoints", () => {
+  it("extracts specFilePath from preceding ## header", () => {
+    const spec = `## V3/articles/create-article.md
+
+## Endpoint: POST /v3/projects/{project_id}/articles
+**REQUIRED FIELDS: \`title\`, \`category_id\`**
+
+### Response (201)
+- \`response.data.id\` — Article ID`;
+
+    const endpoints = parseSpecEndpoints(spec);
+    expect(endpoints).toHaveLength(1);
+    expect(endpoints[0].specFilePath).toBe("V3/articles/create-article.md");
+  });
+
+  it("separates top-level from per-item required fields into itemSchemas", () => {
+    const spec = `## V3/articles/bulk-create.md
+
+## Endpoint: POST /v3/projects/{project_id}/articles/bulk
+### Request Body (BulkRequest)
+**REQUIRED FIELDS: \`articles\`**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| \`articles\` | array | **YES** | Items |
+
+### Array Item Schema: \`articles\` -> ArticleItem
+**REQUIRED FIELDS (per item): \`title\`, \`category_id\`**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| \`title\` | string | **YES** | Title |
+| \`category_id\` | string | **YES** | Category |
+| \`content\` | string | no | Body |
+
+### Response (201)
+- \`response.data.id\``;
+
+    const endpoints = parseSpecEndpoints(spec);
+    expect(endpoints).toHaveLength(1);
+
+    const ep = endpoints[0];
+    // itemSchemas populated
+    expect(ep.itemSchemas).toHaveLength(1);
+    expect(ep.itemSchemas[0].parentField).toBe("articles");
+    expect(ep.itemSchemas[0].requiredFields).toEqual(["title", "category_id"]);
+    expect(ep.itemSchemas[0].allFields).toEqual(["title", "category_id", "content"]);
+  });
+
+  it("returns null specFilePath when no header precedes endpoint", () => {
+    const spec = `## Endpoint: GET /v3/projects/{project_id}/articles/{id}
+### Response (200)
+- \`response.data.id\``;
+
+    const endpoints = parseSpecEndpoints(spec);
+    expect(endpoints).toHaveLength(1);
+    expect(endpoints[0].specFilePath).toBeNull();
+  });
+});
+
+describe("normalizePath", () => {
+  it("replaces all {param} with * and lowercases", () => {
+    expect(normalizePath("/v3/projects/{project_id}/articles/{article_id}"))
+      .toBe("/v3/projects/*/articles/*");
+  });
+});
+
+describe("toCamelCase", () => {
+  it("converts snake_case to camelCase", () => {
+    expect(toCamelCase("project_version_id")).toBe("projectVersionId");
+    expect(toCamelCase("name")).toBe("name");
   });
 });
