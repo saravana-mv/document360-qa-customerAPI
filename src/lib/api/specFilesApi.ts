@@ -306,6 +306,8 @@ export interface FlowIdea {
   mode?: IdeaMode;
   costUsd?: number;
   createdAt?: string;
+  /** Trace ID from the ideas generation run that produced this idea */
+  traceId?: string;
 }
 
 export interface FlowIdeasUsage {

@@ -95,7 +95,7 @@ export function IdeasFlowsPage() {
   const [showLandingModal, setShowLandingModal] = useState(false);
   const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(new Set());
   const [showNewIdeasModal, setShowNewIdeasModal] = useState(false);
-  const [ideasTraceId, setIdeasTraceId] = useState<string | null>(null);
+
 
   // ── Flow generation state ─────────────────────────────────────────────────
   const [generatedFlows, setGeneratedFlows] = useState<GeneratedFlow[]>([]);
@@ -328,7 +328,6 @@ export function IdeasFlowsPage() {
     }
     try {
       const result = await generateFlowIdeas(contextPath, existingTitles, undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN, filePaths, ideaMode, prompt);
-      if (result.traceId) setIdeasTraceId(result.traceId);
       const perIdeaCost = result.usage && result.ideas.length > 0
         ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
         : undefined;
@@ -402,7 +401,6 @@ export function IdeasFlowsPage() {
     const existingTitles = ideas.map((i) => i.title);
     try {
       const result = await generateFlowIdeas(currentPath, existingTitles, undefined, aiModel, count, specFiles, ideaMode, prompt);
-      if (result.traceId) setIdeasTraceId(result.traceId);
       if (result.ideas.length > 0) {
         const perIdeaCost = result.usage && result.ideas.length > 0
           ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
@@ -1234,7 +1232,7 @@ export function IdeasFlowsPage() {
                       onModeChange={setIdeaMode}
                       folderPath={activePath!}
                       folderDisplayName={folderDisplayName}
-                      ideasTraceId={ideasTraceId}
+
                     />
                   </div>
 

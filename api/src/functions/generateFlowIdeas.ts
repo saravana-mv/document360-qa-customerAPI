@@ -509,6 +509,11 @@ export async function generateFlowIdeasHandler(
   });
   const traceId = await trace.save();
 
+  // Stamp each idea with its traceId so it persists through save/reload
+  for (const idea of ideas) {
+    (idea as Record<string, unknown>).traceId = traceId;
+  }
+
   return ok({ ideas, usage, traceId });
 }
 
