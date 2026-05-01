@@ -125,6 +125,10 @@ export function IdeasFlowsPage() {
     suggestedNewName: string;
   } | null>(null);
 
+  // ── Spec validation state ───────────────────────────────────────────────
+  const [specValidation, setSpecValidation] = useState<import("../lib/api/validateFlowApi").ValidationResult | null>(null);
+  const [validatingFlowId, setValidatingFlowId] = useState<string | null>(null);
+
   // ── Resizable panel widths (persisted) ───────────────────────────────────
   const [treeWidth, setTreeWidth] = useState(() => {
     try { const v = localStorage.getItem("ideasflows_tree_width"); if (v) return parseInt(v, 10); } catch { /* ignore */ }
@@ -655,6 +659,29 @@ export function IdeasFlowsPage() {
         const flowBlobName = buildFlowFilePath(activePath, flow.title);
         void saveFlowFile(flowBlobName, newXml, true).catch(() => {});
       }
+    }
+  }
+
+  // ── Spec validation ──────────────────────────────────────────────────────
+
+  async function handleValidateFlow(flow: GeneratedFlow) {
+    if (!flow.xml || validatingFlowId) return;
+    setValidatingFlowId(flow.ideaId);
+    setSpecValidation(null);
+    setActiveFlowId(flow.ideaId);
+    try {
+      const { validateFlow } = await import("../lib/api/validateFlowApi");
+      const versionRoot = (activePath ?? "").split("/")[0] ?? "";
+      const result = await validateFlow(flow.xml, versionRoot);
+      setSpecValidation(result);
+    } catch (err) {
+      setSpecValidation({
+        valid: false,
+        issues: [{ severity: "error", step: null, category: "api-error", message: err instanceof Error ? err.message : "Validation request failed" }],
+        summary: { errors: 1, warnings: 0, info: 0 },
+      });
+    } finally {
+      setValidatingFlowId(null);
     }
   }
 
@@ -1268,6 +1295,8 @@ export function IdeasFlowsPage() {
                             const path = buildFlowFilePath(folder, flow.title);
                             navigator.clipboard.writeText(path);
                           }}
+                          onValidateFlow={handleValidateFlow}
+                          validatingFlowId={validatingFlowId}
                         />
                       </div>
                       <ResizeHandle width={flowsWidth} onResize={setFlowsWidth} minWidth={180} maxWidth={500} />
@@ -1288,6 +1317,8 @@ export function IdeasFlowsPage() {
                           canUnlockFlow={canUnlockFlow}
                           onUnlockFlow={selectedFlowLock ? () => void handleUnlockSelectedFlow() : undefined}
                           folderPath={parentFolderOf(activePath)}
+                          specValidation={specValidation}
+                          onClearSpecValidation={() => setSpecValidation(null)}
                         />
                       </div>
                     </>

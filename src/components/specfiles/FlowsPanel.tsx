@@ -49,6 +49,10 @@ interface Props {
   onCancelGeneration?: () => void;
   /** Copy the flow XML blob path to clipboard */
   onCopyFlowId?: (flow: GeneratedFlow) => void;
+  /** Validate flow against spec */
+  onValidateFlow?: (flow: GeneratedFlow) => void;
+  /** Whether validation is in progress */
+  validatingFlowId?: string | null;
 }
 
 function formatRelativeTime(iso: string): string {
@@ -91,7 +95,7 @@ const STATUS_ICON: Record<string, React.ReactNode> = {
   ),
 };
 
-export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickFlow, onDownloadFlow, onDownloadAll, onDeleteFlow, onDeleteAllFlows, onStartNewIdeas, onMarkForImplementation, onMarkSelectedForImplementation, markedIds, markingIds, selectedFlowIds, onToggleSelectFlow, onSelectAllFlows, onDeselectAllFlows, thisLevelOnly, onToggleThisLevel, onCancelGeneration, onCopyFlowId }: Props) {
+export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickFlow, onDownloadFlow, onDownloadAll, onDeleteFlow, onDeleteAllFlows, onStartNewIdeas, onMarkForImplementation, onMarkSelectedForImplementation, markedIds, markingIds, selectedFlowIds, onToggleSelectFlow, onSelectAllFlows, onDeselectAllFlows, thisLevelOnly, onToggleThisLevel, onCancelGeneration, onCopyFlowId, onValidateFlow, validatingFlowId }: Props) {
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [deleteFlowId, setDeleteFlowId] = useState<string | null>(null);
   const [flowTraceData, setFlowTraceData] = useState<FlowTrace | null>(null);
@@ -338,6 +342,14 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
                       items.push({ label: "Download XML", icon: MenuIcons.download, onClick: () => onDownloadFlow(flow) });
                       if (onCopyFlowId) {
                         items.push({ label: "Copy Flow XML ID", icon: MenuIcons.clipboard, onClick: () => onCopyFlowId(flow) });
+                      }
+                      if (onValidateFlow) {
+                        items.push({
+                          label: validatingFlowId === flow.ideaId ? "Validating..." : "Validate against spec",
+                          icon: MenuIcons.inspect,
+                          onClick: () => onValidateFlow(flow),
+                          disabled: validatingFlowId === flow.ideaId,
+                        });
                       }
                       if (flow.traceId) {
                         items.push({ label: "View generation trace", icon: MenuIcons.inspect, onClick: () => handleShowFlowTrace(flow.traceId!) });
