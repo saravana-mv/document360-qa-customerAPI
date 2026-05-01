@@ -44,7 +44,22 @@ function KV({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+/** Convert a slugified folder path to a human-friendly display name. */
+function humanizePath(path: string): string {
+  return path
+    .split("/")
+    .map(seg =>
+      seg
+        .split("-")
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" "),
+    )
+    .join(" / ");
+}
+
 export default function IdeasTraceModal({ trace, onClose }: Props) {
+  const filesAnalyzed = trace.specContext.filesAnalyzed;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.4)" }}>
       <div
@@ -71,16 +86,16 @@ export default function IdeasTraceModal({ trace, onClose }: Props) {
           {/* Model & Cost */}
           <Section title="Model & Cost" defaultOpen>
             {trace.model ? (
-              <div className="flex gap-6 text-sm">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-0.5">
                 <KV label="Model" value={trace.model.name} />
+                <KV label="Cost" value={`$${trace.model.costUsd.toFixed(4)}`} />
                 <KV label="Input tokens" value={trace.model.inputTokens.toLocaleString()} />
                 <KV label="Output tokens" value={trace.model.outputTokens.toLocaleString()} />
-                <KV label="Cost" value={`$${trace.model.costUsd.toFixed(4)}`} />
               </div>
             ) : (
               <span className="text-xs" style={{ color: "#656d76" }}>No model data</span>
             )}
-            <div className="mt-1">
+            <div className="mt-1 grid grid-cols-2 gap-x-6 gap-y-0.5">
               <KV label="Generated" value={new Date(trace.createdAt).toLocaleString()} />
               <KV label="By" value={trace.createdBy.name} />
             </div>
@@ -88,23 +103,13 @@ export default function IdeasTraceModal({ trace, onClose }: Props) {
 
           {/* Request */}
           <Section title="Request" defaultOpen>
-            <KV label="Folder path" value={<span className="font-mono text-xs">{trace.request.folderPath}</span>} />
+            <KV label="Destination path" value={<span className="text-sm">{humanizePath(trace.request.folderPath)}</span>} />
             <KV label="Mode" value={trace.request.mode} />
             <KV label="Max count" value={trace.request.maxCount} />
             <KV label="Scope" value={trace.request.scope} />
             <KV label="Existing ideas" value={trace.request.existingIdeasCount} />
             {trace.request.prompt && (
               <KV label="Prompt" value={trace.request.prompt} />
-            )}
-            {trace.request.filePaths.length > 0 && (
-              <div className="mt-2">
-                <span className="text-xs font-medium" style={{ color: "#656d76" }}>Explicit file paths ({trace.request.filePaths.length}):</span>
-                <div className="mt-1 text-xs font-mono space-y-0.5" style={{ color: "#1f2328" }}>
-                  {trace.request.filePaths.map((f, i) => (
-                    <div key={i}>{f}</div>
-                  ))}
-                </div>
-              </div>
             )}
           </Section>
 
@@ -122,6 +127,18 @@ export default function IdeasTraceModal({ trace, onClose }: Props) {
                     <div key={i}>{f}</div>
                   ))}
                 </div>
+              </div>
+            )}
+            {/* Tip: suggest more ideas when many spec files */}
+            {filesAnalyzed >= 10 && trace.request.maxCount < 10 && (
+              <div className="flex items-start gap-2 mt-3 px-3 py-2 rounded-md" style={{ background: "#ddf4ff", border: "1px solid #b6e3ff" }}>
+                <svg className="w-3.5 h-3.5 text-[#0969da] shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+                </svg>
+                <p className="text-xs text-[#1f2328]">
+                  <strong>{filesAnalyzed} spec files</strong> were analyzed but only {trace.request.maxCount} ideas were requested.
+                  With this many files the AI cost is mostly fixed — consider generating more ideas (e.g. 10) to get better coverage at the same cost.
+                </p>
               </div>
             )}
           </Section>

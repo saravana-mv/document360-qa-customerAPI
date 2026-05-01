@@ -75,16 +75,16 @@ export default function FlowTraceModal({ trace, onClose }: Props) {
           {/* Model & Cost */}
           <Section title="Model & Cost" defaultOpen>
             {trace.model ? (
-              <div className="flex gap-6 text-sm">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-0.5">
                 <KV label="Model" value={trace.model.name} />
+                <KV label="Cost" value={`$${trace.model.costUsd.toFixed(4)}`} />
                 <KV label="Input tokens" value={trace.model.inputTokens.toLocaleString()} />
                 <KV label="Output tokens" value={trace.model.outputTokens.toLocaleString()} />
-                <KV label="Cost" value={`$${trace.model.costUsd.toFixed(4)}`} />
               </div>
             ) : (
               <span className="text-xs" style={{ color: "#656d76" }}>No model data</span>
             )}
-            <div className="mt-1">
+            <div className="mt-1 grid grid-cols-2 gap-x-6 gap-y-0.5">
               <KV label="Generated" value={new Date(trace.createdAt).toLocaleString()} />
               <KV label="By" value={trace.createdBy.name} />
             </div>
