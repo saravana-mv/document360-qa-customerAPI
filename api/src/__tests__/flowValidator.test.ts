@@ -101,6 +101,24 @@ describe("detectStructuralIssues", () => {
     expect(descIssues).toHaveLength(1);
     expect(descIssues[0].severity).toBe("info");
   });
+
+  it("flags empty objects in request body", () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<flow xmlns="https://flowforge.io/qa/flow/v1">
+  <name>Test</name><entity>articles</entity><description>Test</description>
+  <steps>
+    <step number="1">
+      <name>Bulk Create</name><method>POST</method><path>/v2/articles/bulk</path>
+      <body><![CDATA[{"articles": [{}, {}]}]]></body>
+      <assertions><assertion type="status" code="201" /></assertions>
+    </step>
+  </steps>
+</flow>`;
+    const { issues } = detectStructuralIssues(xml);
+    const emptyObj = issues.filter((i) => i.category === "empty-body-objects");
+    expect(emptyObj).toHaveLength(1);
+    expect(emptyObj[0].severity).toBe("error");
+  });
 });
 
 describe("detectMissingRequiredFields", () => {
@@ -267,6 +285,25 @@ describe("detectBareAssertionFields", () => {
     const issues = detectBareAssertionFields(flow);
     expect(issues).toHaveLength(1);
     expect(issues[0].suggestion).toContain("response.data.title");
+  });
+
+  it("does not flag data[N].field array access patterns", () => {
+    const flow = parseFlowXml(`<?xml version="1.0" encoding="UTF-8"?>
+<flow xmlns="https://flowforge.io/qa/flow/v1">
+  <name>Test</name><entity>articles</entity>
+  <steps>
+    <step number="1">
+      <name>Bulk</name><method>POST</method><path>/v2/articles/bulk</path>
+      <body><![CDATA[{"articles": [{"title": "A"}]}]]></body>
+      <assertions>
+        <assertion type="field-exists" field="data[0].id" />
+        <assertion type="field-equals" field="data[0].success" value="true" />
+      </assertions>
+    </step>
+  </steps>
+</flow>`);
+    const issues = detectBareAssertionFields(flow);
+    expect(issues).toHaveLength(0);
   });
 });
 

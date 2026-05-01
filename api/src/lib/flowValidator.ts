@@ -121,6 +121,20 @@ export function detectStructuralIssues(flowXml: string): { issues: ValidationIss
         suggestion: "POST/PUT requests typically require a request body",
       });
     }
+
+    // Detect empty objects {} in request body (e.g. bulk array items with no fields)
+    if (step.body) {
+      const collapsed = step.body.replace(/\s+/g, "");
+      if (collapsed.includes("{}")) {
+        issues.push({
+          severity: "error",
+          step: step.number,
+          category: "empty-body-objects",
+          message: `Request body contains empty objects {} — required fields are missing`,
+          suggestion: "Fill in the required fields for each object in the request body",
+        });
+      }
+    }
   }
 
   return { issues, flow };
@@ -347,7 +361,8 @@ export function detectBareAssertionFields(flow: ParsedFlow): ValidationIssue[] {
       if (assertion.type === "status") continue;
       const field = "field" in assertion ? assertion.field : null;
       if (!field) continue;
-      if (!field.startsWith("response.") && !field.startsWith("data.")) {
+      // Accept response.*, data.*, and data[N].* (array access) as valid prefixes
+      if (!field.startsWith("response.") && !field.startsWith("data.") && !field.startsWith("data[")) {
         // Bare field — likely missing response. prefix
         issues.push({
           severity: "warning",
