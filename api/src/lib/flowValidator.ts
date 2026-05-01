@@ -254,8 +254,10 @@ export function detectMissingCaptures(flow: ParsedFlow): ValidationIssue[] {
     }
 
     // Register captures from this step (for later steps)
+    // Parser stores variable as "state.categoryId" — strip "state." prefix to match findStateRefs output
     for (const cap of step.captures) {
-      captured.add(cap.variable);
+      const bare = cap.variable.replace(/^state\./, "");
+      captured.add(bare);
     }
   }
 
@@ -269,7 +271,9 @@ export function detectCircularAssertions(flow: ParsedFlow): ValidationIssue[] {
     // Build set of variables captured in THIS step
     const capturedInThisStep = new Map<string, string>();
     for (const cap of step.captures) {
-      capturedInThisStep.set(cap.variable, cap.source);
+      // Parser stores "state.categoryId" — strip prefix to match findStateRefs output
+      const bare = cap.variable.replace(/^state\./, "");
+      capturedInThisStep.set(bare, cap.source);
     }
 
     for (const assertion of step.assertions) {
@@ -371,11 +375,9 @@ export function detectMissingPrerequisites(
   // Track what entities are created by POST steps
   for (const step of flow.steps) {
     if (step.method === "POST") {
-      // Extract resource name from path, e.g. /v2/categories → "category"
-      const parts = step.path.replace(/^\/v\d+\//i, "").split("/").filter(Boolean);
-      if (parts.length > 0) {
-        const resource = parts[0].replace(/s$/, ""); // rough singularize
-        createdEntities.add(resource);
+      const resource = extractPathResource(step.path);
+      if (resource) {
+        createdEntities.add(resource.replace(/s$/, "")); // rough singularize
       }
     }
   }
@@ -418,16 +420,16 @@ export function detectMissingTeardown(flow: ParsedFlow): ValidationIssue[] {
   const created: { step: ParsedStep; resource: string }[] = [];
   for (const step of flow.steps) {
     if (step.method !== "POST") continue;
-    const parts = step.path.replace(/^\/v\d+\//i, "").split("/").filter(Boolean);
-    if (parts.length > 0) created.push({ step, resource: parts[0] });
+    const resource = extractPathResource(step.path);
+    if (resource) created.push({ step, resource });
   }
 
   // Collect resources deleted by DELETE
   const deleted = new Set<string>();
   for (const step of flow.steps) {
     if (step.method !== "DELETE") continue;
-    const parts = step.path.replace(/^\/v\d+\//i, "").split("/").filter(Boolean);
-    if (parts.length > 0) deleted.add(parts[0]);
+    const resource = extractPathResource(step.path);
+    if (resource) deleted.add(resource);
   }
 
   for (const { step, resource } of created) {
@@ -482,6 +484,30 @@ export function detectUnresolvedVariables(
   return issues;
 }
 
+/** Extract the primary API resource from a URL path.
+ *  /v3/projects/{project_id}/categories/{id} → "categories"
+ *  /v2/categories/{id} → "categories"
+ *  Skips version prefix and projects/{id} scoping segments. */
+function extractPathResource(path: string): string | null {
+  const parts = path.replace(/^\//, "").split("/").filter(Boolean);
+  // Skip segments: version prefix (v1, v2, …), "projects", and path params ({…})
+  const meaningful = parts.filter(
+    (p) => !/^v\d+$/i.test(p) && p !== "projects" && !p.startsWith("{"),
+  );
+  return meaningful[0]?.toLowerCase() ?? null;
+}
+
+/** Extract the resource folder from an endpointRef.
+ *  "V3/categories/create-category.md" → "categories"
+ *  "articles/create-article.md" → "articles" */
+function extractRefResource(ref: string): string | null {
+  const parts = ref.split("/").filter(Boolean);
+  // Skip version prefix segments (V3, v2, …)
+  const meaningful = parts.filter((p) => !/^v\d+$/i.test(p));
+  // The resource folder is the first meaningful segment (before the filename)
+  return meaningful.length > 1 ? meaningful[0].toLowerCase() : null;
+}
+
 export function detectMismatchedEndpointRefs(
   flow: ParsedFlow,
   endpoints: SpecEndpoint[],
@@ -491,13 +517,8 @@ export function detectMismatchedEndpointRefs(
   for (const step of flow.steps) {
     if (!step.endpointRef) continue;
 
-    // Extract resource from path: /v2/categories/{id} → "categories"
-    const pathParts = step.path.replace(/^\/v\d+\//i, "").split("/").filter(Boolean);
-    const pathResource = pathParts[0]?.toLowerCase();
-
-    // Extract resource from endpointRef: "articles/create-article.md" → "articles"
-    const refParts = step.endpointRef.split("/");
-    const refResource = refParts.length > 1 ? refParts[0].toLowerCase() : null;
+    const pathResource = extractPathResource(step.path);
+    const refResource = extractRefResource(step.endpointRef);
 
     if (pathResource && refResource && pathResource !== refResource) {
       issues.push({

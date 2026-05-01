@@ -216,7 +216,7 @@ describe("detectCircularAssertions", () => {
     <step number="1">
       <name>Create</name><method>POST</method><path>/v2/articles</path>
       <body><![CDATA[{"title": "Test"}]]></body>
-      <captures><capture variable="theId" source="data.id" /></captures>
+      <captures><capture variable="state.theId" source="data.id" /></captures>
       <assertions>
         <assertion type="status" code="201" />
         <assertion type="field-equals" field="response.data.id" value="{{state.theId}}" />
@@ -334,6 +334,25 @@ describe("detectMismatchedEndpointRefs", () => {
     const issues = detectMismatchedEndpointRefs(flow, []);
     expect(issues).toHaveLength(1);
     expect(issues[0].category).toBe("mismatched-ref");
+  });
+
+  it("does not flag matching resources with projects/{id} scoping", () => {
+    const flow = parseFlowXml(`<?xml version="1.0" encoding="UTF-8"?>
+<flow xmlns="https://flowforge.io/qa/flow/v1">
+  <name>Test</name><entity>categories</entity>
+  <steps>
+    <step number="1">
+      <name>Create Category</name><method>POST</method>
+      <path>/v3/projects/{project_id}/categories</path>
+      <endpointRef>V3/categories/create-category.md</endpointRef>
+      <pathParams><param name="project_id">{{proj.project_id}}</param></pathParams>
+      <body><![CDATA[{"name": "Test"}]]></body>
+      <assertions><assertion type="status" code="201" /></assertions>
+    </step>
+  </steps>
+</flow>`);
+    const issues = detectMismatchedEndpointRefs(flow, []);
+    expect(issues).toHaveLength(0);
   });
 });
 
