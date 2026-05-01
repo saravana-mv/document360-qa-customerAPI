@@ -94,12 +94,16 @@ Always start with the simplest scenarios before progressing to complex ones. The
   } else {
     // "full" mode — current behavior
     modeRules = `
-3. **ENTITY DEPENDENCIES — CRITICAL**: Scan every endpoint's request body for foreign-key fields (any field ending in \`_id\` that references another resource, e.g. \`category_id\`, \`parent_id\`, \`folder_id\`, \`group_id\`). If a field description says "retrieve from GET /…" or the field name matches a sibling resource, the idea MUST include:
-   - A setup step BEFORE the main logic: \`POST /vN/…/{resource}\` to create the dependency
-   - A teardown step AFTER the main logic: \`DELETE /vN/…/{resource}/{id}\` to clean up
-   Even if the field is marked optional/nullable. Example: an article idea must include "POST /v3/projects/{project_id}/categories — create prerequisite category" as step 1 and "DELETE /v3/projects/{project_id}/categories/{category_id} — teardown category" as the final step before other teardown. Use the SAME version prefix as the provided specs.
-   **EXCEPTION — PROJECT VARIABLES REPLACE PREREQUISITES**: If a foreign-key field is already covered by an entry in the "## Available Project Variables" section of this prompt, do NOT add a setup step to create that entity. Use \`{{proj.variableName}}\` directly in paths and body fields instead. For example, if \`{{proj.projectId}}\` is defined, omit the "Create Project" setup step and reference the variable wherever \`{project_id}\` appears. Only generate prerequisites for entities that have no matching project variable.
-8. **TEARDOWN IS MANDATORY**: Every flow — no matter how simple — MUST include cleanup/teardown steps that delete all resources created during the flow. The testing environment must be left exactly as it was before the flow ran. Even a simple "POST creates a resource" test must include a DELETE step at the end. Include these teardown steps in the "steps" array. Do NOT tear down resources backed by project variables — only clean up entities the flow itself created.`;
+3. **ENTITY DEPENDENCIES — CRITICAL (ZERO TOLERANCE)**: Before generating each idea, you MUST scan the request body fields of EVERY endpoint involved. For ANY field ending in \`_id\` (e.g. \`category_id\`, \`parent_id\`, \`folder_id\`, \`group_id\`, \`workspace_id\`) that references another resource:
+   - **FIRST step**: \`POST /vN/…/{resource}\` to CREATE the dependency (e.g., \`POST /v3/projects/{project_id}/categories — create prerequisite category\`)
+   - **LAST steps**: \`DELETE /vN/…/{resource}/{id}\` to CLEAN UP the dependency (delete children before parents)
+
+   **This is NOT optional.** An idea that uses \`category_id\` in its body but has no category creation step is INVALID. An idea that uses \`folder_id\` but has no folder creation step is INVALID.
+
+   **SELF-CHECK**: After generating each idea, re-read the steps. For each POST/PUT/PATCH step, check if its required fields include any \`*_id\` field. If yes, verify there is a prior POST step that creates that entity. If not, ADD the missing setup and teardown steps.
+
+   **EXCEPTION — PROJECT VARIABLES REPLACE PREREQUISITES**: If a foreign-key field is already covered by an entry in the "## Available Project Variables" section of this prompt, do NOT add a setup step. Use \`{{proj.variableName}}\` instead. Only generate prerequisites for entities that have no matching project variable.
+8. **TEARDOWN IS MANDATORY**: Every flow — no matter how simple — MUST include cleanup/teardown steps that delete all resources created during the flow. The testing environment must be left exactly as it was before the flow ran. Even a simple "POST creates a resource" test must include a DELETE step at the end. Include these teardown steps in the "steps" array. Delete children before parents. Do NOT tear down resources backed by project variables — only clean up entities the flow itself created.`;
   }
 
   // Spec file references rule — only when NOT using digest
@@ -135,6 +139,147 @@ function err(status: number, data: unknown): HttpResponseInit {
     headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     body,
   };
+}
+
+/**
+ * Deterministic post-processor: inject missing prerequisite setup/teardown
+ * steps into ideas that reference _id fields without creating the entity.
+ *
+ * Scans the spec context for required _id fields on each endpoint, then
+ * checks if the idea's steps include a POST for that entity. If not,
+ * injects a setup step at the start and a teardown step at the end.
+ */
+function injectMissingPrerequisites(
+  ideas: { steps?: string[]; entities?: string[] }[],
+  specText: string,
+  version: string | null,
+  projVarNames: string[],
+): void {
+  // Build a map: endpoint path pattern → required _id fields
+  // Works with both digest format ("Required: title, category_id") and distilled ("**REQUIRED FIELDS: `title`, `category_id`**")
+  const endpointForeignKeys = new Map<string, string[]>();
+
+  // Digest format: "- **POST /v3/.../articles** — ... | Required: title, category_id"
+  const digestRe = /\*\*(GET|POST|PUT|PATCH|DELETE)\s+(\S+)\*\*[^|]*\|\s*Required:\s*([^|\n]+)/g;
+  let dm: RegExpExecArray | null;
+  while ((dm = digestRe.exec(specText)) !== null) {
+    const path = dm[2].replace(/\{[^}]+\}/g, "*").toLowerCase();
+    const key = `${dm[1]}:${path}`;
+    const fields = dm[3].split(",").map(f => f.trim()).filter(f => f.endsWith("_id") && f !== "project_id");
+    if (fields.length > 0) endpointForeignKeys.set(key, fields);
+  }
+
+  // Distilled format: "## Endpoint: POST /v3/.../articles" + "**REQUIRED FIELDS: `title`, `category_id`**"
+  const distilledRe = /## Endpoint: (GET|POST|PUT|PATCH|DELETE) (\S+)[\s\S]*?\*\*REQUIRED FIELDS:\s*([^*]+)\*\*/g;
+  let ddm: RegExpExecArray | null;
+  while ((ddm = distilledRe.exec(specText)) !== null) {
+    const path = ddm[2].replace(/\{[^}]+\}/g, "*").toLowerCase();
+    const key = `${ddm[1]}:${path}`;
+    if (endpointForeignKeys.has(key)) continue; // digest already captured
+    const fields = (ddm[3].match(/`(\w+_id)`/g) ?? [])
+      .map(f => f.replace(/`/g, ""))
+      .filter(f => f !== "project_id");
+    if (fields.length > 0) endpointForeignKeys.set(key, fields);
+  }
+
+  if (endpointForeignKeys.size === 0) return;
+
+  const vPrefix = version ?? "v1";
+
+  for (const idea of ideas) {
+    if (!Array.isArray(idea.steps) || idea.steps.length === 0) continue;
+
+    // Parse steps to find (method, path, resource) for each
+    const parsedSteps = idea.steps.map((s: string) => {
+      const m = s.match(/^(GET|POST|PUT|PATCH|DELETE)\s+(\S+)/i);
+      return m ? { method: m[1].toUpperCase(), path: m[2] } : null;
+    });
+
+    // Find all resources already created by POST steps
+    const createdResources = new Set<string>();
+    for (const ps of parsedSteps) {
+      if (!ps || ps.method !== "POST") continue;
+      const resource = extractResourceFromPath(ps.path);
+      if (resource) createdResources.add(resource);
+    }
+
+    // Check each step for _id fields that need prerequisites
+    const missingPrereqs = new Set<string>();
+    for (const ps of parsedSteps) {
+      if (!ps) continue;
+      const normPath = ps.path.replace(/\{[^}]+\}/g, "*").toLowerCase();
+      const key = `${ps.method}:${normPath}`;
+      const fkFields = endpointForeignKeys.get(key);
+      if (!fkFields) continue;
+
+      for (const field of fkFields) {
+        // Extract resource name from field: category_id → categories, folder_id → folders
+        const entitySingular = field.replace(/_id$/, "");
+        const entityPlural = entitySingular.endsWith("y")
+          ? entitySingular.slice(0, -1) + "ies"
+          : entitySingular + "s";
+
+        // Skip if covered by a project variable
+        const camelField = entitySingular.replace(/_([a-z])/g, (_: string, c: string) => c.toUpperCase()) + "Id";
+        if (projVarNames.includes(field) || projVarNames.includes(camelField.toLowerCase())) continue;
+
+        // Skip if already created by a prior step
+        if (createdResources.has(entityPlural) || createdResources.has(entitySingular)) continue;
+
+        missingPrereqs.add(entityPlural);
+      }
+    }
+
+    if (missingPrereqs.size === 0) continue;
+
+    // Inject setup steps at the beginning and teardown at the end
+    const setupSteps: string[] = [];
+    const teardownSteps: string[] = [];
+    for (const resource of missingPrereqs) {
+      const singular = resource.endsWith("ies")
+        ? resource.slice(0, -3) + "y"
+        : resource.replace(/s$/, "");
+      setupSteps.push(`POST /${vPrefix}/projects/{project_id}/${resource} — create prerequisite ${singular}`);
+      teardownSteps.push(`DELETE /${vPrefix}/projects/{project_id}/${resource}/{${singular}_id} — teardown ${singular}`);
+
+      // Also add to entities if not present
+      if (Array.isArray(idea.entities) && !idea.entities.includes(resource)) {
+        idea.entities.push(resource);
+      }
+    }
+
+    // Find where teardown starts (first DELETE step)
+    const firstDeleteIdx = idea.steps.findIndex((s: string) => /^DELETE\s/i.test(s));
+    if (firstDeleteIdx >= 0) {
+      // Insert setup at beginning, teardown before existing teardown (parents after children)
+      idea.steps = [
+        ...setupSteps,
+        ...idea.steps.slice(0, firstDeleteIdx),
+        ...idea.steps.slice(firstDeleteIdx),
+        ...teardownSteps,
+      ];
+    } else {
+      // No teardown exists — add both
+      idea.steps = [...setupSteps, ...idea.steps, ...teardownSteps];
+    }
+
+    console.log(`[injectMissingPrerequisites] Injected ${setupSteps.length} prerequisite(s) into "${(idea as { title?: string }).title}": ${[...missingPrereqs].join(", ")}`);
+  }
+}
+
+/** Extract the primary resource from a URL path (last non-param segment) */
+function extractResourceFromPath(path: string): string {
+  const segments = path.split("/").filter(
+    s => s && !s.startsWith("{") && !/^v\d+$/i.test(s) && s !== "projects",
+  );
+  // For paths like /articles/bulk or /articles/bulk/publish, take "articles"
+  // For paths like /categories, take "categories"
+  // Skip action segments (bulk, publish, etc.)
+  const actionSegments = new Set(["bulk", "publish", "unpublish", "move", "reorder", "export", "import", "search", "archive"]);
+  for (let i = segments.length - 1; i >= 0; i--) {
+    if (!actionSegments.has(segments[i])) return segments[i];
+  }
+  return segments[0] ?? "";
 }
 
 export async function generateFlowIdeasHandler(
@@ -466,6 +611,15 @@ export async function generateFlowIdeasHandler(
       );
       if (idea.specFiles.length === 0) delete idea.specFiles;
     }
+  }
+
+  // ── Inject missing prerequisites (full mode only) ──
+  // Deterministic post-processor: scan each idea's steps for _id fields
+  // that need a prerequisite entity but have no setup step.
+  if (mode === "full") {
+    const projVarNames = ctx.projectVariables.map(v => v.name.toLowerCase());
+    const specText = specContents.map(s => s.content).join("\n");
+    injectMissingPrerequisites(ideas, specText, canonicalVersion, projVarNames);
   }
 
   // ── Cross-folder spec augmentation ──
