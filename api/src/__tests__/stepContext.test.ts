@@ -8,13 +8,13 @@ const SAMPLE_SPEC_CONTEXT = `## V3/categories/create-category.md
 **Create a new category**
 
 ### Request Body (CreateCategoryRequest)
-**REQUIRED FIELDS: \`name\`, \`project_version_id\`**
+**REQUIRED FIELDS: \`name\`, \`workspace_id\`**
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | \`name\` | string | **YES** | Category name |
-| \`project_version_id\` | string | **YES** | Version ID |
-| \`description\` | string | no | Description |
+| \`workspace_id\` | string | **YES** | Workspace ID |
+| \`order\` | integer | no | Display order |
 
 ### Response (201)
 **Response fields available for capture** (use \`<capture variable="state.xxx" source="response.data.xxx"/>\`):
@@ -30,19 +30,22 @@ Key fields: response.data.id, response.data.name
 **Create a new article**
 
 ### Request Body (CreateArticleRequest)
-**REQUIRED FIELDS: \`title\`, \`category_id\`**
+**REQUIRED FIELDS: \`title\`, \`category_id\`, \`workspace_id\`**
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | \`title\` | string | **YES** | Article title |
 | \`category_id\` | string | **YES** | Parent category |
+| \`workspace_id\` | string | **YES** | Workspace ID |
 | \`content\` | string | no | HTML content |
 
 ### Response (201)
 **Response fields available for capture** (use \`<capture variable="state.xxx" source="response.data.xxx"/>\`):
 - \`response.data.id\` — Article ID
 - \`response.data.title\` — Article title
-Key fields: response.data.id, response.data.title
+- \`response.data.category_id\` — Category ID
+- \`response.data.workspace_id\` — Workspace ID
+Key fields: response.data.id, response.data.title, response.data.category_id, response.data.workspace_id
 
 ---
 
@@ -56,14 +59,15 @@ Key fields: response.data.id, response.data.title
 - \`response.data.id\` — Article ID
 - \`response.data.title\` — Article title
 - \`response.data.category_id\` — Category
-Key fields: response.data.id, response.data.title, response.data.category_id`;
+- \`response.data.workspace_id\` — Workspace ID
+Key fields: response.data.id, response.data.title, response.data.category_id, response.data.workspace_id`;
 
 // ── Tests ────────────────────────────────────────────────────────────
 
 describe("buildStepContext", () => {
   const projVars = [
     { name: "projectId", value: "proj-123" },
-    { name: "projectVersionId", value: "ver-456" },
+    { name: "workspaceId", value: "ws-456" },
   ];
 
   const specFiles = [
@@ -95,15 +99,15 @@ describe("buildStepContext", () => {
 
     const entries = buildStepContext(steps, SAMPLE_SPEC_CONTEXT, specFiles, projVars);
 
-    // Category step: name → literal, project_version_id → proj var
+    // Category step: name → literal, workspace_id → proj var
     const catFields = entries[0].requiredBodyFields;
     const nameField = catFields.find(f => f.name === "name");
     expect(nameField).toBeDefined();
     expect(nameField?.valueSource).toContain("{{timestamp}}");
 
-    const pvField = catFields.find(f => f.name === "project_version_id");
-    expect(pvField).toBeDefined();
-    expect(pvField?.valueSource).toBe("{{proj.projectVersionId}}");
+    const wsField = catFields.find(f => f.name === "workspace_id");
+    expect(wsField).toBeDefined();
+    expect(wsField?.valueSource).toBe("{{proj.workspaceId}}");
 
     // Article step: category_id → state from step 1
     const artFields = entries[1].requiredBodyFields;
@@ -192,7 +196,7 @@ describe("formatStepContext", () => {
   it("produces well-structured markdown", () => {
     const projVars = [
       { name: "projectId", value: "proj-123" },
-      { name: "projectVersionId", value: "ver-456" },
+      { name: "workspaceId", value: "ws-456" },
     ];
 
     const steps = [
@@ -214,7 +218,7 @@ describe("formatStepContext", () => {
     expect(text).toContain("Spec: V3/categories/create-category.md");
     // Should contain field hints
     expect(text).toContain("`name`");
-    expect(text).toContain("`project_version_id`");
+    expect(text).toContain("`workspace_id`");
     // Should contain capture hints
     expect(text).toContain("### Response Fields to Capture");
     expect(text).toContain("state.");
