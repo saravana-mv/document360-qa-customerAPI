@@ -15,17 +15,47 @@ async function flowTraces(req: HttpRequest): Promise<HttpResponseInit> {
   try { projectId = getProjectId(req); } catch { projectId = "unknown"; }
 
   const traceId = req.query.get("traceId");
-  if (!traceId) {
+  const folderPath = req.query.get("folderPath");
+  const traceType = req.query.get("type"); // "ideas-trace" | "flow-trace"
+
+  if (!traceId && !folderPath) {
     return {
       status: 400,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-      body: JSON.stringify({ error: "traceId query parameter is required" }),
+      body: JSON.stringify({ error: "traceId or folderPath query parameter is required" }),
     };
   }
 
   try {
     const container = await getFlowTracesContainer();
-    const { resource } = await container.item(traceId, projectId).read();
+
+    // Lookup by folderPath — return the latest trace of the given type for that folder
+    if (folderPath && !traceId) {
+      const type = traceType || "ideas-trace";
+      const { resources } = await container.items.query({
+        query: "SELECT TOP 1 * FROM c WHERE c.projectId = @pid AND c.type = @type AND c.request.folderPath = @fp ORDER BY c.createdAt DESC",
+        parameters: [
+          { name: "@pid", value: projectId },
+          { name: "@type", value: type },
+          { name: "@fp", value: folderPath },
+        ],
+      }).fetchAll();
+      if (resources.length === 0) {
+        return {
+          status: 404,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          body: JSON.stringify({ error: "No trace found for this folder" }),
+        };
+      }
+      return {
+        status: 200,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        body: JSON.stringify(resources[0]),
+      };
+    }
+
+    // Lookup by traceId
+    const { resource } = await container.item(traceId!, projectId).read();
     if (!resource) {
       return {
         status: 404,

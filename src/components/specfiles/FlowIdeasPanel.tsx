@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ContextMenu, MenuIcons } from "../common/ContextMenu";
 import type { FlowIdea, IdeaMode } from "../../lib/api/specFilesApi";
 import { GenerateIdeasModal } from "./GenerateIdeasModal";
-import { getIdeasTrace, type IdeasTrace } from "../../lib/api/flowTraceApi";
+import { getIdeasTrace, getLatestIdeasTrace, type IdeasTrace } from "../../lib/api/flowTraceApi";
 import IdeasTraceModal from "./IdeasTraceModal";
 
 function formatRelativeTime(iso: string): string {
@@ -87,6 +87,8 @@ export function FlowIdeasPanel({
   const [traceData, setTraceData] = useState<IdeasTrace | null>(null);
   const [traceLoading, setTraceLoading] = useState(false);
   const [showTrace, setShowTrace] = useState(false);
+  // Clear cached trace when folder changes
+  useEffect(() => { setTraceData(null); }, [folderPath]);
   const totalIdeas = ideas?.length ?? 0;
   const lockedCount = ideas?.filter(i => lockedIds.has(i.id)).length ?? 0;
   const selectedCount = selectedIds.size;
@@ -187,13 +189,15 @@ export function FlowIdeasPanel({
             </button>
           );
         })()}
-        {ideasTraceId && (
+        {totalIdeas > 0 && (
           <button
             onClick={async () => {
               if (traceData) { setShowTrace(true); return; }
               setTraceLoading(true);
               try {
-                const data = await getIdeasTrace(ideasTraceId);
+                const data = ideasTraceId
+                  ? await getIdeasTrace(ideasTraceId)
+                  : await getLatestIdeasTrace(folderPath);
                 if (data) { setTraceData(data); setShowTrace(true); }
               } catch { /* ignore */ }
               setTraceLoading(false);

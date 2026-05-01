@@ -49,6 +49,15 @@ export async function getIdeasTrace(traceId: string): Promise<IdeasTrace | null>
   return res.json() as Promise<IdeasTrace>;
 }
 
+export async function getLatestIdeasTrace(folderPath: string): Promise<IdeasTrace | null> {
+  const res = await fetch(`/api/flow-traces?folderPath=${encodeURIComponent(folderPath)}&type=ideas-trace`, {
+    headers: getProjectHeaders(),
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) return null;
+  return res.json() as Promise<IdeasTrace>;
+}
+
 // ── Flow Trace ────────────────────────────────────────────────────────────────
 
 export interface FlowTrace {
