@@ -7,7 +7,6 @@ export interface IdeaFolderDoc {
   name: string;
   path: string;
   parentPath: string | null;
-  specFilePaths: string[];
   order: number;
   createdAt: string;
   createdBy: { oid: string; name: string };
@@ -40,19 +39,18 @@ export async function listFolders(): Promise<IdeaFolderDoc[]> {
 export async function createFolder(
   name: string,
   parentPath: string | null,
-  specFilePaths?: string[],
 ): Promise<IdeaFolderDoc> {
   const res = await apiFetch("/api/ideas/folders", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, parentPath, specFilePaths }),
+    body: JSON.stringify({ name, parentPath }),
   });
   return res.json() as Promise<IdeaFolderDoc>;
 }
 
 export async function updateFolder(
   id: string,
-  patch: { name?: string; specFilePaths?: string[]; order?: number },
+  patch: { name?: string; order?: number },
 ): Promise<IdeaFolderDoc> {
   const res = await apiFetch("/api/ideas/folders", {
     method: "PUT",

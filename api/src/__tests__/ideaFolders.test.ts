@@ -176,7 +176,6 @@ describe("ideaFolders router", () => {
         name: "articles",
         path: "v3/articles",
         parentPath: "v3",
-        specFilePaths: ["v3/articles/create.md"],
         order: 0,
       },
     });
@@ -191,7 +190,6 @@ describe("ideaFolders router", () => {
           name: "comments",
           path: "v3/articles/comments",
           parentPath: "v3/articles",
-          specFilePaths: [],
           order: 0,
         }],
       })
@@ -216,8 +214,8 @@ describe("ideaFolders router", () => {
     expect((descendantUpsert![0] as { parentPath: string }).parentPath).toBe("v3/items");
   });
 
-  // PUT specFilePaths-only update doesn't cascade
-  it("PUT specFilePaths-only update doesn't trigger cascade", async () => {
+  // PUT order-only update doesn't cascade
+  it("PUT order-only update doesn't trigger cascade", async () => {
     mockRead.mockResolvedValueOnce({
       resource: {
         id: "ifolder:1",
@@ -226,18 +224,17 @@ describe("ideaFolders router", () => {
         name: "articles",
         path: "v3/articles",
         parentPath: "v3",
-        specFilePaths: [],
         order: 0,
       },
     });
 
     const res = await handler(
-      mockRequest("PUT", {}, { id: "ifolder:1", specFilePaths: ["v3/articles/create.md"] }),
+      mockRequest("PUT", {}, { id: "ifolder:1", order: 5 }),
       ctx
     );
     expect(res.status).toBe(200);
     const body = parseBody(res);
-    expect(body.specFilePaths).toEqual(["v3/articles/create.md"]);
+    expect(body.order).toBe(5);
 
     // Only one upsert (the folder itself), no descendant queries
     expect(mockUpsert).toHaveBeenCalledTimes(1);

@@ -3,15 +3,14 @@ import { listSpecFiles, type SpecFileItem } from "../../lib/api/specFilesApi";
 
 interface Props {
   currentPaths: string[];
-  onSave: (paths: string[]) => Promise<void>;
+  onSave: (paths: string[]) => void;
   onClose: () => void;
 }
 
-export function EditFolderSpecsModal({ currentPaths, onSave, onClose }: Props) {
+export function SpecFilePicker({ currentPaths, onSave, onClose }: Props) {
   const [specFiles, setSpecFiles] = useState<SpecFileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(() => new Set(currentPaths));
-  const [saving, setSaving] = useState(false);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -37,7 +36,7 @@ export function EditFolderSpecsModal({ currentPaths, onSave, onClose }: Props) {
         }
         setExpandedFolders(folders);
       } catch (e) {
-        console.warn("[EditFolderSpecsModal] Failed to load spec files:", e);
+        console.warn("[SpecFilePicker] Failed to load spec files:", e);
       } finally {
         setLoading(false);
       }
@@ -92,22 +91,15 @@ export function EditFolderSpecsModal({ currentPaths, onSave, onClose }: Props) {
     setExpandedFolders(new Set());
   }
 
-  async function handleSave() {
-    setSaving(true);
-    try {
-      await onSave([...selected]);
-      onClose();
-    } catch {
-      /* ignore */
-    } finally {
-      setSaving(false);
-    }
+  function handleConfirm() {
+    onSave([...selected]);
+    onClose();
   }
 
   const allExpanded = sortedGroups.length > 0 && sortedGroups.every(([f]) => expandedFolders.has(f));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30" onClick={onClose}>
       <div
         className="w-[520px] max-w-[92vw] max-h-[80vh] bg-white rounded-xl shadow-xl border border-[#d1d9e0]/70 flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
@@ -115,7 +107,7 @@ export function EditFolderSpecsModal({ currentPaths, onSave, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0">
           <h2 className="text-sm font-semibold text-[#1f2328]">
-            Edit spec files
+            Select spec files
             <span className="ml-2 text-xs font-normal text-[#656d76]">
               ({selected.size} selected)
             </span>
@@ -221,11 +213,10 @@ export function EditFolderSpecsModal({ currentPaths, onSave, onClose }: Props) {
             Cancel
           </button>
           <button
-            onClick={handleSave}
-            disabled={saving}
-            className="text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 px-3 py-1.5 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={handleConfirm}
+            className="text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 px-3 py-1.5 rounded-md transition-colors"
           >
-            {saving ? "Saving..." : `Save (${selected.size})`}
+            Confirm ({selected.size})
           </button>
         </div>
       </div>

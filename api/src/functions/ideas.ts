@@ -253,7 +253,6 @@ interface IdeaFolderDoc {
   name: string;
   path: string;
   parentPath: string | null;
-  specFilePaths: string[];
   order: number;
   createdAt: string;
   createdBy: { oid: string; name: string };
@@ -288,7 +287,6 @@ async function createFolder(req: HttpRequest): Promise<HttpResponseInit> {
     const body = (await req.json()) as {
       name?: string;
       parentPath?: string | null;
-      specFilePaths?: string[];
     };
     if (!body.name?.trim()) return err(400, "name is required");
 
@@ -327,7 +325,6 @@ async function createFolder(req: HttpRequest): Promise<HttpResponseInit> {
       name: body.name.trim(),
       path,
       parentPath,
-      specFilePaths: body.specFilePaths ?? [],
       order: (typeof maxOrder === "number" ? maxOrder : -1) + 1,
       createdAt: now,
       createdBy: { oid: user.oid, name: user.name },
@@ -350,7 +347,6 @@ async function updateFolder(req: HttpRequest): Promise<HttpResponseInit> {
     const body = (await req.json()) as {
       id?: string;
       name?: string;
-      specFilePaths?: string[];
       order?: number;
     };
     if (!body.id) return err(400, "id is required");
@@ -407,7 +403,6 @@ async function updateFolder(req: HttpRequest): Promise<HttpResponseInit> {
       existing.path = newPath;
     }
 
-    if (body.specFilePaths !== undefined) existing.specFilePaths = body.specFilePaths;
     if (body.order !== undefined) existing.order = body.order;
     existing.updatedAt = now;
     existing.updatedBy = updatedBy;

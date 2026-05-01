@@ -24,9 +24,8 @@ interface IdeaFoldersState {
   loading: boolean;
 
   loadAll(): Promise<void>;
-  create(name: string, parentPath: string | null, specFilePaths?: string[]): Promise<IdeaFolderDoc>;
+  create(name: string, parentPath: string | null): Promise<IdeaFolderDoc>;
   rename(id: string, newName: string): Promise<void>;
-  setSpecFilePaths(id: string, paths: string[]): Promise<void>;
   reorder(id: string, order: number): Promise<void>;
   remove(id: string): Promise<void>;
 
@@ -58,8 +57,8 @@ export const useIdeaFoldersStore = create<IdeaFoldersState>((set, get) => ({
     }
   },
 
-  create: async (name, parentPath, specFilePaths) => {
-    const doc = await apiCreateFolder(name, parentPath, specFilePaths);
+  create: async (name, parentPath) => {
+    const doc = await apiCreateFolder(name, parentPath);
     set((s) => ({ folders: [...s.folders, doc] }));
     return doc;
   },
@@ -69,13 +68,6 @@ export const useIdeaFoldersStore = create<IdeaFoldersState>((set, get) => ({
     // Reload all — cascade may have changed descendant paths
     const folders = await listFolders();
     set({ folders });
-  },
-
-  setSpecFilePaths: async (id, paths) => {
-    const updated = await apiUpdateFolder(id, { specFilePaths: paths });
-    set((s) => ({
-      folders: s.folders.map((f) => (f.id === id ? updated : f)),
-    }));
   },
 
   reorder: async (id, order) => {
@@ -160,9 +152,8 @@ export const useIdeaFoldersStore = create<IdeaFoldersState>((set, get) => ({
       const rawName = parts[parts.length - 1];
       const name = humanizeName(rawName);
       const parentPath = parts.length > 1 ? parts.slice(0, -1).join("/") : null;
-      const specs = folderMap.get(folderPath) ?? [];
       try {
-        await apiCreateFolder(name, parentPath, specs);
+        await apiCreateFolder(name, parentPath);
         existingPaths.add(folderPath);
       } catch (e) {
         // 409 = already exists, skip silently
