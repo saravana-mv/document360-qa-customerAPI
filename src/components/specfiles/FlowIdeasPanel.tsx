@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ContextMenu, MenuIcons } from "../common/ContextMenu";
 import type { FlowIdea, IdeaMode } from "../../lib/api/specFilesApi";
 import { GenerateIdeasModal } from "./GenerateIdeasModal";
-import { getIdeasTrace, type IdeasTrace } from "../../lib/api/flowTraceApi";
+import { getIdeasTrace, getLatestIdeasTrace, type IdeasTrace } from "../../lib/api/flowTraceApi";
 import IdeasTraceModal from "./IdeasTraceModal";
 
 function formatRelativeTime(iso: string): string {
@@ -86,11 +86,13 @@ export function FlowIdeasPanel({
   const [traceLoading, setTraceLoading] = useState<string | null>(null);
   const [showTrace, setShowTrace] = useState(false);
 
-  async function handleShowTrace(ideaId: string, traceId: string) {
+  async function handleShowTrace(ideaId: string, traceId?: string) {
     if (traceLoading) return;
     setTraceLoading(ideaId);
     try {
-      const data = await getIdeasTrace(traceId);
+      const data = traceId
+        ? await getIdeasTrace(traceId)
+        : await getLatestIdeasTrace(folderPath);
       if (data) { setTraceData(data); setShowTrace(true); }
     } catch { /* ignore */ }
     setTraceLoading(null);
@@ -289,11 +291,27 @@ export function FlowIdeasPanel({
                       </span>
                     )}
                   </button>
-                  <span className="opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
+                  <span className="opacity-0 group-hover:opacity-100 shrink-0 flex items-center gap-0.5 transition-opacity">
+                    <button
+                      onClick={() => handleShowTrace(idea.id, idea.traceId)}
+                      disabled={traceLoading === idea.id}
+                      title="View generation trace"
+                      className="text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff] rounded-md p-1 transition-colors disabled:opacity-40"
+                    >
+                      {traceLoading === idea.id ? (
+                        <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m5.231 13.481L15 17.25m-4.5-15H5.625c-.621 0-1.125.504-1.125 1.125v16.5c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Zm3.75 11.625a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+                        </svg>
+                      )}
+                    </button>
                     <ContextMenu
                       items={[
                         ...(!isLocked ? [{ label: "Generate flow", icon: MenuIcons.sparkle, onClick: () => onGenerateFlowForIdea(idea.id), disabled: generatingFlows }] : []),
-                        ...(idea.traceId ? [{ label: "View generation trace", icon: MenuIcons.inspect, onClick: () => handleShowTrace(idea.id, idea.traceId!) }] : []),
                         { label: "Delete idea", icon: MenuIcons.trash, onClick: () => setRowDeleteId(idea.id), danger: true },
                       ]}
                     />
