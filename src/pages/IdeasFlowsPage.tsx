@@ -11,6 +11,8 @@ import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
 import { CreateScenariosModal } from "../components/specfiles/CreateScenariosModal";
 import { CreateFolderModal } from "../components/specfiles/CreateFolderModal";
 import { EditFolderSpecsModal } from "../components/specfiles/EditFolderSpecsModal";
+import { IdeasChatPanel } from "../components/specfiles/IdeasChatPanel";
+import type { ChatIdea } from "../lib/api/flowChatApi";
 import {
   generateFlowIdeas,
   type FlowIdea,
@@ -70,6 +72,9 @@ export function IdeasFlowsPage() {
   const [editSpecsFolderId, setEditSpecsFolderId] = useState<string | null>(null);
   const [renamingFolder, setRenamingFolder] = useState<{ id: string; currentName: string } | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [treeExpandAll, setTreeExpandAll] = useState(false);
+  const [treeSortAZ, setTreeSortAZ] = useState(false);
+  const [showIdeasChat, setShowIdeasChat] = useState(false);
 
   // ── Selection state ────────────────────────────────────────────────────────
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(
@@ -1019,6 +1024,28 @@ export function IdeasFlowsPage() {
     await useIdeaFoldersStore.getState().setSpecFilePaths(folderId, paths);
   }
 
+  function handleChatIdeaAccepted(chatIdea: ChatIdea) {
+    if (!activePath) return;
+    const newIdea: FlowIdea = {
+      id: `idea-${Date.now()}-chat`,
+      title: chatIdea.title,
+      description: chatIdea.description,
+      steps: chatIdea.steps,
+      entities: [],
+      complexity: "moderate",
+      specFiles: chatIdea.specFiles ?? currentFolder?.specFilePaths ?? [],
+      createdAt: new Date().toISOString(),
+    };
+    setIdeas((prev) => [...prev, newIdea]);
+    setWorkshopMap((prev) => {
+      const existing = prev[activePath] ?? { ideas: [], usage: null, flowsUsage: null, generatedFlows: [] };
+      return {
+        ...prev,
+        [activePath]: { ...existing, ideas: [...existing.ideas, newIdea] },
+      };
+    });
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -1026,12 +1053,36 @@ export function IdeasFlowsPage() {
       <div className="h-full flex overflow-hidden">
         {/* LHS folder nav */}
         <aside className="shrink-0 bg-white flex flex-col overflow-hidden border-r border-[#d1d9e0]" style={{ width: treeWidth }}>
-          <div className="flex items-center gap-2 px-3 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
-            <svg className="w-4 h-4 text-[#9a6700]" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+          <div className="flex items-center gap-1 px-3 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+            <svg className="w-4 h-4 text-[#9a6700] shrink-0" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
             </svg>
             <span className="text-sm font-semibold text-[#1f2328] flex-1">Folders</span>
-            {/* New folder button */}
+            {/* Expand all */}
+            <button
+              onClick={() => setTreeExpandAll((p) => !p)}
+              className="p-1 rounded text-[#656d76] hover:text-[#1f2328] hover:bg-[#eef1f6] transition-colors"
+              title={treeExpandAll ? "Collapse all" : "Expand all"}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                {treeExpandAll ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                )}
+              </svg>
+            </button>
+            {/* Sort A-Z */}
+            <button
+              onClick={() => setTreeSortAZ((p) => !p)}
+              className={`p-1 rounded transition-colors ${treeSortAZ ? "text-[#0969da] bg-[#ddf4ff]" : "text-[#656d76] hover:text-[#1f2328] hover:bg-[#eef1f6]"}`}
+              title={treeSortAZ ? "Sort by order" : "Sort A-Z"}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
+              </svg>
+            </button>
+            {/* New folder */}
             <button
               onClick={() => setShowCreateFolder({ parentPath: null })}
               className="p-1 rounded text-[#656d76] hover:text-[#1f2328] hover:bg-[#eef1f6] transition-colors"
@@ -1081,6 +1132,10 @@ export function IdeasFlowsPage() {
                 onRenameFolder={(id, name) => setRenamingFolder({ id, currentName: name })}
                 onDeleteFolder={handleDeleteFolder}
                 onEditSpecs={(id) => setEditSpecsFolderId(id)}
+                onGenerateIdeas={(path) => { selectFolder(path); setShowNewIdeasModal(true); }}
+                onGenerateIdeasChat={(path) => { selectFolder(path); setShowIdeasChat(true); }}
+                expandAll={treeExpandAll}
+                sortAZ={treeSortAZ}
               />
             )}
           </div>
@@ -1101,7 +1156,7 @@ export function IdeasFlowsPage() {
                   ({specFileCount} spec file{specFileCount !== 1 ? "s" : ""})
                 </span>
 
-                {/* New Ideas button */}
+                {/* Generate ideas button */}
                 <button
                   onClick={() => setShowNewIdeasModal(true)}
                   disabled={noSpecFiles}
@@ -1111,7 +1166,19 @@ export function IdeasFlowsPage() {
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
                   </svg>
-                  New Ideas
+                  Generate ideas
+                </button>
+                {/* Ideas chat button */}
+                <button
+                  onClick={() => setShowIdeasChat(true)}
+                  disabled={noSpecFiles}
+                  title={noSpecFiles ? noSpecFilesTooltip : "Create ideas interactively via chat"}
+                  className="inline-flex items-center gap-1 text-sm font-medium text-[#656d76] hover:text-[#1f2328] px-2 py-1 rounded-md hover:bg-[#f6f8fa] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+                  </svg>
+                  Chat
                 </button>
 
                 {/* Cost summary */}
@@ -1355,6 +1422,16 @@ export function IdeasFlowsPage() {
         );
       })()}
 
+      {/* Ideas chat panel */}
+      {showIdeasChat && currentFolder && (
+        <IdeasChatPanel
+          specFiles={currentFolder.specFilePaths}
+          aiModel={aiModel}
+          onIdeaAccepted={handleChatIdeaAccepted}
+          onClose={() => setShowIdeasChat(false)}
+        />
+      )}
+
       {/* Inline rename prompt */}
       {renamingFolder && (() => {
         const rf = renamingFolder;
@@ -1384,7 +1461,13 @@ export function IdeasFlowsPage() {
 
 // ── IdeaFolderNavTree — collapsible folder tree with context menus ──────────
 
-function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, onSelectFolder, onCreateSubfolder, onRenameFolder, onDeleteFolder, onEditSpecs, depth = 0 }: {
+const chatIcon = (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+  </svg>
+);
+
+function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, onSelectFolder, onCreateSubfolder, onRenameFolder, onDeleteFolder, onEditSpecs, onGenerateIdeas, onGenerateIdeasChat, expandAll, sortAZ, depth = 0 }: {
   folders: IdeaFolderDoc[];
   parentPath: string | null;
   selectedPath: string | null;
@@ -1394,6 +1477,10 @@ function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, 
   onRenameFolder: (id: string, currentName: string) => void;
   onDeleteFolder: (id: string, path: string) => void;
   onEditSpecs: (id: string) => void;
+  onGenerateIdeas?: (path: string) => void;
+  onGenerateIdeasChat?: (path: string) => void;
+  expandAll?: boolean;
+  sortAZ?: boolean;
   depth?: number;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(() => {
@@ -1405,6 +1492,18 @@ function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, 
     // Auto-expand root folders
     return new Set(folders.filter(f => f.parentPath === null).map(f => f.path));
   });
+
+  // Respond to expandAll toggle from toolbar
+  const prevExpandAll = useRef(expandAll);
+  useEffect(() => {
+    if (expandAll === prevExpandAll.current) return;
+    prevExpandAll.current = expandAll;
+    if (expandAll) {
+      setExpanded(new Set(folders.map(f => f.path)));
+    } else {
+      setExpanded(new Set());
+    }
+  }, [expandAll, folders]);
 
   useEffect(() => {
     if (depth === 0) {
@@ -1422,7 +1521,7 @@ function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, 
 
   const children = folders
     .filter(f => f.parentPath === parentPath)
-    .sort((a, b) => a.order - b.order);
+    .sort((a, b) => sortAZ ? a.name.localeCompare(b.name) : a.order - b.order);
 
   return (
     <>
@@ -1439,7 +1538,11 @@ function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, 
           return false;
         })();
 
+        const hasSpecs = folder.specFilePaths.length > 0;
         const menuItems: MenuItem[] = [
+          { label: "Generate ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateIdeas?.(folder.path), disabled: !hasSpecs, tooltip: hasSpecs ? undefined : "No spec files" },
+          { label: "Ideas chat", icon: chatIcon, onClick: () => onGenerateIdeasChat?.(folder.path), disabled: !hasSpecs, tooltip: hasSpecs ? undefined : "No spec files" },
+          "separator",
           { label: "Rename", icon: MenuIcons.rename, onClick: () => onRenameFolder(folder.id, folder.name) },
           { label: "Edit spec files", icon: MenuIcons.link, onClick: () => onEditSpecs(folder.id) },
           { label: "New subfolder", icon: MenuIcons.folder, onClick: () => onCreateSubfolder(folder.path) },
@@ -1500,6 +1603,10 @@ function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, 
                 onRenameFolder={onRenameFolder}
                 onDeleteFolder={onDeleteFolder}
                 onEditSpecs={onEditSpecs}
+                onGenerateIdeas={onGenerateIdeas}
+                onGenerateIdeasChat={onGenerateIdeasChat}
+                expandAll={expandAll}
+                sortAZ={sortAZ}
                 depth={depth + 1}
               />
             )}

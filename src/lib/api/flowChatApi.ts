@@ -49,17 +49,43 @@ export function isConfirmation(reply: string): boolean {
   return reply.includes("CONFIRMED:");
 }
 
+/** Parse a ```idea JSON block from the AI response */
+export interface ChatIdea {
+  title: string;
+  description: string;
+  steps: string[];
+  specFiles?: string[];
+}
+
+export function parseIdeaFromReply(reply: string): ChatIdea | null {
+  const match = reply.match(/```idea\s*\n([\s\S]*?)\n```/);
+  if (!match) return null;
+  try {
+    const idea = JSON.parse(match[1]) as ChatIdea;
+    if (!idea.title || !idea.description) return null;
+    return idea;
+  } catch {
+    return null;
+  }
+}
+
+/** Check if the AI's reply indicates the idea was saved */
+export function isIdeaSaved(reply: string): boolean {
+  return reply.includes("SAVED:");
+}
+
 /** Send a message in the flow chat conversation */
 export async function sendFlowChatMessage(
   messages: Array<{ role: "user" | "assistant"; content: string }>,
   specFiles: string[],
   model?: string,
   signal?: AbortSignal,
+  intent?: "flow" | "idea",
 ): Promise<FlowChatResponse> {
   const res = await fetch("/api/flow-chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, specFiles, ...(model ? { model } : {}) }),
+    body: JSON.stringify({ messages, specFiles, ...(model ? { model } : {}), ...(intent ? { intent } : {}) }),
     signal,
   });
 

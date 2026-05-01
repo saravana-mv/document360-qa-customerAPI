@@ -12,19 +12,33 @@ export function EditFolderSpecsModal({ currentPaths, onSave, onClose }: Props) {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(() => new Set(currentPaths));
   const [saving, setSaving] = useState(false);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     void (async () => {
       try {
         const files = await listSpecFiles();
-        setSpecFiles(files.filter((f) => f.name.endsWith(".md")));
+        const mdFiles = files.filter((f) => f.name.endsWith(".md"));
+        setSpecFiles(mdFiles);
+        // Auto-expand folders that have selected files
+        const folders = new Set<string>();
+        for (const f of mdFiles) {
+          const lastSlash = f.name.lastIndexOf("/");
+          if (lastSlash >= 0) {
+            const folder = f.name.substring(0, lastSlash);
+            if (currentPaths.some((p) => p.startsWith(folder + "/") || p.startsWith(folder))) {
+              folders.add(folder);
+            }
+          }
+        }
+        setExpandedFolders(folders);
       } catch (e) {
         console.warn("[EditFolderSpecsModal] Failed to load spec files:", e);
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Group files by folder
   const groups = new Map<string, string[]>();
@@ -57,6 +71,23 @@ export function EditFolderSpecsModal({ currentPaths, onSave, onClose }: Props) {
     });
   }
 
+  function toggleFolderExpand(folder: string) {
+    setExpandedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(folder)) next.delete(folder);
+      else next.add(folder);
+      return next;
+    });
+  }
+
+  function expandAll() {
+    setExpandedFolders(new Set(sortedGroups.map(([f]) => f)));
+  }
+
+  function collapseAll() {
+    setExpandedFolders(new Set());
+  }
+
   async function handleSave() {
     setSaving(true);
     try {
@@ -68,6 +99,8 @@ export function EditFolderSpecsModal({ currentPaths, onSave, onClose }: Props) {
       setSaving(false);
     }
   }
+
+  const allExpanded = sortedGroups.length > 0 && sortedGroups.every(([f]) => expandedFolders.has(f));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
@@ -83,18 +116,29 @@ export function EditFolderSpecsModal({ currentPaths, onSave, onClose }: Props) {
               ({selected.size} selected)
             </span>
           </h2>
-          <button
-            onClick={onClose}
-            className="text-[#656d76] hover:text-[#1f2328] transition-colors p-1 -mr-1 rounded-md hover:bg-[#f6f8fa]"
-            title="Close"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={allExpanded ? collapseAll : expandAll}
+              className="p-1 rounded text-[#656d76] hover:text-[#1f2328] hover:bg-[#eef1f6] transition-colors"
+              title={allExpanded ? "Collapse all" : "Expand all"}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+              </svg>
+            </button>
+            <button
+              onClick={onClose}
+              className="text-[#656d76] hover:text-[#1f2328] transition-colors p-1 rounded-md hover:bg-[#f6f8fa]"
+              title="Close"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
-        {/* File list */}
+        {/* File tree */}
         <div className="flex-1 overflow-y-auto px-5 pb-2">
           {loading ? (
             <div className="py-8 text-center text-sm text-[#656d76]">Loading spec files...</div>
@@ -104,45 +148,60 @@ export function EditFolderSpecsModal({ currentPaths, onSave, onClose }: Props) {
             sortedGroups.map(([folder, files]) => {
               const allChecked = files.every((f) => selected.has(f));
               const someChecked = !allChecked && files.some((f) => selected.has(f));
+              const isExpanded = expandedFolders.has(folder);
+              const checkedCount = files.filter((f) => selected.has(f)).length;
+
               return (
-                <div key={folder} className="mb-3">
-                  {/* Folder header with select all */}
-                  <button
-                    onClick={() => toggleFolder(files)}
-                    className="flex items-center gap-2 w-full text-left py-1 text-xs font-semibold text-[#656d76] hover:text-[#1f2328] transition-colors"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={allChecked}
-                      ref={(el) => { if (el) el.indeterminate = someChecked; }}
-                      readOnly
-                      className="rounded border-[#d1d9e0] text-[#0969da] focus:ring-[#0969da]/30"
-                    />
-                    <svg className="w-3.5 h-3.5 text-[#656d76]" fill="currentColor" viewBox="0 0 16 16">
-                      <path d="M.513 1.513A1.75 1.75 0 0 1 1.75 0h3.5c.465 0 .91.185 1.239.513l.61.61c.109.109.257.17.411.17h6.74a1.75 1.75 0 0 1 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15.5H1.75A1.75 1.75 0 0 1 0 13.75V1.75c0-.465.185-.91.513-1.237Z" />
-                    </svg>
-                    {folder}
-                  </button>
-                  {/* Individual files */}
-                  <div className="ml-5 space-y-0.5">
-                    {files.map((filePath) => {
-                      const fileName = filePath.substring(filePath.lastIndexOf("/") + 1);
-                      return (
-                        <label
-                          key={filePath}
-                          className="flex items-center gap-2 py-0.5 text-sm text-[#1f2328] cursor-pointer hover:bg-[#f6f8fa] rounded px-1 -ml-1"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selected.has(filePath)}
-                            onChange={() => toggleFile(filePath)}
-                            className="rounded border-[#d1d9e0] text-[#0969da] focus:ring-[#0969da]/30"
-                          />
-                          {fileName}
-                        </label>
-                      );
-                    })}
+                <div key={folder} className="mb-1">
+                  {/* Folder header with chevron + checkbox + name */}
+                  <div className="flex items-center gap-1 py-1 hover:bg-[#f6f8fa] rounded -mx-1 px-1">
+                    {/* Chevron */}
+                    <button
+                      onClick={() => toggleFolderExpand(folder)}
+                      className="w-4 h-4 flex items-center justify-center shrink-0 text-[#656d76] hover:text-[#1f2328]"
+                    >
+                      <svg className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-90" : ""}`} fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06Z" />
+                      </svg>
+                    </button>
+                    {/* Checkbox */}
+                    <label className="flex items-center gap-2 flex-1 cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={allChecked}
+                        ref={(el) => { if (el) el.indeterminate = someChecked; }}
+                        onChange={() => toggleFolder(files)}
+                        className="rounded border-[#d1d9e0] text-[#0969da] focus:ring-[#0969da]/30"
+                      />
+                      <svg className="w-3.5 h-3.5 text-[#656d76] shrink-0" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M.513 1.513A1.75 1.75 0 0 1 1.75 0h3.5c.465 0 .91.185 1.239.513l.61.61c.109.109.257.17.411.17h6.74a1.75 1.75 0 0 1 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15.5H1.75A1.75 1.75 0 0 1 0 13.75V1.75c0-.465.185-.91.513-1.237Z" />
+                      </svg>
+                      <span className="text-xs font-semibold text-[#656d76] flex-1 truncate">{folder}</span>
+                      <span className="text-xs text-[#8b949e]">{checkedCount}/{files.length}</span>
+                    </label>
                   </div>
+                  {/* Individual files — collapsible */}
+                  {isExpanded && (
+                    <div className="ml-6 space-y-0.5">
+                      {files.map((filePath) => {
+                        const fileName = filePath.substring(filePath.lastIndexOf("/") + 1);
+                        return (
+                          <label
+                            key={filePath}
+                            className="flex items-center gap-2 py-0.5 text-sm text-[#1f2328] cursor-pointer hover:bg-[#f6f8fa] rounded px-1 -ml-1"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selected.has(filePath)}
+                              onChange={() => toggleFile(filePath)}
+                              className="rounded border-[#d1d9e0] text-[#0969da] focus:ring-[#0969da]/30"
+                            />
+                            {fileName}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })
