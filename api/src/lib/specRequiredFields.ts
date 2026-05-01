@@ -1199,7 +1199,157 @@ export function injectSpecRequiredFields(
       result = result.slice(0, pos) + stepXml + result.slice(pos + xmlSteps[stepIdx].fullMatch.length);
     }
   }
+
+  // ── Array item injection: fill empty {} objects inside bulk arrays ──
+  result = injectArrayItemFields(result, specEndpoints, projectVariables);
+
   return result;
+}
+
+// ── Array Item Field Injection ────────────────────────────────────────
+
+/**
+ * For bulk endpoints whose spec declares itemSchemas (e.g. POST /articles/bulk
+ * with "articles" array), find empty or incomplete objects inside the array
+ * and inject the per-item required fields.
+ *
+ * Handles body shapes like:  { "articles": [ {}, {} ] }
+ * Produces:  { "articles": [ { "title": "...", ... }, { "title": "...", ... } ] }
+ */
+function injectArrayItemFields(
+  xml: string,
+  specEndpoints: SpecEndpoint[],
+  projectVariables: { name: string; value: string }[],
+): string {
+  const xmlSteps = parseXmlSteps(xml);
+  if (xmlSteps.length === 0) return xml;
+
+  let result = xml;
+  let totalInjected = 0;
+
+  for (const step of xmlSteps) {
+    if (!["POST", "PUT", "PATCH"].includes(step.method)) continue;
+    const normStep = normalizePath(step.path);
+    const spec = specEndpoints.find(ep =>
+      ep.method === step.method && normalizePath(ep.path) === normStep
+    );
+    if (!spec || spec.itemSchemas.length === 0) continue;
+
+    const cdataRe = /(<body><!\[CDATA\[)([\s\S]*?)(\]\]><\/body>)/;
+    const cdataMatch = step.fullMatch.match(cdataRe);
+    if (!cdataMatch) continue;
+    let bodyText = cdataMatch[2];
+
+    for (const itemSchema of spec.itemSchemas) {
+      if (itemSchema.requiredFields.length === 0) continue;
+
+      // Find the array for this parentField: "articles": [ ... ]
+      // Use a regex to locate the array content after "parentField": [
+      const arrayRe = new RegExp(
+        `"${itemSchema.parentField}"\\s*:\\s*\\[([\\s\\S]*?)\\]`
+      );
+      const arrayMatch = bodyText.match(arrayRe);
+      if (!arrayMatch) continue;
+
+      const arrayContent = arrayMatch[1];
+      // Find each object in the array (handles both {} and {field: val} forms)
+      // We'll replace empty or near-empty objects with populated ones
+      const objectRe = /\{([^{}]*)\}/g;
+      let objMatch: RegExpExecArray | null;
+      const replacements: { original: string; replacement: string }[] = [];
+
+      let itemIndex = 0;
+      while ((objMatch = objectRe.exec(arrayContent)) !== null) {
+        const objContent = objMatch[1].trim();
+        // Check which required fields are missing from this object
+        const missingFields: string[] = [];
+        for (const field of itemSchema.requiredFields) {
+          if (/^project_id$/i.test(field)) continue;
+          if (objContent.includes(`"${field}"`)) continue;
+          missingFields.push(field);
+        }
+
+        if (missingFields.length === 0) { itemIndex++; continue; }
+
+        // Build field values — differentiate items with index suffix
+        const fieldLines: string[] = [];
+        // First, keep any existing fields
+        if (objContent) {
+          fieldLines.push(objContent);
+        }
+        for (const field of missingFields) {
+          const value = resolveFieldValue(field, itemIndex, projectVariables, result);
+          fieldLines.push(`"${field}": "${value}"`);
+          totalInjected++;
+        }
+
+        const newObj = "{ " + fieldLines.join(", ") + " }";
+        replacements.push({ original: objMatch[0], replacement: newObj });
+        itemIndex++;
+      }
+
+      // Apply replacements in reverse order to preserve positions
+      let newArrayContent = arrayContent;
+      for (const rep of [...replacements].reverse()) {
+        const idx = newArrayContent.lastIndexOf(rep.original);
+        if (idx >= 0) {
+          newArrayContent = newArrayContent.slice(0, idx) + rep.replacement +
+            newArrayContent.slice(idx + rep.original.length);
+        }
+      }
+
+      if (newArrayContent !== arrayContent) {
+        bodyText = bodyText.replace(arrayMatch[0], `"${itemSchema.parentField}": [${newArrayContent}]`);
+      }
+    }
+
+    if (bodyText !== cdataMatch[2]) {
+      const newStepXml = step.fullMatch.replace(cdataRe, `$1${bodyText}$3`);
+      const pos = result.indexOf(step.fullMatch);
+      if (pos >= 0) {
+        result = result.slice(0, pos) + newStepXml + result.slice(pos + step.fullMatch.length);
+      }
+    }
+  }
+
+  if (totalInjected > 0) {
+    console.log(`[injectArrayItemFields] Injected ${totalInjected} required field(s) into bulk array items`);
+  }
+  return result;
+}
+
+/** Resolve a sensible default value for a required field in a bulk array item. */
+function resolveFieldValue(
+  field: string,
+  itemIndex: number,
+  projectVariables: { name: string; value: string }[],
+  xmlContext: string,
+): string {
+  const camel = toCamelCase(field);
+  // Check project variables first
+  const matchedVar = projectVariables.find(v =>
+    v.name === field || v.name === camel ||
+    v.name.toLowerCase() === field.toLowerCase() ||
+    v.name.toLowerCase() === camel.toLowerCase()
+  );
+  if (matchedVar) return `{{proj.${matchedVar.name}}}`;
+
+  // Check state references in the XML
+  if (xmlContext.includes(`state.${camel}`) || xmlContext.includes(`state.${field}`)) {
+    return `{{state.${camel}}}`;
+  }
+
+  // Use default test values with index suffix for uniqueness
+  if (DEFAULT_TEST_VALUES[field]) {
+    const base = DEFAULT_TEST_VALUES[field];
+    // Add item index for fields that should be unique per item
+    if (["title", "name", "slug", "email"].includes(field)) {
+      return base.replace("{{timestamp}}", `item-${itemIndex + 1}-{{timestamp}}`);
+    }
+    return base;
+  }
+
+  return `test-${field}-item-${itemIndex + 1}-{{timestamp}}`;
 }
 
 // ── Strip Extra Request Fields ───────────────────────────────────────

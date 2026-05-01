@@ -282,6 +282,135 @@ describe("injectSpecRequiredFields", () => {
     const result = injectSpecRequiredFields(xml, "", []);
     expect(result).toBe(xml);
   });
+
+  it("injects required fields into empty array items for bulk endpoints", () => {
+    const bulkSpec = `## V3/articles/bulk-create.md
+
+## Endpoint: POST /v3/projects/{project_id}/articles/bulk
+### Request Body (BulkCreateArticleRequest)
+**REQUIRED FIELDS: \`articles\`**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| \`articles\` | array | **YES** | Articles to create |
+
+### Array Item Schema: \`articles\` -> CreateArticleItem
+**REQUIRED FIELDS (per item): \`title\`, \`category_id\`**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| \`title\` | string | **YES** | Article title |
+| \`category_id\` | string | **YES** | Category ID |
+| \`content\` | string | no | Body |
+
+### Response (201)
+- \`response.data[].id\``;
+
+    const xml = wrapFlowXml(`
+    <step>
+      <name>Bulk Create</name>
+      <method>POST</method>
+      <path>/v3/projects/{project_id}/articles/bulk</path>
+      <body><![CDATA[{
+  "articles": [
+    {},
+    {}
+  ]
+}]]></body>
+    </step>`);
+
+    const result = injectSpecRequiredFields(xml, bulkSpec, []);
+    // Both empty objects should now contain title and category_id
+    expect(result).toContain('"title"');
+    expect(result).toContain('"category_id"');
+    // Should not contain empty {} objects anymore
+    const collapsed = result.replace(/\s+/g, "");
+    expect(collapsed).not.toContain("[{}");
+    expect(collapsed).not.toContain("{},");
+  });
+
+  it("uses project variables for array item fields when available", () => {
+    const bulkSpec = `## V3/articles/bulk-create.md
+
+## Endpoint: POST /v3/projects/{project_id}/articles/bulk
+### Request Body (BulkCreateArticleRequest)
+**REQUIRED FIELDS: \`articles\`**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| \`articles\` | array | **YES** | Articles to create |
+
+### Array Item Schema: \`articles\` -> CreateArticleItem
+**REQUIRED FIELDS (per item): \`title\`, \`category_id\`**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| \`title\` | string | **YES** | Article title |
+| \`category_id\` | string | **YES** | Category ID |
+
+### Response (201)
+- \`response.data[].id\``;
+
+    const xml = wrapFlowXml(`
+    <step>
+      <name>Bulk Create</name>
+      <method>POST</method>
+      <path>/v3/projects/{project_id}/articles/bulk</path>
+      <body><![CDATA[{
+  "articles": [
+    {},
+    {}
+  ]
+}]]></body>
+    </step>`);
+
+    const result = injectSpecRequiredFields(xml, bulkSpec, [
+      { name: "category_id", value: "cat-123" },
+    ]);
+    // category_id should use project variable
+    expect(result).toContain("{{proj.category_id}}");
+  });
+
+  it("preserves existing fields in partially-filled array items", () => {
+    const bulkSpec = `## V3/articles/bulk-create.md
+
+## Endpoint: POST /v3/projects/{project_id}/articles/bulk
+### Request Body (BulkCreateArticleRequest)
+**REQUIRED FIELDS: \`articles\`**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| \`articles\` | array | **YES** | Articles to create |
+
+### Array Item Schema: \`articles\` -> CreateArticleItem
+**REQUIRED FIELDS (per item): \`title\`, \`category_id\`**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| \`title\` | string | **YES** | Article title |
+| \`category_id\` | string | **YES** | Category ID |
+
+### Response (201)
+- \`response.data[].id\``;
+
+    const xml = wrapFlowXml(`
+    <step>
+      <name>Bulk Create</name>
+      <method>POST</method>
+      <path>/v3/projects/{project_id}/articles/bulk</path>
+      <body><![CDATA[{
+  "articles": [
+    {"title": "Already set"},
+    {}
+  ]
+}]]></body>
+    </step>`);
+
+    const result = injectSpecRequiredFields(xml, bulkSpec, []);
+    // First item should keep its title and get category_id injected
+    expect(result).toContain('"Already set"');
+    expect(result).toContain('"category_id"');
+  });
 });
 
 // ── injectCrossStepCaptures ──────────────────────────────────────────
