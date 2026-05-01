@@ -44,11 +44,12 @@ jobs:
           npm prune --production
 
       - name: Pre-build frontend
+        env:
+          BUILD_NUM: ${{ github.run_number }}
         run: |
           npm ci
           npm run build
           APP_VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).appVersion || '1.0'")
-          BUILD_NUM=${{ github.run_number }}
           echo "{\"version\":\"${APP_VERSION}.${BUILD_NUM}\"}" > dist/version.json
           cp staticwebapp.config.json dist/staticwebapp.config.json
 

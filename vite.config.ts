@@ -5,14 +5,16 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-// Version format: MAJOR.MINOR.BUILD where BUILD = git commit count
+// Version format: MAJOR.MINOR.BUILD where BUILD = CI run number (or git commit count locally)
 function getBuildVersion(): string {
   try {
     const pkg = JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf8")) as { appVersion?: string };
     const base = pkg.appVersion ?? "1.0";
-    const result = spawnSync("git", ["rev-list", "--count", "HEAD"], { encoding: "utf8" });
-    const count = result.stdout?.trim() || "0";
-    return `${base}.${count}`;
+    // CI sets BUILD_NUM env var (GitHub Actions run_number); fall back to git commit count for local dev
+    const buildNum = process.env.BUILD_NUM
+      || spawnSync("git", ["rev-list", "--count", "HEAD"], { encoding: "utf8" }).stdout?.trim()
+      || "0";
+    return `${base}.${buildNum}`;
   } catch {
     return "dev";
   }
