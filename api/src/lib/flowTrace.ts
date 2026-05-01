@@ -74,6 +74,17 @@ function extractHeaders(specContext: string): string[] {
 }
 
 /** Summarize what changed between before/after XML (line-level diff). */
+/** Find the current step number from surrounding XML context. */
+function findStepContext(lines: string[], lineIndex: number): string {
+  for (let i = lineIndex; i >= 0; i--) {
+    const stepMatch = lines[i].match(/<step\s+number="(\d+)"/);
+    if (stepMatch) return `[step ${stepMatch[1]}] `;
+    const nameMatch = lines[i].match(/<name>([^<]+)<\/name>/);
+    if (nameMatch) return `[${nameMatch[1]}] `;
+  }
+  return "";
+}
+
 function summarizeChanges(before: string, after: string): string[] {
   if (before === after) return [];
   const bLines = before.split("\n");
@@ -82,38 +93,40 @@ function summarizeChanges(before: string, after: string): string[] {
 
   // Simple: find lines added in `after` that aren't in `before`
   const bSet = new Set(bLines.map(l => l.trim()));
-  for (const line of aLines) {
-    const trimmed = line.trim();
+  for (let li = 0; li < aLines.length; li++) {
+    const trimmed = aLines[li].trim();
     if (trimmed && !bSet.has(trimmed)) {
+      const ctx = findStepContext(aLines, li);
       // Summarize meaningful XML changes
       const epRef = trimmed.match(/<endpointRef>(.+)<\/endpointRef>/);
-      if (epRef) { changes.push(`Injected endpointRef: ${epRef[1]}`); continue; }
+      if (epRef) { changes.push(`${ctx}Injected endpointRef: ${epRef[1]}`); continue; }
       const capture = trimmed.match(/<capture\s+variable="([^"]+)"/);
-      if (capture) { changes.push(`Added capture: ${capture[1]}`); continue; }
+      if (capture) { changes.push(`${ctx}Added capture: ${capture[1]}`); continue; }
       if (trimmed.startsWith('"') && trimmed.includes(":")) {
         const field = trimmed.match(/"(\w+)"\s*:/);
-        if (field) { changes.push(`Added field: ${field[1]}`); continue; }
+        if (field) { changes.push(`${ctx}Added field: ${field[1]}`); continue; }
       }
       // Generic: just note the line was added (cap to avoid noise)
       if (changes.length < 20) {
-        changes.push(`+ ${trimmed.slice(0, 100)}`);
+        changes.push(`${ctx}+ ${trimmed.slice(0, 100)}`);
       }
     }
   }
 
   // Find lines removed
   const aSet = new Set(aLines.map(l => l.trim()));
-  for (const line of bLines) {
-    const trimmed = line.trim();
+  for (let li = 0; li < bLines.length; li++) {
+    const trimmed = bLines[li].trim();
     if (trimmed && !aSet.has(trimmed)) {
+      const ctx = findStepContext(bLines, li);
       if (trimmed.startsWith('"') && trimmed.includes(":")) {
         const field = trimmed.match(/"(\w+)"\s*:/);
-        if (field) { changes.push(`Removed field: ${field[1]}`); continue; }
+        if (field) { changes.push(`${ctx}Removed field: ${field[1]}`); continue; }
       }
       const epRef = trimmed.match(/<endpointRef>(.+)<\/endpointRef>/);
-      if (epRef) { changes.push(`Replaced endpointRef: ${epRef[1]}`); continue; }
+      if (epRef) { changes.push(`${ctx}Replaced endpointRef: ${epRef[1]}`); continue; }
       if (changes.length < 30) {
-        changes.push(`- ${trimmed.slice(0, 100)}`);
+        changes.push(`${ctx}- ${trimmed.slice(0, 100)}`);
       }
     }
   }

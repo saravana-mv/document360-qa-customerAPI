@@ -1389,6 +1389,10 @@ export function stripExtraRequestFields(
     if (!bodyText.trim().startsWith("{")) continue;
 
     const allowedSet = new Set(spec.allRequestFields);
+    // For bulk endpoints, also allow per-item fields from itemSchemas
+    for (const item of spec.itemSchemas) {
+      for (const f of item.allFields) allowedSet.add(f);
+    }
     const fieldRe = /"(\w+)"\s*:/g;
     let fm: RegExpExecArray | null;
     while ((fm = fieldRe.exec(bodyText)) !== null) {
