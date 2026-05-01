@@ -136,7 +136,7 @@ export function CustomPromptModal({ onSubmit, onClose }: CustomPromptModalProps)
               onSubmit(title, text);
               onClose();
             }}
-            className="text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 border border-[#1a7f37]/80 rounded-md px-3 py-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] border border-[#1f883d]/80 rounded-md px-3 py-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {aiTitleLoading ? "Generating title…" : "Generate flow"}
           </button>

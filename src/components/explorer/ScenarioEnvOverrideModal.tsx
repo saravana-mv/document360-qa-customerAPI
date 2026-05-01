@@ -210,7 +210,7 @@ export function ScenarioEnvOverrideModal({ flowPath, scenarioName, onClose }: Sc
           <button
             onClick={handleSave}
             disabled={!hasOverride && !existing}
-            className="px-3 py-1.5 text-xs font-medium text-white bg-[#0969da] hover:bg-[#0969da]/90 rounded-md transition-colors disabled:opacity-50 border border-[#0969da]/80"
+            className="px-3 py-1.5 text-xs font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md transition-colors disabled:opacity-50 border border-[#1f883d]/80"
           >
             {existing ? "Update" : "Save Override"}
           </button>

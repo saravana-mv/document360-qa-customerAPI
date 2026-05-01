@@ -113,7 +113,7 @@ export function CreateFolderModal({ folders, presetParentPath, onSave, onClose }
             <button
               type="submit"
               disabled={!slug || saving}
-              className="text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 px-3 py-1.5 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] px-3 py-1.5 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? "Creating..." : "Create"}
             </button>

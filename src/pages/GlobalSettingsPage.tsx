@@ -260,7 +260,7 @@ export function GlobalSettingsPage() {
                     <button
                       onClick={() => void handleSaveCredits()}
                       disabled={saving}
-                      className="px-4 py-2 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1f883d] disabled:opacity-50 rounded-md transition-colors"
+                      className="px-4 py-2 text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] disabled:opacity-50 rounded-md transition-colors"
                     >
                       {saving ? "Saving..." : "Save defaults"}
                     </button>
@@ -291,7 +291,7 @@ export function GlobalSettingsPage() {
               <div className="flex-1" />
               <button
                 onClick={() => { setShowInvite(true); setInviteError(null); setInviteEmail(""); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-xs font-medium rounded-md transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1f883d] hover:bg-[#1a7f37] text-white text-xs font-medium rounded-md transition-colors"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -479,7 +479,7 @@ export function GlobalSettingsPage() {
               <button
                 onClick={() => void handleInvite()}
                 disabled={inviting || !inviteEmail.trim()}
-                className="text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 disabled:opacity-50 rounded-md px-3 py-1.5 transition-colors"
+                className="text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] disabled:opacity-50 rounded-md px-3 py-1.5 transition-colors"
               >
                 {inviting ? "Inviting..." : "Send invite"}
               </button>

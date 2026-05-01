@@ -18,7 +18,7 @@ export function LoggedOutPage() {
         </p>
         <button
           onClick={() => entraLogin(`${window.location.origin}/`)}
-          className="w-full py-2.5 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-sm font-medium rounded-md transition-colors border border-[#1a7f37]/80"
+          className="w-full py-2.5 bg-[#1f883d] hover:bg-[#1a7f37] text-white text-sm font-medium rounded-md transition-colors border border-[#1f883d]/80"
         >
           Sign in again
         </button>

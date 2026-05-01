@@ -324,7 +324,7 @@ export function ImportFromUrlModal({ folderPath, initialAccessToken, onImport, o
             <button
               onClick={handleContinue}
               disabled={validCount === 0}
-              className="text-sm font-medium text-white bg-[#0969da] hover:bg-[#0860ca] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-3 py-1.5 transition-colors"
+              className="text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-3 py-1.5 transition-colors"
             >
               Continue ({validCount})
             </button>
@@ -341,7 +341,7 @@ export function ImportFromUrlModal({ folderPath, initialAccessToken, onImport, o
               <button
                 onClick={() => void handleImportAll()}
                 disabled={importing}
-                className="text-sm font-medium text-white bg-[#0969da] hover:bg-[#0860ca] disabled:bg-[#0969da]/70 rounded-md px-3 py-1.5 transition-colors flex items-center gap-1.5"
+                className="text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] disabled:bg-[#1f883d]/70 rounded-md px-3 py-1.5 transition-colors flex items-center gap-1.5"
               >
                 {importing && (
                   <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -357,7 +357,7 @@ export function ImportFromUrlModal({ folderPath, initialAccessToken, onImport, o
             <button
               onClick={() => void handleRetryFailed()}
               disabled={importing || !accessToken.trim()}
-              className="text-sm font-medium text-white bg-[#0969da] hover:bg-[#0860ca] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-3 py-1.5 transition-colors flex items-center gap-1.5"
+              className="text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-3 py-1.5 transition-colors flex items-center gap-1.5"
             >
               {importing && (
                 <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">

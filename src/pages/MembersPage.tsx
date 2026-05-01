@@ -128,7 +128,7 @@ export function MembersContent() {
         {canManage && (
           <button
             onClick={() => { setShowAdd(true); setAddError(null); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-sm font-medium rounded-md transition-colors border border-[#1a7f37]/80"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1f883d] hover:bg-[#1a7f37] text-white text-sm font-medium rounded-md transition-colors border border-[#1f883d]/80"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -286,7 +286,7 @@ export function MembersContent() {
               <button
                 onClick={() => void handleAdd()}
                 disabled={adding || !addEmail.trim()}
-                className="text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 disabled:opacity-50 rounded-md px-3 py-1.5 transition-colors border border-[#1a7f37]/80"
+                className="text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] disabled:opacity-50 rounded-md px-3 py-1.5 transition-colors border border-[#1f883d]/80"
               >
                 {adding ? "Adding..." : "Add member"}
               </button>

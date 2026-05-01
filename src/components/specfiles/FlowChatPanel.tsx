@@ -523,7 +523,7 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
             <button
               onClick={() => void sendMessage(input)}
               disabled={!input.trim() || loading}
-              className="shrink-0 text-white bg-[#0969da] hover:bg-[#0860ca] rounded-lg px-3 py-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed self-end"
+              className="shrink-0 text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-lg px-3 py-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed self-end"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
@@ -771,7 +771,7 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleConfirmPlan}
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 border border-[#1a7f37]/80 rounded-md px-3 py-1.5 transition-colors"
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] border border-[#1f883d]/80 rounded-md px-3 py-1.5 transition-colors"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />

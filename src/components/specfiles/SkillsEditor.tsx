@@ -172,7 +172,7 @@ function VersionSidebar({ versions, loading, selectedId, checkedIds, onSelect, o
         <button
           onClick={onCompare}
           disabled={checkedIds.size !== 2}
-          className="ml-auto px-2 py-0.5 text-xs font-medium text-white bg-[#0969da] hover:bg-[#0969da]/90 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="ml-auto px-2 py-0.5 text-xs font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Compare
         </button>
@@ -374,7 +374,7 @@ function AIPanel({ currentContent, onApply }: AIPanelProps) {
           <button
             onClick={() => void handleSubmit()}
             disabled={!instruction.trim()}
-            className="px-3 py-1 text-sm font-medium text-white bg-[#0969da] hover:bg-[#0969da]/90 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-3 py-1 text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Generate
           </button>
@@ -490,7 +490,7 @@ function AIHistoryCard({ entry, expanded, currentContent, onToggle, onApply }: A
           <div className="flex items-center gap-2 px-3 py-2 bg-[#f6f8fa] border-t border-[#d1d9e0]/50">
             <button
               onClick={onApply}
-              className="px-3 py-1 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md transition-colors"
+              className="px-3 py-1 text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md transition-colors"
             >
               Apply changes
             </button>
@@ -903,7 +903,7 @@ export function SkillsEditor({ path, content, onSaved }: Props) {
           <button
             onClick={() => void handleSave()}
             disabled={!changed || saving}
-            className="px-3 py-1 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1 text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? "Saving..." : "Save"}
           </button>

@@ -225,7 +225,7 @@ export function IdeasChatPanel({ aiModel, onIdeaAccepted, onClose }: IdeasChatPa
                 </div>
                 <button
                   onClick={handleAcceptIdea}
-                  className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 px-2.5 py-1.5 rounded-md transition-colors"
+                  className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] px-2.5 py-1.5 rounded-md transition-colors"
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />

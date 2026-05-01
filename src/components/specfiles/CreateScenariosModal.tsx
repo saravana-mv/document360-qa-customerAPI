@@ -142,7 +142,7 @@ export function CreateScenariosModal({ flows, version, onConfirm, onClose }: Pro
               <button
                 onClick={handleCreateFolder}
                 disabled={!newFolderName.trim()}
-                className="px-3 py-1.5 text-sm font-medium text-white bg-[#0969da] hover:bg-[#0969da]/90 rounded-md transition-colors disabled:opacity-40"
+                className="px-3 py-1.5 text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md transition-colors disabled:opacity-40"
               >
                 Add
               </button>
@@ -176,7 +176,7 @@ export function CreateScenariosModal({ flows, version, onConfirm, onClose }: Pro
           </button>
           <button
             onClick={handleConfirm}
-            className="px-4 py-1.5 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md transition-colors"
+            className="px-4 py-1.5 text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md transition-colors"
           >
             Create {flows.length} scenario{flows.length !== 1 ? "s" : ""}
           </button>

@@ -169,7 +169,7 @@ export function SmartIdeasPanel({ currentMode, onGenerate, onClose, disabled, is
         <button
           onClick={handleGenerate}
           disabled={disabled}
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-[#0969da] hover:bg-[#0860ca] disabled:opacity-50 disabled:cursor-not-allowed rounded-md px-3 py-1.5 transition-colors border border-[#0969da]/80"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] disabled:opacity-50 disabled:cursor-not-allowed rounded-md px-3 py-1.5 transition-colors border border-[#1f883d]/80"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />

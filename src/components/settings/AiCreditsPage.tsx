@@ -227,7 +227,7 @@ export function AiCreditsPage() {
                     <button
                       onClick={handleSaveBudget}
                       disabled={saving}
-                      className="px-3 py-1.5 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 border border-[#1a7f37]/80"
+                      className="px-3 py-1.5 bg-[#1f883d] hover:bg-[#1a7f37] text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 border border-[#1f883d]/80"
                     >
                       {saving ? "Saving..." : "Update"}
                     </button>
@@ -325,7 +325,7 @@ export function AiCreditsPage() {
                               <button
                                 onClick={() => handleSaveUserBudget(row.userId)}
                                 disabled={savingUser}
-                                className="px-2.5 py-1 bg-[#1a7f37] text-white text-sm font-medium rounded-md disabled:opacity-50 border border-[#1a7f37]/80"
+                                className="px-2.5 py-1 bg-[#1f883d] text-white text-sm font-medium rounded-md disabled:opacity-50 hover:bg-[#1a7f37] border border-[#1f883d]/80"
                               >
                                 Save
                               </button>

@@ -859,7 +859,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
         </div>
         <button
           onClick={() => void handleAnalyze()}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium text-white bg-[#0969da] hover:bg-[#0860ca] transition-colors cursor-pointer"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] transition-colors cursor-pointer"
         >
           Retry analysis
         </button>
@@ -981,7 +981,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
                           <button
                             onClick={() => { setFixIndex(idx); void handleFixIt(fix.prompt); }}
                             disabled={anyFixing}
-                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-white bg-[#1a7f37] hover:bg-[#16653a] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.049.58.025 1.193-.14 1.743" />
@@ -1000,7 +1000,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
                 {fixState === "idle" && (
                   <button
                     onClick={() => void handleFixIt(fixes[0].prompt)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#16653a] transition-colors cursor-pointer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] transition-colors cursor-pointer"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.049.58.025 1.193-.14 1.743" />
@@ -1581,7 +1581,7 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
             <button
               onClick={() => void handleSave()}
               disabled={saving}
-              className="text-sm font-medium text-white bg-[#0969da] hover:bg-[#0860ca] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-2.5 py-1 transition-colors flex items-center gap-1.5"
+              className="text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-2.5 py-1 transition-colors flex items-center gap-1.5"
             >
               {saving && <SpinnerIcon />}
               {saving ? "Saving…" : "Validate & Save"}
@@ -1626,7 +1626,7 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
             <button
               onClick={handleAiAccept}
               disabled={saving}
-              className="text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a6f2f] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-2.5 py-1 transition-colors flex items-center gap-1.5"
+              className="text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-2.5 py-1 transition-colors flex items-center gap-1.5"
             >
               {saving && <SpinnerIcon />}
               {saving ? "Saving…" : "Validate & Save"}

@@ -325,7 +325,7 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
           <button
             onClick={() => void handleSave()}
             disabled={saving || !canSave}
-            className="px-3 py-1.5 text-xs font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md transition-colors disabled:opacity-50 border border-[#1a7f37]/80"
+            className="px-3 py-1.5 text-xs font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md transition-colors disabled:opacity-50 border border-[#1f883d]/80"
           >
             {saving ? "Saving…" : isEdit ? "Update" : "Create"}
           </button>

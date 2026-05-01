@@ -421,7 +421,7 @@ function FlowXmlContent({ flow, validation, onUpdateXml, isLocked, lockTooltip, 
             </button>
             <button
               onClick={() => handleSave()}
-              className="text-sm font-medium text-white bg-[#0969da] hover:bg-[#0860ca] rounded-md px-2.5 py-1 transition-colors"
+              className="text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md px-2.5 py-1 transition-colors"
             >
               Validate & Save
             </button>
@@ -461,7 +461,7 @@ function FlowXmlContent({ flow, validation, onUpdateXml, isLocked, lockTooltip, 
             </button>
             <button
               onClick={handleAiAccept}
-              className="text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a6f2f] rounded-md px-2.5 py-1 transition-colors"
+              className="text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md px-2.5 py-1 transition-colors"
             >
               Validate & Save
             </button>
@@ -738,7 +738,7 @@ export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFl
               <button
                 onClick={() => onCreateTest(selectedFlow)}
                 disabled={creatingTest}
-                className="flex items-center justify-center gap-1.5 bg-[#1a7f37] hover:bg-[#1a7f37]/90 disabled:bg-[#eef1f6] disabled:text-[#656d76] disabled:border-[#d1d9e0] text-white text-sm font-medium rounded-md px-3 py-1.5 transition-colors border border-[#1a7f37]/80"
+                className="flex items-center justify-center gap-1.5 bg-[#1f883d] hover:bg-[#1a7f37] disabled:bg-[#eef1f6] disabled:text-[#656d76] disabled:border-[#d1d9e0] text-white text-sm font-medium rounded-md px-3 py-1.5 transition-colors border border-[#1f883d]/80"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
@@ -771,7 +771,7 @@ export function DetailPanel({ selectedIdea, selectedFlow, flowIdea, onDownloadFl
             <button
               onClick={() => onGenerateFlow(selectedIdea.id)}
               disabled={generatingFlows}
-              className="flex items-center justify-center gap-1.5 bg-[#1a7f37] hover:bg-[#1a7f37]/90 disabled:bg-[#eef1f6] disabled:text-[#656d76] disabled:border-[#d1d9e0] text-white text-sm font-medium rounded-md px-3 py-1.5 transition-colors border border-[#1a7f37]/80 disabled:border-[#d1d9e0]"
+              className="flex items-center justify-center gap-1.5 bg-[#1f883d] hover:bg-[#1a7f37] disabled:bg-[#eef1f6] disabled:text-[#656d76] disabled:border-[#d1d9e0] text-white text-sm font-medium rounded-md px-3 py-1.5 transition-colors border border-[#1f883d]/80 disabled:border-[#d1d9e0]"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />

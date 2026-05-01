@@ -474,7 +474,7 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
           onClick={() => void handleSend()}
           disabled={sending || !canSend}
           title={!canSend ? "Configure a connection first" : undefined}
-          className="w-[180px] flex items-center justify-center gap-2 bg-[#0969da] hover:bg-[#0860ca] disabled:bg-[#eef1f6] disabled:text-[#656d76] text-white text-sm font-medium rounded-md px-4 py-2 transition-colors"
+          className="w-[180px] flex items-center justify-center gap-2 bg-[#1f883d] hover:bg-[#1a7f37] disabled:bg-[#eef1f6] disabled:text-[#656d76] text-white text-sm font-medium rounded-md px-4 py-2 transition-colors"
         >
           {sending ? (
             <>

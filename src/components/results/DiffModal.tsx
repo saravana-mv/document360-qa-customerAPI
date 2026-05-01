@@ -74,7 +74,7 @@ export function DiffModal({ open, onClose }: DiffModalProps) {
           <button
             onClick={checkChanges}
             disabled={checking || !spec}
-            className="px-4 py-2 bg-[#0969da] text-white text-sm rounded-md hover:bg-[#0860ca] disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 bg-[#1f883d] text-white text-sm rounded-md hover:bg-[#1a7f37] disabled:opacity-50 flex items-center gap-2"
           >
             {checking && <Spinner size="sm" className="text-white" />}
             {checking ? "Checking..." : "Check Now"}

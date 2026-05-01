@@ -95,7 +95,7 @@ function AccessTokenPrompt({ message, initialToken, onSubmit, onClose }: {
           <button
             onClick={() => onSubmit(token.trim())}
             disabled={!token.trim()}
-            className="text-sm font-medium text-white bg-[#0969da] hover:bg-[#0860ca] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-3 py-1.5 transition-colors"
+            className="text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-3 py-1.5 transition-colors"
           >
             Retry with token
           </button>
@@ -1075,7 +1075,7 @@ export function SpecFilesPage() {
                         className="flex-1 min-w-0 text-xs border border-[#0969da] rounded px-1.5 py-0.5 outline-none bg-white text-[#1f2328]"
                         placeholder="https://..."
                       />
-                      <button type="submit" className="text-xs text-white bg-[#0969da] hover:bg-[#0860ca] rounded px-2 py-0.5 font-medium">Save</button>
+                      <button type="submit" className="text-xs text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded px-2 py-0.5 font-medium">Save</button>
                       <button type="button" onClick={() => setEditingSourceUrl(false)} className="text-xs text-[#656d76] hover:text-[#1f2328]">Cancel</button>
                     </form>
                   ) : (
@@ -1219,7 +1219,7 @@ export function SpecFilesPage() {
                     </div>
                     <button
                       onClick={() => handleNavigateToIdeas(selectedFolderPath!)}
-                      className="inline-flex items-center gap-1.5 bg-[#0969da] hover:bg-[#0860ca] text-white text-sm font-medium rounded-md px-3 py-2 transition-colors border border-[#0969da]/80"
+                      className="inline-flex items-center gap-1.5 bg-[#1f883d] hover:bg-[#1a7f37] text-white text-sm font-medium rounded-md px-3 py-2 transition-colors border border-[#1f883d]/80"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />

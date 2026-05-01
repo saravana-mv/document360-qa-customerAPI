@@ -195,7 +195,7 @@ export function FileUploadModal({ folderPath, onUpload, onClose }: Props) {
             <button
               onClick={() => void handleUpload()}
               disabled={uploading || items.length === 0 || !hasPending}
-              className="text-xs font-medium text-white bg-[#0969da] hover:bg-[#0860ca] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-3 py-1.5 transition-colors"
+              className="text-xs font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-3 py-1.5 transition-colors"
             >
               {uploading ? "Uploading…" : hasErrors ? "Retry failed" : `Upload ${items.length} file${items.length !== 1 ? "s" : ""}`}
             </button>

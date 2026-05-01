@@ -56,7 +56,7 @@ export function GenerateIdeasModal({ folderPath, folderDisplayName, onGenerate, 
             <div>
               <h2 className="text-sm font-semibold text-[#1f2328]">Generate ideas</h2>
               <p className="text-xs text-[#656d76] mt-0.5">
-                <svg className="w-3 h-3 inline-block mr-1 -mt-0.5 text-[#9a6700]" fill="currentColor" viewBox="0 0 16 16">
+                <svg className="w-3 h-3 inline-block mr-1 -mt-0.5 text-[#25292e]" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M.513 1.513A1.75 1.75 0 0 1 1.75 0h3.5c.465 0 .91.185 1.239.513l.61.61c.109.109.257.17.411.17h6.74a1.75 1.75 0 0 1 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15.5H1.75A1.75 1.75 0 0 1 0 13.75V1.75c0-.465.185-.91.513-1.237Z" />
                 </svg>
                 {folderDisplayName || folderPath}
@@ -166,7 +166,7 @@ export function GenerateIdeasModal({ folderPath, folderDisplayName, onGenerate, 
             <button
               onClick={handleSubmit}
               disabled={disabled || noFiles}
-              className="w-full inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-[#0969da] hover:bg-[#0860ca] disabled:bg-[#d1d9e0] disabled:cursor-not-allowed rounded-lg px-4 py-2.5 transition-colors"
+              className="w-full inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] disabled:bg-[#d1d9e0] disabled:cursor-not-allowed rounded-lg px-4 py-2.5 transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />

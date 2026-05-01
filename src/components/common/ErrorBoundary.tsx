@@ -41,7 +41,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </details>
             )}
             <button
-              className="mt-2 px-4 py-2 bg-[#0969da] text-white rounded-md text-sm hover:bg-[#0860ca]"
+              className="mt-2 px-4 py-2 bg-[#1f883d] text-white rounded-md text-sm hover:bg-[#1a7f37]"
               onClick={() => this.setState({ error: null, componentStack: null })}
             >
               Try again

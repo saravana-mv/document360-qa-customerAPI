@@ -214,7 +214,7 @@ export function SpecFilePicker({ currentPaths, onSave, onClose }: Props) {
           </button>
           <button
             onClick={handleConfirm}
-            className="text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 px-3 py-1.5 rounded-md transition-colors"
+            className="text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] px-3 py-1.5 rounded-md transition-colors"
           >
             Confirm ({selected.size})
           </button>

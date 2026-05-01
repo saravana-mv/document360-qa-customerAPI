@@ -380,7 +380,7 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
                       ? `Create scenarios for ${selectedUnmarkedCount} valid flow${selectedUnmarkedCount !== 1 ? "s" : ""}; ${selectedInvalidCount} invalid flow${selectedInvalidCount !== 1 ? "s" : ""} will be skipped`
                       : `Create scenarios for ${selectedUnmarkedCount} selected flow${selectedUnmarkedCount !== 1 ? "s" : ""}`
             }
-            className="flex items-center justify-center gap-1.5 bg-[#1a7f37] hover:bg-[#1a7f37]/90 disabled:bg-[#eef1f6] disabled:text-[#656d76] disabled:border-[#d1d9e0] text-white text-sm font-medium rounded-md px-3 py-1.5 transition-colors border border-[#1a7f37]/80"
+            className="flex items-center justify-center gap-1.5 bg-[#1f883d] hover:bg-[#1a7f37] disabled:bg-[#eef1f6] disabled:text-[#656d76] disabled:border-[#d1d9e0] text-white text-sm font-medium rounded-md px-3 py-1.5 transition-colors border border-[#1f883d]/80"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />

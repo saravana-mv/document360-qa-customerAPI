@@ -243,7 +243,7 @@ export function ApiKeysCard() {
         <div className="flex-1" />
         <button
           onClick={() => { setShowCreate(true); setNewKey(null); }}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-sm font-medium rounded-md transition-colors border border-[#1a7f37]/80"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1f883d] hover:bg-[#1a7f37] text-white text-sm font-medium rounded-md transition-colors border border-[#1f883d]/80"
         >
           <PlusIcon className="w-4 h-4" />
           New key
@@ -357,7 +357,7 @@ export function ApiKeysCard() {
             <button
               disabled={creating || !name.trim() || !versionId}
               onClick={handleCreate}
-              className="px-3 py-[5px] text-xs font-medium text-white bg-[#1a7f37] border border-[#1a7f37]/80 rounded-md hover:bg-[#1a7f37]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-[5px] text-xs font-medium text-white bg-[#1a7f37] border border-[#1f883d]/80 rounded-md hover:bg-[#1a7f37]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {creating ? "Creating…" : "Create key"}
             </button>

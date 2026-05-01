@@ -202,7 +202,7 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
           <button
             onClick={() => void handleSave()}
             disabled={saving || !canSave}
-            className="px-3 py-1.5 text-xs font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border border-[#1a7f37]/80"
+            className="px-3 py-1.5 text-xs font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border border-[#1f883d]/80"
           >
             {saving ? "Saving…" : isConnected ? "Update" : "Connect"}
           </button>

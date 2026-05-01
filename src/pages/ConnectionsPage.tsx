@@ -252,7 +252,7 @@ export function ConnectionsPage() {
           </div>
           <button
             onClick={() => setShowCreate(true)}
-            className="px-3 py-1.5 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md transition-colors border border-[#1a7f37]/80"
+            className="px-3 py-1.5 text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md transition-colors border border-[#1f883d]/80"
           >
             New connection
           </button>
@@ -284,7 +284,7 @@ export function ConnectionsPage() {
             </p>
             <button
               onClick={() => setShowCreate(true)}
-              className="px-3 py-1.5 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1a7f37]/90 rounded-md transition-colors border border-[#1a7f37]/80"
+              className="px-3 py-1.5 text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md transition-colors border border-[#1f883d]/80"
             >
               New connection
             </button>
@@ -405,7 +405,7 @@ export function ConnectionsPage() {
                             <button
                               onClick={() => void handleConnect(conn)}
                               disabled={connecting === conn.id}
-                              className="px-2.5 py-1 text-sm font-medium text-white bg-[#0969da] rounded-md hover:bg-[#0969da]/90 transition-colors disabled:opacity-50"
+                              className="px-2.5 py-1 text-sm font-medium text-white bg-[#1f883d] rounded-md hover:bg-[#1a7f37] transition-colors disabled:opacity-50"
                               title="Connect via OAuth"
                             >
                               {connecting === conn.id ? "..." : "Connect"}

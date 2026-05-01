@@ -76,7 +76,7 @@ export function MarkConflictModal({ existingName, suggestedNewName, flowTitle, o
           <button
             disabled={!renameValue.trim() || renameValue === existingName}
             onClick={() => onResolve({ kind: "rename", newName: renameValue.trim() })}
-            className="text-sm font-medium text-white bg-[#0969da] hover:bg-[#0969da]/90 border border-[#0969da]/80 rounded-md px-3 py-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] border border-[#1f883d]/80 rounded-md px-3 py-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Save as new
           </button>

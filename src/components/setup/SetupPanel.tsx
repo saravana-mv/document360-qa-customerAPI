@@ -71,7 +71,7 @@ export function SetupPanel() {
             <button
               onClick={saveAppSettings}
               disabled={!aiModelDirty}
-              className="px-3 py-[6px] text-sm font-medium text-white bg-[#1a7f37] border border-[#1a7f37]/80 rounded-md hover:bg-[#1a7f37]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-[6px] text-sm font-medium text-white bg-[#1a7f37] border border-[#1f883d]/80 rounded-md hover:bg-[#1a7f37]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Save
             </button>
@@ -128,7 +128,7 @@ export function SetupPanel() {
             <button
               onClick={saveRunSettings}
               disabled={!runSettingsDirty}
-              className="px-3 py-[6px] text-sm font-medium text-white bg-[#1a7f37] border border-[#1a7f37]/80 rounded-md hover:bg-[#1a7f37]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-[6px] text-sm font-medium text-white bg-[#1a7f37] border border-[#1f883d]/80 rounded-md hover:bg-[#1a7f37]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Save
             </button>

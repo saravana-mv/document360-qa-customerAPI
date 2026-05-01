@@ -330,7 +330,7 @@ export function RunControls() {
           onClick={runAll}
           disabled={runner.running || !healthCheckDone || hasConnectionIssues || hasVarProblems || unconnectedVersions.length > 0}
           title={hasVarProblems ? "Project variables missing values — configure in Settings → Variables" : unconnectedVersions.length > 0 ? "Endpoint not connected — connect before running" : hasConnectionIssues ? "Connection credential issue — check Settings → Connections" : !healthCheckDone ? "Checking connection credentials…" : undefined}
-          className="px-2.5 py-1 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-xs font-medium rounded-md transition-colors disabled:opacity-50 flex items-center gap-1.5 border border-[#1a7f37]/80"
+          className="px-2.5 py-1 bg-[#1f883d] hover:bg-[#1a7f37] text-white text-xs font-medium rounded-md transition-colors disabled:opacity-50 flex items-center gap-1.5 border border-[#1f883d]/80"
         >
           {runner.running && <Spinner size="sm" className="text-white" />}
           Run all
@@ -378,7 +378,7 @@ export function RunControls() {
           </div>
           <button
             onClick={runner.resume}
-            className="px-2.5 py-1 bg-[#1a7f37] hover:bg-[#1a7f37]/90 text-white text-xs font-medium rounded-md transition-colors border border-[#1a7f37]/80 shrink-0"
+            className="px-2.5 py-1 bg-[#1f883d] hover:bg-[#1a7f37] text-white text-xs font-medium rounded-md transition-colors border border-[#1f883d]/80 shrink-0"
           >
             Resume
           </button>

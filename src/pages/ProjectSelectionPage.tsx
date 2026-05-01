@@ -145,7 +145,7 @@ export function ProjectSelectionPage() {
             {!creating && canCreateProject && (
               <button
                 onClick={() => setCreating(true)}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1f883d] rounded-md transition-colors"
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -185,7 +185,7 @@ export function ProjectSelectionPage() {
                   <button
                     onClick={handleCreate}
                     disabled={!newName.trim()}
-                    className="px-4 py-2 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1f883d] disabled:opacity-40 disabled:cursor-not-allowed rounded-md transition-colors"
+                    className="px-4 py-2 text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] disabled:opacity-40 disabled:cursor-not-allowed rounded-md transition-colors"
                   >
                     Create project
                   </button>
@@ -232,7 +232,7 @@ export function ProjectSelectionPage() {
               {canCreateProject && (
                 <button
                   onClick={() => setCreating(true)}
-                  className="px-4 py-2 text-sm font-medium text-white bg-[#1a7f37] hover:bg-[#1f883d] rounded-md transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md transition-colors"
                 >
                   Create a project
                 </button>
