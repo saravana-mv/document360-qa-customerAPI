@@ -8,6 +8,7 @@ import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../li
 import { extractVersionFolder } from "../lib/apiRules";
 import { loadAiContext } from "../lib/aiContext";
 import { resolveCrossFolderDeps } from "../lib/specFileSelection";
+import { createIdeasTraceBuilder } from "../lib/ideasTrace";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -175,6 +176,9 @@ export async function generateFlowIdeasHandler(
   const principal = parseClientPrincipal(req);
   const displayName = principal?.userDetails ?? userName;
 
+  // ── Trace builder ──
+  const trace = createIdeasTraceBuilder(projectId, oid, displayName);
+
   // ── Resolve spec files based on context (explicit paths, single file, or folder) ──
   let specContents: { name: string; content: string }[];
   let filesAnalyzed = 0;
@@ -270,6 +274,24 @@ export async function generateFlowIdeasHandler(
     .map((s) => `## ${s.name}\n\n${s.content}`)
     .join("\n\n---\n\n");
 
+  // ── Trace: request & spec context ──
+  trace.setRequest({
+    folderPath: body.folderPath ?? "",
+    mode,
+    maxCount: typeof body.maxCount === "number" ? body.maxCount : MAX_IDEAS_PER_RUN,
+    scope,
+    prompt: body.prompt?.trim() || null,
+    filePaths: hasExplicitFiles ? (body.filePaths ?? []) : [],
+    existingIdeasCount: body.existingIdeas?.length ?? 0,
+  });
+  trace.setSpecContext({
+    source: hasExplicitFiles ? "explicit" : isSingleFile ? "single-file" : "folder",
+    usedDigest: useDigest,
+    filesAnalyzed,
+    totalSpecCharacters: specText.length,
+    fileNames: specContents.map(s => s.name),
+  });
+
   // Resolve version folder early — needed for version detection and API rules
   const versionFolder = extractVersionFolder(body.folderPath ?? "");
 
@@ -342,6 +364,9 @@ export async function generateFlowIdeasHandler(
   const SYSTEM_PROMPT = buildSystemPrompt(mode, requestedCount, useDigest);
   const systemPrompt = ctx.enrichSystemPrompt(SYSTEM_PROMPT);
 
+  // ── Trace: prompts ──
+  trace.setPrompt(systemPrompt, userMessage);
+
   // ── Pre-estimate cost and enforce budget ──
   const { inputPrice, outputPrice } = priceFor(DEFAULT_IDEAS_MODEL);
   const totalChars = systemPrompt.length + userMessage.length;
@@ -392,6 +417,14 @@ export async function generateFlowIdeasHandler(
     usedDigest: useDigest,
   };
 
+  // ── Trace: model usage ──
+  trace.setModelUsage({
+    name: body.model ?? DEFAULT_IDEAS_MODEL,
+    inputTokens: result.usage.inputTokens,
+    outputTokens: result.usage.outputTokens,
+    costUsd: result.usage.costUsd,
+  });
+
   // ── Parse response ──
   const rawText = result.text;
 
@@ -405,11 +438,14 @@ export async function generateFlowIdeasHandler(
     }
   } catch {
     // Return raw text so the frontend can still display something
+    trace.setResult({ ideasGenerated: 0, parseError: true, crossFolderAugmented: 0 });
+    const traceId = await trace.save();
     return ok({
       ideas: [],
       rawText,
       parseError: true,
       usage,
+      traceId,
     });
   }
 
@@ -462,7 +498,18 @@ export async function generateFlowIdeasHandler(
     }
   }
 
-  return ok({ ideas, usage });
+  // ── Trace: result & save ──
+  const crossFolderAugmented = ideas.filter((i: { specFiles?: string[] }) =>
+    Array.isArray(i.specFiles) && i.specFiles.length > 0
+  ).length;
+  trace.setResult({
+    ideasGenerated: ideas.length,
+    parseError: false,
+    crossFolderAugmented,
+  });
+  const traceId = await trace.save();
+
+  return ok({ ideas, usage, traceId });
 }
 
 app.http("generateFlowIdeas", {

@@ -745,17 +745,43 @@ async function resolveSpecFilesFromIdea(
 
   console.log(`[generateFlow] Blob listing for ${prefix}: ${allMdFiles.length} .md files`);
 
-  // 3. Try AI-provided specFiles first, then fall back to filterRelevantSpecs
+  // If zero results, try case-insensitive by listing from projectId root and filtering
+  if (allMdFiles.length === 0 && versionFolder) {
+    console.warn(`[generateFlow] Zero blobs for prefix "${prefix}", trying case-insensitive fallback`);
+    const rootPrefix = projectId !== "unknown" ? `${projectId}/` : "";
+    const rootBlobs = await listBlobs(rootPrefix);
+    const vfLower = versionFolder.toLowerCase();
+    const filtered = rootBlobs.filter(b => {
+      const rel = projectId !== "unknown" && b.name.startsWith(projectId + "/")
+        ? b.name.slice(projectId.length + 1)
+        : b.name;
+      return rel.toLowerCase().startsWith(vfLower + "/") && rel.endsWith(".md");
+    });
+    allMdFiles.push(...filtered.map(b => {
+      return projectId !== "unknown" && b.name.startsWith(projectId + "/")
+        ? b.name.slice(projectId.length + 1)
+        : b.name;
+    }));
+    console.log(`[generateFlow] Case-insensitive fallback found ${allMdFiles.length} .md files`);
+  }
+
+  // 3. Try AI-provided specFiles first — trust them without blob validation
+  // These paths came from the idea generation phase where they were already validated
   if (idea.specFiles && idea.specFiles.length > 0) {
-    const allMdLower = new Set(allMdFiles.map(f => f.toLowerCase()));
-    const validated = idea.specFiles.filter(f => allMdLower.has(f.toLowerCase()));
-    if (validated.length > 0) {
-      const crossFolderFiles = resolveCrossFolderDeps(idea.steps, validated, allMdFiles);
-      const combined = [...validated, ...crossFolderFiles];
-      console.log(`[generateFlow] AI specFiles: ${validated.length} validated, ${crossFolderFiles.length} cross-folder, total=${combined.length}`);
-      return { files: combined, totalBlobFiles: allMdFiles.length, idea: { id: ideaId, ...idea }, specSource: "ai-provided" };
-    }
-    console.warn(`[generateFlow] AI specFiles all invalid, falling back to filterRelevantSpecs`);
+    // For cross-folder deps, we need all .md files — list using the version folder from the spec files themselves
+    const specVersionFolder = idea.specFiles[0]?.split("/")[0] ?? versionFolder;
+    const crossPrefix = projectId !== "unknown" ? `${projectId}/${specVersionFolder}/` : `${specVersionFolder}/`;
+    let crossFolderFiles: string[] = [];
+    try {
+      const crossBlobs = await listBlobs(crossPrefix);
+      const allMdForCross = crossBlobs
+        .filter(b => b.name.endsWith(".md"))
+        .map(b => projectId !== "unknown" && b.name.startsWith(projectId + "/") ? b.name.slice(projectId.length + 1) : b.name);
+      crossFolderFiles = resolveCrossFolderDeps(idea.steps, idea.specFiles, allMdForCross);
+    } catch { /* cross-folder resolution is non-fatal */ }
+    const combined = [...idea.specFiles, ...crossFolderFiles];
+    console.log(`[generateFlow] AI specFiles: ${idea.specFiles.length} direct, ${crossFolderFiles.length} cross-folder, total=${combined.length}`);
+    return { files: combined, totalBlobFiles: idea.specFiles.length + crossFolderFiles.length, idea: { id: ideaId, ...idea }, specSource: "ai-provided" };
   }
 
   // Fallback: heuristic spec selection

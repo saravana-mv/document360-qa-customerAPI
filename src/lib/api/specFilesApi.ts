@@ -330,6 +330,7 @@ export interface GenerateFlowIdeasResponse {
   rawText?: string;
   parseError?: boolean;
   message?: string;
+  traceId?: string;
 }
 
 export type IdeaScope = "folder" | "version" | "custom";
