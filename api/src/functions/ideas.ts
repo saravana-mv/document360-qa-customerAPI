@@ -269,7 +269,7 @@ async function getFolders(req: HttpRequest): Promise<HttpResponseInit> {
   try {
     const projectId = getProjectId(req);
     const container = await getIdeasContainer();
-    const query = `SELECT * FROM c WHERE c.type="idea_folder" AND c.projectId=@pid ORDER BY c.order`;
+    const query = `SELECT * FROM c WHERE c.type="idea_folder" AND c.projectId=@pid ORDER BY c["order"]`;
     const { resources } = await container.items.query<IdeaFolderDoc>(
       { query, parameters: [{ name: "@pid", value: projectId }] },
       { partitionKey: projectId },

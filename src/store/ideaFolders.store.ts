@@ -127,12 +127,12 @@ export const useIdeaFoldersStore = create<IdeaFoldersState>((set, get) => ({
       return !segments.some((s) => s === "_system" || s === "_distilled");
     });
 
-    // Group by parent folder path
+    // Group by parent folder path — lowercase to match backend slugify
     const folderMap = new Map<string, string[]>();
     for (const f of mdFiles) {
       const lastSlash = f.name.lastIndexOf("/");
       if (lastSlash < 0) continue; // skip root-level files
-      const folder = f.name.substring(0, lastSlash);
+      const folder = f.name.substring(0, lastSlash).toLowerCase();
       if (!folderMap.has(folder)) folderMap.set(folder, []);
       folderMap.get(folder)!.push(f.name);
     }
@@ -165,8 +165,8 @@ export const useIdeaFoldersStore = create<IdeaFoldersState>((set, get) => ({
         await apiCreateFolder(name, parentPath, specs);
         existingPaths.add(folderPath);
       } catch (e) {
-        // 409 = already exists, skip
-        if (e instanceof Error && e.message.includes("409")) {
+        // 409 = already exists, skip silently
+        if (e instanceof Error && e.message.includes("already exists")) {
           existingPaths.add(folderPath);
         } else {
           console.warn(`[ideaFolders.store] Failed to create folder "${folderPath}":`, e);
