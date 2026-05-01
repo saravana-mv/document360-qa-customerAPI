@@ -62,6 +62,8 @@ interface Props {
   ideaMode: IdeaMode;
   /** Mode change handler */
   onModeChange: (mode: IdeaMode) => void;
+  /** Folder path for idea generation context */
+  folderPath: string;
 }
 
 export function FlowIdeasPanel({
@@ -71,7 +73,7 @@ export function FlowIdeasPanel({
   onGenerateFlows, onGenerateFlowForIdea, onGenerateMore, onDeleteSelected, onDeleteIdea, onClickIdea, generatingFlows,
   ideasExhausted, maxIdeasTotal = 30, markedIds,
   thisLevelOnly, onToggleThisLevel,
-  ideaMode, onModeChange,
+  ideaMode, onModeChange, folderPath,
 }: Props) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [rowDeleteId, setRowDeleteId] = useState<string | null>(null);
@@ -448,6 +450,7 @@ export function FlowIdeasPanel({
       {/* Generate Ideas modal */}
       {showGenerateModal && (
         <GenerateIdeasModal
+          folderPath={folderPath}
           currentMode={ideaMode}
           onGenerate={(count, mode, specFiles, prompt) => {
             onModeChange(mode);

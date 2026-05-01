@@ -18,7 +18,6 @@ import {
   type FlowIdeasUsage,
   type FlowUsage,
   type IdeaMode,
-  type IdeaScope,
 } from "../lib/api/specFilesApi";
 import { generateFlowXml } from "../lib/api/flowApi";
 import { validateFlowXml } from "../lib/tests/flowXml/validate";
@@ -287,7 +286,7 @@ export function IdeasFlowsPage() {
 
   // ── Generate flow ideas (AI) ──────────────────────────────────────────────
 
-  async function handleGenerateFlowIdeas(contextPath: string, maxCount?: number, filePaths?: string[], prompt?: string, scope?: IdeaScope) {
+  async function handleGenerateFlowIdeas(contextPath: string, maxCount?: number, filePaths?: string[], prompt?: string) {
     setSelectedFolderPath(contextPath);
 
     const existing = aggregateForPath(workshopMap, contextPath);
@@ -314,7 +313,7 @@ export function IdeasFlowsPage() {
       setIdeasLoading(true);
     }
     try {
-      const result = await generateFlowIdeas(contextPath, existingTitles, undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN, filePaths, ideaMode, prompt, scope);
+      const result = await generateFlowIdeas(contextPath, existingTitles, undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN, filePaths, ideaMode, prompt);
       const perIdeaCost = result.usage && result.ideas.length > 0
         ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
         : undefined;
@@ -1217,6 +1216,7 @@ export function IdeasFlowsPage() {
                       onToggleThisLevel={(hasSubLevelIdeas || hasSubLevelFlows) ? () => setThisLevelOnly((v) => !v) : undefined}
                       ideaMode={ideaMode}
                       onModeChange={setIdeaMode}
+                      folderPath={activePath!}
                     />
                   </div>
 
@@ -1305,12 +1305,11 @@ export function IdeasFlowsPage() {
                       </button>
                       {showLandingModal && (
                         <GenerateIdeasModal
+                          folderPath={activePath!}
                           currentMode={ideaMode}
-                          showScope
-                          isVersionRoot={!!(activePath && /^v\d+\/?$/i.test(activePath))}
-                          onGenerate={(count, mode, specFiles, prompt, scope) => {
+                          onGenerate={(count, mode, specFiles, prompt) => {
                             setIdeaMode(mode);
-                            void handleGenerateFlowIdeas(activePath!, count, specFiles, prompt, scope);
+                            void handleGenerateFlowIdeas(activePath!, count, specFiles, prompt);
                           }}
                           onClose={() => setShowLandingModal(false)}
                         />
@@ -1362,12 +1361,11 @@ export function IdeasFlowsPage() {
       {/* Generate Ideas modal (from header bar "New Ideas" button) */}
       {showNewIdeasModal && (
         <GenerateIdeasModal
+          folderPath={activePath!}
           currentMode={ideaMode}
-          showScope
-          isVersionRoot={!!(activePath && /^v\d+\/?$/i.test(activePath))}
-          onGenerate={(count, mode, specFiles, prompt, scope) => {
+          onGenerate={(count, mode, specFiles, prompt) => {
             setIdeaMode(mode);
-            void handleGenerateFlowIdeas(activePath!, count, specFiles, prompt, scope);
+            void handleGenerateFlowIdeas(activePath!, count, specFiles, prompt);
           }}
           onClose={() => setShowNewIdeasModal(false)}
         />

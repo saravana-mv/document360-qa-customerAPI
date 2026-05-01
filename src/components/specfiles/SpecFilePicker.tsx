@@ -172,7 +172,7 @@ export function SpecFilePicker({ currentPaths, onSave, onClose }: Props) {
                       <svg className="w-3.5 h-3.5 text-[#656d76] shrink-0" fill="currentColor" viewBox="0 0 16 16">
                         <path d="M.513 1.513A1.75 1.75 0 0 1 1.75 0h3.5c.465 0 .91.185 1.239.513l.61.61c.109.109.257.17.411.17h6.74a1.75 1.75 0 0 1 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15.5H1.75A1.75 1.75 0 0 1 0 13.75V1.75c0-.465.185-.91.513-1.237Z" />
                       </svg>
-                      <span className="text-xs font-semibold text-[#656d76] flex-1 truncate">{folder}</span>
+                      <span className="text-xs font-semibold text-[#656d76] flex-1 truncate text-left">{folder}</span>
                       <span className="text-xs text-[#8b949e]">{checkedCount}/{files.length}</span>
                     </label>
                   </div>
