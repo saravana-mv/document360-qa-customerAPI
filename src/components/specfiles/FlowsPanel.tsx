@@ -345,7 +345,7 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
                       }
                       if (onValidateFlow) {
                         items.push({
-                          label: validatingFlowId === flow.ideaId ? "Validating..." : "Validate against spec",
+                          label: validatingFlowId === flow.ideaId ? "Validating..." : "Validate Flow XML",
                           icon: MenuIcons.inspect,
                           onClick: () => onValidateFlow(flow),
                           disabled: validatingFlowId === flow.ideaId,

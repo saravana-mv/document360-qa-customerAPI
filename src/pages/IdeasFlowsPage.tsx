@@ -9,6 +9,7 @@ import { FlowsPanel, type GeneratedFlow } from "../components/specfiles/FlowsPan
 import { DetailPanel } from "../components/specfiles/DetailPanel";
 import { MarkConflictModal } from "../components/specfiles/MarkConflictModal";
 import { CreateScenariosModal } from "../components/specfiles/CreateScenariosModal";
+import { FlowValidationModal } from "../components/specfiles/FlowValidationModal";
 import { CreateFolderModal } from "../components/specfiles/CreateFolderModal";
 import { IdeasChatPanel } from "../components/specfiles/IdeasChatPanel";
 import type { ChatIdea } from "../lib/api/flowChatApi";
@@ -126,7 +127,7 @@ export function IdeasFlowsPage() {
   } | null>(null);
 
   // ── Spec validation state ───────────────────────────────────────────────
-  const [specValidation, setSpecValidation] = useState<import("../lib/api/validateFlowApi").ValidationResult | null>(null);
+  const [specValidation, setSpecValidation] = useState<{ flow: GeneratedFlow; result: import("../lib/api/validateFlowApi").ValidationResult } | null>(null);
   const [validatingFlowId, setValidatingFlowId] = useState<string | null>(null);
 
   // ── Resizable panel widths (persisted) ───────────────────────────────────
@@ -668,17 +669,19 @@ export function IdeasFlowsPage() {
     if (!flow.xml || validatingFlowId) return;
     setValidatingFlowId(flow.ideaId);
     setSpecValidation(null);
-    setActiveFlowId(flow.ideaId);
     try {
       const { validateFlow } = await import("../lib/api/validateFlowApi");
       const versionRoot = (activePath ?? "").split("/")[0] ?? "";
       const result = await validateFlow(flow.xml, versionRoot);
-      setSpecValidation(result);
+      setSpecValidation({ flow, result });
     } catch (err) {
       setSpecValidation({
-        valid: false,
-        issues: [{ severity: "error", step: null, category: "api-error", message: err instanceof Error ? err.message : "Validation request failed" }],
-        summary: { errors: 1, warnings: 0, info: 0 },
+        flow,
+        result: {
+          valid: false,
+          issues: [{ severity: "error", step: null, category: "api-error", message: err instanceof Error ? err.message : "Validation request failed" }],
+          summary: { errors: 1, warnings: 0, info: 0 },
+        },
       });
     } finally {
       setValidatingFlowId(null);
@@ -1317,8 +1320,6 @@ export function IdeasFlowsPage() {
                           canUnlockFlow={canUnlockFlow}
                           onUnlockFlow={selectedFlowLock ? () => void handleUnlockSelectedFlow() : undefined}
                           folderPath={parentFolderOf(activePath)}
-                          specValidation={specValidation}
-                          onClearSpecValidation={() => setSpecValidation(null)}
                         />
                       </div>
                     </>
@@ -1392,6 +1393,16 @@ export function IdeasFlowsPage() {
             void executeCreateScenarios(flows, targetFolder);
           }}
           onClose={() => setPendingCreateScenarios(null)}
+        />
+      )}
+
+      {/* Flow validation modal */}
+      {specValidation && (
+        <FlowValidationModal
+          flowTitle={specValidation.flow.title}
+          flowXml={specValidation.flow.xml}
+          result={specValidation.result}
+          onClose={() => setSpecValidation(null)}
         />
       )}
 
