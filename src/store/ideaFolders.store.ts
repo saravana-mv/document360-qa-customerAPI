@@ -8,6 +8,16 @@ import {
 } from "../lib/api/ideaFoldersApi";
 import { listSpecFiles } from "../lib/api/specFilesApi";
 
+const UPPER_WORDS = new Set(["ai", "api", "id", "ui", "url", "ip", "qa", "sso", "oauth", "http", "css", "html", "xml", "json", "sdk", "cdn", "dns", "faq", "sla", "jwt", "pdf"]);
+
+/** Convert kebab/snake slug to human-readable title: "ai-search-analytics" → "AI Search Analytics" */
+function humanizeName(slug: string): string {
+  return slug
+    .split(/[-_]+/)
+    .map((w) => UPPER_WORDS.has(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 interface IdeaFoldersState {
   folders: IdeaFolderDoc[];
   loaded: boolean;
@@ -147,7 +157,8 @@ export const useIdeaFoldersStore = create<IdeaFoldersState>((set, get) => ({
     for (const folderPath of sorted) {
       if (existingPaths.has(folderPath)) continue;
       const parts = folderPath.split("/");
-      const name = parts[parts.length - 1];
+      const rawName = parts[parts.length - 1];
+      const name = humanizeName(rawName);
       const parentPath = parts.length > 1 ? parts.slice(0, -1).join("/") : null;
       const specs = folderMap.get(folderPath) ?? [];
       try {
