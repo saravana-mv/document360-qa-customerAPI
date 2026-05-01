@@ -778,7 +778,7 @@ describe("CRUD lifecycle integration (splitter filenames)", () => {
 
   // Raw distilled content as readDistilledContent returns it — includes DOUBLE
   // inner headers from distillAndStore wrapping + splitter original
-  const rawDistilledCreate = `<!-- distill-v6 -->
+  const rawDistilledCreate = `<!-- distill-v7 -->
 ## create-category.md
 
 ## create-category.md
@@ -799,7 +799,7 @@ describe("CRUD lifecycle integration (splitter filenames)", () => {
 ### Response (201)
 Key fields: response.data.id, response.data.name, response.data.order, response.data.icon`;
 
-  const rawDistilledBulk = `<!-- distill-v6 -->
+  const rawDistilledBulk = `<!-- distill-v7 -->
 ## create-categories-bulk.md
 
 ## create-categories-bulk.md
@@ -814,7 +814,7 @@ Key fields: response.data.id, response.data.name, response.data.order, response.
 |-------|------|----------|-------------|
 | \`categories\` | array | **YES** | Array of category objects |`;
 
-  const rawDistilledGet = `<!-- distill-v6 -->
+  const rawDistilledGet = `<!-- distill-v7 -->
 ## get-category.md
 
 ## get-category.md
@@ -825,7 +825,7 @@ Key fields: response.data.id, response.data.name, response.data.order, response.
 ### Response (200)
 Key fields: response.data.id, response.data.name, response.data.order, response.data.icon, response.data.workspace_id`;
 
-  const rawDistilledPatch = `<!-- distill-v6 -->
+  const rawDistilledPatch = `<!-- distill-v7 -->
 ## update-category.md
 
 ## update-category.md
@@ -845,7 +845,7 @@ Key fields: response.data.id, response.data.name, response.data.order, response.
 ### Response (200)
 Key fields: response.data.id, response.data.name, response.data.icon`;
 
-  const rawDistilledDelete = `<!-- distill-v6 -->
+  const rawDistilledDelete = `<!-- distill-v7 -->
 ## delete-category.md
 
 ## delete-category.md
