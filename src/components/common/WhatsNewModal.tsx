@@ -1,15 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 interface ChangelogEntry {
-  version: string;
+  build: number;
   date: string;
   changes: { type: string; text: string }[];
 }
 
 interface Props {
   newVersion: string;
+  currentVersion: string;
   onRelaunch: () => void;
   onClose: () => void;
+}
+
+/** Extract the build number (last segment) from a version like "1.0.388". Returns 0 for "dev". */
+function extractBuild(version: string): number {
+  const parts = version.split(".");
+  const last = parseInt(parts[parts.length - 1], 10);
+  return Number.isFinite(last) ? last : 0;
 }
 
 const TYPE_STYLES: Record<string, { label: string; bg: string; text: string }> = {
@@ -18,9 +26,10 @@ const TYPE_STYLES: Record<string, { label: string; bg: string; text: string }> =
   improvement: { label: "Improved",    bg: "#dafbe1", text: "#1a7f37" },
 };
 
-export function WhatsNewModal({ newVersion, onRelaunch, onClose }: Props) {
-  const [entries, setEntries] = useState<ChangelogEntry[]>([]);
+export function WhatsNewModal({ newVersion, currentVersion, onRelaunch, onClose }: Props) {
+  const [allEntries, setAllEntries] = useState<ChangelogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const currentBuild = useMemo(() => extractBuild(currentVersion), [currentVersion]);
 
   useEffect(() => {
     (async () => {
@@ -28,12 +37,18 @@ export function WhatsNewModal({ newVersion, onRelaunch, onClose }: Props) {
         const res = await fetch(`/changelog.json?t=${Date.now()}`, { cache: "no-store" });
         if (res.ok) {
           const data = (await res.json()) as ChangelogEntry[];
-          setEntries(data);
+          setAllEntries(data);
         }
       } catch { /* silent */ }
       setLoading(false);
     })();
   }, []);
+
+  // Only show entries with a build number greater than what the user is currently running
+  const entries = useMemo(
+    () => allEntries.filter((e) => e.build > currentBuild),
+    [allEntries, currentBuild],
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }}>
@@ -74,10 +89,10 @@ export function WhatsNewModal({ newVersion, onRelaunch, onClose }: Props) {
           ) : (
             <div className="space-y-5">
               {entries.map((entry) => (
-                <div key={entry.version}>
+                <div key={entry.build}>
                   <div className="flex items-center gap-2 mb-2.5">
                     <span className="text-xs font-semibold text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-full px-2 py-0.5">
-                      v{entry.version}
+                      Build {entry.build}
                     </span>
                     <span className="text-xs text-[#656d76]">{entry.date}</span>
                   </div>

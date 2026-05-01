@@ -120,6 +120,7 @@ export function TopBar() {
       {showWhatsNew && (
         <WhatsNewModal
           newVersion={newVersion ?? ""}
+          currentVersion={currentVersion}
           onRelaunch={relaunch}
           onClose={() => setShowWhatsNew(false)}
         />

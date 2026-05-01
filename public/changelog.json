@@ -1,7 +1,14 @@
 [
   {
-    "version": "1.0",
+    "build": 391,
     "date": "2026-05-01",
+    "changes": [
+      { "type": "feature", "text": "Validate Flow against Spec — deterministic pre-run validation catches missing fields, bad captures, and data flow issues" }
+    ]
+  },
+  {
+    "build": 383,
+    "date": "2026-04-30",
     "changes": [
       { "type": "feature", "text": "Ideas Generation Trace — inspect how AI generates test ideas (pattern, spec context, prompts)" },
       { "type": "fix", "text": "Flow generation now correctly resolves spec files (was showing 0 files due to case mismatch)" },
