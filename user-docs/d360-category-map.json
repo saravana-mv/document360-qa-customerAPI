@@ -50,6 +50,20 @@
     "02-spec-manager/03-organize-specs-with-version-folders": "2ff004de-52cc-4449-895b-c81d01f265af",
     "02-spec-manager/04-browse-and-search-spec-files": "7b67376b-af16-481a-b108-508d58fe6bde",
     "02-spec-manager/05-reimport-and-sync-spec-files": "6cc35d51-419d-434c-b19f-c22c0560a667",
-    "02-spec-manager/06-configure-api-rules": "59f9c963-9a72-41cc-b77d-786431d02bcb"
+    "02-spec-manager/06-configure-api-rules": "59f9c963-9a72-41cc-b77d-786431d02bcb",
+    "03-ideas-and-flows/01-generate-test-ideas": "fa97f29a-6a99-4dbf-813f-11a489fb58db",
+    "03-ideas-and-flows/02-idea-generation-modes": "64ddff86-e10c-4fb2-83b4-22bad20890a4",
+    "03-ideas-and-flows/03-manage-and-select-ideas": "fc63fc14-5e9e-473f-af4b-fc11d93326f6",
+    "03-ideas-and-flows/04-generate-flow-xml": "226bc88b-9ee5-4c94-b397-73081eba5982",
+    "03-ideas-and-flows/05-flow-designer-chat": "a888b755-4705-4316-bf1e-7a1a17adf4ea",
+    "03-ideas-and-flows/06-ideas-chat": "2a7c90fb-1116-440a-8c87-d21ea22d521e",
+    "03-ideas-and-flows/07-create-test-scenarios-from-flows": "ce851480-d941-4d17-88d7-5d5aabfa8dc1",
+    "04-scenario-manager/01-navigate-scenario-manager": "d37fce61-e25a-4fa6-af26-fbd33083f074",
+    "04-scenario-manager/02-connect-api-endpoint": "4513da68-e5b4-4097-8b59-69a349cb34d1",
+    "04-scenario-manager/03-run-test-scenarios": "c527f58d-9570-41cb-b869-2d187e5ae4b1",
+    "04-scenario-manager/04-read-test-results": "2fd76a8d-6cf1-491e-96d8-f5ebb7765a57",
+    "04-scenario-manager/05-use-breakpoints": "5dbbf5e4-bb17-4d0c-8069-a762283c164e",
+    "04-scenario-manager/06-ai-diagnosis": "bf0b0b68-fe3b-4bf9-a077-0b6e8577d8a8",
+    "04-scenario-manager/07-run-history": "f389c8ec-3798-4851-aa22-51d39720732f"
   }
 }
