@@ -15,7 +15,7 @@ jobs:
         with:
           submodules: true
           lfs: false
-          fetch-depth: 1
+          fetch-depth: 50
 
       - name: Test API functions
         working-directory: api
@@ -37,6 +37,7 @@ jobs:
           npm run build
           APP_VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).appVersion || '1.0'")
           echo "{\"version\":\"${APP_VERSION}.${BUILD_NUM}\"}" > dist/version.json
+          node scripts/generate-changelog.mjs $BUILD_NUM
           cp staticwebapp.config.json dist/staticwebapp.config.json
 
       - name: Deploy to Staging SWA
