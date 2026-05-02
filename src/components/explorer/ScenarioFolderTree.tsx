@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useExplorerUIStore } from "../../store/explorerUI.store";
 import { useScenarioOrgStore } from "../../store/scenarioOrg.store";
+import { useRunnerStore } from "../../store/runner.store";
 import { getAllTests } from "../../lib/tests/registry";
 import { ContextMenu, MenuIcons } from "../common/ContextMenu";
 import { TagNode } from "./TagNode";
@@ -78,6 +79,13 @@ function countFlowsInTree(node: FolderTreeNode): number {
   let count = node.flowPaths.length;
   for (const child of node.children) count += countFlowsInTree(child);
   return count;
+}
+
+/** Collect all flow paths from a folder node and its descendants */
+function collectFlowPaths(node: FolderTreeNode): string[] {
+  const paths = [...node.flowPaths];
+  for (const child of node.children) paths.push(...collectFlowPaths(child));
+  return paths;
 }
 
 export function ScenarioFolderTree({ version, tags, sortOrder }: ScenarioFolderTreeProps) {
@@ -179,12 +187,14 @@ function GripHandle() {
 function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps) {
   const open = useExplorerUIStore((s) => (s.expandedFolders[version] ?? new Set()).has(node.fullPath));
   const rearrangeMode = useExplorerUIStore((s) => s.rearrangeMode);
+  const selectMode = useExplorerUIStore((s) => s.selectMode);
   const toggleFolder = useExplorerUIStore((s) => s.toggleFolder);
   const createFolder = useScenarioOrgStore((s) => s.createFolder);
   const renameFolder = useScenarioOrgStore((s) => s.renameFolder);
   const deleteFolder = useScenarioOrgStore((s) => s.deleteFolder);
   const moveScenario = useScenarioOrgStore((s) => s.moveScenario);
   const moveFolderAction = useScenarioOrgStore((s) => s.moveFolder);
+  const { selectedTags } = useRunnerStore();
 
   const [creating, setCreating] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
@@ -202,6 +212,49 @@ function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps)
     const tests = allTests.filter((test) => test.tag === t.name);
     return tests.some((test) => test.flowFileName && flowSet.has(test.flowFileName));
   }).sort((a, b) => sortCmp(a.name, b.name));
+
+  // Folder selection: collect all tags from this folder + subfolders
+  const allFolderFlowPaths = new Set(collectFlowPaths(node));
+  const allFolderTags = tags.filter((t) => {
+    const tests = allTests.filter((test) => test.tag === t.name);
+    return tests.some((test) => test.flowFileName && allFolderFlowPaths.has(test.flowFileName));
+  });
+  const allFolderTagsSelected = allFolderTags.length > 0 && allFolderTags.every((t) => selectedTags.has(t.name));
+  const someFolderTagsSelected = allFolderTags.some((t) => selectedTags.has(t.name));
+
+  const handleFolderSelect = useCallback((e: React.MouseEvent) => {
+    if (allFolderTags.length === 0) return;
+    const runner = useRunnerStore.getState();
+    if (selectMode || e.ctrlKey || e.metaKey) {
+      // Toggle: if all selected, deselect all; otherwise select all
+      const newTags = new Set(runner.selectedTags);
+      const newTests = new Set(runner.selectedTests);
+      if (allFolderTagsSelected) {
+        for (const t of allFolderTags) {
+          newTags.delete(t.name);
+          const tagTests = allTests.filter((test) => test.tag === t.name);
+          for (const test of tagTests) newTests.delete(test.id);
+        }
+      } else {
+        for (const t of allFolderTags) {
+          newTags.add(t.name);
+          const tagTests = allTests.filter((test) => test.tag === t.name);
+          for (const test of tagTests) newTests.add(test.id);
+        }
+      }
+      useRunnerStore.setState({ selectedTags: newTags, selectedTests: newTests });
+    } else {
+      // Exclusive select: only this folder's scenarios
+      const newTags = new Set<string>();
+      const newTests = new Set<string>();
+      for (const t of allFolderTags) {
+        newTags.add(t.name);
+        const tagTests = allTests.filter((test) => test.tag === t.name);
+        for (const test of tagTests) newTests.add(test.id);
+      }
+      useRunnerStore.setState({ selectedTags: newTags, selectedTests: newTests, selectedTestId: null });
+    }
+  }, [allFolderTags, allFolderTagsSelected, allTests, selectMode]);
 
   const handleCreateSubfolder = useCallback(() => {
     setCreating(true);
@@ -318,12 +371,42 @@ function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps)
             <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clipRule="evenodd" />
           </svg>
         </button>
-        <div className={`flex items-center gap-2 flex-1 px-2 py-1.5 rounded-md hover:bg-[#f6f8fa] border transition-colors text-xs ${dragOver ? "border-[#0969da] bg-[#ddf4ff]/30" : "border-transparent"}`}>
-          {/* Folder icon: NEWLY-ADDED gets a lighter grey, regular folders get standard grey */}
-          {reserved ? (
-            <FolderIcon className="text-[#8b949e]" />
+        <div
+          onClick={totalFlows > 0 ? handleFolderSelect : undefined}
+          className={`flex items-center gap-2 flex-1 px-2 py-1.5 rounded-md border transition-colors text-xs ${
+            dragOver ? "border-[#0969da] bg-[#ddf4ff]/30" :
+            someFolderTagsSelected ? "bg-[#ddf4ff]/50 border-[#b6e3ff]/60 hover:bg-[#ddf4ff]" :
+            "hover:bg-[#f6f8fa] border-transparent"
+          } ${totalFlows > 0 ? "cursor-pointer" : ""}`}
+        >
+          {selectMode && totalFlows > 0 ? (
+            <span className="shrink-0 flex items-center justify-center w-4 h-4">
+              <span className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center transition-colors ${
+                allFolderTagsSelected ? "bg-[#0969da] border-[#0969da]" :
+                someFolderTagsSelected ? "bg-white border-[#0969da]" :
+                "border-[#afb8c1] bg-white"
+              }`}>
+                {allFolderTagsSelected && (
+                  <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                )}
+                {someFolderTagsSelected && !allFolderTagsSelected && (
+                  <svg className="w-2.5 h-2.5 text-[#0969da]" fill="currentColor" viewBox="0 0 24 24">
+                    <rect x="4" y="11" width="16" height="2" rx="1" />
+                  </svg>
+                )}
+              </span>
+            </span>
           ) : (
-            <FolderIcon />
+            <>
+              {/* Folder icon: NEWLY-ADDED gets a lighter grey, regular folders get standard grey */}
+              {reserved ? (
+                <FolderIcon className="text-[#8b949e]" />
+              ) : (
+                <FolderIcon />
+              )}
+            </>
           )}
           {renaming ? (
             <input
@@ -336,6 +419,7 @@ function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps)
                 if (e.key === "Escape") setRenaming(false);
               }}
               onBlur={confirmRename}
+              onClick={(e) => e.stopPropagation()}
             />
           ) : (
             <span className={`font-medium text-sm truncate ${reserved ? "text-[#8b949e] italic" : "text-[#1f2328]"}`} title={reserved ? "Default folder for new scenarios" : undefined}>
@@ -344,7 +428,7 @@ function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps)
           )}
           <span className="text-xs text-[#656d76] ml-auto shrink-0">{totalFlows}</span>
           {menuItems.length > 0 && (
-            <span className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            <span className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
               <ContextMenu items={menuItems} align="left" />
             </span>
           )}
