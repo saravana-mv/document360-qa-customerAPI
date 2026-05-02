@@ -305,6 +305,24 @@ describe("detectBareAssertionFields", () => {
     const issues = detectBareAssertionFields(flow);
     expect(issues).toHaveLength(0);
   });
+
+  it("does not flag response.data.X prefixed fields", () => {
+    const flow = parseFlowXml(`<?xml version="1.0" encoding="UTF-8"?>
+<flow xmlns="https://flowforge.io/qa/flow/v1">
+  <name>Test</name><entity>articles</entity>
+  <steps>
+    <step number="1">
+      <name>Get</name><method>GET</method><path>/v2/articles/1</path>
+      <assertions>
+        <assertion type="field-exists" field="response.data.id" />
+        <assertion type="field-equals" field="response.data.title" value="Test" />
+      </assertions>
+    </step>
+  </steps>
+</flow>`);
+    const issues = detectBareAssertionFields(flow);
+    expect(issues).toHaveLength(0);
+  });
 });
 
 describe("detectMissingTeardown", () => {

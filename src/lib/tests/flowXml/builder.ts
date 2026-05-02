@@ -80,6 +80,11 @@ function buildStep(flow: ParsedFlow, flowSlug: string, step: ParsedStep, flowFil
 
 // ── Assertion conversion ──────────────────────────────────────────────────────
 
+/** Strip `response.` prefix from assertion fields for consistency with captures. */
+function normalizeAssertionField(field: string): string {
+  return field.startsWith("response.") ? field.slice("response.".length) : field;
+}
+
 function toAssertionDef(a: ParsedAssertion): AssertionDef {
   if (a.type === "status") {
     return {
@@ -89,28 +94,31 @@ function toAssertionDef(a: ParsedAssertion): AssertionDef {
     };
   }
   if (a.type === "field-exists") {
+    const field = normalizeAssertionField(a.field);
     return {
       id: `field-exists-${a.field}`,
       description: `Response body has field "${a.field}"`,
-      check: (result) => fieldExists(result.responseBody, a.field),
+      check: (result) => fieldExists(result.responseBody, field),
     };
   }
   if (a.type === "array-not-empty") {
+    const field = normalizeAssertionField(a.field);
     return {
       id: `array-not-empty-${a.field}`,
       description: `Response body field "${a.field}" is a non-empty array`,
       check: (result) => {
-        const v = readPath(result.responseBody, a.field);
+        const v = readPath(result.responseBody, field);
         return Array.isArray(v) && v.length > 0;
       },
     };
   }
   // field-equals
+  const field = normalizeAssertionField(a.field);
   return {
     id: `field-equals-${a.field}`,
     description: `Response body field "${a.field}" equals ${a.value}`,
     check: (result, state, ctx) => {
-      const actual = readPath(result.responseBody, a.field);
+      const actual = readPath(result.responseBody, field);
       const expected = coerce(substitute(a.value, ctx ?? makeCtxStub(), state));
       return jsonEqual(actual, expected);
     },

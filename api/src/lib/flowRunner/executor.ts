@@ -285,6 +285,11 @@ async function executeStep(
 
 // ── Assertions ──────────────────────────────────────────────────────────────
 
+/** Strip `response.` prefix from assertion fields for consistency with captures. */
+function normalizeAssertionField(field: string): string {
+  return field.startsWith("response.") ? field.slice("response.".length) : field;
+}
+
 function runAssertions(
   assertions: ParsedAssertion[],
   httpStatus: number,
@@ -301,14 +306,16 @@ function runAssertions(
       };
     }
     if (a.type === "field-exists") {
+      const field = normalizeAssertionField(a.field);
       return {
         id: `field-exists-${a.field}`,
         description: `Response body has field "${a.field}"`,
-        passed: fieldExists(responseBody, a.field),
+        passed: fieldExists(responseBody, field),
       };
     }
     if (a.type === "array-not-empty") {
-      const v = readPath(responseBody, a.field);
+      const field = normalizeAssertionField(a.field);
+      const v = readPath(responseBody, field);
       return {
         id: `array-not-empty-${a.field}`,
         description: `Field "${a.field}" is a non-empty array`,
@@ -316,7 +323,8 @@ function runAssertions(
       };
     }
     // field-equals
-    const actual = readPath(responseBody, a.field);
+    const field = normalizeAssertionField(a.field);
+    const actual = readPath(responseBody, field);
     const expected = coerce(substitute(a.value, ctx, state));
     return {
       id: `field-equals-${a.field}`,

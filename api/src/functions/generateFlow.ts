@@ -187,8 +187,8 @@ function fixCircularAssertions(xml: string): string {
 
       // It's circular — captured and asserted in the same step
       const capturedField = captures.get(stateVar)!;
-      // Verify the assertion field matches the captured field (strip "data." prefix)
-      const assertFieldBare = assertField.replace(/^data\./, "");
+      // Verify the assertion field matches the captured field (strip "response.data." or "data." prefix)
+      const assertFieldBare = assertField.replace(/^response\./, "").replace(/^data\./, "");
       const capturedFieldBare = capturedField.replace(/^data\./, "");
       if (assertFieldBare !== capturedFieldBare) continue;
 
@@ -252,9 +252,16 @@ function fixBareAssertionFields(xml: string): string {
 
     if (fields.length < 2) continue;
 
-    // Check if any field uses data. prefix
-    const hasDataPrefix = fields.some(f => f.startsWith("data.") || f.startsWith("data["));
+    // Check if any field uses response.data. or data. prefix
+    const hasDataPrefix = fields.some(f =>
+      f.startsWith("response.data.") || f.startsWith("response.data[") ||
+      f.startsWith("data.") || f.startsWith("data[")
+    );
     if (!hasDataPrefix) continue;
+
+    // Determine the canonical prefix used by the majority of fields
+    const usesResponsePrefix = fields.some(f => f.startsWith("response."));
+    const prefix = usesResponsePrefix ? "response.data." : "data.";
 
     // Find bare fields (no dots at all — like "workspace_id", "title")
     // Skip fields that already have a prefix or are array paths
@@ -263,13 +270,13 @@ function fixBareAssertionFields(xml: string): string {
 
     let fixedStep = stepXml;
     for (const bare of bareFields) {
-      // Replace field="bare" with field="data.bare" in assertions
+      // Replace field="bare" with field="prefix + bare" in assertions
       const bareRe = new RegExp(
         `(<assertion\\s+type="(?:field-equals|field-exists)"\\s+field=")${bare.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(")`
       , "g");
-      fixedStep = fixedStep.replace(bareRe, `$1data.${bare}$2`);
+      fixedStep = fixedStep.replace(bareRe, `$1${prefix}${bare}$2`);
       count++;
-      console.log(`[fixBareAssertionFields] Added data. prefix: "${bare}" → "data.${bare}"`);
+      console.log(`[fixBareAssertionFields] Added prefix: "${bare}" → "${prefix}${bare}"`);
     }
 
     if (fixedStep !== stepXml) {
@@ -480,9 +487,9 @@ Attributes: \`variable\` (required), \`source\` (required), \`from\` (optional: 
 \`\`\`xml
 <assertions>
   <assertion type="status"         code="200"/>                            <!-- use 'code', not 'value' -->
-  <assertion type="field-exists"   field="data.id"/>
-  <assertion type="field-equals"   field="data.status" value="{{state.expectedStatus}}"/>
-  <assertion type="array-not-empty" field="data.items"/>
+  <assertion type="field-exists"   field="response.data.id"/>
+  <assertion type="field-equals"   field="response.data.status" value="{{state.expectedStatus}}"/>
+  <assertion type="array-not-empty" field="response.data.items"/>
 </assertions>
 \`\`\`
 
@@ -537,7 +544,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
       </captures>
       <assertions>
         <assertion type="status"       code="201"/>
-        <assertion type="field-exists" field="data.id"/>
+        <assertion type="field-exists" field="response.data.id"/>
       </assertions>
     </step>
 
@@ -568,7 +575,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
    **BEFORE adding ANY capture, you MUST verify**: open the spec's response example/schema for THAT SPECIFIC endpoint and confirm the field exists. Different endpoints for the same resource often return DIFFERENT response schemas (e.g., POST /categories returns \`CategorySimpleResponse\` with only \`id, name, order, icon\` — NO \`version_number\`, NO \`slug\`, NO \`status\`). Do NOT assume fields exist based on other endpoints or your general knowledge.
    **If a later step needs a field not present in any earlier step's response**, add a dedicated GET step to retrieve it — do NOT hallucinate the field into a response that doesn't contain it.
 6. **Unique names**: For resource names, use \`[TEST] Something - {{timestamp}}\`.
-7. **Assertions**: Every step needs at least one \`<assertion type="status" code="…"/>\`. Write operations should also assert \`field-exists\` on the created resource id. **Read the spec file carefully** — use the exact status code and response structure documented there. Do NOT guess.
+7. **Assertions**: Every step needs at least one \`<assertion type="status" code="…"/>\`. Write operations should also assert \`field-exists\` on the created resource id. **Use the \`response.\` prefix on all assertion field paths** — e.g., \`field="response.data.id"\` not \`field="data.id"\` — this keeps assertions consistent with capture sources. **Read the spec file carefully** — use the exact status code and response structure documented there. Do NOT guess.
 8. **HTTP status codes**: Use these defaults unless the spec file explicitly states otherwise:
    - GET → \`200\`
    - POST (create) → \`201\`
@@ -576,7 +583,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
    - DELETE → \`204\` (No Content) — the response body is typically EMPTY. Do not add body-level assertions on DELETE steps unless the spec explicitly documents a response body.
 9. **Spec-driven assertions**: When spec files are provided, read the documented response schema and status codes carefully. The spec is the source of truth. Assertions (especially \`field-exists\`) must only reference fields that appear in the spec's response example — never assert on fields you assume exist but that aren't in the spec.
    **NEVER use \`{{timestamp}}\` in assertion values** — the token re-evaluates at assertion time to a DIFFERENT value than was used in the request. To verify a field matches the sent value, capture the field from the response and use \`{{state.X}}\` in subsequent step assertions. For same-step assertions on request-derived values, use \`field-exists\` instead.
-   **NEVER assert a field equals a value captured from the SAME response** — this is circular and always passes. Either assert against a value from a PRIOR step (\`{{state.X}}\` captured earlier) or against a known constant. For example, assert \`data.category_id\` equals \`{{state.categoryId}}\` (captured from the create step), NOT a value captured from the same GET response.
+   **NEVER assert a field equals a value captured from the SAME response** — this is circular and always passes. Either assert against a value from a PRIOR step (\`{{state.X}}\` captured earlier) or against a known constant. For example, assert \`response.data.category_id\` equals \`{{state.categoryId}}\` (captured from the create step), NOT a value captured from the same GET response.
 10. **Schema exactness**: Elements must appear in the order listed above. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status. Use \`field-exists\` / \`field-equals\` / \`array-not-empty\` — no other assertion types exist.
 11. **Request body fields MUST match the SPECIFIC endpoint's schema — ZERO TOLERANCE FOR EXTRA FIELDS**: Only include fields that are defined in the endpoint's request body schema. Do NOT add extra fields — even if other steps in this flow send those fields. Each endpoint has its OWN schema; a field like \`workspace_id\` that is required on endpoint A is INVALID on endpoint B unless endpoint B's spec explicitly lists it. Before writing EACH step's body, re-read THAT step's spec section and list ONLY the fields defined there. Many APIs use \`additionalProperties: false\` and will reject unknown fields with a 400 error. Also never send fields marked \`readOnly: true\` in request bodies — those are response-only fields. **CRITICAL for PATCH/PUT update steps**: Create and update endpoints often have DIFFERENT request schemas. A field accepted on POST (create) may not exist on PATCH (update). Always consult each endpoint's own request body schema independently — do NOT assume the update body is the same as the create body.
 12. **Cross-step data flow — CAPTURE fields needed by downstream steps (CRITICAL)**: Before writing any step, scan ALL later steps' request body schemas for required fields. If a later step requires a field (e.g., \`version_number\`, \`slug\`, \`status\`) that appears in an earlier step's RESPONSE example/schema, you MUST:
