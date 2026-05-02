@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useEntraAuthStore } from "../../store/entraAuth.store";
 import { useAiCostStore } from "../../store/aiCost.store";
 import { useAiCreditsStore } from "../../store/aiCredits.store";
@@ -18,6 +18,20 @@ export function TopBar() {
   const exhausted = projectExhausted || userExhausted;
   const { currentVersion, updateAvailable, newVersion, relaunch, dismiss } = useVersionCheck();
   const [showWhatsNew, setShowWhatsNew] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close user menu on outside click
+  useEffect(() => {
+    if (!showUserMenu) return;
+    function handleClick(e: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setShowUserMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showUserMenu]);
 
   return (
     <header className="h-12 bg-[#1f2328] text-[#e6edf3] flex items-center px-4 gap-3 shrink-0 border-b border-[#31363b]">
@@ -90,23 +104,49 @@ export function TopBar() {
         </span>
       )}
 
-      {/* Entra (corporate) user — always on the right */}
+      {/* Entra (corporate) user avatar — always on the right */}
       {entraStatus === "authenticated" && entraPrincipal && (
-        <>
-          <span
-            title={entraPrincipal.userDetails}
-            className="text-xs text-[#e6edf3] font-medium max-w-[180px] truncate"
-          >
-            {entraPrincipal.userDetails}
-          </span>
+        <div className="relative" ref={userMenuRef}>
           <button
-            onClick={entraLogout}
-            title="Sign out of FlowForge"
-            className="text-xs text-[#7d8590] hover:text-[#e6edf3] transition-colors px-2 py-1 rounded-md hover:bg-[#2d333b]"
+            onClick={() => setShowUserMenu((v) => !v)}
+            title={entraPrincipal.userDetails}
+            className="w-8 h-8 rounded-full bg-[#0969da] text-white text-xs font-semibold flex items-center justify-center hover:ring-2 hover:ring-[#58a6ff]/50 transition-all cursor-pointer select-none shrink-0"
           >
-            Sign out
+            {getInitials(entraPrincipal.userDetails)}
           </button>
-        </>
+          {showUserMenu && (
+            <div className="absolute right-0 top-10 w-64 bg-white rounded-lg shadow-lg border border-[#d1d9e0] overflow-hidden z-50 animate-[fadeIn_0.15s_ease-out]">
+              {/* User info */}
+              <div className="px-4 py-3 border-b border-[#d1d9e0]">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[#0969da] text-white text-sm font-semibold flex items-center justify-center shrink-0">
+                    {getInitials(entraPrincipal.userDetails)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[#1f2328] truncate">{entraPrincipal.userDetails}</p>
+                    {entraPrincipal.claims?.find((c) => c.typ === "preferred_username") && (
+                      <p className="text-xs text-[#656d76] truncate">
+                        {entraPrincipal.claims.find((c) => c.typ === "preferred_username")!.val}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {/* Sign out */}
+              <div className="px-2 py-2">
+                <button
+                  onClick={() => { setShowUserMenu(false); entraLogout(); }}
+                  className="w-full flex items-center gap-2 text-sm text-[#1f2328] hover:bg-[#f6f8fa] rounded-md px-2 py-1.5 transition-colors"
+                >
+                  <svg className="w-4 h-4 text-[#656d76]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+                  </svg>
+                  Sign out
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
       {entraStatus === "dev-mode" && (
         <span
@@ -127,4 +167,14 @@ export function TopBar() {
       )}
     </header>
   );
+}
+
+/** Extract up to 2 initials from a display name or email */
+function getInitials(name: string): string {
+  if (!name) return "?";
+  // If it looks like an email, use the part before @
+  const display = name.includes("@") ? name.split("@")[0] : name;
+  const parts = display.split(/[\s._-]+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return (parts[0]?.[0] ?? "?").toUpperCase();
 }
