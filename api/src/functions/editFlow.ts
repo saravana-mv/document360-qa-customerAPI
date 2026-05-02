@@ -108,9 +108,9 @@ Attributes: \`variable\` (required), \`source\` (required), \`from\` (optional: 
 \`\`\`xml
 <assertions>
   <assertion type="status"         code="200"/>
-  <assertion type="field-exists"   field="data.id"/>
-  <assertion type="field-equals"   field="data.status" value="{{state.expectedStatus}}"/>
-  <assertion type="array-not-empty" field="data.items"/>
+  <assertion type="field-exists"   field="response.data.id"/>
+  <assertion type="field-equals"   field="response.data.status" value="{{state.expectedStatus}}"/>
+  <assertion type="array-not-empty" field="response.data.items"/>
 </assertions>
 \`\`\`
 

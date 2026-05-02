@@ -45,7 +45,7 @@ When you have enough information to propose a plan, output it inside a JSON bloc
       "method": "POST",
       "path": "/v1/resources",
       "captures": ["state.createdId from response.data.id"],
-      "assertions": ["status 201", "field-exists data.id"],
+      "assertions": ["status 201", "field-exists response.data.id"],
       "flags": []
     },
     {
