@@ -73,7 +73,7 @@ export function GenerateIdeasModal({ folderPath, onGenerate, onClose, currentMod
             </button>
           </div>
 
-          <div className="px-5 space-y-4">
+          <div className="px-5 space-y-4 text-left">
             {/* Destination folder */}
             <div>
               <label className="text-sm font-medium text-[#656d76] mb-1.5 block">Destination folder</label>
