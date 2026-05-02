@@ -44,7 +44,7 @@ interface Props {
   onGenerateFlows: () => void;
   /** Generate flow for a single idea (from context menu) */
   onGenerateFlowForIdea: (id: string) => void;
-  onGenerateMore: (count: number, specFiles: string[], prompt?: string) => void;
+  onGenerateMore: (count: number, specFiles: string[], prompt?: string, destinationFolder?: string) => void;
   onDeleteSelected: (ids: Set<string>) => void;
   /** Per-row delete — removes a single idea (and its flow, if any) */
   onDeleteIdea: (id: string) => void;
@@ -67,7 +67,6 @@ interface Props {
   /** Folder path for idea generation context */
   folderPath: string;
   /** Human-friendly folder display name */
-  folderDisplayName?: string;
 }
 
 export function FlowIdeasPanel({
@@ -77,7 +76,7 @@ export function FlowIdeasPanel({
   onGenerateFlows, onGenerateFlowForIdea, onGenerateMore, onDeleteSelected, onDeleteIdea, onClickIdea, generatingFlows,
   ideasExhausted, maxIdeasTotal = 30, markedIds,
   thisLevelOnly, onToggleThisLevel,
-  ideaMode, onModeChange, folderPath, folderDisplayName,
+  ideaMode, onModeChange, folderPath,
 }: Props) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [rowDeleteId, setRowDeleteId] = useState<string | null>(null);
@@ -471,11 +470,10 @@ export function FlowIdeasPanel({
       {showGenerateModal && (
         <GenerateIdeasModal
           folderPath={folderPath}
-          folderDisplayName={folderDisplayName}
           currentMode={ideaMode}
-          onGenerate={(count, mode, specFiles, prompt) => {
+          onGenerate={(count, mode, specFiles, prompt, destFolder) => {
             onModeChange(mode);
-            onGenerateMore(count, specFiles, prompt);
+            onGenerateMore(count, specFiles, prompt, destFolder);
           }}
           onClose={() => setShowGenerateModal(false)}
           disabled={generatingFlows || !!appending}

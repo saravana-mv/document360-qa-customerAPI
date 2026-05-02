@@ -13,7 +13,7 @@ export const IDEA_TEMPLATES: IdeaTemplate[] = [
   {
     key: "crud",
     label: "CRUD lifecycle",
-    prompt: "Generate CRUD lifecycle flows for each entity — create, read, update, delete with proper setup and teardown.",
+    prompt: "Generate CRUD lifecycle flows for each entity — create, read, update, delete.",
   },
   {
     key: "errors",
@@ -39,5 +39,15 @@ export const IDEA_TEMPLATES: IdeaTemplate[] = [
     key: "auth",
     label: "Auth & permissions",
     prompt: "Test authentication and authorization: missing token (401), invalid token (401), insufficient permissions (403), expired token scenarios.",
+  },
+  {
+    key: "pagination",
+    label: "Pagination & filtering",
+    prompt: "Test list endpoints with pagination (limit, offset), sorting, and filtering query parameters — verify correct page sizes, ordering, empty results, and boundary pages.",
+  },
+  {
+    key: "boundaries",
+    label: "Data boundaries",
+    prompt: "Test field value edge cases: empty strings, maximum length strings, special characters, boundary numbers (0, negative, max int), null vs missing optional fields, and duplicate unique values.",
   },
 ];

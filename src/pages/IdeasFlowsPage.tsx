@@ -151,17 +151,6 @@ export function IdeasFlowsPage() {
   useEffect(() => { try { localStorage.setItem("ideasflows_flows_width", String(flowsWidth)); } catch { /* ignore */ } }, [flowsWidth]);
 
   // Build human-friendly display name from folder tree (e.g. "V3 / AI Search Analytics")
-  const folderDisplayName = useMemo(() => {
-    if (!selectedFolderPath) return "";
-    const parts: string[] = [];
-    let current = selectedFolderPath;
-    while (current) {
-      const folder = folders.find((f) => f.path === current);
-      parts.unshift(folder?.name ?? current.split("/").pop() ?? current);
-      current = folder?.parentPath ?? "";
-    }
-    return parts.join(" / ");
-  }, [selectedFolderPath, folders]);
 
   // Workshop is visible when aggregated data exists for the current path
   const activePath = selectedFolderPath;
@@ -398,9 +387,10 @@ export function IdeasFlowsPage() {
     }
   }
 
-  async function handleGenerateMoreIdeas(count?: number, specFiles?: string[], prompt?: string) {
-    const currentPath = activePath;
+  async function handleGenerateMoreIdeas(count?: number, specFiles?: string[], prompt?: string, destinationFolder?: string) {
+    const currentPath = destinationFolder ?? activePath;
     if (!currentPath) return;
+    if (destinationFolder && destinationFolder !== activePath) selectFolder(destinationFolder);
     setIdeasError(null);
     setIdeasRawText(undefined);
     setIdeasAppending(true);
@@ -1071,8 +1061,9 @@ export function IdeasFlowsPage() {
     }
   }
 
-  function handleChatIdeaAccepted(chatIdea: ChatIdea) {
-    if (!activePath) return;
+  function handleChatIdeaAccepted(chatIdea: ChatIdea, destinationFolder?: string) {
+    const targetPath = destinationFolder ?? activePath;
+    if (!targetPath) return;
     const newIdea: FlowIdea = {
       id: `idea-${Date.now()}-chat`,
       title: chatIdea.title,
@@ -1083,12 +1074,16 @@ export function IdeasFlowsPage() {
       specFiles: chatIdea.specFiles ?? [],
       createdAt: new Date().toISOString(),
     };
+    // Navigate to destination folder if different from current
+    if (destinationFolder && destinationFolder !== activePath) {
+      selectFolder(destinationFolder);
+    }
     setIdeas((prev) => [...prev, newIdea]);
     setWorkshopMap((prev) => {
-      const existing = prev[activePath] ?? { ideas: [], usage: null, flowsUsage: null, generatedFlows: [] };
+      const existing = prev[targetPath] ?? { ideas: [], usage: null, flowsUsage: null, generatedFlows: [] };
       return {
         ...prev,
-        [activePath]: { ...existing, ideas: [...existing.ideas, newIdea] },
+        [targetPath]: { ...existing, ideas: [...existing.ideas, newIdea] },
       };
     });
   }
@@ -1305,8 +1300,6 @@ export function IdeasFlowsPage() {
                       ideaMode={ideaMode}
                       onModeChange={setIdeaMode}
                       folderPath={activePath!}
-                      folderDisplayName={folderDisplayName}
-
                     />
                   </div>
 
@@ -1398,11 +1391,13 @@ export function IdeasFlowsPage() {
                       {showLandingModal && (
                         <GenerateIdeasModal
                           folderPath={activePath!}
-                          folderDisplayName={folderDisplayName}
+
                           currentMode={ideaMode}
-                          onGenerate={(count, mode, specFiles, prompt) => {
+                          onGenerate={(count, mode, specFiles, prompt, destFolder) => {
+                            const targetPath = destFolder ?? activePath!;
                             setIdeaMode(mode);
-                            void handleGenerateFlowIdeas(activePath!, count, specFiles, prompt);
+                            if (destFolder && destFolder !== activePath) selectFolder(destFolder);
+                            void handleGenerateFlowIdeas(targetPath, count, specFiles, prompt);
                           }}
                           onClose={() => setShowLandingModal(false)}
                         />
@@ -1465,11 +1460,12 @@ export function IdeasFlowsPage() {
       {showNewIdeasModal && (
         <GenerateIdeasModal
           folderPath={activePath!}
-          folderDisplayName={folderDisplayName}
           currentMode={ideaMode}
-          onGenerate={(count, mode, specFiles, prompt) => {
+          onGenerate={(count, mode, specFiles, prompt, destFolder) => {
+            const targetPath = destFolder ?? activePath!;
             setIdeaMode(mode);
-            void handleGenerateFlowIdeas(activePath!, count, specFiles, prompt);
+            if (destFolder && destFolder !== activePath) selectFolder(destFolder);
+            void handleGenerateFlowIdeas(targetPath, count, specFiles, prompt);
           }}
           onClose={() => setShowNewIdeasModal(false)}
         />
@@ -1489,6 +1485,8 @@ export function IdeasFlowsPage() {
       {showIdeasChat && (
         <IdeasChatPanel
           aiModel={aiModel}
+          currentFolder={activePath ?? ""}
+          currentMode={ideaMode}
           onIdeaAccepted={handleChatIdeaAccepted}
           onClose={() => setShowIdeasChat(false)}
         />
