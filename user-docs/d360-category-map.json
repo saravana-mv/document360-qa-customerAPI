@@ -72,6 +72,19 @@
     "07-ai-features/01-how-ai-works": "4798ddd8-04b6-478e-9963-760f07fd404e",
     "07-ai-features/02-select-ai-model": "45448d74-3853-4ace-87a9-32817df5cf9a",
     "07-ai-features/03-flow-xml-structure": "d4a33f3c-2fdf-4c14-90ff-fa8ca23390d4",
-    "07-ai-features/04-edit-flow-xml": "f05c1642-219b-4aec-bf5f-14f915826e30"
+    "07-ai-features/04-edit-flow-xml": "f05c1642-219b-4aec-bf5f-14f915826e30",
+    "06-settings-and-administration/01-create-manage-projects": "6244ab2a-d58e-4aa5-b888-8cbc8e9fc4bb",
+    "06-settings-and-administration/02-manage-team-members": "69aeb426-bc3c-4655-8c28-06ff83a1e78d",
+    "06-settings-and-administration/03-configure-project-variables": "1c7c7f7c-46f4-4a6a-b555-f15062d53eab",
+    "06-settings-and-administration/04-manage-api-keys": "c84553c2-287d-4ea7-86c8-31e093b7f80d",
+    "06-settings-and-administration/05-view-audit-log": "8373ad20-8eb6-48de-bc30-28824b1172ac",
+    "06-settings-and-administration/06-manage-ai-credits": "010be3c3-13f1-4512-bc96-0dc876501ce5",
+    "06-settings-and-administration/07-reset-project": "1134db5b-d72b-47e6-b15e-ec7a17ece73a",
+    "06-settings-and-administration/08-super-owner-settings": "ebc24377-2092-4b74-b4e0-c1c8ed293409",
+    "08-public-api/01-run-scenarios-via-api": "cd1e7f7a-5395-4d8b-92bc-d1734a8ff629",
+    "08-public-api/02-cicd-integration": "845ef89c-d858-4a51-9f4f-8c53a07b7fa5",
+    "09-troubleshooting-and-faq/01-common-issues": "35354532-f750-432c-88be-d3463ff47989",
+    "09-troubleshooting-and-faq/02-error-messages": "b41803cd-7e64-4fbd-92b6-a61bffc85f44",
+    "09-troubleshooting-and-faq/03-faq": "75e0fc3a-5bc0-40b7-bc0a-1d5ffb5233d9"
   }
 }
