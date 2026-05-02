@@ -261,6 +261,14 @@ Optional (have defaults): none currently — all endpoint config is per-version 
 
 ---
 
+## User Documentation (Help Center)
+
+46 user-facing articles are maintained in `user-docs/` and dual-published to Document360. All agent instructions, D360 config, category/article IDs, and writing conventions are in **`user-docs/AGENT.md`** (checked into git — no local dependencies). The article-to-D360-ID mapping is in `user-docs/d360-category-map.json`.
+
+When the user asks to update user docs, read `user-docs/AGENT.md` first for the complete workflow.
+
+---
+
 ## Documentation Auto-Maintenance
 
 After completing work that changes the project's structure, conventions, or architecture, spawn the **Docs Updater** agent in the background. This keeps `CLAUDE.md`, `README.md`, and `ARCHITECTURE.md` in sync with the actual codebase.
