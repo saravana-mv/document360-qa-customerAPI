@@ -285,8 +285,15 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
         try { responseBody = JSON.parse(text); } catch { responseBody = text; }
       }
     }
+    // Only treat non-2xx as a failure if the flow doesn't explicitly expect
+    // this status code (e.g., a step asserting 404 after deletion).
     if (!res.ok) {
-      failureReason = extractErrorMessage(responseBody) || `HTTP ${res.status}`;
+      const expectsThisStatus = step.assertions.some(
+        (a) => a.type === "status" && a.code === res.status,
+      );
+      if (!expectsThisStatus) {
+        failureReason = extractErrorMessage(responseBody) || `HTTP ${res.status}`;
+      }
     }
   } catch (err) {
     networkError = err instanceof Error ? err : new Error(String(err));
