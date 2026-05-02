@@ -64,6 +64,14 @@
     "04-scenario-manager/04-read-test-results": "2fd76a8d-6cf1-491e-96d8-f5ebb7765a57",
     "04-scenario-manager/05-use-breakpoints": "5dbbf5e4-bb17-4d0c-8069-a762283c164e",
     "04-scenario-manager/06-ai-diagnosis": "bf0b0b68-fe3b-4bf9-a077-0b6e8577d8a8",
-    "04-scenario-manager/07-run-history": "f389c8ec-3798-4851-aa22-51d39720732f"
+    "04-scenario-manager/07-run-history": "f389c8ec-3798-4851-aa22-51d39720732f",
+    "05-connections-and-authentication/01-create-manage-connections": "b8406fd8-1de3-45b1-9abd-6c6e487f41a6",
+    "05-connections-and-authentication/02-setup-oauth2": "2df53304-c8a7-4d97-b5bd-5d0c53999edb",
+    "05-connections-and-authentication/03-setup-token-connections": "2e6f5e95-536d-42bc-9863-d495dcf2ecf8",
+    "05-connections-and-authentication/04-per-scenario-overrides": "91d1d869-0613-41c4-9525-1c9dbafb7c1e",
+    "07-ai-features/01-how-ai-works": "4798ddd8-04b6-478e-9963-760f07fd404e",
+    "07-ai-features/02-select-ai-model": "45448d74-3853-4ace-87a9-32817df5cf9a",
+    "07-ai-features/03-flow-xml-structure": "d4a33f3c-2fdf-4c14-90ff-fa8ca23390d4",
+    "07-ai-features/04-edit-flow-xml": "f05c1642-219b-4aec-bf5f-14f915826e30"
   }
 }
