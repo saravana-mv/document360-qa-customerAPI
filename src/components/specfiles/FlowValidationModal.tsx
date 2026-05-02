@@ -111,7 +111,7 @@ export function FlowValidationModal({ flowTitle, flowXml, result, onClose }: Pro
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
             </svg>
             <span className="text-sm font-semibold text-[#1f2328] truncate">Validate Flow XML</span>
-            <span className="text-xs text-[#656d76] truncate">{flowTitle}</span>
+            <span className="text-sm text-[#656d76] truncate">{flowTitle}</span>
           </div>
 
           {/* Summary badge */}
@@ -151,7 +151,7 @@ export function FlowValidationModal({ flowTitle, flowXml, result, onClose }: Pro
               <svg className="w-3.5 h-3.5 text-[#656d76]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
               </svg>
-              <span className="text-xs font-semibold text-[#656d76] uppercase tracking-wider flex-1">Flow XML</span>
+              <span className="text-sm font-semibold text-[#656d76] uppercase tracking-wider flex-1">Flow XML</span>
               <CopyButton value={flowXml} label="Copy Flow XML" />
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
@@ -168,7 +168,7 @@ export function FlowValidationModal({ flowTitle, flowXml, result, onClose }: Pro
               <svg className="w-3.5 h-3.5 text-[#656d76]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
               </svg>
-              <span className="text-xs font-semibold text-[#656d76] uppercase tracking-wider flex-1">Issues</span>
+              <span className="text-sm font-semibold text-[#656d76] uppercase tracking-wider flex-1">Issues</span>
               <span className="text-xs text-[#afb8c1]">{issues.length}</span>
               {issues.length > 0 && (
                 <CopyButton value={issuesText} label="Copy issues as text" />
@@ -181,7 +181,7 @@ export function FlowValidationModal({ flowTitle, flowXml, result, onClose }: Pro
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                   </svg>
                   <p className="text-sm font-medium text-[#1a7f37]">No issues found</p>
-                  <p className="text-xs text-[#656d76] mt-1">This flow passes all validation checks</p>
+                  <p className="text-sm text-[#656d76] mt-1">This flow passes all validation checks</p>
                 </div>
               ) : (
                 <div className="divide-y divide-[#d1d9e0]/50">
@@ -189,7 +189,7 @@ export function FlowValidationModal({ flowTitle, flowXml, result, onClose }: Pro
                     const stepIssues = grouped.get(stepNum)!;
                     return (
                       <div key={stepNum ?? "flow"} className="px-4 py-3">
-                        <div className="text-xs font-semibold text-[#656d76] uppercase tracking-wider mb-2">
+                        <div className="text-sm font-semibold text-[#656d76] uppercase tracking-wider mb-2">
                           {stepNum === null ? "Flow-level" : `Step ${stepNum}`}
                         </div>
                         <div className="space-y-2.5">
