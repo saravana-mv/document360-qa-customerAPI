@@ -44,6 +44,12 @@
     "01-getting-started/02-quick-start": "b5166960-dfc7-47a2-a657-9c0130dec1d0",
     "01-getting-started/03-navigating-the-interface": "de15586e-e26c-40db-99a0-6ff35ad7de25",
     "01-getting-started/04-roles-and-permissions": "6d60584b-561c-4d51-bd38-889ca35f157c",
-    "01-getting-started/05-key-concepts-and-terminology": "6fb4ffd2-6815-4f78-bf42-992c39fd6505"
+    "01-getting-started/05-key-concepts-and-terminology": "6fb4ffd2-6815-4f78-bf42-992c39fd6505",
+    "02-spec-manager/01-import-specs-from-url": "efc7a07d-5aeb-457f-ac1c-a487aed8466c",
+    "02-spec-manager/02-upload-spec-files": "cab5c81b-82e8-4a88-9501-6cb4b9406de7",
+    "02-spec-manager/03-organize-specs-with-version-folders": "2ff004de-52cc-4449-895b-c81d01f265af",
+    "02-spec-manager/04-browse-and-search-spec-files": "7b67376b-af16-481a-b108-508d58fe6bde",
+    "02-spec-manager/05-reimport-and-sync-spec-files": "6cc35d51-419d-434c-b19f-c22c0560a667",
+    "02-spec-manager/06-configure-api-rules": "59f9c963-9a72-41cc-b77d-786431d02bcb"
   }
 }
