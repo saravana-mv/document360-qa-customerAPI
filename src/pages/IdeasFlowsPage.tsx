@@ -72,6 +72,7 @@ export function IdeasFlowsPage() {
   const [syncing, setSyncing] = useState(false);
   const [treeExpandAll, setTreeExpandAll] = useState(false);
   const [treeSortAZ, setTreeSortAZ] = useState(false);
+  const [treeRearrangeMode, setTreeRearrangeMode] = useState(false);
   const [showIdeasChat, setShowIdeasChat] = useState(false);
 
   // ── Selection state ────────────────────────────────────────────────────────
@@ -1099,47 +1100,74 @@ export function IdeasFlowsPage() {
       <div className="h-full flex overflow-hidden">
         {/* LHS folder nav */}
         <aside className="shrink-0 bg-white flex flex-col overflow-hidden border-r border-[#d1d9e0]" style={{ width: treeWidth }}>
-          <div className="flex items-center gap-1 px-3 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
-            <svg className="w-4 h-4 text-[#25292e] shrink-0" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
-            </svg>
-            <span className="text-sm font-semibold text-[#1f2328] flex-1">Folders</span>
-            {/* Expand all */}
+          <div className="flex items-center gap-1 px-2 h-10 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
+            <span className="text-sm font-bold text-[#1f2328] flex-1 pl-1">Folders</span>
+            {/* Expand / collapse all */}
             <button
               onClick={() => setTreeExpandAll((p) => !p)}
-              className="p-1 rounded text-[#656d76] hover:text-[#1f2328] hover:bg-[#eef1f6] transition-colors"
+              disabled={folders.length === 0}
               title={treeExpandAll ? "Collapse all" : "Expand all"}
+              className={`shrink-0 rounded-md p-1 transition-colors ${folders.length === 0 ? "text-[#656d76] opacity-40 cursor-not-allowed" : "text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff]"}`}
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                {treeExpandAll ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-                ) : (
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-                )}
-              </svg>
+              {treeExpandAll ? (
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l7.5-7.5 7.5 7.5m-15 5.25l7.5-7.5 7.5 7.5" />
+                </svg>
+              ) : (
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 5.25l-7.5 7.5-7.5-7.5m15 5.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              )}
             </button>
             {/* Sort A-Z */}
             <button
               onClick={() => setTreeSortAZ((p) => !p)}
-              className={`p-1 rounded transition-colors ${treeSortAZ ? "text-[#0969da] bg-[#ddf4ff]" : "text-[#656d76] hover:text-[#1f2328] hover:bg-[#eef1f6]"}`}
-              title={treeSortAZ ? "Sort by order" : "Sort A-Z"}
+              disabled={folders.length <= 1}
+              title={treeSortAZ ? "Sort A → Z" : "Sort Z → A"}
+              className={`shrink-0 rounded-md p-1 transition-colors ${folders.length <= 1 ? "text-[#656d76] opacity-40 cursor-not-allowed" : treeSortAZ ? "text-[#0969da] bg-[#ddf4ff]" : "text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff]"}`}
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                {treeSortAZ ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m6-6v12m0 0-3.75-3.75M14.25 19.5l3.75-3.75" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m6 6V7.5m0 0 3.75 3.75M14.25 7.5 18 3.75" />
+                )}
               </svg>
             </button>
+
+            <span className="w-px h-4 bg-[#d1d9e0] shrink-0" />
+
+            {/* Rearrange mode */}
+            <button
+              onClick={() => setTreeRearrangeMode((p) => !p)}
+              disabled={folders.length === 0}
+              title={treeRearrangeMode ? "Exit rearrange mode" : "Rearrange folders"}
+              className={`shrink-0 rounded-md p-1 transition-colors ${folders.length === 0 ? "text-[#656d76] opacity-40 cursor-not-allowed" : treeRearrangeMode ? "text-[#0969da] bg-[#ddf4ff]" : "text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff]"}`}
+            >
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
+                <circle cx="5" cy="3" r="1.5" />
+                <circle cx="11" cy="3" r="1.5" />
+                <circle cx="5" cy="8" r="1.5" />
+                <circle cx="11" cy="8" r="1.5" />
+                <circle cx="5" cy="13" r="1.5" />
+                <circle cx="11" cy="13" r="1.5" />
+              </svg>
+            </button>
+
+            <span className="w-px h-4 bg-[#d1d9e0] shrink-0" />
+
             {/* New folder */}
             <button
               onClick={() => setShowCreateFolder({ parentPath: null })}
-              className="p-1 rounded text-[#656d76] hover:text-[#1f2328] hover:bg-[#eef1f6] transition-colors"
               title="New folder"
+              className="shrink-0 rounded-md p-1 text-[#656d76] hover:text-[#0969da] hover:bg-[#ddf4ff] transition-colors"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
               </svg>
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto py-1">
+          <div className="flex-1 overflow-y-auto px-2 py-2 space-y-px">
             {foldersLoading ? (
               <div className="flex items-center justify-center py-8 text-[#656d76] text-sm">Loading…</div>
             ) : foldersLoaded && folders.length === 0 ? (
@@ -1181,6 +1209,7 @@ export function IdeasFlowsPage() {
                 onGenerateIdeasChat={(path) => { selectFolder(path); setShowIdeasChat(true); }}
                 expandAll={treeExpandAll}
                 sortAZ={treeSortAZ}
+                rearrangeMode={treeRearrangeMode}
               />
             )}
           </div>
@@ -1500,7 +1529,7 @@ const chatIcon = (
   </svg>
 );
 
-function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, onSelectFolder, onCreateSubfolder, onRenameFolder, onDeleteFolder, onGenerateIdeas, onGenerateIdeasChat, expandAll, sortAZ, depth = 0 }: {
+function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, onSelectFolder, onCreateSubfolder, onRenameFolder, onDeleteFolder, onGenerateIdeas, onGenerateIdeasChat, expandAll, sortAZ, rearrangeMode, depth = 0 }: {
   folders: IdeaFolderDoc[];
   parentPath: string | null;
   selectedPath: string | null;
@@ -1513,6 +1542,7 @@ function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, 
   onGenerateIdeasChat?: (path: string) => void;
   expandAll?: boolean;
   sortAZ?: boolean;
+  rearrangeMode?: boolean;
   depth?: number;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(() => {
@@ -1543,6 +1573,8 @@ function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, 
     }
   }, [expanded, depth]);
 
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
   function toggleExpand(path: string) {
     setExpanded(prev => {
       const next = new Set(prev);
@@ -1554,6 +1586,33 @@ function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, 
   const children = folders
     .filter(f => f.parentPath === parentPath)
     .sort((a, b) => sortAZ ? a.name.localeCompare(b.name) : a.order - b.order);
+
+  function handleDragStart(e: React.DragEvent, folder: IdeaFolderDoc) {
+    e.dataTransfer.setData("application/x-idea-folder-id", folder.id);
+    e.dataTransfer.setData("application/x-idea-folder-order", String(folder.order));
+    e.dataTransfer.effectAllowed = "move";
+  }
+
+  function handleDragOver(e: React.DragEvent, folderId: string) {
+    if (!e.dataTransfer.types.includes("application/x-idea-folder-id")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverId(folderId);
+  }
+
+  function handleDragLeave() {
+    setDragOverId(null);
+  }
+
+  async function handleDrop(e: React.DragEvent, targetFolder: IdeaFolderDoc) {
+    e.preventDefault();
+    setDragOverId(null);
+    const draggedId = e.dataTransfer.getData("application/x-idea-folder-id");
+    if (!draggedId || draggedId === targetFolder.id) return;
+    // Swap orders: dragged folder gets target's order
+    const store = useIdeaFoldersStore.getState();
+    await store.reorder(draggedId, targetFolder.order);
+  }
 
   return (
     <>
@@ -1569,6 +1628,7 @@ function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, 
           }
           return false;
         })();
+        const isDragOver = dragOverId === folder.id;
 
         const menuItems: MenuItem[] = [
           { label: "Generate ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateIdeas?.(folder.path) },
@@ -1581,46 +1641,69 @@ function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, 
         ];
 
         return (
-          <div key={folder.id}>
+          <div key={folder.id} className="mb-px">
             <div
               className={[
-                "group w-full flex items-center gap-1.5 px-2 py-1.5 text-left transition-colors cursor-pointer",
-                isSelected
-                  ? "bg-[#ddf4ff] text-[#0969da]"
-                  : "text-[#1f2328] hover:bg-[#f6f8fa]",
+                "group flex items-center gap-1",
               ].join(" ")}
-              style={{ paddingLeft: `${8 + depth * 16}px` }}
-              onClick={() => {
-                onSelectFolder(folder.path);
-                if (hasChildren && !isExpanded) toggleExpand(folder.path);
-              }}
+              draggable={!!rearrangeMode}
+              onDragStart={rearrangeMode ? (e) => handleDragStart(e, folder) : undefined}
+              onDragOver={rearrangeMode ? (e) => handleDragOver(e, folder.id) : undefined}
+              onDragLeave={rearrangeMode ? handleDragLeave : undefined}
+              onDrop={rearrangeMode ? (e) => { void handleDrop(e, folder); } : undefined}
             >
+              {/* Grip handle — rearrange mode */}
+              {rearrangeMode && (
+                <span className="cursor-grab text-[#656d76] shrink-0" style={{ marginLeft: `${depth * 16}px` }}>
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                    <circle cx="5" cy="3" r="1.2" />
+                    <circle cx="11" cy="3" r="1.2" />
+                    <circle cx="5" cy="8" r="1.2" />
+                    <circle cx="11" cy="8" r="1.2" />
+                    <circle cx="5" cy="13" r="1.2" />
+                    <circle cx="11" cy="13" r="1.2" />
+                  </svg>
+                </span>
+              )}
               {/* Expand/collapse chevron */}
               {hasChildren ? (
                 <button
                   onClick={(e) => { e.stopPropagation(); toggleExpand(folder.path); }}
-                  className="w-4 h-4 flex items-center justify-center shrink-0 text-[#656d76] hover:text-[#1f2328]"
+                  className="text-[#656d76] hover:text-[#1f2328] w-4 flex items-center justify-center shrink-0"
+                  style={!rearrangeMode ? { marginLeft: `${depth * 16}px` } : undefined}
                 >
-                  <svg className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-90" : ""}`} fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06Z" />
+                  <svg className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-90" : ""}`} fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clipRule="evenodd" />
                   </svg>
                 </button>
               ) : (
-                <span className="w-4 shrink-0" />
+                <span className="w-4 shrink-0" style={!rearrangeMode ? { marginLeft: `${depth * 16}px` } : undefined} />
               )}
-              {/* Folder icon */}
-              <svg className="w-4 h-4 text-[#656d76] shrink-0" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
-              </svg>
-              <span className="text-sm truncate flex-1">{folder.name}</span>
-              {/* Ideas indicator */}
-              {(hasIdeas || hasDescendantIdeas) && (
-                <span className={`w-2 h-2 rounded-full shrink-0 ${hasIdeas ? "bg-[#1a7f37]" : "bg-[#1a7f37]/40"}`} />
-              )}
-              {/* Context menu */}
-              <span className="opacity-0 group-hover:opacity-100 shrink-0" onClick={(e) => e.stopPropagation()}>
-                <ContextMenu items={menuItems} align="left" />
-              </span>
+              <div
+                onClick={() => {
+                  onSelectFolder(folder.path);
+                  if (hasChildren && !isExpanded) toggleExpand(folder.path);
+                }}
+                className={[
+                  "flex items-center gap-2 flex-1 px-2 py-1.5 rounded-md border transition-colors text-xs cursor-pointer",
+                  isDragOver ? "border-[#0969da] bg-[#ddf4ff]/30" :
+                  isSelected ? "bg-[#ddf4ff] border-transparent" : "border-transparent hover:bg-[#f6f8fa]",
+                ].join(" ")}
+              >
+                {/* Folder icon — filled grey, matching scenario manager */}
+                <svg className="w-4 h-4 shrink-0 text-[#656d76]" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
+                </svg>
+                <span className={`font-medium text-sm truncate flex-1 ${isSelected ? "text-[#0969da]" : "text-[#1f2328]"}`}>{folder.name}</span>
+                {/* Ideas indicator */}
+                {(hasIdeas || hasDescendantIdeas) && (
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${hasIdeas ? "bg-[#1a7f37]" : "bg-[#1a7f37]/40"}`} />
+                )}
+                {/* Context menu */}
+                <span className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                  <ContextMenu items={menuItems} align="left" />
+                </span>
+              </div>
             </div>
             {isExpanded && hasChildren && (
               <IdeaFolderNavTree
@@ -1636,6 +1719,7 @@ function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, 
                 onGenerateIdeasChat={onGenerateIdeasChat}
                 expandAll={expandAll}
                 sortAZ={sortAZ}
+                rearrangeMode={rearrangeMode}
                 depth={depth + 1}
               />
             )}
