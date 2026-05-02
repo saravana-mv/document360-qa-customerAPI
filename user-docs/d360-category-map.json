@@ -1,0 +1,49 @@
+{
+  "projectId": "fba8847e-edd4-4b69-9ad0-b11bf7b33994",
+  "projectVersionId": "e569dd91-49a1-4485-8a26-3fe71e95cb01",
+  "categories": {
+    "01-getting-started": {
+      "id": "2de50781-a5d6-4957-b2fb-a77abf0a0ffe",
+      "name": "Getting Started"
+    },
+    "02-spec-manager": {
+      "id": "da343f71-786f-48f2-b942-7612ac386d51",
+      "name": "Spec Manager"
+    },
+    "03-ideas-and-flows": {
+      "id": "c4b0ed7c-6491-4811-9e94-7d441fd05d92",
+      "name": "Ideas & Flows"
+    },
+    "04-scenario-manager": {
+      "id": "b89bafbe-3bfc-4968-88d8-4d73a33f22c5",
+      "name": "Scenario Manager"
+    },
+    "05-connections-and-authentication": {
+      "id": "960925ba-34db-42aa-8e2c-83d329ffb576",
+      "name": "Connections & Authentication"
+    },
+    "06-settings-and-administration": {
+      "id": "42cfeb57-5110-4847-95e8-6683e2c38f70",
+      "name": "Settings & Administration"
+    },
+    "07-ai-features": {
+      "id": "a3782c50-74ea-4e20-b911-caf6916d586a",
+      "name": "AI Features"
+    },
+    "08-public-api": {
+      "id": "57d4552d-26ad-4b2b-9c73-be9f90c86ab5",
+      "name": "Public API"
+    },
+    "09-troubleshooting-and-faq": {
+      "id": "c144c8a6-fc79-4857-925f-10b5c6606da4",
+      "name": "Troubleshooting & FAQ"
+    }
+  },
+  "articles": {
+    "01-getting-started/01-what-is-flowforge": "54386123-c91f-4d02-ba26-2ccc03430e9b",
+    "01-getting-started/02-quick-start": "b5166960-dfc7-47a2-a657-9c0130dec1d0",
+    "01-getting-started/03-navigating-the-interface": "de15586e-e26c-40db-99a0-6ff35ad7de25",
+    "01-getting-started/04-roles-and-permissions": "6d60584b-561c-4d51-bd38-889ca35f157c",
+    "01-getting-started/05-key-concepts-and-terminology": "6fb4ffd2-6815-4f78-bf42-992c39fd6505"
+  }
+}
