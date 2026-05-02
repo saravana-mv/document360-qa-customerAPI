@@ -198,7 +198,7 @@ export function ConnectionsPage() {
         )}
 
         {status.hasRefreshToken && (
-          <span className="text-xs text-[#1a7f37] flex items-center gap-1">
+          <span className="text-sm text-[#1a7f37] flex items-center gap-1">
             <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
             </svg>
@@ -221,7 +221,7 @@ export function ConnectionsPage() {
         )}
 
         {hc && !hc.loading && (
-          <span className={`text-xs flex items-center gap-1 ${hc.healthy ? "text-[#1a7f37]" : "text-[#d1242f]"}`}>
+          <span className={`text-sm flex items-center gap-1 ${hc.healthy ? "text-[#1a7f37]" : "text-[#d1242f]"}`}>
             {hc.healthy ? (
               <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
@@ -326,7 +326,7 @@ export function ConnectionsPage() {
                           <span className="text-xs text-[#656d76] font-mono truncate">{conn.clientId}</span>
                         )}
                         {isOAuth && conn.hasSecret && (
-                          <span className="text-xs text-[#656d76] flex items-center gap-1 shrink-0">
+                          <span className="text-sm text-[#656d76] flex items-center gap-1 shrink-0">
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
                             </svg>
@@ -334,7 +334,7 @@ export function ConnectionsPage() {
                           </span>
                         )}
                         {!isOAuth && conn.hasCredential && (
-                          <span className="text-xs text-[#656d76] flex items-center gap-1 shrink-0">
+                          <span className="text-sm text-[#656d76] flex items-center gap-1 shrink-0">
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
                             </svg>
@@ -342,10 +342,10 @@ export function ConnectionsPage() {
                           </span>
                         )}
                         {conn.provider === "apikey_header" && conn.authHeaderName && (
-                          <span className="text-xs text-[#656d76] font-mono truncate">Header: {conn.authHeaderName}</span>
+                          <span className="text-sm text-[#656d76] font-mono truncate">Header: {conn.authHeaderName}</span>
                         )}
                         {conn.provider === "apikey_query" && conn.authQueryParam && (
-                          <span className="text-xs text-[#656d76] font-mono truncate">Param: {conn.authQueryParam}</span>
+                          <span className="text-sm text-[#656d76] font-mono truncate">Param: {conn.authQueryParam}</span>
                         )}
                       </div>
                     </div>

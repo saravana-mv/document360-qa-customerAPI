@@ -38,7 +38,7 @@ function Section({ title, defaultOpen = false, badge, children }: {
 function KV({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex gap-2 text-sm py-0.5">
-      <span className="text-xs font-medium shrink-0" style={{ color: "#656d76", minWidth: 120 }}>{label}</span>
+      <span className="text-sm font-medium shrink-0" style={{ color: "#656d76", minWidth: 120 }}>{label}</span>
       <span style={{ color: "#1f2328" }}>{value}</span>
     </div>
   );
@@ -82,7 +82,7 @@ export default function FlowTraceModal({ trace, onClose }: Props) {
                 <KV label="Output tokens" value={trace.model.outputTokens.toLocaleString()} />
               </div>
             ) : (
-              <span className="text-xs" style={{ color: "#656d76" }}>No model data</span>
+              <span className="text-sm" style={{ color: "#656d76" }}>No model data</span>
             )}
             <div className="mt-1 grid grid-cols-2 gap-x-6 gap-y-0.5">
               <KV label="Generated" value={new Date(trace.createdAt).toLocaleString()} />
@@ -103,7 +103,7 @@ export default function FlowTraceModal({ trace, onClose }: Props) {
               } />
             )}
             {wasCapped && (
-              <div className="mt-1 text-xs px-2 py-1 rounded" style={{ background: "#fff8c5", color: "#9a6700" }}>
+              <div className="mt-1 text-sm px-2 py-1 rounded" style={{ background: "#fff8c5", color: "#9a6700" }}>
                 {selected - survived} files were dropped by the MAX_SPEC_FILES cap
               </div>
             )}
@@ -111,7 +111,7 @@ export default function FlowTraceModal({ trace, onClose }: Props) {
             {/* Survived files */}
             {trace.specSelection.survivedFiles.length > 0 && (
               <div className="mt-2">
-                <span className="text-xs font-medium" style={{ color: "#656d76" }}>Survived files ({survived}):</span>
+                <span className="text-sm font-medium" style={{ color: "#656d76" }}>Survived files ({survived}):</span>
                 <div className="mt-1 text-xs font-mono space-y-0.5" style={{ color: "#1a7f37" }}>
                   {trace.specSelection.survivedFiles.map((f, i) => (
                     <div key={i}>✓ {f}</div>
@@ -126,7 +126,7 @@ export default function FlowTraceModal({ trace, onClose }: Props) {
               const dropped = trace.specSelection.selectedFiles.filter(f => !survivedSet.has(f));
               return dropped.length > 0 ? (
                 <div className="mt-2">
-                  <span className="text-xs font-medium" style={{ color: "#d1242f" }}>Dropped files ({dropped.length}):</span>
+                  <span className="text-sm font-medium" style={{ color: "#d1242f" }}>Dropped files ({dropped.length}):</span>
                   <div className="mt-1 text-xs font-mono space-y-0.5" style={{ color: "#d1242f" }}>
                     {dropped.map((f, i) => (
                       <div key={i}>✗ {f}</div>
@@ -152,8 +152,8 @@ export default function FlowTraceModal({ trace, onClose }: Props) {
               <KV label="ID" value={<span className="font-mono text-xs">{trace.ideaRef.id}</span>} />
               <KV label="Description" value={trace.ideaRef.description} />
               <div className="mt-1">
-                <span className="text-xs font-medium" style={{ color: "#656d76" }}>Steps:</span>
-                <ol className="list-decimal ml-5 text-xs mt-0.5 space-y-0.5" style={{ color: "#1f2328" }}>
+                <span className="text-sm font-medium" style={{ color: "#656d76" }}>Steps:</span>
+                <ol className="list-decimal ml-5 text-sm mt-0.5 space-y-0.5" style={{ color: "#1f2328" }}>
                   {trace.ideaRef.steps.map((s, i) => <li key={i}>{s}</li>)}
                 </ol>
               </div>
@@ -166,7 +166,7 @@ export default function FlowTraceModal({ trace, onClose }: Props) {
           {/* Post-processing */}
           <Section title="Post-processing Pipeline" defaultOpen
             badge={`${trace.postProcessing.filter(p => p.applied).length}/${trace.postProcessing.length} applied`}>
-            <table className="w-full text-xs">
+            <table className="w-full text-sm">
               <thead>
                 <tr style={{ color: "#656d76" }}>
                   <th className="text-left py-1 font-medium">Processor</th>

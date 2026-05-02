@@ -161,7 +161,7 @@ export function AiCreditsPage() {
   return (
     <div className="p-6 max-w-2xl overflow-y-auto h-full">
       <h2 className="text-sm font-bold text-[#1f2328] mb-1">AI Credits</h2>
-      <p className="text-xs text-[#656d76] mb-6">
+      <p className="text-sm text-[#656d76] mb-6">
         Manage AI credit budgets for this project. Credits are consumed by flow generation, editing, chat, and idea generation.
       </p>
 
@@ -288,7 +288,7 @@ export function AiCreditsPage() {
             ) : (
               <table className="w-full">
                 <thead>
-                  <tr className="text-xs text-[#656d76] border-b border-[#d1d9e0]">
+                  <tr className="text-sm text-[#656d76] border-b border-[#d1d9e0]">
                     <th className="text-left py-2 font-medium">User</th>
                     <th className="text-right py-2 font-medium">Used</th>
                     <th className="text-right py-2 font-medium">Budget</th>

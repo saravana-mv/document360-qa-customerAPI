@@ -1037,7 +1037,7 @@ export function FileTree({
 
         {/* Root drop zone hint — shown at bottom when dragging */}
         {draggingNode && (
-          <div className={`mx-2 mt-2 mb-1 rounded border-2 border-dashed px-3 py-2 text-center text-xs transition-colors ${
+          <div className={`mx-2 mt-2 mb-1 rounded border-2 border-dashed px-3 py-2 text-center text-sm transition-colors ${
             dropTargetPath === ""
               ? "border-[#0969da] text-blue-500 bg-blue-50"
               : "border-[#d1d9e0] text-[#656d76]"

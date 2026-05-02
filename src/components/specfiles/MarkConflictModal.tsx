@@ -56,7 +56,7 @@ export function MarkConflictModal({ existingName, suggestedNewName, flowTitle, o
               onChange={(e) => setRenameValue(e.target.value)}
               className="w-full text-sm font-mono border border-[#d1d9e0] rounded-md px-2.5 py-1.5 focus:outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da]"
             />
-            <p className="text-xs text-[#656d76] mt-1">Used only if you pick "Save as new".</p>
+            <p className="text-sm text-[#656d76] mt-1">Used only if you pick "Save as new".</p>
           </div>
         </div>
 

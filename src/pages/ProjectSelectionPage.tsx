@@ -119,7 +119,7 @@ export function ProjectSelectionPage() {
             <span className="text-xs text-[#8b949e] mr-3">{principal.userDetails}</span>
             <button
               onClick={entraLogout}
-              className="text-xs text-[#7d8590] hover:text-[#e6edf3] transition-colors px-2 py-1 rounded-md hover:bg-[#2d333b]"
+              className="text-sm text-[#7d8590] hover:text-[#e6edf3] transition-colors px-2 py-1 rounded-md hover:bg-[#2d333b]"
             >
               Sign out
             </button>
@@ -161,7 +161,7 @@ export function ProjectSelectionPage() {
               <h3 className="text-sm font-semibold text-[#1f2328] mb-4">Create a new project</h3>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-[#656d76] mb-1">Project name</label>
+                  <label className="block text-sm font-medium text-[#656d76] mb-1">Project name</label>
                   <input
                     ref={inputRef}
                     value={newName}
@@ -172,7 +172,7 @@ export function ProjectSelectionPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-[#656d76] mb-1">Description (optional)</label>
+                  <label className="block text-sm font-medium text-[#656d76] mb-1">Description (optional)</label>
                   <input
                     value={newDesc}
                     onChange={(e) => setNewDesc(e.target.value)}
@@ -180,7 +180,7 @@ export function ProjectSelectionPage() {
                     className="w-full text-sm bg-white text-[#1f2328] border border-[#d1d9e0] rounded-md px-3 py-2 outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da]"
                   />
                 </div>
-                {createError && <p className="text-xs text-[#d1242f]">{createError}</p>}
+                {createError && <p className="text-sm text-[#d1242f]">{createError}</p>}
                 <div className="flex items-center gap-2 pt-1">
                   <button
                     onClick={handleCreate}
@@ -275,10 +275,10 @@ export function ProjectSelectionPage() {
                     {project.name}
                   </h3>
                   {project.description && (
-                    <p className="text-xs text-[#656d76] mb-3 line-clamp-2">{project.description}</p>
+                    <p className="text-sm text-[#656d76] mb-3 line-clamp-2">{project.description}</p>
                   )}
                   {!project.description && <div className="mb-3" />}
-                  <div className="flex items-center gap-3 text-[11px] text-[#8b949e]">
+                  <div className="flex items-center gap-3 text-xs text-[#8b949e]">
                     {/* Member count */}
                     <span className="flex items-center gap-1">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
@@ -317,7 +317,7 @@ export function ProjectSelectionPage() {
               <p className="text-sm text-[#1f2328]">
                 This will <strong>permanently delete</strong> the project <strong>{normalizeName(deleteTarget.name)}</strong> and all its resources:
               </p>
-              <ul className="text-xs text-[#656d76] list-disc ml-4 space-y-1">
+              <ul className="text-sm text-[#656d76] list-disc ml-4 space-y-1">
                 <li>All spec files and imported documents</li>
                 <li>All flow definitions and chat sessions</li>
                 <li>All test ideas and generated content</li>
@@ -327,7 +327,7 @@ export function ProjectSelectionPage() {
               </ul>
               <p className="text-sm text-[#d1242f] font-medium">This action cannot be undone.</p>
               <div>
-                <label className="block text-xs font-medium text-[#1f2328] mb-1">
+                <label className="block text-sm font-medium text-[#1f2328] mb-1">
                   Type <strong>{normalizeName(deleteTarget.name)}</strong> to confirm
                 </label>
                 <input

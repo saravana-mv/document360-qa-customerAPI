@@ -82,7 +82,7 @@ export function CreateScenariosModal({ flows, version, onConfirm, onClose }: Pro
         <div className="px-5 py-4 space-y-4 overflow-y-auto">
           {/* Flow list preview */}
           <div>
-            <label className="text-xs font-medium text-[#656d76] uppercase tracking-wide">Flows</label>
+            <label className="text-sm font-medium text-[#656d76] uppercase tracking-wide">Flows</label>
             <div className="mt-1.5 max-h-[120px] overflow-y-auto border border-[#d1d9e0] rounded-md bg-[#f6f8fa]">
               {flows.map((f) => (
                 <div key={f.ideaId} className="px-3 py-1.5 text-sm text-[#1f2328] border-b border-[#d1d9e0]/50 last:border-b-0 truncate">
@@ -94,7 +94,7 @@ export function CreateScenariosModal({ flows, version, onConfirm, onClose }: Pro
 
           {/* Folder picker */}
           <div>
-            <label className="text-xs font-medium text-[#656d76] uppercase tracking-wide">Target folder in Scenario Manager</label>
+            <label className="text-sm font-medium text-[#656d76] uppercase tracking-wide">Target folder in Scenario Manager</label>
             <div className="mt-1.5 space-y-1">
               {folderOptions.map((opt) => (
                 <label
@@ -117,7 +117,7 @@ export function CreateScenariosModal({ flows, version, onConfirm, onClose }: Pro
                     {opt.label}
                   </span>
                   {opt.value === NEWLY_ADDED && (
-                    <span className="text-xs text-[#8b949e] ml-auto">Unsorted</span>
+                    <span className="text-sm text-[#8b949e] ml-auto">Unsorted</span>
                   )}
                 </label>
               ))}

@@ -148,7 +148,7 @@ export function ImportResultModal({
               <svg className="w-4 h-4 shrink-0" style={{ color: "#1a7f37" }} viewBox="0 0 16 16" fill="currentColor">
                 <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
               </svg>
-              <span className="text-xs text-[#1f2328]">
+              <span className="text-sm text-[#1f2328]">
                 All {distillation.distilled} endpoint{distillation.distilled !== 1 ? "s" : ""} processed. Digest index built.
               </span>
             </div>
@@ -161,7 +161,7 @@ export function ImportResultModal({
               <svg className="w-4 h-4 shrink-0" style={{ color: "#9a6700" }} viewBox="0 0 16 16" fill="currentColor">
                 <path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575ZM8 5a.75.75 0 0 0-.75.75v2.5a.75.75 0 0 0 1.5 0v-2.5A.75.75 0 0 0 8 5Zm1 6a1 1 0 1 0-2 0 1 1 0 0 0 2 0Z" />
               </svg>
-              <span className="text-xs text-[#1f2328]">
+              <span className="text-sm text-[#1f2328]">
                 {distillation.distilled} of {distillation.total} file{distillation.total !== 1 ? "s" : ""} distilled.{" "}
                 {!digest.built ? "Digest will build on first use." : "Digest index built."}
               </span>
@@ -176,17 +176,17 @@ export function ImportResultModal({
               <svg className="w-4 h-4 shrink-0" style={{ color: "#d1242f" }} viewBox="0 0 16 16" fill="currentColor">
                 <path d="M2.343 13.657A8 8 0 1 1 13.66 2.343 8 8 0 0 1 2.343 13.657ZM6.03 4.97a.751.751 0 0 0-1.042.018.751.751 0 0 0-.018 1.042L6.94 8 4.97 9.97a.749.749 0 0 0 .326 1.275.749.749 0 0 0 .734-.215L8 9.06l1.97 1.97a.749.749 0 0 0 1.275-.326.749.749 0 0 0-.215-.734L9.06 8l1.97-1.97a.749.749 0 0 0-.326-1.275.749.749 0 0 0-.734.215L8 6.94Z" />
               </svg>
-              <span className="text-xs text-[#1f2328]">
+              <span className="text-sm text-[#1f2328]">
                 {distillation.distilled} of {distillation.total} distilled. {distillation.errors} file{distillation.errors !== 1 ? "s" : ""} failed.
                 {!digest.built ? " Digest will build on first use." : ""}
               </span>
             </div>
             {distillation.errorDetails.length > 0 && (
               <details className="px-3 pb-2">
-                <summary className="text-xs text-[#656d76] cursor-pointer hover:text-[#1f2328]">Show errors</summary>
+                <summary className="text-sm text-[#656d76] cursor-pointer hover:text-[#1f2328]">Show errors</summary>
                 <ul className="mt-1 space-y-0.5">
                   {distillation.errorDetails.map((d, i) => (
-                    <li key={i} className="text-xs text-[#656d76] font-mono truncate">
+                    <li key={i} className="text-sm text-[#656d76] font-mono truncate">
                       {d.file.split("/").pop()}: {d.error}
                     </li>
                   ))}
@@ -216,7 +216,7 @@ export function ImportResultModal({
             <svg className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "#9a6700" }} viewBox="0 0 16 16" fill="currentColor">
               <path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575ZM8 5a.75.75 0 0 0-.75.75v2.5a.75.75 0 0 0 1.5 0v-2.5A.75.75 0 0 0 8 5Zm1 6a1 1 0 1 0-2 0 1 1 0 0 0 2 0Z" />
             </svg>
-            <span className="text-xs text-[#1f2328]">
+            <span className="text-sm text-[#1f2328]">
               Connections will be created without credentials. You must configure them in <strong>Settings &rarr; Connections</strong> before executing scenarios.
             </span>
           </div>
@@ -233,7 +233,7 @@ export function ImportResultModal({
                   className="rounded accent-[#0969da]"
                 />
                 <code className="text-sm font-mono text-[#1f2328] shrink-0">{c.name}</code>
-                <span className="text-xs text-[#656d76] truncate flex-1">{c.description ?? ""}</span>
+                <span className="text-sm text-[#656d76] truncate flex-1">{c.description ?? ""}</span>
                 <span className="text-xs text-[#656d76] shrink-0 px-1.5 py-0.5 rounded bg-[#f6f8fa] border border-[#d1d9e0]">
                   {PROVIDER_LABELS[c.provider] ?? c.provider}
                 </span>
@@ -271,7 +271,7 @@ export function ImportResultModal({
               </button>
             )}
           </div>
-          <p className="text-xs text-[#656d76] mb-3">
+          <p className="text-sm text-[#656d76] mb-3">
             Selected parameters will be saved as project variables with empty values. Configure their values in Settings &rarr; Variables.
           </p>
           <div className="border border-[#d1d9e0] rounded-md overflow-hidden">
@@ -287,7 +287,7 @@ export function ImportResultModal({
                   className="rounded accent-[#0969da]"
                 />
                 <code className="text-sm font-mono text-[#1f2328] shrink-0">{v.name}</code>
-                <span className="text-xs text-[#656d76] truncate flex-1">{v.description !== v.name ? v.description : ""}</span>
+                <span className="text-sm text-[#656d76] truncate flex-1">{v.description !== v.name ? v.description : ""}</span>
                 <span className="text-xs text-[#656d76] shrink-0 px-1.5 py-0.5 rounded bg-[#f6f8fa] border border-[#d1d9e0]">
                   {v.type}{v.format ? ` \u00b7 ${v.format}` : ""}
                 </span>
@@ -313,7 +313,7 @@ export function ImportResultModal({
 
       {/* No detections at all */}
       {!hasVariables && !hasConnections && (
-        <p className="text-xs text-[#656d76]">No path parameters or authentication schemes detected in this spec.</p>
+        <p className="text-sm text-[#656d76]">No path parameters or authentication schemes detected in this spec.</p>
       )}
     </Modal>
   );

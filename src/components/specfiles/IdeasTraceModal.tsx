@@ -38,7 +38,7 @@ function Section({ title, defaultOpen = false, badge, children }: {
 function KV({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex gap-2 text-sm py-0.5">
-      <span className="text-xs font-medium shrink-0" style={{ color: "#656d76", minWidth: 120 }}>{label}</span>
+      <span className="text-sm font-medium shrink-0" style={{ color: "#656d76", minWidth: 120 }}>{label}</span>
       <span style={{ color: "#1f2328" }}>{value}</span>
     </div>
   );
@@ -93,7 +93,7 @@ export default function IdeasTraceModal({ trace, onClose }: Props) {
                 <KV label="Output tokens" value={trace.model.outputTokens.toLocaleString()} />
               </div>
             ) : (
-              <span className="text-xs" style={{ color: "#656d76" }}>No model data</span>
+              <span className="text-sm" style={{ color: "#656d76" }}>No model data</span>
             )}
             <div className="mt-1 grid grid-cols-2 gap-x-6 gap-y-0.5">
               <KV label="Generated" value={new Date(trace.createdAt).toLocaleString()} />
@@ -121,7 +121,7 @@ export default function IdeasTraceModal({ trace, onClose }: Props) {
             <KV label="Total chars" value={trace.specContext.totalSpecCharacters.toLocaleString()} />
             {trace.specContext.fileNames.length > 0 && (
               <div className="mt-2">
-                <span className="text-xs font-medium" style={{ color: "#656d76" }}>Spec files ({trace.specContext.fileNames.length}):</span>
+                <span className="text-sm font-medium" style={{ color: "#656d76" }}>Spec files ({trace.specContext.fileNames.length}):</span>
                 <div className="mt-1 text-xs font-mono space-y-0.5" style={{ color: "#1f2328" }}>
                   {trace.specContext.fileNames.map((f, i) => (
                     <div key={i}>{f}</div>

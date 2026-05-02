@@ -174,7 +174,7 @@ export function UsersContent() {
                         <select
                           value={u.role}
                           onChange={(e) => handleChangeRole(u.id, e.target.value as AppRole)}
-                          className={`text-xs font-medium px-2 py-0.5 rounded-full border cursor-pointer ${ROLE_COLOR[u.role]}`}
+                          className={`text-sm font-medium px-2 py-0.5 rounded-full border cursor-pointer ${ROLE_COLOR[u.role]}`}
                         >
                           <option value="owner">Owner</option>
                           <option value="project_owner">Project Owner</option>
@@ -184,7 +184,7 @@ export function UsersContent() {
                         </select>
                       )}
                     </td>
-                    <td className={`px-4 py-2.5 text-xs font-medium capitalize ${STATUS_COLOR[u.status] ?? ""}`}>
+                    <td className={`px-4 py-2.5 text-sm font-medium capitalize ${STATUS_COLOR[u.status] ?? ""}`}>
                       {u.status}
                     </td>
                     <td className="px-4 py-2.5 text-[#656d76] text-xs">{formatDate(u.invitedAt)}</td>
@@ -237,7 +237,7 @@ export function UsersContent() {
             </div>
             <div className="px-4 py-4 space-y-3">
               <div>
-                <label className="block text-xs font-medium text-[#1f2328] mb-1">Email address</label>
+                <label className="block text-sm font-medium text-[#1f2328] mb-1">Email address</label>
                 <input
                   type="email"
                   value={inviteEmail}
@@ -248,7 +248,7 @@ export function UsersContent() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-[#1f2328] mb-1">Role</label>
+                <label className="block text-sm font-medium text-[#1f2328] mb-1">Role</label>
                 <select
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value as AppRole)}

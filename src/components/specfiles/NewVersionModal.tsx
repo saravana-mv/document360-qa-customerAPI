@@ -130,7 +130,7 @@ export function NewVersionModal({ open, onClose, onCreate }: NewVersionModalProp
             className="w-full px-3 py-1.5 text-sm rounded-md border border-[#d1d9e0] bg-white text-[#1f2328] placeholder:text-[#656d76] focus:outline-none focus:ring-2 focus:ring-[#0969da] focus:border-transparent disabled:opacity-50"
           />
           {name.trim() && !nameValid && (
-            <p className="text-xs text-[#d1242f] mt-1">
+            <p className="text-sm text-[#d1242f] mt-1">
               Only letters, numbers, hyphens, and underscores allowed
             </p>
           )}
@@ -152,7 +152,7 @@ export function NewVersionModal({ open, onClose, onCreate }: NewVersionModalProp
                   setError(null);
                 }}
                 disabled={busy}
-                className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
+                className={`px-2.5 py-1 text-sm rounded-md border transition-colors ${
                   importMode === mode
                     ? "bg-[#ddf4ff] border-[#0969da] text-[#0969da]"
                     : "border-[#d1d9e0] text-[#656d76] hover:bg-[#f6f8fa]"
@@ -220,7 +220,7 @@ export function NewVersionModal({ open, onClose, onCreate }: NewVersionModalProp
 
         {/* Info text */}
         {importMode !== "none" && (
-          <p className="text-xs text-[#656d76]">
+          <p className="text-sm text-[#656d76]">
             The spec will be split into individual per-endpoint .md files organized by tag folders.
             The original file is preserved as <code className="bg-[#f6f8fa] px-1 rounded">_system/_swagger.json</code>.
           </p>

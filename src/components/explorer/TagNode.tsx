@@ -251,7 +251,7 @@ export function TagNode({ tag, tests }: TagNodeProps) {
       )}
 
       {open && tests.length === 0 && (
-        <div className="ml-7 px-2 py-1 text-xs text-[#656d76] italic">No steps</div>
+        <div className="ml-7 px-2 py-1 text-sm text-[#656d76] italic">No steps</div>
       )}
 
       {showEnvOverride && flowFileName && (

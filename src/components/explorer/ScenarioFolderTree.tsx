@@ -388,7 +388,7 @@ function FolderNode({ node, version, tags, allTests, sortCmp }: FolderNodeProps)
             </div>
           )}
           {folderTags.length === 0 && node.children.length === 0 && !creating && (
-            <div className="ml-2 px-2 py-1 text-xs text-[#656d76] italic">Empty</div>
+            <div className="ml-2 px-2 py-1 text-sm text-[#656d76] italic">Empty</div>
           )}
         </div>
       )}

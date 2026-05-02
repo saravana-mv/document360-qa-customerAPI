@@ -39,7 +39,7 @@ export function XmlViewer({ xml, streaming, showToolbar = true }: Props & { show
         <div className="flex items-center justify-between mb-2 shrink-0">
           <div className="flex items-center gap-2">
             {streaming && (
-              <span className="inline-flex items-center gap-1 text-xs text-[#0969da]">
+              <span className="inline-flex items-center gap-1 text-sm text-[#0969da]">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#0969da] animate-pulse" />
                 Generating…
               </span>
@@ -49,7 +49,7 @@ export function XmlViewer({ xml, streaming, showToolbar = true }: Props & { show
             <button
               onClick={copyToClipboard}
               disabled={!xml}
-              className="flex items-center gap-1 text-xs text-[#656d76] hover:text-[#1f2328] disabled:opacity-40 border border-[#d1d9e0] rounded-md px-2 py-1 hover:bg-[#f6f8fa] transition-colors"
+              className="flex items-center gap-1 text-sm text-[#656d76] hover:text-[#1f2328] disabled:opacity-40 border border-[#d1d9e0] rounded-md px-2 py-1 hover:bg-[#f6f8fa] transition-colors"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
@@ -59,7 +59,7 @@ export function XmlViewer({ xml, streaming, showToolbar = true }: Props & { show
             <button
               onClick={download}
               disabled={!xml}
-              className="flex items-center gap-1 text-xs text-[#656d76] hover:text-[#1f2328] disabled:opacity-40 border border-[#d1d9e0] rounded-md px-2 py-1 hover:bg-[#f6f8fa] transition-colors"
+              className="flex items-center gap-1 text-sm text-[#656d76] hover:text-[#1f2328] disabled:opacity-40 border border-[#d1d9e0] rounded-md px-2 py-1 hover:bg-[#f6f8fa] transition-colors"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />

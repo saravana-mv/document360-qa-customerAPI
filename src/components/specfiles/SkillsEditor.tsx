@@ -237,7 +237,7 @@ function VersionSidebar({ versions, loading, selectedId, checkedIds, onSelect, o
       {/* Hint */}
       {!loading && versions.length > 1 && (
         <div className="px-3 py-2 border-t border-[#d1d9e0] bg-[#f6f8fa]">
-          <span className="text-xs text-[#656d76]">Select 2 versions to compare</span>
+          <span className="text-sm text-[#656d76]">Select 2 versions to compare</span>
         </div>
       )}
     </div>
@@ -250,7 +250,7 @@ function ReadOnlyPreview({ content, label }: { content: string; label: string })
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-4 h-8 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
-        <span className="text-xs text-[#656d76]">Viewing: {label}</span>
+        <span className="text-sm text-[#656d76]">Viewing: {label}</span>
       </div>
       <div className="flex-1 overflow-auto">
         <pre className="p-4 text-[13px] font-mono text-[#1f2328] whitespace-pre-wrap break-words leading-relaxed">
@@ -386,7 +386,7 @@ function AIPanel({ currentContent, onApply }: AIPanelProps) {
         {history.length === 0 ? (
           <div className="p-4 text-sm text-[#656d76]">
             <p className="font-medium text-[#1f2328] mb-2">Examples:</p>
-            <ul className="space-y-1.5 text-xs">
+            <ul className="space-y-1.5 text-sm">
               <li className="cursor-pointer hover:text-[#0969da]" onClick={() => setInstruction("Do not create project versions, instead use the version specified in the project variable")}>
                 &bull; Do not create project versions, use project variable instead
               </li>
@@ -446,16 +446,16 @@ function AIHistoryCard({ entry, expanded, currentContent, onToggle, onApply }: A
           <p className="text-sm text-[#1f2328] line-clamp-2">{entry.instruction}</p>
           <div className="flex items-center gap-2 mt-1">
             {entry.status === "pending" && (
-              <span className="text-xs text-[#656d76]">Generating...</span>
+              <span className="text-sm text-[#656d76]">Generating...</span>
             )}
             {entry.status === "error" && (
-              <span className="text-xs text-[#d1242f]">Error: {entry.error}</span>
+              <span className="text-sm text-[#d1242f]">Error: {entry.error}</span>
             )}
             {entry.status === "done" && (
               <>
                 {(entry.additions ?? 0) > 0 && <span className="text-xs text-[#1a7f37]">+{entry.additions}</span>}
                 {(entry.deletions ?? 0) > 0 && <span className="text-xs text-[#d1242f]">&minus;{entry.deletions}</span>}
-                {entry.additions === 0 && entry.deletions === 0 && <span className="text-xs text-[#656d76]">No changes</span>}
+                {entry.additions === 0 && entry.deletions === 0 && <span className="text-sm text-[#656d76]">No changes</span>}
                 {entry.costUsd != null && <span className="text-xs text-[#656d76]">${entry.costUsd.toFixed(4)}</span>}
               </>
             )}
@@ -848,7 +848,7 @@ export function SkillsEditor({ path, content, onSaved }: Props) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
         </svg>
         <span className="text-sm font-semibold text-[#1f2328]">{fileName}</span>
-        <span className="text-xs text-[#656d76]">API rules and enum aliases for AI generation</span>
+        <span className="text-sm text-[#656d76]">API rules and enum aliases for AI generation</span>
 
         {/* Rendered / Raw toggle */}
         <div className="flex items-center shrink-0 rounded-md overflow-hidden border border-[#d1d9e0] text-[13px] ml-3">

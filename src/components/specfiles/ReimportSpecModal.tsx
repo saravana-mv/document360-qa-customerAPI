@@ -135,7 +135,7 @@ export function ReimportSpecModal({ open, folderPath, onClose, onReimport }: Rei
                   setError(null);
                 }}
                 disabled={busy}
-                className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
+                className={`px-2.5 py-1 text-sm rounded-md border transition-colors ${
                   importMode === mode
                     ? "bg-[#ddf4ff] border-[#0969da] text-[#0969da]"
                     : "border-[#d1d9e0] text-[#656d76] hover:bg-[#f6f8fa]"

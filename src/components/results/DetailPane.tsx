@@ -51,7 +51,7 @@ const statusBadge: Record<TestStatus, { label: string; cls: string; icon: string
 
 function Label({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-xs font-semibold text-[#656d76] uppercase tracking-wider mb-1.5">
+    <p className="text-sm font-semibold text-[#656d76] uppercase tracking-wider mb-1.5">
       {children}
     </p>
   );
@@ -125,7 +125,7 @@ function StateSnapshotTable({ value }: { value: unknown }) {
   }
   const entries = Object.entries(value as Record<string, unknown>);
   if (entries.length === 0) {
-    return <p className="text-xs text-[#afb8c1] italic px-3 py-2">No state captured</p>;
+    return <p className="text-sm text-[#afb8c1] italic px-3 py-2">No state captured</p>;
   }
   function format(v: unknown): string {
     if (v === null) return "null";
@@ -140,10 +140,10 @@ function StateSnapshotTable({ value }: { value: unknown }) {
         const text = format(v);
         return (
           <div key={key} className="group/row flex items-start gap-3 px-3 py-1.5 hover:bg-[#f6f8fa]">
-            <span className="text-xs font-semibold text-[#656d76] w-40 shrink-0 truncate" title={key}>
+            <span className="text-sm font-semibold text-[#656d76] w-40 shrink-0 truncate" title={key}>
               {key}
             </span>
-            <span className="flex-1 font-mono text-xs text-[#1f2328] break-all select-text">
+            <span className="flex-1 font-mono text-sm text-[#1f2328] break-all select-text">
               {text || <span className="text-[#afb8c1] italic">(empty)</span>}
             </span>
             <CopyButton
@@ -161,7 +161,7 @@ function StateSnapshotTable({ value }: { value: unknown }) {
 function CopyableText({ value, mono = true, className = "" }: { value: string; mono?: boolean; className?: string }) {
   return (
     <div className={`flex items-center gap-1.5 group/text ${className}`}>
-      <span className={`flex-1 break-all ${mono ? "font-mono" : ""} text-xs text-[#656d76]`}>{value}</span>
+      <span className={`flex-1 break-all ${mono ? "font-mono" : ""} text-sm text-[#656d76]`}>{value}</span>
       <CopyButton value={value} className="opacity-0 group-hover/text:opacity-100 transition-opacity" />
     </div>
   );
@@ -317,14 +317,14 @@ function DesignTab({ testId }: { testId: string }) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
             </svg>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-[#d1242f] mb-1.5">
+              <p className="text-sm font-semibold text-[#d1242f] mb-1.5">
                 Undefined project variable{missingVars.length > 1 ? "s" : ""} — this step will fail at runtime
               </p>
               <div className="space-y-1 mb-2">
                 {missingVars.map((mv) => {
                   const suggestion = suggestSimilarVar(mv.name, definedVarNames);
                   return (
-                    <div key={mv.name} className="flex items-center gap-2 text-xs flex-wrap">
+                    <div key={mv.name} className="flex items-center gap-2 text-sm flex-wrap">
                       <code className="font-mono text-[#d1242f] bg-white border border-[#ffcecb] px-1.5 py-0.5 rounded shrink-0">
                         proj.{mv.name}
                       </code>
@@ -340,7 +340,7 @@ function DesignTab({ testId }: { testId: string }) {
               </div>
               <a
                 href="/settings"
-                className="text-xs text-[#0969da] hover:underline font-medium"
+                className="text-sm text-[#0969da] hover:underline font-medium"
               >
                 Add in Settings → Variables
               </a>
@@ -350,7 +350,7 @@ function DesignTab({ testId }: { testId: string }) {
       )}
 
       {def.description && (
-        <div className="text-xs text-[#0969da] bg-[#ddf4ff] border border-[#b6e3ff] rounded-md px-3 py-2">
+        <div className="text-sm text-[#0969da] bg-[#ddf4ff] border border-[#b6e3ff] rounded-md px-3 py-2">
           {safeStr(def.description)}
         </div>
       )}
@@ -358,7 +358,7 @@ function DesignTab({ testId }: { testId: string }) {
       {/* Endpoint */}
       <div>
         <Label>Endpoint</Label>
-        <div className="flex items-center gap-1.5 group/ep font-mono text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-3 py-2">
+        <div className="flex items-center gap-1.5 group/ep font-mono text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-3 py-2">
           <span className={`font-bold mr-1 shrink-0 ${methodColor[def.method]?.split(" ")[0] ?? "text-[#656d76]"}`}>
             {safeStr(def.method)}
           </span>
@@ -373,7 +373,7 @@ function DesignTab({ testId }: { testId: string }) {
           <Label>Path Parameters</Label>
           <div className="space-y-2.5">
             {paramInfos.map((p) => (
-              <div key={p.token} className="text-xs">
+              <div key={p.token} className="text-sm">
                 {/* Row 1: {token} → expression (badge) */}
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-mono text-[#656d76] bg-[#eef1f6] border border-[#d1d9e0] px-2 py-0.5 rounded shrink-0">
@@ -430,14 +430,14 @@ function DesignTab({ testId }: { testId: string }) {
           {/* URL resolution preview — expression → resolved */}
           <div className="mt-3 space-y-1.5">
             {/* Expression URL */}
-            <div className="flex items-start gap-1.5 group/expr font-mono text-xs text-[#656d76] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-3 py-2">
+            <div className="flex items-start gap-1.5 group/expr font-mono text-sm text-[#656d76] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-3 py-2">
               <span className="text-[#afb8c1] mr-0.5 shrink-0 mt-px">→</span>
               <span className="break-all flex-1">{safeStr(expressionPath)}</span>
               <CopyButton value={expressionPath} className="opacity-0 group-hover/expr:opacity-100 transition-opacity shrink-0" />
             </div>
             {/* Resolved URL (only show if different from expression) */}
             {resolvedPath !== expressionPath && (
-              <div className="flex items-start gap-1.5 group/url font-mono text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-3 py-2">
+              <div className="flex items-start gap-1.5 group/url font-mono text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-3 py-2">
                 <span className="text-[#afb8c1] mr-0.5 shrink-0 mt-px">→</span>
                 <span className="break-all flex-1">{safeStr(resolvedPath)}</span>
                 <CopyButton value={resolvedPath} className="opacity-0 group-hover/url:opacity-100 transition-opacity shrink-0" />
@@ -459,7 +459,7 @@ function DesignTab({ testId }: { testId: string }) {
               const expression = isProj ? `{{${v}}}` : v;
 
               return (
-                <div key={k} className="text-xs">
+                <div key={k} className="text-sm">
                   <div className="flex items-center gap-2 group/qp">
                     <span className="font-mono text-[#656d76] bg-[#eef1f6] border border-[#d1d9e0] px-2 py-0.5 rounded shrink-0">
                       {safeStr(k)}
@@ -513,7 +513,7 @@ function DesignTab({ testId }: { testId: string }) {
           <Label>Assertions</Label>
           <div className="space-y-1">
             {def.assertions.map((a) => (
-              <div key={a.id} className="flex items-start gap-2 text-xs text-[#1f2328] px-3 py-2 bg-[#f6f8fa] border border-[#d1d9e0] rounded-md">
+              <div key={a.id} className="flex items-start gap-2 text-sm text-[#1f2328] px-3 py-2 bg-[#f6f8fa] border border-[#d1d9e0] rounded-md">
                 <span className="text-[#afb8c1] mt-0.5 shrink-0">◆</span>
                 <span className="flex-1">{safeStr(a.description)}</span>
               </div>
@@ -523,7 +523,7 @@ function DesignTab({ testId }: { testId: string }) {
       ) : (
         <div>
           <Label>Assertions</Label>
-          <span className="text-xs text-[#afb8c1] italic">No assertions defined</span>
+          <span className="text-sm text-[#afb8c1] italic">No assertions defined</span>
         </div>
       )}
 
@@ -568,7 +568,7 @@ function Accordion({
         >
           <path d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06Z" />
         </svg>
-        <span className="text-xs font-semibold text-[#656d76] uppercase tracking-wider flex-1">
+        <span className="text-sm font-semibold text-[#656d76] uppercase tracking-wider flex-1">
           {title}
         </span>
         {badgeNode}
@@ -919,7 +919,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
         return (
           <div className="px-3 py-3 rounded-md bg-[#dafbe1] border border-[#aceebb]">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs font-semibold text-[#1a7f37] uppercase tracking-wide">
+              <span className="text-sm font-semibold text-[#1a7f37] uppercase tracking-wide">
                 {hasMultiple ? "Fix options" : "How to fix"}
               </span>
               <CopyButton
@@ -959,7 +959,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
                         </span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-[#1f2328]">{fix.label}</p>
-                          <p className="text-xs text-[#656d76] mt-0.5 leading-relaxed">{fix.description}</p>
+                          <p className="text-sm text-[#656d76] mt-0.5 leading-relaxed">{fix.description}</p>
                         </div>
                       </div>
                       <div className="mt-2 ml-7">
@@ -981,7 +981,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
                           <button
                             onClick={() => { setFixIndex(idx); void handleFixIt(fix.prompt); }}
                             disabled={anyFixing}
-                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.049.58.025 1.193-.14 1.743" />
@@ -1031,7 +1031,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
         );
       })() : (
         <div className="px-3 py-3 rounded-md bg-[#fff8c5] border border-[#f5e0a0]">
-          <span className="text-xs font-semibold text-[#9a6700] uppercase tracking-wide block mb-1">Needs developer attention</span>
+          <span className="text-sm font-semibold text-[#9a6700] uppercase tracking-wide block mb-1">Needs developer attention</span>
           <p className="text-sm text-[#1f2328]">This issue can't be fixed by editing the flow XML. Use the "Copy diagnostic report" button below to share details with your development team.</p>
         </div>
       )}
@@ -1081,7 +1081,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
       <div className="border border-[#d1d9e0] rounded-md overflow-hidden">
         <button
           onClick={() => setAdvancedOpen(!advancedOpen)}
-          className="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium text-[#656d76] bg-[#f6f8fa] hover:bg-[#eaeef2] transition-colors cursor-pointer"
+          className="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium text-[#656d76] bg-[#f6f8fa] hover:bg-[#eaeef2] transition-colors cursor-pointer"
         >
           <svg className={`w-3.5 h-3.5 transition-transform ${advancedOpen ? "rotate-90" : ""}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
@@ -1095,7 +1095,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
                 setTimeout(() => setReportCopied(false), 2000);
               });
             }}
-            className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded text-xs text-[#0969da] hover:bg-[#ddf4ff] transition-colors cursor-pointer"
+            className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded text-sm text-[#0969da] hover:bg-[#ddf4ff] transition-colors cursor-pointer"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
@@ -1108,14 +1108,14 @@ function DiagnoseTab({ testId }: { testId: string }) {
             {/* Developer Note */}
             {(diagnosis.developerNote ?? diagnosis.details) && (
               <div>
-                <span className="text-xs font-semibold text-[#656d76] block mb-1">Developer Note</span>
-                <p className="text-xs text-[#1f2328] whitespace-pre-wrap leading-relaxed">{diagnosis.developerNote ?? diagnosis.details}</p>
+                <span className="text-sm font-semibold text-[#656d76] block mb-1">Developer Note</span>
+                <p className="text-sm text-[#1f2328] whitespace-pre-wrap leading-relaxed">{diagnosis.developerNote ?? diagnosis.details}</p>
               </div>
             )}
             {/* Raw request/response */}
             {result?.requestBody !== undefined && (
               <div>
-                <span className="text-xs font-semibold text-[#656d76] block mb-1">Request Body</span>
+                <span className="text-sm font-semibold text-[#656d76] block mb-1">Request Body</span>
                 <div className="border border-[#d1d9e0] rounded overflow-hidden max-h-48">
                   <JsonCodeBlock value={result.requestBody} height="auto" />
                 </div>
@@ -1123,7 +1123,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
             )}
             {result?.responseBody !== undefined && (
               <div>
-                <span className="text-xs font-semibold text-[#656d76] block mb-1">Response Body</span>
+                <span className="text-sm font-semibold text-[#656d76] block mb-1">Response Body</span>
                 <div className="border border-[#d1d9e0] rounded overflow-hidden max-h-48">
                   <JsonCodeBlock value={result.responseBody} height="auto" />
                 </div>
@@ -1131,7 +1131,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
             )}
             {/* Raw diagnosis JSON */}
             <div>
-              <span className="text-xs font-semibold text-[#656d76] block mb-1">Raw AI Response</span>
+              <span className="text-sm font-semibold text-[#656d76] block mb-1">Raw AI Response</span>
               <div className="border border-[#d1d9e0] rounded overflow-hidden max-h-48">
                 <JsonCodeBlock value={diagnosis} height="auto" />
               </div>
@@ -1145,7 +1145,7 @@ function DiagnoseTab({ testId }: { testId: string }) {
         <span className="text-xs text-[#afb8c1]">Cost: ${costUsd.toFixed(4)}</span>
         <button
           onClick={() => { diagnosisCache.delete(testId); setState("idle"); triggered.current = false; void handleAnalyze(); }}
-          className="text-xs text-[#0969da] hover:underline cursor-pointer"
+          className="text-sm text-[#0969da] hover:underline cursor-pointer"
         >
           Re-analyze
         </button>
@@ -1165,7 +1165,7 @@ function RunTab({ testId, onDiagnose }: { testId: string; onDiagnose?: () => voi
       <div className="flex flex-col items-center justify-center h-48 text-[#afb8c1] gap-2">
         <span className="text-3xl">○</span>
         <span className="text-sm">Not run yet</span>
-        <span className="text-xs">Run the scenario to see results here</span>
+        <span className="text-sm">Run the scenario to see results here</span>
       </div>
     );
   }
@@ -1191,7 +1191,7 @@ function RunTab({ testId, onDiagnose }: { testId: string; onDiagnose?: () => voi
         {(status === "fail" || status === "error") && onDiagnose && (
           <button
             onClick={onDiagnose}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-white bg-[#8250df] hover:bg-[#7340c9] transition-colors cursor-pointer shrink-0 ml-auto"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm font-medium text-white bg-[#8250df] hover:bg-[#7340c9] transition-colors cursor-pointer shrink-0 ml-auto"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
@@ -1203,7 +1203,7 @@ function RunTab({ testId, onDiagnose }: { testId: string; onDiagnose?: () => voi
 
       {/* Failure reason */}
       {result?.failureReason && (
-        <div className="px-3 py-2 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-xs text-[#d1242f]">
+        <div className="px-3 py-2 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-sm text-[#d1242f]">
           <div className="flex items-start gap-1.5 group/fail">
             <div className="flex-1">
               <span className="font-semibold block mb-0.5">Failure reason</span>
@@ -1218,7 +1218,7 @@ function RunTab({ testId, onDiagnose }: { testId: string; onDiagnose?: () => voi
       {result?.requestUrl && (
         <div>
           <Label>Request URL</Label>
-          <div className="font-mono text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-3 py-2">
+          <div className="font-mono text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-3 py-2">
             <CopyableText value={result.requestUrl} />
           </div>
         </div>
@@ -1258,7 +1258,7 @@ function RunTab({ testId, onDiagnose }: { testId: string; onDiagnose?: () => voi
         <div className="p-0">
           {result?.responseBody !== undefined
             ? <JsonBlock value={result.responseBody} />
-            : <p className="text-xs text-[#afb8c1] italic px-3 py-2">No content to display</p>
+            : <p className="text-sm text-[#afb8c1] italic px-3 py-2">No content to display</p>
           }
         </div>
       </Accordion>
@@ -1287,7 +1287,7 @@ function RunTab({ testId, onDiagnose }: { testId: string; onDiagnose?: () => voi
             {result.assertionResults.map((a) => (
               <div
                 key={a.id}
-                className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-md border ${
+                className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded-md border ${
                   a.passed
                     ? "text-[#1a7f37] bg-[#dafbe1] border-[#aceebb]"
                     : "text-[#d1242f] bg-[#ffebe9] border-[#ffcecb]"
@@ -1519,7 +1519,7 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
     <div className="p-4 space-y-2 flex flex-col flex-1 overflow-hidden">
       {/* Header row */}
       <div className="flex items-center gap-1.5 shrink-0">
-        <span className="text-xs font-mono text-[#656d76] flex-1 break-all">{fileName}</span>
+        <span className="text-sm font-mono text-[#656d76] flex-1 break-all">{fileName}</span>
 
         {/* View mode — show edit buttons (disabled when locked) */}
         {isView && (
@@ -1638,7 +1638,7 @@ function FlowXmlTab({ fileName }: { fileName: string }) {
       {/* AI prompt input */}
       {(isAiPrompt || isAiLoading) && (
         <div className="shrink-0 border border-[#d6d8de] rounded-md bg-[#f6f8fa] p-3 space-y-2">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-[#8250df]">
+          <div className="flex items-center gap-1.5 text-sm font-medium text-[#8250df]">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
             </svg>

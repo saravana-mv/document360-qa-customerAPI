@@ -128,7 +128,7 @@ export function SearchModal({ onSelectFile, onClose }: SearchModalProps) {
         {/* Results */}
         <div className="flex-1 overflow-y-auto">
           {error && (
-            <div className="px-4 py-3 text-xs text-[#d1242f]">{error}</div>
+            <div className="px-4 py-3 text-sm text-[#d1242f]">{error}</div>
           )}
 
           {!loading && query.length >= 2 && results.length === 0 && !error && (
@@ -160,7 +160,7 @@ export function SearchModal({ onSelectFile, onClose }: SearchModalProps) {
                 {result.matches.length > 0 && (
                   <div className="mt-1 space-y-0.5">
                     {result.matches.slice(0, 2).map((match, j) => (
-                      <p key={j} className="text-xs text-[#656d76] truncate pl-5">
+                      <p key={j} className="text-sm text-[#656d76] truncate pl-5">
                         {highlightSnippet(match)}
                       </p>
                     ))}

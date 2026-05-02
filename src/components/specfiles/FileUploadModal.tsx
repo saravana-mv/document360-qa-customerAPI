@@ -127,7 +127,7 @@ export function FileUploadModal({ folderPath, onUpload, onClose }: Props) {
           <svg className="w-8 h-8 text-[#afb8c1]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
           </svg>
-          <p className="text-xs text-[#656d76]">
+          <p className="text-sm text-[#656d76]">
             Drop files here or <span className="text-[#0969da]">browse</span>
           </p>
           <p className="text-xs text-[#afb8c1]">.md · .xml · .xsd · .txt</p>
@@ -145,7 +145,7 @@ export function FileUploadModal({ folderPath, onUpload, onClose }: Props) {
         {items.length > 0 && (
           <div className="flex-1 overflow-y-auto mx-4 mt-3 space-y-1">
             {items.map((item) => (
-              <div key={item.file.name} className="flex items-center gap-2 text-xs rounded-md px-2 py-1.5 bg-[#f6f8fa]">
+              <div key={item.file.name} className="flex items-center gap-2 text-sm rounded-md px-2 py-1.5 bg-[#f6f8fa]">
                 {item.status === "pending" && <span className="w-4 h-4 rounded-full border-2 border-[#afb8c1] shrink-0" />}
                 {item.status === "uploading" && (
                   <svg className="w-4 h-4 text-[#0969da] animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
@@ -187,7 +187,7 @@ export function FileUploadModal({ folderPath, onUpload, onClose }: Props) {
           <button
             onClick={onClose}
             disabled={uploading}
-            className="text-xs text-[#656d76] hover:text-[#1f2328] border border-[#d1d9e0] rounded-md px-3 py-1.5 hover:bg-[#f6f8fa] disabled:opacity-40"
+            className="text-sm text-[#656d76] hover:text-[#1f2328] border border-[#d1d9e0] rounded-md px-3 py-1.5 hover:bg-[#f6f8fa] disabled:opacity-40"
           >
             {allDone ? "Close" : "Cancel"}
           </button>
@@ -195,7 +195,7 @@ export function FileUploadModal({ folderPath, onUpload, onClose }: Props) {
             <button
               onClick={() => void handleUpload()}
               disabled={uploading || items.length === 0 || !hasPending}
-              className="text-xs font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-3 py-1.5 transition-colors"
+              className="text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] disabled:bg-[#eef1f6] disabled:text-[#656d76] rounded-md px-3 py-1.5 transition-colors"
             >
               {uploading ? "Uploading…" : hasErrors ? "Retry failed" : `Upload ${items.length} file${items.length !== 1 ? "s" : ""}`}
             </button>

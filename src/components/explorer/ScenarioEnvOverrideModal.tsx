@@ -80,7 +80,7 @@ export function ScenarioEnvOverrideModal({ flowPath, scenarioName, onClose }: Sc
             <h2 className="text-sm font-semibold text-[#1f2328] truncate">
               Environment Override
             </h2>
-            <p className="text-xs text-[#656d76] truncate">
+            <p className="text-sm text-[#656d76] truncate">
               {scenarioName}
             </p>
           </div>
@@ -93,7 +93,7 @@ export function ScenarioEnvOverrideModal({ flowPath, scenarioName, onClose }: Sc
 
         {/* Body */}
         <div className="flex-1 overflow-auto p-5 space-y-4">
-          <p className="text-xs text-[#656d76]">
+          <p className="text-sm text-[#656d76]">
             Override the version-level endpoint for this scenario only. Leave fields empty to inherit from the version config
             {versionConfig?.endpointLabel ? ` (${versionConfig.endpointLabel})` : ""}.
           </p>
@@ -101,8 +101,8 @@ export function ScenarioEnvOverrideModal({ flowPath, scenarioName, onClose }: Sc
           {/* Version defaults reference */}
           {versionConfig && (
             <div className="p-2.5 bg-[#f6f8fa] border border-[#d1d9e0] rounded-md">
-              <p className="text-xs font-medium text-[#656d76] mb-1.5">Version defaults ({version})</p>
-              <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
+              <p className="text-sm font-medium text-[#656d76] mb-1.5">Version defaults ({version})</p>
+              <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm">
                 <span className="text-[#656d76]">Base URL</span>
                 <span className="text-[#1f2328] font-mono truncate">{effectiveBaseUrl || "—"}</span>
                 <span className="text-[#656d76]">API Version</span>
@@ -115,9 +115,9 @@ export function ScenarioEnvOverrideModal({ flowPath, scenarioName, onClose }: Sc
 
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <label className="text-xs text-[#656d76] w-24 shrink-0">Label</label>
+              <label className="text-sm text-[#656d76] w-24 shrink-0">Label</label>
               <input
-                className="flex-1 text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
+                className="flex-1 text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
                 value={endpointLabel}
                 onChange={(e) => setEndpointLabel(e.target.value)}
                 placeholder="e.g. Staging"
@@ -125,9 +125,9 @@ export function ScenarioEnvOverrideModal({ flowPath, scenarioName, onClose }: Sc
             </div>
 
             <div className="flex items-center gap-2">
-              <label className="text-xs text-[#656d76] w-24 shrink-0">Base URL</label>
+              <label className="text-sm text-[#656d76] w-24 shrink-0">Base URL</label>
               <input
-                className="flex-1 text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
+                className="flex-1 text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
                 placeholder={effectiveBaseUrl || "https://api.example.com"}
@@ -135,9 +135,9 @@ export function ScenarioEnvOverrideModal({ flowPath, scenarioName, onClose }: Sc
             </div>
 
             <div className="flex items-center gap-2">
-              <label className="text-xs text-[#656d76] w-24 shrink-0">API Version</label>
+              <label className="text-sm text-[#656d76] w-24 shrink-0">API Version</label>
               <input
-                className="flex-1 text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
+                className="flex-1 text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
                 value={apiVersion}
                 onChange={(e) => setApiVersion(e.target.value)}
                 placeholder={versionConfig?.apiVersion || "v2"}
@@ -145,11 +145,11 @@ export function ScenarioEnvOverrideModal({ flowPath, scenarioName, onClose }: Sc
             </div>
 
             <div className="flex items-center gap-2">
-              <label className="text-xs text-[#656d76] w-24 shrink-0">Auth Type</label>
+              <label className="text-sm text-[#656d76] w-24 shrink-0">Auth Type</label>
               <select
                 value={authType}
                 onChange={(e) => setAuthType(e.target.value as AuthType | "")}
-                className="flex-1 text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
+                className="flex-1 text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
               >
                 {AUTH_TYPE_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
@@ -159,9 +159,9 @@ export function ScenarioEnvOverrideModal({ flowPath, scenarioName, onClose }: Sc
 
             {authType === "apikey_header" && (
               <div className="flex items-center gap-2">
-                <label className="text-xs text-[#656d76] w-24 shrink-0">Header Name</label>
+                <label className="text-sm text-[#656d76] w-24 shrink-0">Header Name</label>
                 <input
-                  className="flex-1 text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
+                  className="flex-1 text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
                   value={authHeaderName}
                   onChange={(e) => setAuthHeaderName(e.target.value)}
                   placeholder="X-Api-Key"
@@ -171,9 +171,9 @@ export function ScenarioEnvOverrideModal({ flowPath, scenarioName, onClose }: Sc
 
             {authType === "apikey_query" && (
               <div className="flex items-center gap-2">
-                <label className="text-xs text-[#656d76] w-24 shrink-0">Param Name</label>
+                <label className="text-sm text-[#656d76] w-24 shrink-0">Param Name</label>
                 <input
-                  className="flex-1 text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
+                  className="flex-1 text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
                   value={authQueryParam}
                   onChange={(e) => setAuthQueryParam(e.target.value)}
                   placeholder="api_key"
@@ -182,7 +182,7 @@ export function ScenarioEnvOverrideModal({ flowPath, scenarioName, onClose }: Sc
             )}
 
             {authType && authType !== "none" && authType !== "oauth" && (
-              <p className="text-xs text-[#656d76] ml-[6.5rem]">
+              <p className="text-sm text-[#656d76] ml-[6.5rem]">
                 Credentials are managed in the version-level Connect Endpoint modal.
                 Only the URL routing and auth type are overridden here.
               </p>
@@ -195,7 +195,7 @@ export function ScenarioEnvOverrideModal({ flowPath, scenarioName, onClose }: Sc
           {existing && (
             <button
               onClick={handleClear}
-              className="text-xs font-medium text-[#d1242f] hover:text-[#d1242f]/80 transition-colors"
+              className="text-sm font-medium text-[#d1242f] hover:text-[#d1242f]/80 transition-colors"
             >
               Remove Override
             </button>
@@ -203,14 +203,14 @@ export function ScenarioEnvOverrideModal({ flowPath, scenarioName, onClose }: Sc
           <div className="flex-1" />
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-xs font-medium text-[#1f2328] border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] rounded-md transition-colors"
+            className="px-3 py-1.5 text-sm font-medium text-[#1f2328] border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] rounded-md transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={!hasOverride && !existing}
-            className="px-3 py-1.5 text-xs font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md transition-colors disabled:opacity-50 border border-[#1f883d]/80"
+            className="px-3 py-1.5 text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md transition-colors disabled:opacity-50 border border-[#1f883d]/80"
           >
             {existing ? "Update" : "Save Override"}
           </button>

@@ -191,7 +191,7 @@ export function AuditLogContent() {
             onChange={(e) => setFromDate(e.target.value)}
             className="px-2 py-1.5 border border-[#d1d9e0] rounded-md text-sm bg-white focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da] outline-none"
           />
-          <span className="text-xs text-[#656d76]">to</span>
+          <span className="text-sm text-[#656d76]">to</span>
           <input
             type="date"
             value={toDate}
@@ -210,7 +210,7 @@ export function AuditLogContent() {
               setFromDate("");
               setToDate("");
             }}
-            className="text-xs text-[#0969da] hover:underline"
+            className="text-sm text-[#0969da] hover:underline"
           >
             Clear filters
           </button>
@@ -230,7 +230,7 @@ export function AuditLogContent() {
             </svg>
             <p className="text-sm">No audit entries found</p>
             {(actionFilter || search || fromDate || toDate) && (
-              <p className="text-xs mt-1">Try adjusting your filters</p>
+              <p className="text-sm mt-1">Try adjusting your filters</p>
             )}
           </div>
         ) : (
@@ -257,13 +257,13 @@ export function AuditLogContent() {
                           {ACTION_LABELS[entry.action] ?? entry.action}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 text-[#1f2328] text-xs font-medium">
+                      <td className="px-4 py-2.5 text-[#1f2328] text-sm font-medium">
                         {entry.actor.name}
                       </td>
-                      <td className="px-4 py-2.5 text-[#656d76] text-xs font-mono truncate max-w-[300px]" title={entry.target}>
+                      <td className="px-4 py-2.5 text-[#656d76] text-sm font-mono truncate max-w-[300px]" title={entry.target}>
                         {entry.target ?? "—"}
                       </td>
-                      <td className="px-4 py-2.5 text-[#656d76] text-xs truncate max-w-[250px]" title={formatDetails(entry)}>
+                      <td className="px-4 py-2.5 text-[#656d76] text-sm truncate max-w-[250px]" title={formatDetails(entry)}>
                         {formatDetails(entry) || "—"}
                       </td>
                     </tr>

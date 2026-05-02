@@ -176,7 +176,7 @@ export function MembersContent() {
                           <select
                             value={m.role}
                             onChange={(e) => handleRoleChange(m.id, e.target.value as ProjectRole)}
-                            className={`text-xs font-medium px-2 py-0.5 rounded-full border cursor-pointer ${ROLE_COLOR[m.role]}`}
+                            className={`text-sm font-medium px-2 py-0.5 rounded-full border cursor-pointer ${ROLE_COLOR[m.role]}`}
                           >
                             <option value="owner">Project Owner</option>
                             <option value="qa_manager">QA Manager</option>
@@ -184,7 +184,7 @@ export function MembersContent() {
                           </select>
                         )}
                       </td>
-                      <td className={`px-4 py-2.5 text-xs font-medium capitalize ${STATUS_COLOR[m.status] ?? ""}`}>
+                      <td className={`px-4 py-2.5 text-sm font-medium capitalize ${STATUS_COLOR[m.status] ?? ""}`}>
                         {m.status}
                       </td>
                       <td className="px-4 py-2.5 text-[#656d76] text-xs">{formatDate(m.addedAt)}</td>
@@ -238,7 +238,7 @@ export function MembersContent() {
             </div>
             <div className="px-4 py-4 space-y-3">
               <div>
-                <label className="block text-xs font-medium text-[#1f2328] mb-1">Email address</label>
+                <label className="block text-sm font-medium text-[#1f2328] mb-1">Email address</label>
                 <input
                   type="email"
                   value={addEmail}
@@ -249,7 +249,7 @@ export function MembersContent() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-[#1f2328] mb-1">Display name (optional)</label>
+                <label className="block text-sm font-medium text-[#1f2328] mb-1">Display name (optional)</label>
                 <input
                   type="text"
                   value={addDisplayName}
@@ -259,7 +259,7 @@ export function MembersContent() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-[#1f2328] mb-1">Project role</label>
+                <label className="block text-sm font-medium text-[#1f2328] mb-1">Project role</label>
                 <select
                   value={addRole}
                   onChange={(e) => setAddRole(e.target.value as ProjectRole)}

@@ -100,7 +100,7 @@ export function DiffModal({ open, onClose }: DiffModalProps) {
               <div>
                 <h4 className="text-sm font-semibold text-[#1a7f37] mb-1">Added ({diff.added.length})</h4>
                 {diff.added.map((ep) => (
-                  <div key={`${ep.method}:${ep.path}`} className="text-xs font-mono text-[#1a7f37] py-0.5">
+                  <div key={`${ep.method}:${ep.path}`} className="text-sm font-mono text-[#1a7f37] py-0.5">
                     + {ep.method} {ep.path}
                   </div>
                 ))}
@@ -110,7 +110,7 @@ export function DiffModal({ open, onClose }: DiffModalProps) {
               <div>
                 <h4 className="text-sm font-semibold text-[#d1242f] mb-1">Removed ({diff.removed.length})</h4>
                 {diff.removed.map((ep) => (
-                  <div key={`${ep.method}:${ep.path}`} className="text-xs font-mono text-[#d1242f] py-0.5">
+                  <div key={`${ep.method}:${ep.path}`} className="text-sm font-mono text-[#d1242f] py-0.5">
                     - {ep.method} {ep.path}
                   </div>
                 ))}
@@ -121,9 +121,9 @@ export function DiffModal({ open, onClose }: DiffModalProps) {
                 <h4 className="text-sm font-semibold text-[#9a6700] mb-1">Changed ({diff.changed.length})</h4>
                 {diff.changed.map((ep) => (
                   <div key={`${ep.method}:${ep.path}`} className="mb-2">
-                    <div className="text-xs font-mono text-[#9a6700]">~ {ep.method} {ep.path}</div>
+                    <div className="text-sm font-mono text-[#9a6700]">~ {ep.method} {ep.path}</div>
                     {ep.changes.map((c, i) => (
-                      <div key={i} className="text-xs text-[#656d76] ml-4">• {c}</div>
+                      <div key={i} className="text-sm text-[#656d76] ml-4">• {c}</div>
                     ))}
                   </div>
                 ))}

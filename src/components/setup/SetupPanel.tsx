@@ -149,7 +149,7 @@ export function SetupPanel() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-[#1f2328]">Reset project data</p>
-                <p className="text-xs text-[#656d76]">
+                <p className="text-sm text-[#656d76]">
                   Delete all flows, ideas, test runs, and local caches. Spec files are preserved.
                 </p>
               </div>
@@ -162,7 +162,7 @@ export function SetupPanel() {
             </div>
 
             {resetError && (
-              <p className="mt-3 text-xs text-[#d1242f]">{resetError}</p>
+              <p className="mt-3 text-sm text-[#d1242f]">{resetError}</p>
             )}
           </div>
         )}

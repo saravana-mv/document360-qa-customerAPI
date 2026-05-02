@@ -663,13 +663,13 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
                     <div className="flex items-center gap-1 shrink-0 mt-0.5">
                       <button
                         onClick={() => void handleDeleteSession(s.id)}
-                        className="text-xs text-[#d1242f] hover:underline"
+                        className="text-sm text-[#d1242f] hover:underline"
                       >
                         Delete
                       </button>
                       <button
                         onClick={() => setSessionDeleteId(null)}
-                        className="text-xs text-[#656d76] hover:underline"
+                        className="text-sm text-[#656d76] hover:underline"
                       >
                         Cancel
                       </button>
@@ -778,7 +778,7 @@ export function FlowChatPanel({ specFiles, allSpecFiles, aiModel, onFlowGenerate
                   </svg>
                   Generate flow XML
                 </button>
-                <span className="text-xs text-[#656d76]">or continue the conversation to refine the plan</span>
+                <span className="text-sm text-[#656d76]">or continue the conversation to refine the plan</span>
               </div>
             </div>
           )}

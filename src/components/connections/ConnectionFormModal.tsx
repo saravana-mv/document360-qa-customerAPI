@@ -124,7 +124,7 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
             <h2 className="text-sm font-semibold text-[#1f2328]">
               {isEdit ? "Edit Connection" : "New Connection"}
             </h2>
-            <p className="text-xs text-[#656d76]">
+            <p className="text-sm text-[#656d76]">
               {providerInfo?.description ?? "Configure authentication"}
             </p>
           </div>
@@ -144,7 +144,7 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
               <select
                 value={provider}
                 onChange={(e) => setProvider(e.target.value as ConnectionProvider)}
-                className="w-full text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
+                className="w-full text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
               >
                 {PROVIDER_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
@@ -156,14 +156,14 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
           {/* Show provider badge when editing */}
           {isEdit && (
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs text-[#656d76]">Type:</span>
+              <span className="text-sm text-[#656d76]">Type:</span>
               <ProviderBadge provider={connection.provider} />
             </div>
           )}
 
           <Field label="Connection Name" required>
             <input
-              className="w-full text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
+              className="w-full text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Document360, Stripe, GitHub"
@@ -172,7 +172,7 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
 
           <Field label="Base URL" hint="The upstream API base URL">
             <input
-              className="w-full text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
+              className="w-full text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               placeholder="https://api.example.com"
@@ -181,7 +181,7 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
 
           <Field label="API Version" hint="Version prefix for API paths (e.g. v2, v3)">
             <input
-              className="w-full text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
+              className="w-full text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
               value={apiVersion}
               onChange={(e) => setApiVersion(e.target.value)}
               placeholder="v2"
@@ -193,7 +193,7 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
             <>
               <Field label="Authorization URL" required>
                 <input
-                  className="w-full text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
+                  className="w-full text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
                   value={authorizationUrl}
                   onChange={(e) => setAuthorizationUrl(e.target.value)}
                   placeholder="https://provider.com/oauth/authorize"
@@ -202,7 +202,7 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
 
               <Field label="Token URL" required>
                 <input
-                  className="w-full text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
+                  className="w-full text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
                   value={tokenUrl}
                   onChange={(e) => setTokenUrl(e.target.value)}
                   placeholder="https://provider.com/oauth/token"
@@ -211,7 +211,7 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
 
               <Field label="Client ID" required>
                 <input
-                  className="w-full text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
+                  className="w-full text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
                   value={clientId}
                   onChange={(e) => setClientId(e.target.value)}
                   placeholder="your-client-id"
@@ -221,7 +221,7 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
               <Field label="Client Secret" hint={isEdit && connection?.hasSecret ? "Leave blank to keep existing secret" : "Optional for public clients (PKCE)"}>
                 <input
                   type="password"
-                  className="w-full text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
+                  className="w-full text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
                   value={clientSecret}
                   onChange={(e) => setClientSecret(e.target.value)}
                   placeholder={isEdit && connection?.hasSecret ? "••••••••" : "Optional"}
@@ -230,7 +230,7 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
 
               <Field label="Scopes" hint="Space-separated OAuth scopes">
                 <input
-                  className="w-full text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
+                  className="w-full text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
                   value={scopes}
                   onChange={(e) => setScopes(e.target.value)}
                   placeholder="openid profile api.read"
@@ -241,7 +241,7 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
                 <div className="flex items-center gap-2">
                   <input
                     readOnly
-                    className="flex-1 text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 font-mono cursor-text"
+                    className="flex-1 text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 font-mono cursor-text"
                     value={`${window.location.origin}${redirectUri}`}
                   />
                   <button
@@ -264,7 +264,7 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
               {provider === "apikey_header" && (
                 <Field label="Header Name" required hint="e.g. X-Api-Key, api_token">
                   <input
-                    className="w-full text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
+                    className="w-full text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
                     value={authHeaderName}
                     onChange={(e) => setAuthHeaderName(e.target.value)}
                     placeholder="X-Api-Key"
@@ -275,7 +275,7 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
               {provider === "apikey_query" && (
                 <Field label="Query Parameter" required hint="e.g. api_key, token">
                   <input
-                    className="w-full text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
+                    className="w-full text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
                     value={authQueryParam}
                     onChange={(e) => setAuthQueryParam(e.target.value)}
                     placeholder="api_key"
@@ -297,7 +297,7 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
               >
                 <input
                   type="password"
-                  className="w-full text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
+                  className="w-full text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da] font-mono"
                   value={credential}
                   onChange={(e) => setCredential(e.target.value)}
                   placeholder={isEdit && connection?.hasCredential ? "••••••••" : "Paste credential"}
@@ -307,7 +307,7 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
           )}
 
           {error && (
-            <div className="p-2.5 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-xs text-[#d1242f]">
+            <div className="p-2.5 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-sm text-[#d1242f]">
               {error}
             </div>
           )}
@@ -318,14 +318,14 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
           <div className="flex-1" />
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-xs font-medium text-[#1f2328] border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] rounded-md transition-colors"
+            className="px-3 py-1.5 text-sm font-medium text-[#1f2328] border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] rounded-md transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={() => void handleSave()}
             disabled={saving || !canSave}
-            className="px-3 py-1.5 text-xs font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md transition-colors disabled:opacity-50 border border-[#1f883d]/80"
+            className="px-3 py-1.5 text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md transition-colors disabled:opacity-50 border border-[#1f883d]/80"
           >
             {saving ? "Saving…" : isEdit ? "Update" : "Create"}
           </button>
@@ -344,12 +344,12 @@ function Field({ label, required, hint, children }: {
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-[#1f2328] mb-1">
+      <label className="block text-sm font-medium text-[#1f2328] mb-1">
         {label}
         {required && <span className="text-[#d1242f] ml-0.5">*</span>}
       </label>
       {children}
-      {hint && <p className="text-xs text-[#656d76] mt-0.5">{hint}</p>}
+      {hint && <p className="text-sm text-[#656d76] mt-0.5">{hint}</p>}
     </div>
   );
 }

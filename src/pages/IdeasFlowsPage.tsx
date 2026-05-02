@@ -1685,7 +1685,7 @@ function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, 
                   if (hasChildren && !isExpanded) toggleExpand(folder.path);
                 }}
                 className={[
-                  "flex items-center gap-2 flex-1 px-2 py-1.5 rounded-md border transition-colors text-xs cursor-pointer",
+                  "flex items-center gap-2 flex-1 px-2 py-1.5 rounded-md border transition-colors text-sm cursor-pointer",
                   isDragOver ? "border-[#0969da] bg-[#ddf4ff]/30" :
                   isSelected ? "bg-[#ddf4ff] border-transparent" : "border-transparent hover:bg-[#f6f8fa]",
                 ].join(" ")}

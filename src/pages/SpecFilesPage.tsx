@@ -67,7 +67,7 @@ function AccessTokenPrompt({ message, initialToken, onSubmit, onClose }: {
         </div>
         <div className="px-4 py-4 space-y-3">
           <p className="text-sm text-[#656d76] whitespace-pre-line">{message}</p>
-          <div className="bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-2 text-xs text-[#656d76] space-y-1.5">
+          <div className="bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-2 text-sm text-[#656d76] space-y-1.5">
             <p className="font-medium text-[#1f2328]">How to get the token:</p>
             <ol className="list-decimal list-inside space-y-0.5">
               <li>Open the URL in your browser (where you're logged in)</li>
@@ -954,13 +954,13 @@ export function SpecFilesPage() {
         {/* LHS tree */}
         <aside className="shrink-0 bg-white flex flex-col overflow-hidden" style={{ width: treeWidth }}>
           {error && (
-            <div className="mx-2 mt-2 text-xs text-[#d1242f] bg-[#ffebe9] border border-[#ffcecb] rounded-md px-2 py-1.5 shrink-0">
+            <div className="mx-2 mt-2 text-sm text-[#d1242f] bg-[#ffebe9] border border-[#ffcecb] rounded-md px-2 py-1.5 shrink-0">
               {error}
               <button onClick={() => setError(null)} className="ml-2 text-[#d1242f]/60 hover:text-[#d1242f]">✕</button>
             </div>
           )}
           {specDetection && (
-            <div className="mx-2 mt-2 text-xs bg-[#ddf4ff] border border-[#54aeff66] rounded-md px-2.5 py-2 shrink-0">
+            <div className="mx-2 mt-2 text-sm bg-[#ddf4ff] border border-[#54aeff66] rounded-md px-2.5 py-2 shrink-0">
               <div className="flex items-start gap-2">
                 <svg className="w-3.5 h-3.5 text-[#0969da] shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
@@ -1056,7 +1056,7 @@ export function SpecFilesPage() {
                   <svg className="w-3.5 h-3.5 text-[#0969da] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
                   </svg>
-                  <span className="text-xs text-[#656d76]">Source:</span>
+                  <span className="text-sm text-[#656d76]">Source:</span>
                   {editingSourceUrl ? (
                     <form
                       className="flex items-center gap-1.5 flex-1 min-w-0"
@@ -1072,11 +1072,11 @@ export function SpecFilesPage() {
                         value={sourceUrlDraft}
                         onChange={(e) => setSourceUrlDraft(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Escape") setEditingSourceUrl(false); }}
-                        className="flex-1 min-w-0 text-xs border border-[#0969da] rounded px-1.5 py-0.5 outline-none bg-white text-[#1f2328]"
+                        className="flex-1 min-w-0 text-sm border border-[#0969da] rounded px-1.5 py-0.5 outline-none bg-white text-[#1f2328]"
                         placeholder="https://..."
                       />
-                      <button type="submit" className="text-xs text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded px-2 py-0.5 font-medium">Save</button>
-                      <button type="button" onClick={() => setEditingSourceUrl(false)} className="text-xs text-[#656d76] hover:text-[#1f2328]">Cancel</button>
+                      <button type="submit" className="text-sm text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded px-2 py-0.5 font-medium">Save</button>
+                      <button type="button" onClick={() => setEditingSourceUrl(false)} className="text-sm text-[#656d76] hover:text-[#1f2328]">Cancel</button>
                     </form>
                   ) : (
                     <>
@@ -1084,7 +1084,7 @@ export function SpecFilesPage() {
                         href={sourcesManifest[selectedPath].sourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-[#0969da] hover:underline truncate flex-1 min-w-0"
+                        className="text-sm text-[#0969da] hover:underline truncate flex-1 min-w-0"
                         title={sourcesManifest[selectedPath].sourceUrl}
                       >
                         {sourcesManifest[selectedPath].sourceUrl}
@@ -1255,7 +1255,7 @@ export function SpecFilesPage() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
                 </svg>
-                <span className="text-xs font-medium [writing-mode:vertical-lr]">Try It</span>
+                <span className="text-sm font-medium [writing-mode:vertical-lr]">Try It</span>
               </button>
             </div>
           ) : (
@@ -1323,7 +1323,7 @@ export function SpecFilesPage() {
                 {/* Row 2 — matches Documentation/Markdown tab bar h-9: method + base URL + path */}
                 <div className="flex items-center gap-2 px-3 h-9 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
                   <MethodBadge method={selectedEndpoint.method} size="xs" />
-                  <code className="text-xs font-mono text-[#656d76] truncate flex-1">
+                  <code className="text-sm font-mono text-[#656d76] truncate flex-1">
                     {tryItBaseUrl ? `${tryItBaseUrl}${selectedEndpoint.path}` : selectedEndpoint.path}
                   </code>
                 </div>

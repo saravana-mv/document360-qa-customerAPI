@@ -267,7 +267,7 @@ export function RunControls() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
           </svg>
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-semibold text-[#0969da]">
+            <div className="text-sm font-semibold text-[#0969da]">
               Viewing past run
               {viewingHistory.source === "api" && (
                 <span className="ml-1.5 inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#fbefff] text-[#8250df]">API</span>
@@ -292,7 +292,7 @@ export function RunControls() {
           </div>
           <button
             onClick={runner.clearHistoryView}
-            className="px-2.5 py-1 bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-xs font-medium rounded-md transition-colors border border-[#d1d9e0] shrink-0"
+            className="px-2.5 py-1 bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-sm font-medium rounded-md transition-colors border border-[#d1d9e0] shrink-0"
           >
             Back to live
           </button>
@@ -306,7 +306,7 @@ export function RunControls() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
           </svg>
           <div className="min-w-0">
-            <p className="text-xs font-medium text-[#9a6700]">
+            <p className="text-sm font-medium text-[#9a6700]">
               {deletedTags.length} scenario{deletedTags.length !== 1 ? "s" : ""} from this run {deletedTags.length !== 1 ? "have" : "has"} been deleted
             </p>
             <div className="flex flex-wrap gap-1.5 mt-1">
@@ -330,7 +330,7 @@ export function RunControls() {
           onClick={runAll}
           disabled={runner.running || !healthCheckDone || hasConnectionIssues || hasVarProblems || unconnectedVersions.length > 0}
           title={hasVarProblems ? "Project variables missing values — configure in Settings → Variables" : unconnectedVersions.length > 0 ? "Endpoint not connected — connect before running" : hasConnectionIssues ? "Connection credential issue — check Settings → Connections" : !healthCheckDone ? "Checking connection credentials…" : undefined}
-          className="px-2.5 py-1 bg-[#1f883d] hover:bg-[#1a7f37] text-white text-xs font-medium rounded-md transition-colors disabled:opacity-50 flex items-center gap-1.5 border border-[#1f883d]/80"
+          className="px-2.5 py-1 bg-[#1f883d] hover:bg-[#1a7f37] text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 flex items-center gap-1.5 border border-[#1f883d]/80"
         >
           {runner.running && <Spinner size="sm" className="text-white" />}
           Run all
@@ -339,14 +339,14 @@ export function RunControls() {
           onClick={runSelected}
           disabled={runner.running || !healthCheckDone || hasConnectionIssues || hasVarProblems || unconnectedVersions.length > 0 || (runner.selectedTags.size === 0 && runner.selectedTests.size === 0)}
           title={hasVarProblems ? "Project variables missing values — configure in Settings → Variables" : unconnectedVersions.length > 0 ? "Endpoint not connected — connect before running" : hasConnectionIssues ? "Connection credential issue — check Settings → Connections" : !healthCheckDone ? "Checking connection credentials…" : undefined}
-          className="px-2.5 py-1 bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-xs font-medium rounded-md transition-colors disabled:opacity-50 border border-[#d1d9e0]"
+          className="px-2.5 py-1 bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-sm font-medium rounded-md transition-colors disabled:opacity-50 border border-[#d1d9e0]"
         >
           Run selected
         </button>
         {runner.running ? (
           <button
             onClick={runner.cancelRun}
-            className="px-2.5 py-1 bg-white hover:bg-[#ffebe9] text-[#d1242f] text-xs font-medium rounded-md transition-colors border border-[#d1d9e0]"
+            className="px-2.5 py-1 bg-white hover:bg-[#ffebe9] text-[#d1242f] text-sm font-medium rounded-md transition-colors border border-[#d1d9e0]"
           >
             Stop
           </button>
@@ -354,7 +354,7 @@ export function RunControls() {
           <button
             onClick={runner.fullReset}
             disabled={runner.running}
-            className="px-2.5 py-1 bg-white hover:bg-[#f6f8fa] text-[#656d76] text-xs font-medium rounded-md transition-colors disabled:opacity-50 border border-[#d1d9e0]"
+            className="px-2.5 py-1 bg-white hover:bg-[#f6f8fa] text-[#656d76] text-sm font-medium rounded-md transition-colors disabled:opacity-50 border border-[#d1d9e0]"
             title="Clear all results and selections"
           >
             Reset
@@ -371,14 +371,14 @@ export function RunControls() {
             </svg>
           </span>
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-semibold text-[#1f2328]">Paused at breakpoint</div>
-            <div className="text-xs text-[#656d76] truncate">
+            <div className="text-sm font-semibold text-[#1f2328]">Paused at breakpoint</div>
+            <div className="text-sm text-[#656d76] truncate">
               {runner.pausedAt.tag} &rarr; {runner.pausedAt.testName}
             </div>
           </div>
           <button
             onClick={runner.resume}
-            className="px-2.5 py-1 bg-[#1f883d] hover:bg-[#1a7f37] text-white text-xs font-medium rounded-md transition-colors border border-[#1f883d]/80 shrink-0"
+            className="px-2.5 py-1 bg-[#1f883d] hover:bg-[#1a7f37] text-white text-sm font-medium rounded-md transition-colors border border-[#1f883d]/80 shrink-0"
           >
             Resume
           </button>
@@ -391,14 +391,14 @@ export function RunControls() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m9.86-1.135a4.5 4.5 0 0 0-1.242-7.244l-4.5-4.5a4.5 4.5 0 0 0-6.364 6.364L4.34 8.303" />
           </svg>
           <div className="min-w-0">
-            <p className="text-xs text-[#9a6700]">
+            <p className="text-sm text-[#9a6700]">
               {unconnectedVersions.length === 1
                 ? `Version ${unconnectedVersions[0]} is not connected to an endpoint.`
                 : `${unconnectedVersions.length} versions not connected: ${unconnectedVersions.join(", ")}`}
             </p>
             <button
               onClick={() => setConnectVersion(unconnectedVersions[0])}
-              className="text-xs text-[#0969da] hover:underline mt-0.5"
+              className="text-sm text-[#0969da] hover:underline mt-0.5"
             >
               Connect now
             </button>
@@ -412,12 +412,12 @@ export function RunControls() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
           </svg>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-[#d1242f]">
+            <p className="text-sm font-medium text-[#d1242f]">
               Connection {connectionIssues.length === 1 ? "issue" : "issues"} — cannot run scenarios
             </p>
             <div className="mt-1 space-y-0.5">
               {connectionIssues.map(issue => (
-                <p key={issue.version} className="text-xs text-[#656d76]">
+                <p key={issue.version} className="text-sm text-[#656d76]">
                   <span className="font-medium text-[#1f2328]">{issue.version}</span>
                   {" → "}
                   <span className="text-[#d1242f]">{issue.reason}</span>
@@ -429,7 +429,7 @@ export function RunControls() {
             </div>
             <Link
               to="/settings/connections"
-              className="text-xs text-[#0969da] hover:underline mt-1 inline-block"
+              className="text-sm text-[#0969da] hover:underline mt-1 inline-block"
             >
               Configure in Settings → Connections
             </Link>
@@ -440,7 +440,7 @@ export function RunControls() {
       {!viewingHistory && !runner.running && !healthCheckDone && allTests.length > 0 && (
         <div className="flex items-center gap-2 px-4 py-1.5 border-b border-[#d1d9e0] bg-[#f6f8fa]">
           <Spinner size="sm" className="text-[#656d76]" />
-          <span className="text-xs text-[#656d76]">Checking connection credentials…</span>
+          <span className="text-sm text-[#656d76]">Checking connection credentials…</span>
         </div>
       )}
       {/* Missing / empty project variables warning */}
@@ -450,7 +450,7 @@ export function RunControls() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
           </svg>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-[#d1242f]">
+            <p className="text-sm font-medium text-[#d1242f]">
               {varProblems.length} project variable{varProblems.length !== 1 ? "s" : ""} missing value{varProblems.length !== 1 ? "s" : ""}
             </p>
             <div className="flex flex-wrap gap-1 mt-1">
@@ -462,7 +462,7 @@ export function RunControls() {
             </div>
             <Link
               to="/settings/variables"
-              className="text-xs text-[#0969da] hover:underline mt-1 inline-block"
+              className="text-sm text-[#0969da] hover:underline mt-1 inline-block"
             >
               Configure in Settings → Variables
             </Link>

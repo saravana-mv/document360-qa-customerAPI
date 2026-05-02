@@ -57,18 +57,18 @@ export function OAuthCallback() {
           <>
             <div className="bg-[#ffebe9] border border-[#ffcecb] rounded-lg p-4 text-sm text-[#d1242f] w-full">
               <p className="font-semibold mb-1">Sign-in failed</p>
-              <p className="text-xs break-all">{message}</p>
+              <p className="text-sm break-all">{message}</p>
             </div>
             <div className="flex gap-3">
               <button
                 onClick={() => navigate("/settings/connections")}
-                className="px-4 py-2 text-xs font-medium text-[#656d76] bg-white border border-[#d1d9e0] rounded-md hover:bg-[#f6f8fa]"
+                className="px-4 py-2 text-sm font-medium text-[#656d76] bg-white border border-[#d1d9e0] rounded-md hover:bg-[#f6f8fa]"
               >
                 Go to Connections
               </button>
               <button
                 onClick={() => { setFailed(false); setMessage("Retrying..."); exchange(); }}
-                className="px-4 py-2 text-xs font-medium text-white bg-[#1a7f37] rounded-md hover:bg-[#1a7f37]/90"
+                className="px-4 py-2 text-sm font-medium text-white bg-[#1a7f37] rounded-md hover:bg-[#1a7f37]/90"
               >
                 Retry
               </button>

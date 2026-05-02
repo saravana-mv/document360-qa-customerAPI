@@ -89,7 +89,7 @@ export function CustomPromptModal({ onSubmit, onClose }: CustomPromptModalProps)
                 <button
                   type="button"
                   onClick={() => setPrompt(EXAMPLE_PROMPT)}
-                  className="text-xs font-medium text-[#0969da] hover:underline"
+                  className="text-sm font-medium text-[#0969da] hover:underline"
                 >
                   Insert example
                 </button>
@@ -101,7 +101,7 @@ export function CustomPromptModal({ onSubmit, onClose }: CustomPromptModalProps)
                       setAiTitleLoading(false);
                       titleAbortRef.current?.abort();
                     }}
-                    className="text-xs font-medium text-[#656d76] hover:text-[#d1242f] hover:underline"
+                    className="text-sm font-medium text-[#656d76] hover:text-[#d1242f] hover:underline"
                   >
                     Clear
                   </button>

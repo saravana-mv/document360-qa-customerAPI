@@ -199,7 +199,7 @@ export function FlowValidationModal({ flowTitle, flowXml, result, onClose }: Pro
                               <div className="min-w-0 flex-1">
                                 <div className="text-sm text-[#1f2328] leading-snug">{issue.message}</div>
                                 {issue.suggestion && (
-                                  <div className="text-xs text-[#656d76] mt-0.5 leading-snug">{issue.suggestion}</div>
+                                  <div className="text-sm text-[#656d76] mt-0.5 leading-snug">{issue.suggestion}</div>
                                 )}
                                 <span className="text-xs text-[#afb8c1] font-mono">{issue.category}</span>
                               </div>

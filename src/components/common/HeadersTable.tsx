@@ -96,7 +96,7 @@ export function HeadersTable({ headers, maskKeys = [] }: Props) {
   return (
     <div ref={tableRef} className="w-full">
       {/* Column headers */}
-      <div className="flex items-center bg-[#f6f8fa] border-b border-[#d1d9e0] text-xs font-semibold text-[#656d76] uppercase tracking-wider">
+      <div className="flex items-center bg-[#f6f8fa] border-b border-[#d1d9e0] text-sm font-semibold text-[#656d76] uppercase tracking-wider">
         <div className="shrink-0 px-3 py-1.5" style={{ width: keyWidth }}>Key</div>
         {/* Resize handle */}
         <div
@@ -111,11 +111,11 @@ export function HeadersTable({ headers, maskKeys = [] }: Props) {
       <div className="divide-y divide-[#d1d9e0]">
         {entries.map(([key, value]) => (
           <div key={key} className="flex items-start group/row hover:bg-[#f6f8fa] transition-colors">
-            <div className="shrink-0 px-3 py-1.5 text-xs font-mono font-medium text-[#0969da] truncate" style={{ width: keyWidth }} title={key}>
+            <div className="shrink-0 px-3 py-1.5 text-sm font-mono font-medium text-[#0969da] truncate" style={{ width: keyWidth }} title={key}>
               {key}
             </div>
             <div className="shrink-0 w-[5px] self-stretch" />
-            <div className="flex-1 px-3 py-1.5 text-xs font-mono text-[#1f2328] break-all min-w-0">
+            <div className="flex-1 px-3 py-1.5 text-sm font-mono text-[#1f2328] break-all min-w-0">
               {maskValue(key, value)}
             </div>
             <div className="shrink-0 pr-2 py-1.5">

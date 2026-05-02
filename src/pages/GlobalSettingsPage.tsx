@@ -188,7 +188,7 @@ export function GlobalSettingsPage() {
             <span className="text-xs text-[#8b949e] mr-3">{principal.userDetails}</span>
             <button
               onClick={entraLogout}
-              className="text-xs text-[#7d8590] hover:text-[#e6edf3] transition-colors px-2 py-1 rounded-md hover:bg-[#2d333b]"
+              className="text-sm text-[#7d8590] hover:text-[#e6edf3] transition-colors px-2 py-1 rounded-md hover:bg-[#2d333b]"
             >
               Sign out
             </button>
@@ -213,7 +213,7 @@ export function GlobalSettingsPage() {
               <span className="text-sm font-semibold text-[#1f2328]">AI Credit Defaults</span>
             </div>
             <div className="px-5 py-5 space-y-4">
-              <p className="text-xs text-[#656d76]">
+              <p className="text-sm text-[#656d76]">
                 Default AI spending limits applied when creating new projects. These can be overridden per project later.
               </p>
               {loadingSettings ? (
@@ -222,7 +222,7 @@ export function GlobalSettingsPage() {
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-[#1f2328] mb-1">
+                      <label className="block text-sm font-medium text-[#1f2328] mb-1">
                         Project budget (USD)
                       </label>
                       <div className="relative">
@@ -239,7 +239,7 @@ export function GlobalSettingsPage() {
                       <p className="text-xs text-[#8b949e] mt-1">Max AI spend per project per month</p>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-[#1f2328] mb-1">
+                      <label className="block text-sm font-medium text-[#1f2328] mb-1">
                         User budget (USD)
                       </label>
                       <div className="relative">
@@ -265,7 +265,7 @@ export function GlobalSettingsPage() {
                       {saving ? "Saving..." : "Save defaults"}
                     </button>
                     {saveMsg && (
-                      <span className={`text-xs font-medium ${saveMsg === "Saved" ? "text-[#1a7f37]" : "text-[#d1242f]"}`}>
+                      <span className={`text-sm font-medium ${saveMsg === "Saved" ? "text-[#1a7f37]" : "text-[#d1242f]"}`}>
                         {saveMsg}
                       </span>
                     )}
@@ -291,7 +291,7 @@ export function GlobalSettingsPage() {
               <div className="flex-1" />
               <button
                 onClick={() => { setShowInvite(true); setInviteError(null); setInviteEmail(""); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1f883d] hover:bg-[#1a7f37] text-white text-xs font-medium rounded-md transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1f883d] hover:bg-[#1a7f37] text-white text-sm font-medium rounded-md transition-colors"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -300,7 +300,7 @@ export function GlobalSettingsPage() {
               </button>
             </div>
             <div className="px-5 py-4">
-              <p className="text-xs text-[#656d76] mb-3">
+              <p className="text-sm text-[#656d76] mb-3">
                 Super Owners have unrestricted access to all projects and can manage global settings.
               </p>
               {loadingUsers ? (
@@ -332,12 +332,12 @@ export function GlobalSettingsPage() {
                             </td>
                             <td className="px-4 py-2.5 text-right">
                               {isSole ? (
-                                <span className="text-xs text-[#8b949e]" title="At least one Super Owner is required">Last owner</span>
+                                <span className="text-sm text-[#8b949e]" title="At least one Super Owner is required">Last owner</span>
                               ) : (
                                 <button
                                   onClick={() => handleChangeRole(u.id, "project_owner")}
                                   title="Demote to Project Owner"
-                                  className="text-xs text-[#656d76] hover:text-[#d1242f] px-2 py-1 rounded-md hover:bg-[#ffebe9] transition-colors"
+                                  className="text-sm text-[#656d76] hover:text-[#d1242f] px-2 py-1 rounded-md hover:bg-[#ffebe9] transition-colors"
                                 >
                                   Remove
                                 </button>
@@ -357,13 +357,13 @@ export function GlobalSettingsPage() {
               {/* Promote existing user */}
               {nonOwners.filter(u => u.status === "active").length > 0 && (
                 <div className="mt-4">
-                  <p className="text-xs font-medium text-[#1f2328] mb-2">Promote an existing user to Super Owner</p>
+                  <p className="text-sm font-medium text-[#1f2328] mb-2">Promote an existing user to Super Owner</p>
                   <div className="flex flex-wrap gap-2">
                     {nonOwners.filter(u => u.status === "active").map((u) => (
                       <button
                         key={u.id}
                         onClick={() => handleChangeRole(u.id, "owner")}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-[#656d76] border border-[#d1d9e0] rounded-md hover:border-[#0969da] hover:text-[#0969da] hover:bg-[#ddf4ff] transition-colors"
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-[#656d76] border border-[#d1d9e0] rounded-md hover:border-[#0969da] hover:text-[#0969da] hover:bg-[#ddf4ff] transition-colors"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
@@ -387,7 +387,7 @@ export function GlobalSettingsPage() {
               <span className="text-xs text-[#656d76]">({nonOwners.length})</span>
             </div>
             <div className="px-5 py-4">
-              <p className="text-xs text-[#656d76] mb-3">
+              <p className="text-sm text-[#656d76] mb-3">
                 All registered users. Change their tenant-level role to control what they can do across projects.
               </p>
               {loadingUsers ? (
@@ -419,7 +419,7 @@ export function GlobalSettingsPage() {
                             <select
                               value={u.role}
                               onChange={(e) => handleChangeRole(u.id, e.target.value as AppRole)}
-                              className={`text-xs font-medium rounded-full px-2.5 py-1 border cursor-pointer outline-none ${ROLE_COLORS[u.role]}`}
+                              className={`text-sm font-medium rounded-full px-2.5 py-1 border cursor-pointer outline-none ${ROLE_COLORS[u.role]}`}
                             >
                               {ASSIGNABLE_ROLES.map((r) => (
                                 <option key={r} value={r}>{ROLE_LABELS[r]}</option>
@@ -450,9 +450,9 @@ export function GlobalSettingsPage() {
               </button>
             </div>
             <div className="px-4 py-4 space-y-3">
-              <p className="text-xs text-[#656d76]">This person will have access to all projects and global settings.</p>
+              <p className="text-sm text-[#656d76]">This person will have access to all projects and global settings.</p>
               <div>
-                <label className="block text-xs font-medium text-[#1f2328] mb-1">Email address</label>
+                <label className="block text-sm font-medium text-[#1f2328] mb-1">Email address</label>
                 <input
                   type="email"
                   value={inviteEmail}

@@ -109,7 +109,7 @@ function CurlExamples() {
               key={e.label}
               onClick={() => { setTab(i); setCopied(false); }}
               className={[
-                "px-4 py-2 text-xs font-medium transition-colors",
+                "px-4 py-2 text-sm font-medium transition-colors",
                 i === tab
                   ? "text-[#e6edf3] border-b-2 border-[#58a6ff] bg-[#2d333b]"
                   : "text-[#8b949e] hover:text-[#e6edf3]",
@@ -262,7 +262,7 @@ export function ApiKeysCard() {
       {/* ── Newly created key banner ───────────────────────────── */}
       {newKey && (
         <div className="mb-4 p-3 bg-[#dafbe1] border border-[#aceebb] rounded-md">
-          <p className="text-xs font-medium text-[#1a7f37] mb-1.5">
+          <p className="text-sm font-medium text-[#1a7f37] mb-1.5">
             API key created — copy it now, it won't be shown again.
           </p>
           <div className="flex items-center gap-2">
@@ -285,7 +285,7 @@ export function ApiKeysCard() {
 
       {/* ── Error banner ───────────────────────────────────────── */}
       {error && (
-        <div className="mb-4 p-2.5 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-xs text-[#d1242f]">
+        <div className="mb-4 p-2.5 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-sm text-[#d1242f]">
           {error}
         </div>
       )}
@@ -296,21 +296,21 @@ export function ApiKeysCard() {
           <h3 className="text-sm font-semibold text-[#1f2328] mb-3">Create API key</h3>
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-[#1f2328] mb-1">Name</label>
+              <label className="block text-sm font-medium text-[#1f2328] mb-1">Name</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. CI Pipeline"
-                className="w-full px-2.5 py-1.5 border border-[#d1d9e0] rounded-md text-xs bg-white text-[#1f2328] placeholder:text-[#afb8c1] focus:outline-none focus:ring-1 focus:ring-[#0969da]"
+                className="w-full px-2.5 py-1.5 border border-[#d1d9e0] rounded-md text-sm bg-white text-[#1f2328] placeholder:text-[#afb8c1] focus:outline-none focus:ring-1 focus:ring-[#0969da]"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-[#1f2328] mb-1">Version</label>
+              <label className="block text-sm font-medium text-[#1f2328] mb-1">Version</label>
               <select
                 value={versionId}
                 onChange={(e) => setVersionId(e.target.value)}
-                className="w-full px-2.5 py-1.5 border border-[#d1d9e0] rounded-md text-xs bg-white text-[#1f2328] focus:outline-none focus:ring-1 focus:ring-[#0969da]"
+                className="w-full px-2.5 py-1.5 border border-[#d1d9e0] rounded-md text-sm bg-white text-[#1f2328] focus:outline-none focus:ring-1 focus:ring-[#0969da]"
               >
                 <option value="">Select version…</option>
                 {versions.map((v) => (
@@ -322,11 +322,11 @@ export function ApiKeysCard() {
               </p>
             </div>
             <div>
-              <label className="block text-xs font-medium text-[#1f2328] mb-1">Auth method</label>
+              <label className="block text-sm font-medium text-[#1f2328] mb-1">Auth method</label>
               <div className="flex gap-2">
                 <button
                   onClick={() => setAuthMethod("oauth")}
-                  className={`flex-1 px-2 py-1.5 text-xs font-medium rounded-md border transition-colors ${
+                  className={`flex-1 px-2 py-1.5 text-sm font-medium rounded-md border transition-colors ${
                     authMethod === "oauth"
                       ? "bg-[#ddf4ff] border-[#54aeff] text-[#0969da]"
                       : "bg-white border-[#d1d9e0] text-[#656d76] hover:bg-[#f6f8fa]"
@@ -336,7 +336,7 @@ export function ApiKeysCard() {
                 </button>
                 <button
                   onClick={() => setAuthMethod("apikey")}
-                  className={`flex-1 px-2 py-1.5 text-xs font-medium rounded-md border transition-colors ${
+                  className={`flex-1 px-2 py-1.5 text-sm font-medium rounded-md border transition-colors ${
                     authMethod === "apikey"
                       ? "bg-[#ddf4ff] border-[#54aeff] text-[#0969da]"
                       : "bg-white border-[#d1d9e0] text-[#656d76] hover:bg-[#f6f8fa]"
@@ -350,14 +350,14 @@ export function ApiKeysCard() {
           <div className="flex gap-2 justify-end mt-4">
             <button
               onClick={() => setShowCreate(false)}
-              className="px-3 py-[5px] text-xs font-medium text-[#1f2328] bg-white border border-[#d1d9e0] rounded-md hover:bg-[#f6f8fa] transition-colors"
+              className="px-3 py-[5px] text-sm font-medium text-[#1f2328] bg-white border border-[#d1d9e0] rounded-md hover:bg-[#f6f8fa] transition-colors"
             >
               Cancel
             </button>
             <button
               disabled={creating || !name.trim() || !versionId}
               onClick={handleCreate}
-              className="px-3 py-[5px] text-xs font-medium text-white bg-[#1a7f37] border border-[#1f883d]/80 rounded-md hover:bg-[#1a7f37]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-[5px] text-sm font-medium text-white bg-[#1a7f37] border border-[#1f883d]/80 rounded-md hover:bg-[#1a7f37]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {creating ? "Creating…" : "Create key"}
             </button>
@@ -367,14 +367,14 @@ export function ApiKeysCard() {
 
       {/* ── Keys table ─────────────────────────────────────────── */}
       {loading ? (
-        <p className="text-xs text-[#656d76] py-4 text-center">Loading…</p>
+        <p className="text-sm text-[#656d76] py-4 text-center">Loading…</p>
       ) : keys.length === 0 ? (
-        <p className="text-xs text-[#656d76] py-4 text-center">
+        <p className="text-sm text-[#656d76] py-4 text-center">
           No API keys yet. Create one to start calling the FlowForge API.
         </p>
       ) : (
         <div className="border border-[#d1d9e0] rounded-lg overflow-hidden">
-          <table className="w-full text-xs">
+          <table className="w-full text-sm">
             <thead>
               <tr className="bg-[#f6f8fa] border-b border-[#d1d9e0]">
                 <th className="text-left px-3 py-2 font-medium text-[#656d76]">Name</th>

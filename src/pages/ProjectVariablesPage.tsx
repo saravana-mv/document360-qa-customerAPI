@@ -140,7 +140,7 @@ export function ProjectVariablesPage() {
       {/* Header */}
       <div className="flex items-center gap-3 px-6 h-14 border-b border-[#d1d9e0] bg-[#f6f8fa] shrink-0">
         <h2 className="text-sm font-bold text-[#1f2328]">Project Variables</h2>
-        <span className="text-xs text-[#656d76]">
+        <span className="text-sm text-[#656d76]">
           Use <code className="px-1 py-0.5 bg-[#eff1f3] rounded text-[#1f2328] font-mono">{"{{proj.variableName}}"}</code> in flow XML
         </span>
       </div>
@@ -158,7 +158,7 @@ export function ProjectVariablesPage() {
           {draft.length > 0 && (
             <div className="border border-[#d1d9e0] rounded-lg overflow-hidden">
               {/* Header row */}
-              <div className="flex items-center bg-[#f6f8fa] border-b border-[#d1d9e0] text-xs font-semibold text-[#656d76] uppercase tracking-wide">
+              <div className="flex items-center bg-[#f6f8fa] border-b border-[#d1d9e0] text-sm font-semibold text-[#656d76] uppercase tracking-wide">
                 <div className="w-64 px-3 py-2">Name</div>
                 <div className="flex-1 px-3 py-2">Value</div>
                 <div className="w-10 shrink-0" />
@@ -226,14 +226,14 @@ export function ProjectVariablesPage() {
           )}
           {skillsWarnings.length > 0 && (
             <div className="border border-[#9a6700]/30 bg-[#fff8c5] rounded-md px-3 py-2.5 space-y-1">
-              <p className="text-xs font-semibold text-[#9a6700]">Review _skills.md — orphaned rules detected</p>
+              <p className="text-sm font-semibold text-[#9a6700]">Review _skills.md — orphaned rules detected</p>
               {skillsWarnings.map((w, i) => (
-                <p key={i} className="text-xs text-[#9a6700]">{w}</p>
+                <p key={i} className="text-sm text-[#9a6700]">{w}</p>
               ))}
-              <p className="text-xs text-[#9a6700] mt-1">Open the file in Spec Manager and remove any rules that reference the deleted variable.</p>
+              <p className="text-sm text-[#9a6700] mt-1">Open the file in Spec Manager and remove any rules that reference the deleted variable.</p>
               <button
                 onClick={() => setSkillsWarnings([])}
-                className="text-xs text-[#9a6700] underline mt-1"
+                className="text-sm text-[#9a6700] underline mt-1"
               >
                 Dismiss
               </button>
@@ -250,7 +250,7 @@ export function ProjectVariablesPage() {
               {saving ? "Saving..." : "Save variables"}
             </button>
             {dirty && (
-              <span className="text-xs text-[#9a6700]">Unsaved changes</span>
+              <span className="text-sm text-[#9a6700]">Unsaved changes</span>
             )}
           </div>
 

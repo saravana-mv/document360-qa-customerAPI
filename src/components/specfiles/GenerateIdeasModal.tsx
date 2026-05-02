@@ -55,7 +55,7 @@ export function GenerateIdeasModal({ folderPath, folderDisplayName, onGenerate, 
           <div className="flex items-center justify-between px-5 pt-4 pb-3">
             <div>
               <h2 className="text-sm font-semibold text-[#1f2328]">Generate ideas</h2>
-              <p className="text-xs text-[#656d76] mt-0.5">
+              <p className="text-sm text-[#656d76] mt-0.5">
                 <svg className="w-3 h-3 inline-block mr-1 -mt-0.5 text-[#25292e]" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M.513 1.513A1.75 1.75 0 0 1 1.75 0h3.5c.465 0 .91.185 1.239.513l.61.61c.109.109.257.17.411.17h6.74a1.75 1.75 0 0 1 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15.5H1.75A1.75 1.75 0 0 1 0 13.75V1.75c0-.465.185-.91.513-1.237Z" />
                 </svg>
@@ -76,7 +76,7 @@ export function GenerateIdeasModal({ folderPath, folderDisplayName, onGenerate, 
           <div className="px-5 space-y-4">
             {/* Spec files */}
             <div>
-              <label className="text-xs font-medium text-[#656d76] mb-1.5 block">Spec files</label>
+              <label className="text-sm font-medium text-[#656d76] mb-1.5 block">Spec files</label>
               <button
                 onClick={() => setShowPicker(true)}
                 className={`w-full flex items-center gap-2 text-sm px-3 py-2 rounded-lg border transition-colors text-left ${
@@ -99,13 +99,13 @@ export function GenerateIdeasModal({ folderPath, folderDisplayName, onGenerate, 
 
             {/* Pattern chips */}
             <div>
-              <label className="text-xs font-medium text-[#656d76] mb-1.5 block">Pattern</label>
+              <label className="text-sm font-medium text-[#656d76] mb-1.5 block">Pattern</label>
               <div className="flex flex-wrap gap-1.5">
                 {IDEA_TEMPLATES.map((t) => (
                   <button
                     key={t.key}
                     onClick={() => setSelectedTemplate(t.key)}
-                    className={`inline-flex items-center gap-1.5 text-xs font-medium pl-2 pr-2.5 py-1.5 rounded-full border transition-all ${
+                    className={`inline-flex items-center gap-1.5 text-sm font-medium pl-2 pr-2.5 py-1.5 rounded-full border transition-all ${
                       selectedTemplate === t.key
                         ? "bg-[#ddf4ff] text-[#0969da] border-[#0969da]/30 shadow-sm"
                         : "bg-[#f6f8fa] text-[#656d76] border-[#d1d9e0]/70 hover:border-[#afb8c1] hover:text-[#1f2328]"
@@ -122,7 +122,7 @@ export function GenerateIdeasModal({ folderPath, folderDisplayName, onGenerate, 
             {/* Mode + Count row */}
             <div className="flex items-start gap-3">
               <div className="flex-1">
-                <label className="text-xs font-medium text-[#656d76] mb-1.5 block">Mode</label>
+                <label className="text-sm font-medium text-[#656d76] mb-1.5 block">Mode</label>
                 <div className="relative">
                   <select
                     value={mode}
@@ -138,11 +138,11 @@ export function GenerateIdeasModal({ folderPath, folderDisplayName, onGenerate, 
                     <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
                   </svg>
                 </div>
-                <p className="text-xs text-[#656d76]/70 mt-1">{MODE_DESCRIPTIONS[mode]}</p>
+                <p className="text-sm text-[#656d76]/70 mt-1">{MODE_DESCRIPTIONS[mode]}</p>
               </div>
 
               <div className="w-24 shrink-0">
-                <label className="text-xs font-medium text-[#656d76] mb-1.5 block">Ideas</label>
+                <label className="text-sm font-medium text-[#656d76] mb-1.5 block">Ideas</label>
                 <div className="relative">
                   <select
                     value={count}

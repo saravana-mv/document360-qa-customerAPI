@@ -88,7 +88,7 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
             <h2 className="text-sm font-semibold text-[#1f2328]">
               Connect Endpoint — {version}
             </h2>
-            <p className="text-xs text-[#656d76]">
+            <p className="text-sm text-[#656d76]">
               Configure how FlowForge connects to your API
             </p>
           </div>
@@ -104,12 +104,12 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
         <div className="flex-1 overflow-auto p-5 space-y-3">
           {/* Connection picker */}
           <div className="flex items-start gap-2">
-            <label className="text-xs text-[#656d76] w-24 shrink-0 pt-1.5">Connection</label>
+            <label className="text-sm text-[#656d76] w-24 shrink-0 pt-1.5">Connection</label>
             <div className="flex-1 space-y-1.5">
               <select
                 value={connectionId}
                 onChange={(e) => setConnectionId(e.target.value)}
-                className="w-full text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
+                className="w-full text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
               >
                 <option value="">No auth</option>
                 {connections.map((c) => {
@@ -125,30 +125,30 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
 
               {/* Status indicator for selected connection */}
               {selectedConn && selectedConn.provider === "oauth2" && connAuthStatus[selectedConn.id]?.authenticated && (
-                <p className="text-xs text-[#1a7f37] flex items-center gap-1">
+                <p className="text-sm text-[#1a7f37] flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-[#1a7f37] shrink-0" />
                   OAuth connected
                 </p>
               )}
               {selectedConn && selectedConn.provider === "oauth2" && !connAuthStatus[selectedConn.id]?.authenticated && (
-                <p className="text-xs text-[#656d76]">
+                <p className="text-sm text-[#656d76]">
                   Not connected — go to Settings &rarr; Connections to authenticate.
                 </p>
               )}
               {selectedConn && selectedConn.provider !== "oauth2" && selectedConn.hasCredential && (
-                <p className="text-xs text-[#1a7f37] flex items-center gap-1.5">
+                <p className="text-sm text-[#1a7f37] flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-[#1a7f37] shrink-0" />
                   <ProviderBadge provider={selectedConn.provider} />
                   <span>Credential configured</span>
                 </p>
               )}
               {selectedConn && selectedConn.provider !== "oauth2" && !selectedConn.hasCredential && (
-                <p className="text-xs text-[#656d76]">
+                <p className="text-sm text-[#656d76]">
                   No credential stored — go to Settings &rarr; Connections to add one.
                 </p>
               )}
               {connections.length === 0 && (
-                <p className="text-xs text-[#656d76]">
+                <p className="text-sm text-[#656d76]">
                   No connections registered. Go to Settings &rarr; Connections to create one.
                 </p>
               )}
@@ -157,7 +157,7 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
 
           {/* Connection details summary */}
           {selectedConn && (selectedConn.baseUrl || selectedConn.apiVersion) && (
-            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs px-2 py-2 bg-[#f6f8fa] border border-[#d1d9e0] rounded-md">
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm px-2 py-2 bg-[#f6f8fa] border border-[#d1d9e0] rounded-md">
               {selectedConn.baseUrl && (
                 <>
                   <span className="text-[#656d76]">Base URL</span>
@@ -175,7 +175,7 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
 
           {/* Error */}
           {error && (
-            <div className="p-2.5 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-xs text-[#d1242f]">
+            <div className="p-2.5 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-sm text-[#d1242f]">
               {error}
             </div>
           )}
@@ -187,7 +187,7 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
             <button
               onClick={() => void handleDisconnect()}
               disabled={disconnecting}
-              className="text-xs font-medium text-[#d1242f] hover:text-[#d1242f]/80 transition-colors disabled:opacity-50 cursor-pointer"
+              className="text-sm font-medium text-[#d1242f] hover:text-[#d1242f]/80 transition-colors disabled:opacity-50 cursor-pointer"
             >
               {disconnecting ? "Disconnecting…" : "Disconnect"}
             </button>
@@ -195,14 +195,14 @@ export function ConnectEndpointModal({ version, onClose }: ConnectEndpointModalP
           <div className="flex-1" />
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-xs font-medium text-[#1f2328] border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] rounded-md transition-colors cursor-pointer"
+            className="px-3 py-1.5 text-sm font-medium text-[#1f2328] border border-[#d1d9e0] bg-white hover:bg-[#f6f8fa] rounded-md transition-colors cursor-pointer"
           >
             Cancel
           </button>
           <button
             onClick={() => void handleSave()}
             disabled={saving || !canSave}
-            className="px-3 py-1.5 text-xs font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border border-[#1f883d]/80"
+            className="px-3 py-1.5 text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border border-[#1f883d]/80"
           >
             {saving ? "Saving…" : isConnected ? "Update" : "Connect"}
           </button>

@@ -64,7 +64,7 @@ export function CreateFolderModal({ folders, presetParentPath, onSave, onClose }
         <form onSubmit={handleSubmit} className="px-5 pb-4 space-y-3">
           {/* Name input */}
           <div>
-            <label className="block text-xs font-medium text-[#656d76] mb-1">Folder name</label>
+            <label className="block text-sm font-medium text-[#656d76] mb-1">Folder name</label>
             <input
               autoFocus
               type="text"
@@ -77,7 +77,7 @@ export function CreateFolderModal({ folders, presetParentPath, onSave, onClose }
 
           {/* Parent folder dropdown */}
           <div>
-            <label className="block text-xs font-medium text-[#656d76] mb-1">Parent folder</label>
+            <label className="block text-sm font-medium text-[#656d76] mb-1">Parent folder</label>
             <select
               value={parentPath ?? ""}
               onChange={(e) => setParentPath(e.target.value || null)}
@@ -92,13 +92,13 @@ export function CreateFolderModal({ folders, presetParentPath, onSave, onClose }
 
           {/* Path preview */}
           {slug && (
-            <p className="text-xs text-[#656d76]">
+            <p className="text-sm text-[#656d76]">
               Path: <span className="font-mono text-[#1f2328]">{computedPath}</span>
             </p>
           )}
 
           {error && (
-            <p className="text-xs text-[#d1242f]">{error}</p>
+            <p className="text-sm text-[#d1242f]">{error}</p>
           )}
 
           {/* Footer */}

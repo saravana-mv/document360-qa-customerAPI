@@ -13,7 +13,7 @@ function ConnectionWarning({ text, onConnect }: { text: string; onConnect?: () =
   const linkPattern = /(Settings\s*[→>]\s*Connections|Connect now)/;
   const parts = text.split(linkPattern);
   return (
-    <p className="text-xs text-[#9a6700]">
+    <p className="text-sm text-[#9a6700]">
       {parts.map((part, i) => {
         if (/^Settings/.test(part) && /Connections$/.test(part)) {
           return (
@@ -141,7 +141,7 @@ function Accordion({ title, badge, defaultOpen = false, actions, children }: {
         >
           <path d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06Z" />
         </svg>
-        <span className="text-xs font-semibold text-[#656d76] uppercase tracking-wider flex-1">
+        <span className="text-sm font-semibold text-[#656d76] uppercase tracking-wider flex-1">
           {title}
         </span>
         {badge}
@@ -353,7 +353,7 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
         {/* ── Examples dropdown ─────────────────────────────────────── */}
         {examples.length > 0 && (
           <div className="flex items-center gap-2">
-            <label className="text-xs font-semibold text-[#656d76] uppercase tracking-wide shrink-0">Examples</label>
+            <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide shrink-0">Examples</label>
             <select
               onChange={(e) => {
                 const idx = parseInt(e.target.value);
@@ -361,7 +361,7 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
                 e.target.value = "";
               }}
               defaultValue=""
-              className="flex-1 text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2 py-1.5 outline-none focus:border-[#0969da] cursor-pointer"
+              className="flex-1 text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2 py-1.5 outline-none focus:border-[#0969da] cursor-pointer"
             >
               <option value="" disabled>Select an example to auto-fill…</option>
               {examples.map((ex, i) => (
@@ -374,7 +374,7 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
         {/* ── Path Parameters ──────────────────────────────────────── */}
         {pathParams.length > 0 && (
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-[#656d76] uppercase tracking-wide">Path parameters</label>
+            <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide">Path parameters</label>
             {pathParams.map((p) => (
               <div key={p.name} className="space-y-0.5">
                 <div className="flex items-center gap-1">
@@ -404,7 +404,7 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
         {/* ── Query Parameters ─────────────────────────────────────── */}
         {queryParams.length > 0 && (
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-[#656d76] uppercase tracking-wide">Query parameters</label>
+            <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide">Query parameters</label>
             {queryParams.map((p) => (
               <div key={p.name} className="space-y-0.5">
                 <div className="flex items-center gap-1">
@@ -434,7 +434,7 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
         {/* ── Header Parameters ────────────────────────────────────── */}
         {headerParams.length > 0 && (
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-[#656d76] uppercase tracking-wide">Headers</label>
+            <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide">Headers</label>
             {headerParams.map((p) => (
               <div key={p.name} className="space-y-0.5">
                 <span className="text-sm font-mono text-[#1f2328]">{p.name}</span>
@@ -457,7 +457,7 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
         {endpoint.requestBody && (
           <div className="space-y-1.5">
             <div className="flex items-baseline gap-2">
-              <label className="text-xs font-semibold text-[#656d76] uppercase tracking-wide">Request body</label>
+              <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide">Request body</label>
               <span className="text-xs text-[#656d76]">{endpoint.requestBody.contentType}</span>
             </div>
             <JsonEditor
@@ -534,8 +534,8 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
               <div className="space-y-3">
                 {/* Request URL */}
                 <div>
-                  <p className="text-xs font-semibold text-[#656d76] uppercase tracking-wider mb-1.5">Request URL</p>
-                  <div className="font-mono text-xs text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-3 py-2 break-all">
+                  <p className="text-sm font-semibold text-[#656d76] uppercase tracking-wider mb-1.5">Request URL</p>
+                  <div className="font-mono text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-3 py-2 break-all">
                     {response.requestUrl}
                   </div>
                 </div>
@@ -588,7 +588,7 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
                         height="28rem"
                       />
                     ) : (
-                      <p className="text-xs text-[#afb8c1] italic px-3 py-2">No content</p>
+                      <p className="text-sm text-[#afb8c1] italic px-3 py-2">No content</p>
                     )}
                   </div>
                 </Accordion>

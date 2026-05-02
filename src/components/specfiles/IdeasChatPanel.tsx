@@ -139,7 +139,7 @@ export function IdeasChatPanel({ aiModel, onIdeaAccepted, onClose }: IdeasChatPa
               {/* Spec file picker button */}
               <button
                 onClick={() => setShowPicker(true)}
-                className={`inline-flex items-center gap-1 text-xs font-medium rounded-md px-2 py-1 transition-colors ${
+                className={`inline-flex items-center gap-1 text-sm font-medium rounded-md px-2 py-1 transition-colors ${
                   noFiles
                     ? "text-[#d1242f] bg-[#ffebe9] hover:bg-[#ffcecb]"
                     : "text-[#656d76] hover:text-[#1f2328] hover:bg-[#f6f8fa]"
@@ -177,7 +177,7 @@ export function IdeasChatPanel({ aiModel, onIdeaAccepted, onClose }: IdeasChatPa
                         <button
                           key={suggestion}
                           onClick={() => void sendMessage(suggestion)}
-                          className="text-xs text-[#0969da] bg-[#ddf4ff] hover:bg-[#b6e3ff] px-2.5 py-1 rounded-full transition-colors"
+                          className="text-sm text-[#0969da] bg-[#ddf4ff] hover:bg-[#b6e3ff] px-2.5 py-1 rounded-full transition-colors"
                         >
                           {suggestion}
                         </button>
@@ -221,11 +221,11 @@ export function IdeasChatPanel({ aiModel, onIdeaAccepted, onClose }: IdeasChatPa
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-[#1f2328] truncate">{pendingIdea.title}</p>
-                  <p className="text-xs text-[#656d76] mt-0.5 line-clamp-2">{pendingIdea.description}</p>
+                  <p className="text-sm text-[#656d76] mt-0.5 line-clamp-2">{pendingIdea.description}</p>
                 </div>
                 <button
                   onClick={handleAcceptIdea}
-                  className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] px-2.5 py-1.5 rounded-md transition-colors"
+                  className="shrink-0 inline-flex items-center gap-1 text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] px-2.5 py-1.5 rounded-md transition-colors"
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />

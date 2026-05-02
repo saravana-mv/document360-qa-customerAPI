@@ -122,7 +122,7 @@ export function ImportFromUrlModal({ folderPath, initialAccessToken, onImport, o
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#d1d9e0] shrink-0">
           <div>
             <h2 className="text-sm font-semibold text-[#1f2328]">Import from URL</h2>
-            <p className="text-xs text-[#656d76] mt-0.5">
+            <p className="text-sm text-[#656d76] mt-0.5">
               {phase === "input"
                 ? "Paste one URL per line"
                 : phase === "review"
@@ -175,7 +175,7 @@ export function ImportFromUrlModal({ folderPath, initialAccessToken, onImport, o
                     <span className="text-xs text-[#d1242f]">{invalidCount} invalid line{invalidCount !== 1 ? "s" : ""} (will be skipped)</span>
                   )}
                   {validCount === 0 && rawText.trim() && (
-                    <span className="text-xs text-[#d1242f]">No valid URLs found</span>
+                    <span className="text-sm text-[#d1242f]">No valid URLs found</span>
                   )}
                 </div>
               </div>
@@ -203,11 +203,11 @@ export function ImportFromUrlModal({ folderPath, initialAccessToken, onImport, o
                 </button>
                 {tokenExpanded && (
                   <div className="px-2.5 pb-2.5 space-y-2 border-t border-[#d1d9e0]">
-                    <p className="text-xs text-[#656d76] mt-2 leading-relaxed">
+                    <p className="text-sm text-[#656d76] mt-2 leading-relaxed">
                       If the URLs require authentication, paste a session cookie or bearer token below.
                       The token will be sent as a <code className="bg-[#f6f8fa] px-1 rounded text-xs">Cookie</code> header with each request.
                     </p>
-                    <div className="bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-2 text-xs text-[#656d76] space-y-1.5">
+                    <div className="bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-2 text-sm text-[#656d76] space-y-1.5">
                       <p className="font-medium text-[#1f2328]">How to get the token:</p>
                       <ol className="list-decimal list-inside space-y-0.5">
                         <li>Open the URL in your browser (where you're logged in)</li>
@@ -275,9 +275,9 @@ export function ImportFromUrlModal({ folderPath, initialAccessToken, onImport, o
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-[#1f2328] font-medium truncate">{entry.filename}</p>
-                    <p className="text-xs text-[#656d76] truncate">{entry.url}</p>
+                    <p className="text-sm text-[#656d76] truncate">{entry.url}</p>
                     {entry.error && (
-                      <p className={`text-xs mt-0.5 ${entry.status === "warning" ? "text-[#9a6700]" : "text-[#d1242f]"}`}>{entry.error}</p>
+                      <p className={`text-sm mt-0.5 ${entry.status === "warning" ? "text-[#9a6700]" : "text-[#d1242f]"}`}>{entry.error}</p>
                     )}
                   </div>
                 </div>
@@ -286,10 +286,10 @@ export function ImportFromUrlModal({ folderPath, initialAccessToken, onImport, o
               {/* Token input on done phase when there are failures */}
               {phase === "done" && failedCount > 0 && (
                 <div className="mt-3 border border-[#d4a72c] rounded-md bg-[#fff8c5] px-3 py-2.5 space-y-2">
-                  <p className="text-xs text-[#9a6700] font-medium">
+                  <p className="text-sm text-[#9a6700] font-medium">
                     {failedCount} file{failedCount !== 1 ? "s" : ""} failed — paste an access token to retry
                   </p>
-                  <div className="bg-white border border-[#d1d9e0] rounded-md px-2.5 py-2 text-xs text-[#656d76] space-y-1.5">
+                  <div className="bg-white border border-[#d1d9e0] rounded-md px-2.5 py-2 text-sm text-[#656d76] space-y-1.5">
                     <p className="font-medium text-[#1f2328]">How to get the token:</p>
                     <ol className="list-decimal list-inside space-y-0.5">
                       <li>Open the URL in your browser (where you're logged in)</li>

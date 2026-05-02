@@ -53,10 +53,10 @@ export function ProjectPicker() {
         <div className="absolute left-0 top-full mt-1 w-64 bg-[#2d333b] border border-[#3d444d] rounded-lg shadow-xl z-50 overflow-hidden">
           <div className="max-h-60 overflow-y-auto">
             {projects.length === 0 && !loading && (
-              <div className="px-3 py-4 text-xs text-[#8b949e] text-center">No projects</div>
+              <div className="px-3 py-4 text-sm text-[#8b949e] text-center">No projects</div>
             )}
             {loading && projects.length === 0 && (
-              <div className="px-3 py-4 text-xs text-[#8b949e] text-center">Loading…</div>
+              <div className="px-3 py-4 text-sm text-[#8b949e] text-center">Loading…</div>
             )}
             {projects.map((p) => (
               <button
@@ -68,7 +68,7 @@ export function ProjectPicker() {
                   }
                   setOpen(false);
                 }}
-                className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors ${
+                className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors ${
                   p.id === selectedProjectId
                     ? "bg-[#388bfd26] text-[#e6edf3]"
                     : "text-[#adbac7] hover:bg-[#3d444d]"
@@ -90,7 +90,7 @@ export function ProjectPicker() {
           <div className="border-t border-[#3d444d]">
             <button
               onClick={() => { setOpen(false); navigate("/projects"); }}
-              className="w-full text-left px-3 py-2 text-xs text-[#0969da] hover:bg-[#3d444d] flex items-center gap-2 transition-colors"
+              className="w-full text-left px-3 py-2 text-sm text-[#0969da] hover:bg-[#3d444d] flex items-center gap-2 transition-colors"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />

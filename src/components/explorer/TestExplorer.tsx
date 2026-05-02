@@ -77,7 +77,7 @@ export function TestExplorer() {
   // Still loading flows from queue
   if (flowsLoading) {
     return (
-      <div className="flex items-center justify-center h-full text-xs text-[#656d76] gap-2">
+      <div className="flex items-center justify-center h-full text-sm text-[#656d76] gap-2">
         <Spinner size="sm" className="text-[#656d76]" />
         Loading scenarios…
       </div>

@@ -93,12 +93,12 @@ export function FlowPlanTree({ plan }: FlowPlanTreeProps) {
           <span className="text-sm font-semibold text-[#1f2328]">{plan.name}</span>
         </div>
         <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-xs text-[#656d76]">{plan.entity}</span>
+          <span className="text-sm text-[#656d76]">{plan.entity}</span>
           <span className="text-[#d1d9e0]">·</span>
           <span className="text-xs text-[#656d76]">{plan.steps.length} steps</span>
         </div>
         {plan.description && (
-          <p className="text-xs text-[#656d76] mt-1">{plan.description}</p>
+          <p className="text-sm text-[#656d76] mt-1">{plan.description}</p>
         )}
       </div>
 

@@ -216,14 +216,14 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
       {/* Progress bar */}
       {generating && progress && (
         <div className="shrink-0 px-3 py-1.5 border-b border-[#d1d9e0]/60 bg-[#ddf4ff]/40">
-          <div className="flex items-center justify-between text-xs text-[#0969da] mb-1">
+          <div className="flex items-center justify-between text-sm text-[#0969da] mb-1">
             <span>Generating...</span>
             <div className="flex items-center gap-2">
               <span className="font-medium">{progress.current}/{progress.total}</span>
               {onCancelGeneration && (
                 <button
                   onClick={onCancelGeneration}
-                  className="px-1.5 py-0.5 text-xs text-[#656d76] hover:text-[#d1242f] hover:bg-[#ffebe9] rounded transition-colors"
+                  className="px-1.5 py-0.5 text-sm text-[#656d76] hover:text-[#d1242f] hover:bg-[#ffebe9] rounded transition-colors"
                   title="Cancel remaining flow generation"
                 >
                   Cancel
