@@ -35,7 +35,7 @@ import {
 import { useUserStore } from "../store/user.store";
 import { buildFlowPrompt } from "../lib/flow/buildPrompt";
 import { loadFlowsFromQueue } from "../lib/tests/flowXml/loader";
-import { activateFlow, activateFlows, getActiveFlows } from "../lib/tests/flowXml/activeTests";
+import { activateFlow, activateFlows, deactivateFlow, getActiveFlows } from "../lib/tests/flowXml/activeTests";
 import { buildParsedTagsFromRegistry } from "../lib/tests/buildParsedTags";
 import { useSpecStore } from "../store/spec.store";
 import { useFlowStatusStore } from "../store/flowStatus.store";
@@ -526,11 +526,15 @@ export function IdeasFlowsPage() {
   }
 
   function handleDeleteFlow(ideaId: string) {
-    if (markedIds.has(ideaId)) return;
     const flow = generatedFlows.find(f => f.ideaId === ideaId);
     if (flow?.status === "done" && flow.title) {
       const folder = parentFolderOf(activePath);
       const blobName = buildFlowFilePath(folder, flow.title);
+      // If this flow has an active scenario, deactivate it first
+      if (markedIds.has(ideaId)) {
+        void deactivateFlow(blobName).catch(() => {});
+        setMarkedIds(prev => { const n = new Set(prev); n.delete(ideaId); return n; });
+      }
       void deleteFlowFile(blobName).catch(() => {});
     }
     setGeneratedFlows(prev => prev.filter(f => f.ideaId !== ideaId));
@@ -573,16 +577,26 @@ export function IdeasFlowsPage() {
   }
 
   function handleDeleteAllFlows() {
-    const keep = generatedFlows.filter(f => markedIds.has(f.ideaId));
+    // Delete all selected flows — deactivate any that have active scenarios
+    const selectedDeletable = generatedFlows.filter(f => selectedFlowIds.has(f.ideaId));
+    const keep = generatedFlows.filter(f => !selectedFlowIds.has(f.ideaId));
     const folder = parentFolderOf(activePath);
-    for (const f of generatedFlows) {
-      if (!markedIds.has(f.ideaId) && f.status === "done" && f.title) {
+    for (const f of selectedDeletable) {
+      if (f.status === "done" && f.title) {
         const blobName = buildFlowFilePath(folder, f.title);
+        if (markedIds.has(f.ideaId)) {
+          void deactivateFlow(blobName).catch(() => {});
+        }
         void deleteFlowFile(blobName).catch(() => {});
       }
     }
+    setMarkedIds(prev => {
+      const n = new Set(prev);
+      for (const f of selectedDeletable) n.delete(f.ideaId);
+      return n;
+    });
     setGeneratedFlows(keep);
-    if (activeFlowId && !markedIds.has(activeFlowId)) setActiveFlowId(null);
+    if (activeFlowId && selectedFlowIds.has(activeFlowId)) setActiveFlowId(null);
     const keepUsage = keep.reduce<FlowUsage | null>((acc, f) => {
       if (!f.usage || f.status !== "done") return acc;
       if (!acc) return { ...f.usage };
@@ -599,7 +613,7 @@ export function IdeasFlowsPage() {
       for (const key of Object.keys(next)) {
         const ctx = next[key];
         if (ctx.generatedFlows.length > 0) {
-          const remaining = ctx.generatedFlows.filter(f => markedIds.has(f.ideaId));
+          const remaining = ctx.generatedFlows.filter(f => !selectedFlowIds.has(f.ideaId));
           const recomputed = remaining.reduce<FlowUsage | null>((acc, f) => {
             if (!f.usage || f.status !== "done") return acc;
             if (!acc) return { ...f.usage };
@@ -615,6 +629,7 @@ export function IdeasFlowsPage() {
       }
       return next;
     });
+    setSelectedFlowIds(new Set());
   }
 
   function handleClickFlow(ideaId: string) {

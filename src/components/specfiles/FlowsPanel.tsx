@@ -127,7 +127,7 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
     (f) => selectedFlowIds.has(f.ideaId) && !validByIdea[f.ideaId],
   ).length;
   const selectedDeletableCount = completedFlows.filter(
-    (f) => selectedFlowIds.has(f.ideaId) && !markedIds.has(f.ideaId),
+    (f) => selectedFlowIds.has(f.ideaId),
   ).length;
   const selectedMarkedCount = completedFlows.filter(
     (f) => selectedFlowIds.has(f.ideaId) && markedIds.has(f.ideaId),
@@ -196,11 +196,9 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
             title={
               selectedCount === 0
                 ? "Select flows to delete"
-                : selectedDeletableCount === 0
-                  ? "Cannot delete — all selected flows have scenarios. Delete scenarios first from the Scenario Manager."
-                  : selectedMarkedCount > 0
-                    ? `Delete ${selectedDeletableCount} flow${selectedDeletableCount !== 1 ? "s" : ""} (${selectedMarkedCount} with scenarios will be skipped)`
-                    : `Delete ${selectedDeletableCount} selected flow${selectedDeletableCount !== 1 ? "s" : ""}`
+                : selectedMarkedCount > 0
+                  ? `Delete ${selectedDeletableCount} flow${selectedDeletableCount !== 1 ? "s" : ""} (${selectedMarkedCount} with scenarios will be deactivated)`
+                  : `Delete ${selectedDeletableCount} selected flow${selectedDeletableCount !== 1 ? "s" : ""}`
             }
             className={`rounded-md p-1 transition-colors ${
               selectedCount > 0
@@ -357,12 +355,10 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
                       items.push("separator");
                     }
                     items.push({
-                      label: "Delete flow",
+                      label: isMarked ? "Delete flow + scenario" : "Delete flow",
                       icon: MenuIcons.trash,
                       onClick: () => setDeleteFlowId(flow.ideaId),
                       danger: true,
-                      disabled: isMarked,
-                      tooltip: isMarked ? "Cannot delete — a scenario depends on this flow. Delete the scenario first from the Scenario Manager." : undefined,
                     });
                     return (
                       <div className="shrink-0">
@@ -440,7 +436,12 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
               </div>
               <div className="px-4 py-3">
                 <p className="text-sm text-[#656d76] leading-relaxed">
-                  This will delete the generated flow for <strong className="text-[#1f2328]">{flow?.title}</strong>. The idea will be unlocked so you can regenerate the flow. If this flow was already marked for implementation, the copy in the Flow Manager queue is not removed — remove it from Flow Manager separately.
+                  This will delete the generated flow for <strong className="text-[#1f2328]">{flow?.title}</strong>. The idea will be unlocked so you can regenerate the flow.
+                  {flow && markedIds.has(flow.ideaId) && (
+                    <span className="block mt-1.5 text-[#9a6700] font-medium">
+                      This flow has an active scenario — it will be deactivated automatically.
+                    </span>
+                  )}
                 </p>
               </div>
               <div className="flex justify-end gap-2 px-4 py-3 border-t border-[#d1d9e0] bg-[#f6f8fa] rounded-b-lg">
@@ -483,8 +484,8 @@ export function FlowsPanel({ flows, generating, progress, activeFlowId, onClickF
               <p className="text-sm text-[#656d76] leading-relaxed">
                 This will delete {selectedDeletableCount} selected flow{selectedDeletableCount !== 1 ? "s" : ""}. The ideas will be unlocked so you can regenerate flows for them.
                 {selectedMarkedCount > 0 && (
-                  <span className="block mt-1 text-[#9a6700]">
-                    {selectedMarkedCount} flow{selectedMarkedCount !== 1 ? "s" : ""} with active tests will be skipped.
+                  <span className="block mt-1.5 text-[#9a6700] font-medium">
+                    {selectedMarkedCount} flow{selectedMarkedCount !== 1 ? "s" : ""} with active scenarios will be deactivated automatically.
                   </span>
                 )}
               </p>
