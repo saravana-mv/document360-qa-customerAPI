@@ -12,6 +12,7 @@ import { CreateScenariosModal } from "../components/specfiles/CreateScenariosMod
 import { FlowValidationModal } from "../components/specfiles/FlowValidationModal";
 import { CreateFolderModal } from "../components/specfiles/CreateFolderModal";
 import { IdeasChatPanel } from "../components/specfiles/IdeasChatPanel";
+import { GenerateFromHarModal } from "../components/specfiles/GenerateFromHarModal";
 import type { ChatIdea } from "../lib/api/flowChatApi";
 import {
   generateFlowIdeas,
@@ -74,6 +75,7 @@ export function IdeasFlowsPage() {
   const [treeSortAZ, setTreeSortAZ] = useState(false);
   const [treeRearrangeMode, setTreeRearrangeMode] = useState(false);
   const [showIdeasChat, setShowIdeasChat] = useState(false);
+  const [showHarModal, setShowHarModal] = useState(false);
 
   // ── Selection state ────────────────────────────────────────────────────────
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(
@@ -1202,6 +1204,7 @@ export function IdeasFlowsPage() {
                 onDeleteFolder={handleDeleteFolder}
                 onGenerateIdeas={(path) => { selectFolder(path); setShowNewIdeasModal(true); }}
                 onGenerateIdeasChat={(path) => { selectFolder(path); setShowIdeasChat(true); }}
+                onGenerateFromHar={(path) => { selectFolder(path); setShowHarModal(true); }}
                 expandAll={treeExpandAll}
                 sortAZ={treeSortAZ}
                 rearrangeMode={treeRearrangeMode}
@@ -1242,6 +1245,17 @@ export function IdeasFlowsPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
                   </svg>
                   Ideas chat
+                </button>
+                {/* From HAR button */}
+                <button
+                  onClick={() => setShowHarModal(true)}
+                  title="Generate ideas from a HAR recording"
+                  className="inline-flex items-center gap-1 text-sm font-medium text-[#656d76] hover:text-[#1f2328] px-2 py-1 rounded-md hover:bg-[#f6f8fa] transition-colors shrink-0"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                  </svg>
+                  From HAR
                 </button>
 
                 {/* Cost summary + ideas trace button */}
@@ -1398,6 +1412,16 @@ export function IdeasFlowsPage() {
                         </svg>
                         Ideas chat
                       </button>
+                      <button
+                        onClick={() => setShowHarModal(true)}
+                        title="Generate ideas from a HAR recording"
+                        className="inline-flex items-center justify-center gap-1.5 w-40 bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-sm font-medium rounded-md px-3 py-2 transition-colors border border-[#d1d9e0]"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                        </svg>
+                        From HAR
+                      </button>
                       {showLandingModal && (
                         <GenerateIdeasModal
                           folderPath={activePath!}
@@ -1502,6 +1526,19 @@ export function IdeasFlowsPage() {
         />
       )}
 
+      {/* Generate from HAR modal */}
+      {showHarModal && (
+        <GenerateFromHarModal
+          folderPath={activePath ?? ""}
+          onGenerate={(destFolder, harTrace) => {
+            const targetPath = destFolder || activePath!;
+            if (destFolder && destFolder !== activePath) selectFolder(destFolder);
+            void handleGenerateFlowIdeas(targetPath, 10, undefined, undefined, harTrace);
+          }}
+          onClose={() => setShowHarModal(false)}
+        />
+      )}
+
       {/* Inline rename prompt */}
       {renamingFolder && (() => {
         const rf = renamingFolder;
@@ -1537,7 +1574,13 @@ const chatIcon = (
   </svg>
 );
 
-function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, onSelectFolder, onCreateSubfolder, onRenameFolder, onDeleteFolder, onGenerateIdeas, onGenerateIdeasChat, expandAll, sortAZ, rearrangeMode, depth = 0 }: {
+const harIcon = (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+  </svg>
+);
+
+function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, onSelectFolder, onCreateSubfolder, onRenameFolder, onDeleteFolder, onGenerateIdeas, onGenerateIdeasChat, onGenerateFromHar, expandAll, sortAZ, rearrangeMode, depth = 0 }: {
   folders: IdeaFolderDoc[];
   parentPath: string | null;
   selectedPath: string | null;
@@ -1548,6 +1591,7 @@ function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, 
   onDeleteFolder: (id: string, path: string) => void;
   onGenerateIdeas?: (path: string) => void;
   onGenerateIdeasChat?: (path: string) => void;
+  onGenerateFromHar?: (path: string) => void;
   expandAll?: boolean;
   sortAZ?: boolean;
   rearrangeMode?: boolean;
@@ -1641,6 +1685,7 @@ function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, 
         const menuItems: MenuItem[] = [
           { label: "Generate ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateIdeas?.(folder.path) },
           { label: "Ideas chat", icon: chatIcon, onClick: () => onGenerateIdeasChat?.(folder.path) },
+          { label: "From HAR", icon: harIcon, onClick: () => onGenerateFromHar?.(folder.path) },
           "separator",
           { label: "Rename", icon: MenuIcons.rename, onClick: () => onRenameFolder(folder.id, folder.name) },
           { label: "New subfolder", icon: MenuIcons.folder, onClick: () => onCreateSubfolder(folder.path) },

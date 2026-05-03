@@ -1,7 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import type { IdeaMode } from "../../../lib/api/specFilesApi";
-import type { HarParseResult } from "../../../lib/harParser";
-import { HarUploadPill } from "./HarUploadPill";
 
 const MODE_LABELS: Record<IdeaMode, string> = {
   full: "Full lifecycle",
@@ -39,9 +37,6 @@ interface ChatInputCardProps {
   folderOptions: FolderOption[];
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   placeholder?: string;
-  harResult?: HarParseResult | null;
-  onHarLoaded?: (result: HarParseResult) => void;
-  onHarRemoved?: () => void;
 }
 
 export function ChatInputCard({
@@ -61,9 +56,6 @@ export function ChatInputCard({
   folderOptions,
   textareaRef,
   placeholder,
-  harResult,
-  onHarLoaded,
-  onHarRemoved,
 }: ChatInputCardProps) {
   const [showModeDropdown, setShowModeDropdown] = useState(false);
   const [showFolderDropdown, setShowFolderDropdown] = useState(false);
@@ -195,15 +187,6 @@ export function ChatInputCard({
             </div>
           )}
         </div>
-
-        {/* HAR upload pill */}
-        {onHarLoaded && onHarRemoved && (
-          <HarUploadPill
-            harResult={harResult ?? null}
-            onHarLoaded={onHarLoaded}
-            onHarRemoved={onHarRemoved}
-          />
-        )}
 
         {/* Spacer + Send button */}
         <div className="flex-1" />
