@@ -32,6 +32,8 @@ export type AuditAction =
   | "spec.update"
   | "spec.rename"
   | "spec.delete"
+  | "spec.bulk_delete"
+  | "spec.reimport"
   | "spec.import_url"
   | "spec.sync"
   | "spec.update_source"

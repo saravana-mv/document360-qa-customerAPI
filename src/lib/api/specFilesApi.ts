@@ -57,6 +57,28 @@ export async function deleteSpecFile(name: string): Promise<void> {
   });
 }
 
+/** Bulk delete all blobs under a folder prefix (single server-side request). */
+export async function deleteSpecFolder(prefix: string): Promise<void> {
+  const url = `/api/spec-files?prefix=${encodeURIComponent(prefix)}`;
+  const projectHeaders = tryGetProjectHeaders();
+  const res = await fetch(url, {
+    method: "DELETE",
+    headers: { ...projectHeaders },
+  });
+  if (res.status === 401) {
+    window.dispatchEvent(new CustomEvent("session-expired"));
+  }
+  // 204 = full success, 200 = partial failure (still OK for UI purposes)
+  if (!res.ok && res.status !== 204) {
+    let msg = res.statusText;
+    try {
+      const body = await res.clone().json() as { error?: string };
+      if (body.error) msg = body.error;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+}
+
 export async function renameSpecFile(name: string, newName: string): Promise<void> {
   await apiFetch(`/api/spec-files`, {
     method: "PUT",

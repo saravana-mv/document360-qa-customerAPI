@@ -14,7 +14,7 @@ import {
   getFlowChatSessionsContainer, getApiKeysContainer, getSettingsContainer,
   getAiUsageContainer,
 } from "../lib/cosmosClient";
-import { listBlobs, deleteBlob } from "../lib/blobClient";
+import { batchDeleteByPrefix } from "../lib/blobClient";
 import { audit } from "../lib/auditLog";
 import { seedProjectCredits } from "../lib/aiCredits";
 import { randomUUID } from "node:crypto";
@@ -302,15 +302,8 @@ async function handleDelete(req: HttpRequest): Promise<HttpResponseInit> {
 
     // ── Clean up blob storage (spec-files under projectId/ prefix) ──
     try {
-      const blobs = await listBlobs(`${projectId}/`);
-      let blobCount = 0;
-      for (const blob of blobs) {
-        try {
-          await deleteBlob(blob.name);
-          blobCount++;
-        } catch { /* skip */ }
-      }
-      deleted["spec-files"] = blobCount;
+      const result = await batchDeleteByPrefix(`${projectId}/`);
+      deleted["spec-files"] = result.deleted;
     } catch { deleted["spec-files"] = 0; }
 
     // ── Delete the project document itself ──

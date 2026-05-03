@@ -139,14 +139,22 @@ export async function rebuildDigest(projectId: string, folderPath: string): Prom
 
   const entries: DigestEntry[] = [];
 
-  // Read distilled content for each spec and extract digest entries
-  for (const blob of mdBlobs) {
-    try {
-      const content = await readDistilledContent(blob.name);
-      const entry = extractDigestEntry(content);
-      if (entry) entries.push(entry);
-    } catch (e) {
-      console.warn(`[specDigest] failed to read ${blob.name}:`, e);
+  // Read distilled content in parallel batches for performance on large specs
+  const BATCH_SIZE = 30;
+  for (let i = 0; i < mdBlobs.length; i += BATCH_SIZE) {
+    const batch = mdBlobs.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map(async (blob) => {
+        const content = await readDistilledContent(blob.name);
+        return extractDigestEntry(content);
+      }),
+    );
+    for (const result of results) {
+      if (result.status === "fulfilled" && result.value) {
+        entries.push(result.value);
+      } else if (result.status === "rejected") {
+        console.warn(`[specDigest] failed to read blob:`, result.reason);
+      }
     }
   }
 

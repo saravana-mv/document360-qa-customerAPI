@@ -30,6 +30,7 @@ jest.mock("../lib/blobClient", () => ({
   uploadBlob: jest.fn().mockResolvedValue(undefined),
   deleteBlob: jest.fn().mockResolvedValue(undefined),
   renameBlob: jest.fn().mockResolvedValue(undefined),
+  batchDeleteByPrefix: jest.fn().mockResolvedValue({ deleted: 5, failed: 0, errors: [] }),
 }));
 
 import { specFilesRouter } from "../functions/specFiles";
@@ -182,10 +183,29 @@ describe("DELETE /api/spec-files", () => {
     expect(blobClient.deleteBlob).toHaveBeenCalledWith("test-project/test.md");
   });
 
-  test("returns 400 when name query param is missing", async () => {
+  test("returns 400 when neither name nor prefix is provided", async () => {
     const req = mockRequest("DELETE");
     const res = await specFilesRouter(req as any, ctx);
     expect(res.status).toBe(400);
+  });
+
+  test("returns 204 on bulk delete with prefix (full success)", async () => {
+    const req = mockRequest("DELETE", { prefix: "v3/articles" });
+    const res = await specFilesRouter(req as any, ctx);
+    expect(res.status).toBe(204);
+    expect((blobClient as any).batchDeleteByPrefix).toHaveBeenCalledWith("test-project/v3/articles/");
+  });
+
+  test("returns 200 on bulk delete with partial failure", async () => {
+    ((blobClient as any).batchDeleteByPrefix as jest.Mock).mockResolvedValueOnce({
+      deleted: 3, failed: 2, errors: ["blob1 error", "blob2 error"],
+    });
+    const req = mockRequest("DELETE", { prefix: "v3/articles" });
+    const res = await specFilesRouter(req as any, ctx);
+    expect(res.status).toBe(200);
+    const body = JSON.parse(res.body as string);
+    expect(body.deleted).toBe(3);
+    expect(body.failed).toBe(2);
   });
 });
 

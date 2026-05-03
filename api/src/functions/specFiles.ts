@@ -1,5 +1,5 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import { listBlobs, downloadBlob, uploadBlob, deleteBlob, renameBlob, blobExists } from "../lib/blobClient";
+import { listBlobs, downloadBlob, uploadBlob, deleteBlob, renameBlob, blobExists, batchDeleteByPrefix } from "../lib/blobClient";
 import { withAuth, getUserInfo, getProjectId } from "../lib/auth";
 import { audit } from "../lib/auditLog";
 import { distillAndStore, deleteDistilled, renameDistilled } from "../lib/specDistillCache";
@@ -212,17 +212,42 @@ async function updateFile(req: HttpRequest, _ctx: InvocationContext): Promise<Ht
   }
 }
 
-/** DELETE /api/spec-files?name=<blobName>  — delete a blob */
+/**
+ * DELETE /api/spec-files?name=<blobName>  — delete a single blob
+ * DELETE /api/spec-files?prefix=<folder>  — bulk delete all blobs under prefix
+ */
 async function deleteFile(req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> {
   try {
     const name = req.query.get("name");
-    if (!name) return err(400, "name query param is required");
+    const prefix = req.query.get("prefix");
+
+    if (!name && !prefix) return err(400, "name or prefix query param is required");
+
     const projectId = safeProjectId(req);
-    const blobName = projectId !== "unknown" ? scopedPath(projectId, name) : name;
+    const user = getUserInfo(req);
+
+    // Bulk delete mode — delete all blobs under a prefix server-side
+    if (prefix) {
+      const blobPrefix = projectId !== "unknown" ? scopedPath(projectId, prefix) : prefix;
+      // Ensure prefix ends with / to avoid deleting sibling folders
+      const safePrefix = blobPrefix.endsWith("/") ? blobPrefix : `${blobPrefix}/`;
+      const result = await batchDeleteByPrefix(safePrefix);
+      audit(projectId, "spec.bulk_delete", user, prefix, {
+        deleted: result.deleted,
+        failed: result.failed,
+      });
+      if (result.failed === 0) {
+        return { status: 204, headers: CORS_HEADERS, body: undefined };
+      }
+      // Partial failure — return 200 with details
+      return ok({ deleted: result.deleted, failed: result.failed, errors: result.errors.slice(0, 10) });
+    }
+
+    // Single file delete (unchanged)
+    const blobName = projectId !== "unknown" ? scopedPath(projectId, name!) : name!;
     await deleteBlob(blobName);
     deleteDistilled(blobName).catch(() => {});
-    const user = getUserInfo(req);
-    audit(projectId, "spec.delete", user, name);
+    audit(projectId, "spec.delete", user, name!);
     return ok({ deleted: true, name });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

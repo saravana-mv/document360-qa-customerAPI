@@ -1,9 +1,9 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import { downloadBlob, uploadBlob, listBlobs, deleteBlob } from "../lib/blobClient";
+import { downloadBlob, uploadBlob, listBlobs } from "../lib/blobClient";
 import { withAuth, getUserInfo, getProjectId } from "../lib/auth";
 import { audit } from "../lib/auditLog";
 import { getFlowsContainer, getIdeasContainer, getFlowChatSessionsContainer } from "../lib/cosmosClient";
-import { batchUpload, batchDistillAll } from "../lib/specBatchHelpers";
+import { batchUpload, batchDistillAll, batchDelete } from "../lib/specBatchHelpers";
 import { rebuildDigest } from "../lib/specDigest";
 import { rebuildDependencies } from "../lib/specDependencies";
 import { splitSwagger } from "../lib/swaggerSplitter";
@@ -93,11 +93,9 @@ async function reimportHandler(req: HttpRequest, _ctx: InvocationContext): Promi
     try { preservedSkills = await downloadBlob(skillsPath); } catch { /* not found */ }
     try { preservedRules = await downloadBlob(rulesPath); } catch { /* not found */ }
 
-    // ── 3. Wipe spec blobs ───────────────────────────────────────────────────
+    // ── 3. Wipe spec blobs (batched for large specs) ──────────────────────────
     const blobs = await listBlobs(blobPrefix);
-    for (const blob of blobs) {
-      try { await deleteBlob(blob.name); } catch { /* skip */ }
-    }
+    await batchDelete(blobs.map(b => b.name), 50);
 
     // ── 4. Wipe Cosmos data (parallel) ───────────────────────────────────────
     const wipeResults: Record<string, number> = {};

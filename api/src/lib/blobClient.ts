@@ -126,6 +126,42 @@ export async function deleteBlob(name: string, container?: string): Promise<void
   await blobClient.deleteIfExists();
 }
 
+export interface BatchDeleteResult {
+  deleted: number;
+  failed: number;
+  errors: string[];
+}
+
+/**
+ * List all blobs under a prefix and delete them in batches.
+ * Reusable primitive for bulk delete operations (folder delete, project delete).
+ */
+export async function batchDeleteByPrefix(
+  prefix: string,
+  batchSize = 50,
+  container?: string,
+): Promise<BatchDeleteResult> {
+  const blobs = await listBlobs(prefix, container);
+  const result: BatchDeleteResult = { deleted: 0, failed: 0, errors: [] };
+
+  for (let i = 0; i < blobs.length; i += batchSize) {
+    const batch = blobs.slice(i, i + batchSize);
+    const outcomes = await Promise.allSettled(
+      batch.map((b) => deleteBlob(b.name, container)),
+    );
+    for (const outcome of outcomes) {
+      if (outcome.status === "fulfilled") {
+        result.deleted++;
+      } else {
+        result.failed++;
+        result.errors.push(outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason));
+      }
+    }
+  }
+
+  return result;
+}
+
 /** Rename a blob by copying then deleting the source. */
 export async function renameBlob(oldName: string, newName: string, container?: string): Promise<void> {
   const c = getContainerClient(container);

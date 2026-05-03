@@ -15,6 +15,7 @@ import {
   getSpecFileContent,
   uploadSpecFile,
   deleteSpecFile,
+  deleteSpecFolder,
   renameSpecFile,
   importSpecFileFromUrl,
   syncSpecFiles,
@@ -731,8 +732,7 @@ export function SpecFilesPage() {
   async function handleDeleteFolder(folderPath: string) {
     setError(null);
     try {
-      const toDelete = files.filter((f) => f.name.startsWith(`${folderPath}/`));
-      await Promise.all(toDelete.map((f) => deleteSpecFile(f.name)));
+      await deleteSpecFolder(folderPath);
       if (selectedPath?.startsWith(`${folderPath}/`)) { setSelectedPath(null); setContent(""); }
       await loadFiles();
     } catch (e) {

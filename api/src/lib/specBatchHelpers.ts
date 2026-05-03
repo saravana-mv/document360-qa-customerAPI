@@ -1,4 +1,4 @@
-import { uploadBlob } from "./blobClient";
+import { uploadBlob, deleteBlob } from "./blobClient";
 import { distillAndStoreWithResult } from "./specDistillCache";
 
 /** Upload files in parallel batches to stay within limits. */
@@ -20,6 +20,26 @@ export interface DistillResult {
   file: string;
   status: "distilled" | "unchanged" | "error";
   error?: string;
+}
+
+/** Delete blobs in parallel batches. Returns count of deleted and failed. */
+export async function batchDelete(
+  blobNames: string[],
+  batchSize: number,
+): Promise<{ deleted: number; failed: number }> {
+  let deleted = 0;
+  let failed = 0;
+  for (let i = 0; i < blobNames.length; i += batchSize) {
+    const batch = blobNames.slice(i, i + batchSize);
+    const outcomes = await Promise.allSettled(
+      batch.map((name) => deleteBlob(name)),
+    );
+    for (const outcome of outcomes) {
+      if (outcome.status === "fulfilled") deleted++;
+      else failed++;
+    }
+  }
+  return { deleted, failed };
 }
 
 /** Awaited batch distillation that collects per-file results. */
