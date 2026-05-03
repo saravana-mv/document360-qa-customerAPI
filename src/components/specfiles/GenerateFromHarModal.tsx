@@ -1,5 +1,7 @@
 import { useState } from "react";
 import type { HarParseResult } from "../../lib/harParser";
+import { matchHarToSpecs } from "../../lib/harSpecMatcher";
+import { listSpecFiles } from "../../lib/api/specFilesApi";
 import { HarSessionSection } from "./HarSessionSection";
 import { SpecFilePicker } from "./SpecFilePicker";
 import { useIdeaFoldersStore } from "../../store/ideaFolders.store";
@@ -15,12 +17,34 @@ export function GenerateFromHarModal({ folderPath, onGenerate, onClose, disabled
   const [destinationFolder, setDestinationFolder] = useState(folderPath);
   const [harResult, setHarResult] = useState<HarParseResult | null>(null);
   const [specFiles, setSpecFiles] = useState<string[]>([]);
+  const [matching, setMatching] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
 
   const folders = useIdeaFoldersStore((s) => s.folders);
   const folderOptions = buildFolderOptions(folders);
 
   const canGenerate = !!harResult && !!destinationFolder;
+
+  async function handleHarLoaded(result: HarParseResult) {
+    setHarResult(result);
+    // Auto-match spec files from HAR API calls
+    setMatching(true);
+    try {
+      const allFiles = await listSpecFiles();
+      const allPaths = allFiles.map(f => f.name);
+      const matched = matchHarToSpecs(result.apiCalls, allPaths);
+      setSpecFiles(matched);
+    } catch {
+      // If listing fails, leave specFiles empty — user can still pick manually
+    } finally {
+      setMatching(false);
+    }
+  }
+
+  function handleHarRemoved() {
+    setHarResult(null);
+    setSpecFiles([]);
+  }
 
   function handleSubmit() {
     if (!canGenerate) return;
@@ -77,36 +101,56 @@ export function GenerateFromHarModal({ folderPath, onGenerate, onClose, disabled
           {/* HAR session recording */}
           <HarSessionSection
             harResult={harResult}
-            onHarLoaded={setHarResult}
-            onHarRemoved={() => setHarResult(null)}
+            onHarLoaded={handleHarLoaded}
+            onHarRemoved={handleHarRemoved}
           />
 
-          {/* Spec files (optional — provides schema context) */}
-          <div>
-            <label className="text-sm font-medium text-[#656d76] mb-1.5 block">Spec files <span className="text-xs font-normal text-[#656d76]/60">(optional)</span></label>
-            <button
-              onClick={() => setShowPicker(true)}
-              className="w-full flex items-center gap-2 text-sm px-3 py-2 rounded-lg border transition-colors text-left border-[#d1d9e0] bg-[#f6f8fa] text-[#1f2328] hover:bg-[#eef1f6]"
-            >
-              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-              </svg>
-              <span className="flex-1">
-                {specFiles.length === 0 ? "Add spec files for richer context..." : `${specFiles.length} file${specFiles.length !== 1 ? "s" : ""} selected`}
-              </span>
-              <svg className="w-3.5 h-3.5 text-[#656d76] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-              </svg>
-            </button>
-            <p className="text-xs text-[#656d76]/60 mt-1">Spec files provide API schema details for better idea generation.</p>
-          </div>
+          {/* Auto-matched spec files */}
+          {harResult && (
+            <div>
+              <label className="text-sm font-medium text-[#656d76] mb-1.5 block">
+                Matched spec files
+              </label>
+              {matching ? (
+                <p className="text-sm text-[#656d76]">Matching HAR calls to spec files...</p>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setShowPicker(true)}
+                    className={`w-full flex items-center gap-2 text-sm px-3 py-2 rounded-lg border transition-colors text-left ${
+                      specFiles.length === 0
+                        ? "border-[#bf8700]/30 bg-[#fff8c5]/50 text-[#1f2328] hover:bg-[#fff8c5]"
+                        : "border-[#1a7f37]/30 bg-[#dafbe1]/50 text-[#1f2328] hover:bg-[#dafbe1]"
+                    }`}
+                  >
+                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                    </svg>
+                    <span className="flex-1">
+                      {specFiles.length === 0
+                        ? "No matching specs found — click to select manually"
+                        : `${specFiles.length} spec file${specFiles.length !== 1 ? "s" : ""} auto-matched`}
+                    </span>
+                    <svg className="w-3.5 h-3.5 text-[#656d76] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                    </svg>
+                  </button>
+                  <p className="text-xs text-[#656d76]/60 mt-1">
+                    {specFiles.length > 0
+                      ? "Auto-matched from HAR endpoints. Click to review or adjust."
+                      : "Select spec files manually to provide API schema context."}
+                  </p>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer with generate button */}
         <div className="px-5 pt-4 pb-5 flex justify-center">
           <button
             onClick={handleSubmit}
-            disabled={disabled || !canGenerate}
+            disabled={disabled || !canGenerate || matching}
             className="inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] disabled:bg-[#d1d9e0] disabled:cursor-not-allowed rounded-lg px-6 py-2.5 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
