@@ -179,6 +179,7 @@ export interface SuggestedVariable {
   type: string;
   format?: string;
   example?: string;
+  folders?: string[];
 }
 
 export type SuggestedConnectionProvider = "oauth2" | "bearer" | "apikey_header" | "apikey_query" | "basic" | "cookie";

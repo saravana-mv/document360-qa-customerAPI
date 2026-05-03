@@ -23,6 +23,8 @@ export interface SuggestedVariable {
   type: string;
   format?: string;
   example?: string;
+  /** Resource folders where this parameter appears (e.g. ["articles", "categories"]) */
+  folders?: string[];
 }
 
 export type SuggestedConnectionProvider = "oauth2" | "bearer" | "apikey_header" | "apikey_query" | "basic" | "cookie";
@@ -462,16 +464,26 @@ export function splitSwagger(specJson: Record<string, unknown>): SplitResult {
 
 /**
  * Extract all path parameters from the spec and deduplicate them into
- * suggested project variables.
+ * suggested project variables. Also tracks which resource folders use each parameter.
  */
 function extractPathParameters(
   paths: Record<string, Record<string, unknown>>,
   spec: Record<string, unknown>,
 ): SuggestedVariable[] {
   const seen = new Map<string, SuggestedVariable>();
+  const paramFolders = new Map<string, Set<string>>();
 
   for (const [, pathItem] of Object.entries(paths)) {
     if (!pathItem || typeof pathItem !== "object") continue;
+
+    // Collect folders from operation tags for this path
+    const pathFolders = new Set<string>();
+    for (const method of HTTP_METHODS) {
+      const operation = pathItem[method] as Record<string, unknown> | undefined;
+      if (!operation) continue;
+      const tags = (operation["tags"] as string[]) ?? [];
+      if (tags[0]) pathFolders.add(tagToFolder(tags[0]));
+    }
 
     // Collect path-level + operation-level parameters
     const paramSources: unknown[][] = [];
@@ -497,7 +509,13 @@ function extractPathParameters(
 
         if (param["in"] !== "path") continue;
         const name = param["name"] as string | undefined;
-        if (!name || seen.has(name)) continue;
+        if (!name) continue;
+
+        // Track folders for this parameter
+        if (!paramFolders.has(name)) paramFolders.set(name, new Set());
+        for (const f of pathFolders) paramFolders.get(name)!.add(f);
+
+        if (seen.has(name)) continue;
 
         // OAS3: param.schema.type/format/example; Swagger 2: param.type/format/example
         const schema = param["schema"] as Record<string, unknown> | undefined;
@@ -514,6 +532,14 @@ function extractPathParameters(
           ...(example != null ? { example: String(example) } : {}),
         });
       }
+    }
+  }
+
+  // Attach folder lists
+  for (const [name, variable] of seen) {
+    const folders = paramFolders.get(name);
+    if (folders && folders.size > 0) {
+      variable.folders = Array.from(folders).sort();
     }
   }
 

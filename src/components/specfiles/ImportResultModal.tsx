@@ -11,6 +11,9 @@ const PROVIDER_LABELS: Record<string, string> = {
   cookie: "Cookie",
 };
 
+type VarSortKey = "name" | "folder" | "type";
+type SortDir = "asc" | "desc";
+
 interface ImportResultModalProps {
   open: boolean;
   folderName: string;
@@ -47,6 +50,9 @@ export function ImportResultModal({
   );
 
   const [selectedVars, setSelectedVars] = useState<Set<string>>(() => new Set(newVars.map(v => v.name)));
+  const [varSearch, setVarSearch] = useState("");
+  const [varSortKey, setVarSortKey] = useState<VarSortKey>("name");
+  const [varSortDir, setVarSortDir] = useState<SortDir>("asc");
 
   const toggleVar = (name: string) => {
     setSelectedVars(prev => {
@@ -61,6 +67,45 @@ export function ImportResultModal({
     if (selectedVars.size === newVars.length) setSelectedVars(new Set());
     else setSelectedVars(new Set(newVars.map(v => v.name)));
   };
+
+  const handleVarSort = (key: VarSortKey) => {
+    if (varSortKey === key) setVarSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setVarSortKey(key); setVarSortDir("asc"); }
+  };
+
+  const folderLabel = (v: SuggestedVariable) =>
+    v.folders && v.folders.length > 0 ? v.folders.join(", ") : "—";
+
+  const sortVar = (a: SuggestedVariable, b: SuggestedVariable): number => {
+    let cmp: number;
+    if (varSortKey === "name") cmp = a.name.localeCompare(b.name);
+    else if (varSortKey === "folder") cmp = folderLabel(a).localeCompare(folderLabel(b));
+    else cmp = a.type.localeCompare(b.type);
+    return varSortDir === "asc" ? cmp : -cmp;
+  };
+
+  const searchLower = varSearch.toLowerCase();
+  const filteredNewVars = useMemo(
+    () => newVars
+      .filter(v =>
+        !searchLower ||
+        v.name.toLowerCase().includes(searchLower) ||
+        (v.description !== v.name && v.description.toLowerCase().includes(searchLower)) ||
+        folderLabel(v).toLowerCase().includes(searchLower)
+      )
+      .sort(sortVar),
+    [newVars, searchLower, varSortKey, varSortDir],
+  );
+  const filteredExistingVars = useMemo(
+    () => existingVars
+      .filter(v =>
+        !searchLower ||
+        v.name.toLowerCase().includes(searchLower) ||
+        folderLabel(v).toLowerCase().includes(searchLower)
+      )
+      .sort(sortVar),
+    [existingVars, searchLower, varSortKey, varSortDir],
+  );
 
   // ── Connections ─────────────────────────────────────────────────────────────
   const newConns = useMemo(
@@ -103,7 +148,7 @@ export function ImportResultModal({
       open={open}
       onClose={onSkip}
       title="Import Complete"
-      maxWidth="max-w-xl"
+      maxWidth="max-w-2xl"
       footer={
         <div className="flex gap-2">
           <button
@@ -261,7 +306,10 @@ export function ImportResultModal({
       {hasVariables && (
         <div>
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-[#1f2328]">Detected Path Parameters</h3>
+            <h3 className="text-sm font-medium text-[#1f2328]">
+              Detected Path Parameters
+              <span className="text-xs font-normal text-[#656d76] ml-1.5">{suggestedVariables.length}</span>
+            </h3>
             {newVars.length > 0 && (
               <button
                 onClick={toggleAllVars}
@@ -274,39 +322,84 @@ export function ImportResultModal({
           <p className="text-sm text-[#656d76] mb-3">
             Selected parameters will be saved as project variables with empty values. Configure their values in Settings &rarr; Variables.
           </p>
+
+          {/* Search */}
+          {suggestedVariables.length > 5 && (
+            <div className="relative mb-2">
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#656d76]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+              </svg>
+              <input
+                type="text"
+                value={varSearch}
+                onChange={(e) => setVarSearch(e.target.value)}
+                placeholder="Search parameters…"
+                className="w-full text-sm pl-8 pr-3 py-1.5 border rounded-md outline-none focus:ring-2 focus:ring-[#0969da]/30 focus:border-[#0969da]"
+                style={{ borderColor: "#d1d9e0" }}
+              />
+              {varSearch && (
+                <button
+                  onClick={() => setVarSearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#656d76] hover:text-[#1f2328]"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Table */}
           <div className="border border-[#d1d9e0] rounded-md overflow-hidden">
-            {newVars.map(v => (
-              <label
-                key={v.name}
-                className="flex items-center gap-3 px-3 py-2 hover:bg-[#f6f8fa] transition-colors cursor-pointer border-b border-[#d1d9e0] last:border-b-0"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedVars.has(v.name)}
-                  onChange={() => toggleVar(v.name)}
-                  className="rounded accent-[#0969da]"
-                />
-                <code className="text-sm font-mono text-[#1f2328] shrink-0">{v.name}</code>
-                <span className="text-sm text-[#656d76] truncate flex-1">{v.description !== v.name ? v.description : ""}</span>
-                <span className="text-xs text-[#656d76] shrink-0 px-1.5 py-0.5 rounded bg-[#f6f8fa] border border-[#d1d9e0]">
-                  {v.type}{v.format ? ` \u00b7 ${v.format}` : ""}
-                </span>
-              </label>
-            ))}
-            {existingVars.map(v => (
-              <label
-                key={v.name}
-                className="flex items-center gap-3 px-3 py-2 border-b border-[#d1d9e0] last:border-b-0 opacity-50 cursor-default"
-              >
-                <input type="checkbox" checked disabled className="rounded" />
-                <code className="text-sm font-mono text-[#656d76] shrink-0">{v.name}</code>
-                <span className="text-xs text-[#656d76] italic shrink-0">(already exists)</span>
-                <span className="flex-1" />
-                <span className="text-xs text-[#656d76] shrink-0 px-1.5 py-0.5 rounded bg-[#f6f8fa] border border-[#d1d9e0]">
-                  {v.type}{v.format ? ` \u00b7 ${v.format}` : ""}
-                </span>
-              </label>
-            ))}
+            {/* Column headers */}
+            <div className="flex items-center gap-3 px-3 py-1.5 bg-[#f6f8fa] border-b border-[#d1d9e0] select-none">
+              <span className="w-4 shrink-0" />
+              <SortableHeader label="Name" sortKey="name" currentKey={varSortKey} dir={varSortDir} onClick={handleVarSort} className="w-[140px] shrink-0" />
+              <SortableHeader label="Folder" sortKey="folder" currentKey={varSortKey} dir={varSortDir} onClick={handleVarSort} className="flex-1 min-w-0" />
+              <SortableHeader label="Type" sortKey="type" currentKey={varSortKey} dir={varSortDir} onClick={handleVarSort} className="w-[100px] shrink-0 justify-end" />
+            </div>
+
+            {/* Scrollable rows */}
+            <div className="max-h-[280px] overflow-y-auto">
+              {filteredNewVars.map(v => (
+                <label
+                  key={v.name}
+                  className="flex items-center gap-3 px-3 py-2 hover:bg-[#f6f8fa] transition-colors cursor-pointer border-b border-[#d1d9e0] last:border-b-0"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedVars.has(v.name)}
+                    onChange={() => toggleVar(v.name)}
+                    className="rounded accent-[#0969da] shrink-0"
+                  />
+                  <code className="text-sm font-mono text-[#1f2328] w-[140px] shrink-0 truncate" title={v.name}>{v.name}</code>
+                  <span className="text-sm text-[#656d76] flex-1 min-w-0 truncate" title={folderLabel(v)}>{folderLabel(v)}</span>
+                  <span className="text-xs text-[#656d76] w-[100px] shrink-0 text-right px-1.5 py-0.5 rounded bg-[#f6f8fa] border border-[#d1d9e0] truncate" title={`${v.type}${v.format ? ` · ${v.format}` : ""}`}>
+                    {v.type}{v.format ? ` · ${v.format}` : ""}
+                  </span>
+                </label>
+              ))}
+              {filteredExistingVars.map(v => (
+                <label
+                  key={v.name}
+                  className="flex items-center gap-3 px-3 py-2 border-b border-[#d1d9e0] last:border-b-0 opacity-50 cursor-default"
+                >
+                  <input type="checkbox" checked disabled className="rounded shrink-0" />
+                  <code className="text-sm font-mono text-[#656d76] w-[140px] shrink-0 truncate">{v.name}</code>
+                  <span className="text-xs text-[#656d76] italic shrink-0">(already exists)</span>
+                  <span className="flex-1" />
+                  <span className="text-xs text-[#656d76] w-[100px] shrink-0 text-right px-1.5 py-0.5 rounded bg-[#f6f8fa] border border-[#d1d9e0] truncate">
+                    {v.type}{v.format ? ` · ${v.format}` : ""}
+                  </span>
+                </label>
+              ))}
+              {filteredNewVars.length === 0 && filteredExistingVars.length === 0 && varSearch && (
+                <div className="px-3 py-4 text-sm text-[#656d76] text-center">
+                  No parameters matching "{varSearch}"
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -316,5 +409,36 @@ export function ImportResultModal({
         <p className="text-sm text-[#656d76]">No path parameters or authentication schemes detected in this spec.</p>
       )}
     </Modal>
+  );
+}
+
+// ── Sortable column header ────────────────────────────────────────────────────
+
+function SortableHeader({ label, sortKey, currentKey, dir, onClick, className }: {
+  label: string;
+  sortKey: VarSortKey;
+  currentKey: VarSortKey;
+  dir: SortDir;
+  onClick: (key: VarSortKey) => void;
+  className?: string;
+}) {
+  const active = currentKey === sortKey;
+  return (
+    <button
+      onClick={() => onClick(sortKey)}
+      className={`flex items-center gap-1 text-xs font-medium transition-colors ${
+        active ? "text-[#1f2328]" : "text-[#656d76] hover:text-[#1f2328]"
+      } ${className ?? ""}`}
+    >
+      {label}
+      {active && (
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          {dir === "asc"
+            ? <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+            : <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          }
+        </svg>
+      )}
+    </button>
   );
 }
