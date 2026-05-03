@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { Modal } from "../common/Modal";
 import type { SuggestedVariable, SuggestedConnection, ProcessingReport } from "../../lib/api/specFilesApi";
 
@@ -54,6 +54,11 @@ export function ImportResultModal({
   const [varSortKey, setVarSortKey] = useState<VarSortKey>("name");
   const [varSortDir, setVarSortDir] = useState<SortDir>("asc");
 
+  // Resizable column widths (px)
+  const [nameColWidth, setNameColWidth] = useState(160);
+  const [folderColWidth, setFolderColWidth] = useState(200);
+  // Type column takes the remainder
+
   const toggleVar = (name: string) => {
     setSelectedVars(prev => {
       const next = new Set(prev);
@@ -76,13 +81,13 @@ export function ImportResultModal({
   const folderLabel = (v: SuggestedVariable) =>
     v.folders && v.folders.length > 0 ? v.folders.join(", ") : "—";
 
-  const sortVar = (a: SuggestedVariable, b: SuggestedVariable): number => {
+  const sortVar = useCallback((a: SuggestedVariable, b: SuggestedVariable): number => {
     let cmp: number;
     if (varSortKey === "name") cmp = a.name.localeCompare(b.name);
     else if (varSortKey === "folder") cmp = folderLabel(a).localeCompare(folderLabel(b));
     else cmp = a.type.localeCompare(b.type);
     return varSortDir === "asc" ? cmp : -cmp;
-  };
+  }, [varSortKey, varSortDir]);
 
   const searchLower = varSearch.toLowerCase();
   const filteredNewVars = useMemo(
@@ -94,7 +99,7 @@ export function ImportResultModal({
         folderLabel(v).toLowerCase().includes(searchLower)
       )
       .sort(sortVar),
-    [newVars, searchLower, varSortKey, varSortDir],
+    [newVars, searchLower, sortVar],
   );
   const filteredExistingVars = useMemo(
     () => existingVars
@@ -104,7 +109,7 @@ export function ImportResultModal({
         folderLabel(v).toLowerCase().includes(searchLower)
       )
       .sort(sortVar),
-    [existingVars, searchLower, varSortKey, varSortDir],
+    [existingVars, searchLower, sortVar],
   );
 
   // ── Connections ─────────────────────────────────────────────────────────────
@@ -148,7 +153,7 @@ export function ImportResultModal({
       open={open}
       onClose={onSkip}
       title="Import Complete"
-      maxWidth="max-w-2xl"
+      maxWidth="max-w-3xl"
       footer={
         <div className="flex gap-2">
           <button
@@ -352,46 +357,51 @@ export function ImportResultModal({
 
           {/* Table */}
           <div className="border border-[#d1d9e0] rounded-md overflow-hidden">
-            {/* Column headers */}
-            <div className="flex items-center gap-3 px-3 py-1.5 bg-[#f6f8fa] border-b border-[#d1d9e0] select-none">
-              <span className="w-4 shrink-0" />
-              <SortableHeader label="Name" sortKey="name" currentKey={varSortKey} dir={varSortDir} onClick={handleVarSort} className="w-[140px] shrink-0" />
-              <SortableHeader label="Folder" sortKey="folder" currentKey={varSortKey} dir={varSortDir} onClick={handleVarSort} className="flex-1 min-w-0" />
-              <SortableHeader label="Type" sortKey="type" currentKey={varSortKey} dir={varSortDir} onClick={handleVarSort} className="w-[100px] shrink-0 justify-end" />
+            {/* Column headers with resizable splitters */}
+            <div className="flex items-center bg-[#f6f8fa] border-b border-[#d1d9e0] select-none">
+              <span className="w-8 shrink-0" /> {/* checkbox */}
+              <div className="relative flex items-center" style={{ width: nameColWidth }}>
+                <SortableHeader label="Name" sortKey="name" currentKey={varSortKey} dir={varSortDir} onClick={handleVarSort} className="flex-1" />
+                <ColumnResizer onResize={(delta) => setNameColWidth(w => Math.max(80, w + delta))} />
+              </div>
+              <div className="relative flex items-center" style={{ width: folderColWidth }}>
+                <SortableHeader label="Folder" sortKey="folder" currentKey={varSortKey} dir={varSortDir} onClick={handleVarSort} className="flex-1" />
+                <ColumnResizer onResize={(delta) => setFolderColWidth(w => Math.max(80, w + delta))} />
+              </div>
+              <SortableHeader label="Type" sortKey="type" currentKey={varSortKey} dir={varSortDir} onClick={handleVarSort} className="flex-1 min-w-[60px]" />
             </div>
 
             {/* Scrollable rows */}
-            <div className="max-h-[280px] overflow-y-auto">
+            <div className="max-h-[320px] overflow-y-auto">
               {filteredNewVars.map(v => (
                 <label
                   key={v.name}
-                  className="flex items-center gap-3 px-3 py-2 hover:bg-[#f6f8fa] transition-colors cursor-pointer border-b border-[#d1d9e0] last:border-b-0"
+                  className="flex items-center hover:bg-[#f6f8fa] transition-colors cursor-pointer border-b border-[#d1d9e0] last:border-b-0"
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedVars.has(v.name)}
-                    onChange={() => toggleVar(v.name)}
-                    className="rounded accent-[#0969da] shrink-0"
-                  />
-                  <code className="text-sm font-mono text-[#1f2328] w-[140px] shrink-0 truncate" title={v.name}>{v.name}</code>
-                  <span className="text-sm text-[#656d76] flex-1 min-w-0 truncate" title={folderLabel(v)}>{folderLabel(v)}</span>
-                  <span className="text-xs text-[#656d76] w-[100px] shrink-0 text-right px-1.5 py-0.5 rounded bg-[#f6f8fa] border border-[#d1d9e0] truncate" title={`${v.type}${v.format ? ` · ${v.format}` : ""}`}>
-                    {v.type}{v.format ? ` · ${v.format}` : ""}
+                  <span className="w-8 shrink-0 flex items-center justify-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedVars.has(v.name)}
+                      onChange={() => toggleVar(v.name)}
+                      className="rounded accent-[#0969da]"
+                    />
                   </span>
+                  <span className="text-sm font-mono text-[#1f2328] truncate py-2 pr-2" style={{ width: nameColWidth }} title={v.name}>{v.name}</span>
+                  <span className="text-sm text-[#656d76] truncate py-2 pr-2" style={{ width: folderColWidth }} title={folderLabel(v)}>{folderLabel(v)}</span>
+                  <span className="text-sm text-[#656d76] flex-1 min-w-[60px] py-2 pr-3">{v.type}</span>
                 </label>
               ))}
               {filteredExistingVars.map(v => (
                 <label
                   key={v.name}
-                  className="flex items-center gap-3 px-3 py-2 border-b border-[#d1d9e0] last:border-b-0 opacity-50 cursor-default"
+                  className="flex items-center border-b border-[#d1d9e0] last:border-b-0 opacity-50 cursor-default"
                 >
-                  <input type="checkbox" checked disabled className="rounded shrink-0" />
-                  <code className="text-sm font-mono text-[#656d76] w-[140px] shrink-0 truncate">{v.name}</code>
-                  <span className="text-xs text-[#656d76] italic shrink-0">(already exists)</span>
-                  <span className="flex-1" />
-                  <span className="text-xs text-[#656d76] w-[100px] shrink-0 text-right px-1.5 py-0.5 rounded bg-[#f6f8fa] border border-[#d1d9e0] truncate">
-                    {v.type}{v.format ? ` · ${v.format}` : ""}
+                  <span className="w-8 shrink-0 flex items-center justify-center">
+                    <input type="checkbox" checked disabled className="rounded" />
                   </span>
+                  <span className="text-sm font-mono text-[#656d76] truncate py-2 pr-2" style={{ width: nameColWidth }}>{v.name}</span>
+                  <span className="text-xs text-[#656d76] italic py-2 pr-2" style={{ width: folderColWidth }}>(already exists)</span>
+                  <span className="text-sm text-[#656d76] flex-1 min-w-[60px] py-2 pr-3">{v.type}</span>
                 </label>
               ))}
               {filteredNewVars.length === 0 && filteredExistingVars.length === 0 && varSearch && (
@@ -426,7 +436,7 @@ function SortableHeader({ label, sortKey, currentKey, dir, onClick, className }:
   return (
     <button
       onClick={() => onClick(sortKey)}
-      className={`flex items-center gap-1 text-xs font-medium transition-colors ${
+      className={`flex items-center gap-1 text-xs font-medium px-2 py-1.5 transition-colors ${
         active ? "text-[#1f2328]" : "text-[#656d76] hover:text-[#1f2328]"
       } ${className ?? ""}`}
     >
@@ -440,5 +450,45 @@ function SortableHeader({ label, sortKey, currentKey, dir, onClick, className }:
         </svg>
       )}
     </button>
+  );
+}
+
+// ── Column resizer handle ─────────────────────────────────────────────────────
+
+function ColumnResizer({ onResize }: { onResize: (delta: number) => void }) {
+  const startXRef = useRef(0);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    startXRef.current = e.clientX;
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      const delta = ev.clientX - startXRef.current;
+      if (delta !== 0) {
+        onResize(delta);
+        startXRef.current = ev.clientX;
+      }
+    };
+    const handleMouseUp = () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
+
+  return (
+    <div
+      onMouseDown={handleMouseDown}
+      className="absolute right-0 top-0 bottom-0 w-[5px] cursor-col-resize z-10 group"
+    >
+      <div className="absolute right-[2px] top-1 bottom-1 w-px bg-[#d1d9e0] group-hover:bg-[#0969da] transition-colors" />
+    </div>
   );
 }

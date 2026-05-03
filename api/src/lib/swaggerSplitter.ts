@@ -463,13 +463,59 @@ export function splitSwagger(specJson: Record<string, unknown>): SplitResult {
 }
 
 /**
+ * Normalize a parameter name to camelCase.
+ * Handles: PascalCase, snake_case, kebab-case, UPPER_CASE.
+ * e.g. "ProjectId" → "projectId", "lang_code" → "langCode", "project-id" → "projectId"
+ */
+function toCamelCase(name: string): string {
+  // snake_case or kebab-case: split on separators, capitalize each part after the first
+  if (name.includes("_") || name.includes("-")) {
+    return name
+      .split(/[-_]+/)
+      .map((part, i) => i === 0 ? part.toLowerCase() : part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join("");
+  }
+  // PascalCase / camelCase: lowercase the leading uppercase run
+  // "ProjectId" → "projectId", "HTMLParser" → "htmlParser", "projectId" → "projectId"
+  const match = name.match(/^([A-Z]+)/);
+  if (match) {
+    const upper = match[1];
+    if (upper.length === name.length) {
+      // All uppercase (e.g. "ID") → lowercase
+      return name.toLowerCase();
+    }
+    if (upper.length === 1) {
+      // Single uppercase letter → just lowercase it
+      return name.charAt(0).toLowerCase() + name.slice(1);
+    }
+    // Multiple uppercase (e.g. "HTMLParser") → lowercase all but last
+    return upper.slice(0, -1).toLowerCase() + name.slice(upper.length - 1);
+  }
+  return name;
+}
+
+/**
+ * Simplify OpenAPI type+format into a user-friendly type label.
+ * e.g. "integer" + "int64" → "int", "string" + "uuid" → "string", "number" + "double" → "double"
+ */
+function simplifyType(type: string, format?: string): string {
+  if (type === "integer") return "int";
+  if (type === "number") return format === "double" ? "double" : format === "float" ? "float" : "number";
+  if (type === "boolean") return "bool";
+  return "string";
+}
+
+/**
  * Extract all path parameters from the spec and deduplicate them into
- * suggested project variables. Also tracks which resource folders use each parameter.
+ * suggested project variables. Normalizes names to camelCase so that
+ * variants like ProjectId/projectId/project_id become a single entry.
+ * Also tracks which resource folders use each parameter.
  */
 function extractPathParameters(
   paths: Record<string, Record<string, unknown>>,
   spec: Record<string, unknown>,
 ): SuggestedVariable[] {
+  // Keyed by normalized (camelCase) name
   const seen = new Map<string, SuggestedVariable>();
   const paramFolders = new Map<string, Set<string>>();
 
@@ -508,10 +554,12 @@ function extractPathParameters(
         }
 
         if (param["in"] !== "path") continue;
-        const name = param["name"] as string | undefined;
-        if (!name) continue;
+        const rawName = param["name"] as string | undefined;
+        if (!rawName) continue;
 
-        // Track folders for this parameter
+        const name = toCamelCase(rawName);
+
+        // Track folders for this parameter (by normalized name)
         if (!paramFolders.has(name)) paramFolders.set(name, new Set());
         for (const f of pathFolders) paramFolders.get(name)!.add(f);
 
@@ -519,16 +567,15 @@ function extractPathParameters(
 
         // OAS3: param.schema.type/format/example; Swagger 2: param.type/format/example
         const schema = param["schema"] as Record<string, unknown> | undefined;
-        const type = (schema?.["type"] ?? param["type"] ?? "string") as string;
+        const rawType = (schema?.["type"] ?? param["type"] ?? "string") as string;
         const format = (schema?.["format"] ?? param["format"]) as string | undefined;
         const example = (schema?.["example"] ?? param["example"]) as string | undefined;
-        const description = (param["description"] as string) ?? name;
+        const description = (param["description"] as string) ?? rawName;
 
         seen.set(name, {
           name,
-          description,
-          type,
-          ...(format ? { format } : {}),
+          description: description !== rawName ? description : name,
+          type: simplifyType(rawType, format),
           ...(example != null ? { example: String(example) } : {}),
         });
       }
