@@ -44,9 +44,20 @@ export function useVersionCheck() {
     };
   }, []);
 
-  const relaunch = useCallback(() => {
+  const relaunch = useCallback(async () => {
     // Remember this version so banner doesn't reappear after reload
     if (newVersion) localStorage.setItem(DISMISSED_KEY, newVersion);
+
+    // Hard refresh: clear all browser caches + unregister service workers
+    try {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map((name) => caches.delete(name)));
+    } catch { /* Cache API may not be available */ }
+    try {
+      const registrations = await navigator.serviceWorker?.getRegistrations();
+      if (registrations) await Promise.all(registrations.map((r) => r.unregister()));
+    } catch { /* SW API may not be available */ }
+
     window.location.reload();
   }, [newVersion]);
 
