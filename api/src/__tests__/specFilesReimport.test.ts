@@ -73,6 +73,7 @@ jest.mock("../lib/swaggerSplitter", () => ({
 }));
 
 jest.mock("../lib/specBatchHelpers", () => ({
+  batchDelete: jest.fn().mockResolvedValue({ deleted: 0, failed: 0 }),
   batchUpload: jest.fn().mockResolvedValue(undefined),
   batchDistillAll: jest.fn().mockResolvedValue([
     { file: "test-project/V3/articles/get-article.md", status: "distilled" },
@@ -104,6 +105,7 @@ jest.mock("@azure/functions", () => ({
 }));
 
 import * as blobClient from "../lib/blobClient";
+import * as specBatchHelpers from "../lib/specBatchHelpers";
 
 // Trigger module load (registers handler)
 require("../functions/specFilesReimport");
@@ -155,8 +157,8 @@ describe("POST /api/spec-files/reimport", () => {
     expect(body.suggestedVariables).toHaveLength(1);
     expect(body.suggestedConnections).toHaveLength(1);
 
-    // Verify blobs were deleted
-    expect(blobClient.deleteBlob).toHaveBeenCalled();
+    // Verify blobs were deleted via batchDelete
+    expect(specBatchHelpers.batchDelete).toHaveBeenCalled();
 
     // Verify skills and rules were re-uploaded
     const uploadCalls = (blobClient.uploadBlob as jest.Mock).mock.calls;
