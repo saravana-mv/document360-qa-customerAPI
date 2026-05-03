@@ -44,7 +44,7 @@ interface Props {
   onGenerateFlows: () => void;
   /** Generate flow for a single idea (from context menu) */
   onGenerateFlowForIdea: (id: string) => void;
-  onGenerateMore: (count: number, specFiles: string[], prompt?: string, destinationFolder?: string, harTrace?: string) => void;
+  onGenerateMore: (count: number, specFiles: string[], prompt?: string, destinationFolder?: string) => void;
   onDeleteSelected: (ids: Set<string>) => void;
   /** Per-row delete — removes a single idea (and its flow, if any) */
   onDeleteIdea: (id: string) => void;
@@ -471,9 +471,9 @@ export function FlowIdeasPanel({
         <GenerateIdeasModal
           folderPath={folderPath}
           currentMode={ideaMode}
-          onGenerate={(count, mode, specFiles, prompt, destFolder, harTrace) => {
+          onGenerate={(count, mode, specFiles, prompt, destFolder) => {
             onModeChange(mode);
-            onGenerateMore(count, specFiles, prompt, destFolder, harTrace);
+            onGenerateMore(count, specFiles, prompt, destFolder);
           }}
           onClose={() => setShowGenerateModal(false)}
           disabled={generatingFlows || !!appending}

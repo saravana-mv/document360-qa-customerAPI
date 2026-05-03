@@ -297,7 +297,7 @@ export function IdeasFlowsPage() {
 
   // ── Generate flow ideas (AI) ──────────────────────────────────────────────
 
-  async function handleGenerateFlowIdeas(contextPath: string, maxCount?: number, filePaths?: string[], prompt?: string, harTrace?: string) {
+  async function handleGenerateFlowIdeas(contextPath: string, maxCount?: number, filePaths?: string[], prompt?: string) {
     setSelectedFolderPath(contextPath);
 
     const existing = aggregateForPath(workshopMap, contextPath);
@@ -324,7 +324,7 @@ export function IdeasFlowsPage() {
       setIdeasLoading(true);
     }
     try {
-      const result = await generateFlowIdeas(contextPath, existingTitles, undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN, filePaths, ideaMode, prompt, undefined, harTrace);
+      const result = await generateFlowIdeas(contextPath, existingTitles, undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN, filePaths, ideaMode, prompt);
       const perIdeaCost = result.usage && result.ideas.length > 0
         ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
         : undefined;
@@ -389,7 +389,7 @@ export function IdeasFlowsPage() {
     }
   }
 
-  async function handleGenerateMoreIdeas(count?: number, specFiles?: string[], prompt?: string, destinationFolder?: string, harTrace?: string) {
+  async function handleGenerateMoreIdeas(count?: number, specFiles?: string[], prompt?: string, destinationFolder?: string) {
     const currentPath = destinationFolder ?? activePath;
     if (!currentPath) return;
     if (destinationFolder && destinationFolder !== activePath) selectFolder(destinationFolder);
@@ -398,7 +398,7 @@ export function IdeasFlowsPage() {
     setIdeasAppending(true);
     const existingTitles = ideas.map((i) => i.title);
     try {
-      const result = await generateFlowIdeas(currentPath, existingTitles, undefined, aiModel, count, specFiles, ideaMode, prompt, undefined, harTrace);
+      const result = await generateFlowIdeas(currentPath, existingTitles, undefined, aiModel, count, specFiles, ideaMode, prompt);
       if (result.ideas.length > 0) {
         const perIdeaCost = result.usage && result.ideas.length > 0
           ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
@@ -452,6 +452,96 @@ export function IdeasFlowsPage() {
     } catch (e) {
       setIdeasError(e instanceof Error ? e.message : String(e));
     } finally {
+      setIdeasAppending(false);
+    }
+  }
+
+  /** Separate HAR-based idea generation — passes harTrace directly to the API */
+  async function handleGenerateFromHar(contextPath: string, harTrace: string, specFiles?: string[]) {
+    setSelectedFolderPath(contextPath);
+    const existing = aggregateForPath(workshopMap, contextPath);
+    const existingTitles = existing.ideas.map(i => i.title);
+    setIdeasError(null);
+    setIdeasRawText(undefined);
+    setIdeasMessage(null);
+    setIdeasExhausted(false);
+    if (existing.ideas.length > 0) {
+      setIdeas(existing.ideas);
+      setIdeasUsage(existing.usage);
+      setFlowsUsage(existing.flowsUsage);
+      setGeneratedFlows(existing.generatedFlows.filter(f => f.status === "done" || f.status === "error"));
+      setIdeasAppending(true);
+    } else {
+      setIdeas([]);
+      setIdeasUsage(null);
+      setFlowsUsage(null);
+      setGeneratedFlows([]);
+      setSelectedIdeaIds(new Set());
+      setActiveIdeaId(null);
+      setActiveFlowId(null);
+      setIdeasLoading(true);
+    }
+    try {
+      const result = await generateFlowIdeas(contextPath, existingTitles, undefined, aiModel, 10, specFiles, ideaMode, undefined, undefined, harTrace);
+      const perIdeaCost = result.usage && result.ideas.length > 0
+        ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
+        : undefined;
+      const now = new Date().toISOString();
+      const base = Date.now();
+      const newIdeas = result.ideas.map((idea, i) => ({
+        ...idea,
+        id: `idea-${base}-${i}`,
+        costUsd: perIdeaCost,
+        createdAt: now,
+      }));
+      if (newIdeas.length > 0) {
+        setWorkshopMap(prev => {
+          const prevCtx = prev[contextPath];
+          const mergedIdeas = [...(prevCtx?.ideas ?? []), ...newIdeas];
+          const mergedUsage = result.usage && prevCtx?.usage
+            ? {
+                inputTokens: prevCtx.usage.inputTokens + result.usage.inputTokens,
+                outputTokens: prevCtx.usage.outputTokens + result.usage.outputTokens,
+                totalTokens: prevCtx.usage.totalTokens + result.usage.totalTokens,
+                costUsd: parseFloat((prevCtx.usage.costUsd + result.usage.costUsd).toFixed(6)),
+                filesAnalyzed: result.usage.filesAnalyzed,
+                totalSpecCharacters: result.usage.totalSpecCharacters,
+              }
+            : result.usage;
+          return {
+            ...prev,
+            [contextPath]: {
+              ideas: mergedIdeas,
+              usage: mergedUsage,
+              flowsUsage: prevCtx?.flowsUsage ?? null,
+              generatedFlows: prevCtx?.generatedFlows ?? [],
+            },
+          };
+        });
+      }
+      const allIdeas = [...existing.ideas, ...newIdeas];
+      setIdeas(allIdeas);
+      const mergedUsage = result.usage && existing.usage
+        ? {
+            inputTokens: existing.usage.inputTokens + result.usage.inputTokens,
+            outputTokens: existing.usage.outputTokens + result.usage.outputTokens,
+            totalTokens: existing.usage.totalTokens + result.usage.totalTokens,
+            costUsd: parseFloat((existing.usage.costUsd + result.usage.costUsd).toFixed(6)),
+            filesAnalyzed: result.usage.filesAnalyzed,
+            totalSpecCharacters: result.usage.totalSpecCharacters,
+          }
+        : result.usage;
+      setIdeasUsage(mergedUsage);
+      if (newIdeas.length < 10) setIdeasExhausted(true);
+      if (result.parseError && result.rawText) setIdeasRawText(result.rawText);
+      if (newIdeas.length === 0) {
+        setIdeasMessage(result.message || "AI could not generate any test flow ideas from the HAR recording.");
+      }
+    } catch (e) {
+      console.error("[IdeasFlows] generateFromHar failed", e);
+      setIdeasError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setIdeasLoading(false);
       setIdeasAppending(false);
     }
   }
@@ -1204,7 +1294,6 @@ export function IdeasFlowsPage() {
                 onDeleteFolder={handleDeleteFolder}
                 onGenerateIdeas={(path) => { selectFolder(path); setShowNewIdeasModal(true); }}
                 onGenerateIdeasChat={(path) => { selectFolder(path); setShowIdeasChat(true); }}
-                onGenerateFromHar={(path) => { selectFolder(path); setShowHarModal(true); }}
                 expandAll={treeExpandAll}
                 sortAZ={treeSortAZ}
                 rearrangeMode={treeRearrangeMode}
@@ -1239,7 +1328,7 @@ export function IdeasFlowsPage() {
                 <button
                   onClick={() => setShowIdeasChat(true)}
                   title="Create ideas interactively via chat"
-                  className="inline-flex items-center gap-1 text-sm font-medium text-[#656d76] hover:text-[#1f2328] px-2 py-1 rounded-md hover:bg-[#f6f8fa] transition-colors shrink-0"
+                  className="inline-flex items-center gap-1 text-sm font-medium text-[#0969da] hover:text-[#0860ca] px-2 py-1 rounded-md hover:bg-[#ddf4ff] transition-colors shrink-0"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
@@ -1250,7 +1339,7 @@ export function IdeasFlowsPage() {
                 <button
                   onClick={() => setShowHarModal(true)}
                   title="Generate ideas from a HAR recording"
-                  className="inline-flex items-center gap-1 text-sm font-medium text-[#656d76] hover:text-[#1f2328] px-2 py-1 rounded-md hover:bg-[#f6f8fa] transition-colors shrink-0"
+                  className="inline-flex items-center gap-1 text-sm font-medium text-[#0969da] hover:text-[#0860ca] px-2 py-1 rounded-md hover:bg-[#ddf4ff] transition-colors shrink-0"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
@@ -1415,7 +1504,7 @@ export function IdeasFlowsPage() {
                       <button
                         onClick={() => setShowHarModal(true)}
                         title="Generate ideas from a HAR recording"
-                        className="inline-flex items-center justify-center gap-1.5 w-40 bg-white hover:bg-[#f6f8fa] text-[#1f2328] text-sm font-medium rounded-md px-3 py-2 transition-colors border border-[#d1d9e0]"
+                        className="inline-flex items-center justify-center gap-1.5 w-40 bg-[#1f883d] hover:bg-[#1a7f37] text-white text-sm font-medium rounded-md px-3 py-2 transition-colors border border-[#1f883d]/80"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
@@ -1427,11 +1516,11 @@ export function IdeasFlowsPage() {
                           folderPath={activePath!}
 
                           currentMode={ideaMode}
-                          onGenerate={(count, mode, specFiles, prompt, destFolder, harTrace) => {
+                          onGenerate={(count, mode, specFiles, prompt, destFolder) => {
                             const targetPath = destFolder ?? activePath!;
                             setIdeaMode(mode);
                             if (destFolder && destFolder !== activePath) selectFolder(destFolder);
-                            void handleGenerateFlowIdeas(targetPath, count, specFiles, prompt, harTrace);
+                            void handleGenerateFlowIdeas(targetPath, count, specFiles, prompt);
                           }}
                           onClose={() => setShowLandingModal(false)}
                         />
@@ -1495,11 +1584,11 @@ export function IdeasFlowsPage() {
         <GenerateIdeasModal
           folderPath={activePath!}
           currentMode={ideaMode}
-          onGenerate={(count, mode, specFiles, prompt, destFolder, harTrace) => {
+          onGenerate={(count, mode, specFiles, prompt, destFolder) => {
             const targetPath = destFolder ?? activePath!;
             setIdeaMode(mode);
             if (destFolder && destFolder !== activePath) selectFolder(destFolder);
-            void handleGenerateFlowIdeas(targetPath, count, specFiles, prompt, harTrace);
+            void handleGenerateFlowIdeas(targetPath, count, specFiles, prompt);
           }}
           onClose={() => setShowNewIdeasModal(false)}
         />
@@ -1533,7 +1622,7 @@ export function IdeasFlowsPage() {
           onGenerate={(destFolder, harTrace, specFiles) => {
             const targetPath = destFolder || activePath!;
             if (destFolder && destFolder !== activePath) selectFolder(destFolder);
-            void handleGenerateFlowIdeas(targetPath, 10, specFiles, undefined, harTrace);
+            void handleGenerateFromHar(targetPath, harTrace, specFiles);
           }}
           onClose={() => setShowHarModal(false)}
         />
@@ -1574,13 +1663,8 @@ const chatIcon = (
   </svg>
 );
 
-const harIcon = (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-  </svg>
-);
 
-function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, onSelectFolder, onCreateSubfolder, onRenameFolder, onDeleteFolder, onGenerateIdeas, onGenerateIdeasChat, onGenerateFromHar, expandAll, sortAZ, rearrangeMode, depth = 0 }: {
+function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, onSelectFolder, onCreateSubfolder, onRenameFolder, onDeleteFolder, onGenerateIdeas, onGenerateIdeasChat, expandAll, sortAZ, rearrangeMode, depth = 0 }: {
   folders: IdeaFolderDoc[];
   parentPath: string | null;
   selectedPath: string | null;
@@ -1591,7 +1675,6 @@ function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, 
   onDeleteFolder: (id: string, path: string) => void;
   onGenerateIdeas?: (path: string) => void;
   onGenerateIdeasChat?: (path: string) => void;
-  onGenerateFromHar?: (path: string) => void;
   expandAll?: boolean;
   sortAZ?: boolean;
   rearrangeMode?: boolean;
@@ -1685,7 +1768,6 @@ function IdeaFolderNavTree({ folders, parentPath, selectedPath, pathsWithIdeas, 
         const menuItems: MenuItem[] = [
           { label: "Generate ideas", icon: MenuIcons.sparkle, onClick: () => onGenerateIdeas?.(folder.path) },
           { label: "Ideas chat", icon: chatIcon, onClick: () => onGenerateIdeasChat?.(folder.path) },
-          { label: "From HAR", icon: harIcon, onClick: () => onGenerateFromHar?.(folder.path) },
           "separator",
           { label: "Rename", icon: MenuIcons.rename, onClick: () => onRenameFolder(folder.id, folder.name) },
           { label: "New subfolder", icon: MenuIcons.folder, onClick: () => onCreateSubfolder(folder.path) },

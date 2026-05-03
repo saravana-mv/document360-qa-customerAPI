@@ -6,7 +6,7 @@ import { useIdeaFoldersStore } from "../../store/ideaFolders.store";
 
 interface Props {
   folderPath: string;
-  onGenerate: (count: number, mode: IdeaMode, specFiles: string[], prompt?: string, destinationFolder?: string, harTrace?: string) => void;
+  onGenerate: (count: number, mode: IdeaMode, specFiles: string[], prompt?: string, destinationFolder?: string) => void;
   onClose: () => void;
   currentMode: IdeaMode;
   disabled?: boolean;
