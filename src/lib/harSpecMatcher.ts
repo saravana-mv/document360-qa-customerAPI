@@ -11,6 +11,13 @@ interface HarCallContext {
   actionKeywords: string[];
 }
 
+/** Common CRUD / generic verbs that match too many spec files — exclude from keywords */
+const STOP_WORDS = new Set([
+  "get", "set", "add", "put", "post", "patch", "delete", "remove",
+  "list", "create", "update", "fetch", "find", "search", "all",
+  "by", "the", "for", "from", "with", "project", "setting", "settings",
+]);
+
 /**
  * Given HAR API calls and a list of all spec file paths,
  * returns the subset of spec files that are relevant to the HAR calls.
@@ -76,14 +83,10 @@ function parseCallContext(call: ParsedApiCall): HarCallContext {
   const keywords = new Set<string>();
 
   for (const seg of actionSegments) {
-    const lower = seg.toLowerCase();
-    // Full segment as keyword (lowercased, kebab-stripped)
-    keywords.add(lower.replace(/-/g, ""));
-
-    // Split on camelCase boundaries and hyphens, keep words > 2 chars
+    // Split on camelCase boundaries and hyphens, keep words > 2 chars, drop stop words
     const subWords = splitCamelAndHyphen(seg)
       .map(w => w.toLowerCase())
-      .filter(w => w.length > 2);
+      .filter(w => w.length > 2 && !STOP_WORDS.has(w));
 
     for (const w of subWords) {
       keywords.add(w);
