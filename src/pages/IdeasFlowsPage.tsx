@@ -1530,10 +1530,10 @@ export function IdeasFlowsPage() {
       {showHarModal && (
         <GenerateFromHarModal
           folderPath={activePath ?? ""}
-          onGenerate={(destFolder, harTrace) => {
+          onGenerate={(destFolder, harTrace, specFiles) => {
             const targetPath = destFolder || activePath!;
             if (destFolder && destFolder !== activePath) selectFolder(destFolder);
-            void handleGenerateFlowIdeas(targetPath, 10, undefined, undefined, harTrace);
+            void handleGenerateFlowIdeas(targetPath, 10, specFiles, undefined, harTrace);
           }}
           onClose={() => setShowHarModal(false)}
         />
