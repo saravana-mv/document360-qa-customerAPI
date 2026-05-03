@@ -595,16 +595,18 @@ function TreeNodeRow({
 
 // ── Delete confirmation modal ─────────────────────────────────────────────────
 
-function DeleteConfirmModal({ node, confirmText, onConfirmTextChange, onConfirm, onCancel }: {
+function DeleteConfirmModal({ node, confirmText, onConfirmTextChange, onConfirm, onCancel, deleting, error }: {
   node: TreeNode;
   confirmText: string;
   onConfirmTextChange: (v: string) => void;
   onConfirm: () => void;
   onCancel: () => void;
+  deleting: boolean;
+  error: string | null;
 }) {
   const isVersionFolder = node.type === "folder" && !node.path.includes("/");
   const needsTypedConfirm = isVersionFolder;
-  const canConfirm = needsTypedConfirm ? confirmText === node.name : true;
+  const canConfirm = !deleting && (needsTypedConfirm ? confirmText === node.name : true);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }}>
@@ -613,28 +615,49 @@ function DeleteConfirmModal({ node, confirmText, onConfirmTextChange, onConfirm,
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid #d1d9e0" }}>
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-[#ffebe9] flex items-center justify-center">
-              <svg className="w-4 h-4 text-[#d1242f]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-              </svg>
+              {deleting ? (
+                <svg className="w-4 h-4 text-[#d1242f] animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4 text-[#d1242f]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                </svg>
+              )}
             </div>
             <h2 className="text-sm font-semibold text-[#1f2328]">
-              {isVersionFolder ? "Delete version folder" : node.type === "folder" ? "Delete folder" : "Delete file"}
+              {deleting
+                ? `Deleting ${node.name}…`
+                : isVersionFolder ? "Delete version folder" : node.type === "folder" ? "Delete folder" : "Delete file"}
             </h2>
           </div>
-          <button
-            onClick={onCancel}
-            className="p-1.5 rounded-md text-[#656d76] hover:text-[#1f2328] hover:bg-[#f6f8fa] transition-colors"
-            title="Close"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
+          {!deleting && (
+            <button
+              onClick={onCancel}
+              className="p-1.5 rounded-md text-[#656d76] hover:text-[#1f2328] hover:bg-[#f6f8fa] transition-colors"
+              title="Close"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Body */}
         <div className="px-5 py-4 space-y-3">
-          {isVersionFolder ? (
+          {deleting ? (
+            <div className="flex items-center gap-3 py-2">
+              <svg className="w-5 h-5 text-[#656d76] animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <p className="text-sm text-[#656d76]">
+                Deleting all files in <strong className="text-[#1f2328]">{node.name}</strong>… This may take a moment for large folders.
+              </p>
+            </div>
+          ) : isVersionFolder ? (
             <>
               <p className="text-sm text-[#1f2328]">
                 This will permanently delete <strong>{node.name}</strong> and all its contents including spec files, distilled specs, and system files.
@@ -658,24 +681,37 @@ function DeleteConfirmModal({ node, confirmText, onConfirmTextChange, onConfirm,
               Are you sure you want to delete <strong>{node.name}</strong>{node.type === "folder" ? " and all its contents" : ""}? This action cannot be undone.
             </p>
           )}
+
+          {error && (
+            <div className="flex items-start gap-2 text-sm text-[#d1242f] bg-[#ffebe9] rounded-md px-3 py-2">
+              <svg className="w-4 h-4 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M2.343 13.657A8 8 0 1 1 13.66 2.343 8 8 0 0 1 2.343 13.657ZM6.03 4.97a.751.751 0 0 0-1.042.018.751.751 0 0 0-.018 1.042L6.94 8 4.97 9.97a.749.749 0 0 0 .326 1.275.749.749 0 0 0 .734-.215L8 9.06l1.97 1.97a.749.749 0 0 0 1.275-.326.749.749 0 0 0-.215-.734L9.06 8l1.97-1.97a.749.749 0 0 0-.326-1.275.749.749 0 0 0-.734.215L8 6.94Z" />
+              </svg>
+              <span>{error}</span>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 px-5 py-4" style={{ borderTop: "1px solid #d1d9e0" }}>
-          <button
-            onClick={onCancel}
-            className="text-sm font-medium text-[#656d76] hover:text-[#1f2328] px-3 py-1.5 rounded-md hover:bg-[#f6f8fa] transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={!canConfirm}
-            className="text-sm font-medium text-white px-4 py-1.5 rounded-md transition-colors disabled:opacity-40"
-            style={{ background: canConfirm ? "#d1242f" : "#d1242f" }}
-          >
-            Delete
-          </button>
+          {!deleting && (
+            <>
+              <button
+                onClick={onCancel}
+                className="text-sm font-medium text-[#656d76] hover:text-[#1f2328] px-3 py-1.5 rounded-md hover:bg-[#f6f8fa] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onConfirm}
+                disabled={!canConfirm}
+                className="text-sm font-medium text-white px-4 py-1.5 rounded-md transition-colors disabled:opacity-40"
+                style={{ background: "#d1242f" }}
+              >
+                Delete
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -769,6 +805,8 @@ export function FileTree({
   const [creatingUnder, setCreatingUnder] = useState<string | null>(null);
   const [deletingNode, setDeletingNode] = useState<TreeNode | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteInProgress, setDeleteInProgress] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Per-folder sort order (persisted)
   const [folderSortOrder, setFolderSortOrder] = useState<Record<string, SortOrder>>(() => {
@@ -835,14 +873,24 @@ export function FileTree({
   function handleDeleteNode(node: TreeNode) {
     setDeletingNode(node);
     setDeleteConfirmText("");
+    setDeleteInProgress(false);
+    setDeleteError(null);
   }
 
   async function confirmDelete() {
     if (!deletingNode) return;
-    setDeletingNode(null);
-    setDeleteConfirmText("");
-    if (deletingNode.type === "folder") await onDeleteFolder(deletingNode.path);
-    else await onDeleteFile(deletingNode.path);
+    setDeleteInProgress(true);
+    setDeleteError(null);
+    try {
+      if (deletingNode.type === "folder") await onDeleteFolder(deletingNode.path);
+      else await onDeleteFile(deletingNode.path);
+      setDeletingNode(null);
+      setDeleteConfirmText("");
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleteInProgress(false);
+    }
   }
 
   // ── Drag handlers ───────────────────────────────────────────────────────────
@@ -1134,7 +1182,9 @@ export function FileTree({
           confirmText={deleteConfirmText}
           onConfirmTextChange={setDeleteConfirmText}
           onConfirm={() => void confirmDelete()}
-          onCancel={() => { setDeletingNode(null); setDeleteConfirmText(""); }}
+          onCancel={() => { setDeletingNode(null); setDeleteConfirmText(""); setDeleteError(null); }}
+          deleting={deleteInProgress}
+          error={deleteError}
         />
       )}
     </div>
