@@ -368,7 +368,7 @@ export function ImportResultModal({
                 <SortableHeader label="Folder" sortKey="folder" currentKey={varSortKey} dir={varSortDir} onClick={handleVarSort} className="flex-1" />
                 <ColumnResizer onResize={(delta) => setFolderColWidth(w => Math.max(80, w + delta))} />
               </div>
-              <SortableHeader label="Type" sortKey="type" currentKey={varSortKey} dir={varSortDir} onClick={handleVarSort} className="flex-1 min-w-[60px]" />
+              <SortableHeader label="Type" sortKey="type" currentKey={varSortKey} dir={varSortDir} onClick={handleVarSort} className="w-[70px] shrink-0" />
             </div>
 
             {/* Scrollable rows */}
@@ -387,8 +387,8 @@ export function ImportResultModal({
                     />
                   </span>
                   <span className="text-sm font-mono text-[#1f2328] truncate py-2 pr-2" style={{ width: nameColWidth }} title={v.name}>{v.name}</span>
-                  <span className="text-sm text-[#656d76] truncate py-2 pr-2" style={{ width: folderColWidth }} title={folderLabel(v)}>{folderLabel(v)}</span>
-                  <span className="text-sm text-[#656d76] flex-1 min-w-[60px] py-2 pr-3">{v.type}</span>
+                  <span className="text-sm text-[#656d76] truncate py-2 pr-2 flex-1" style={{ minWidth: folderColWidth }} title={folderLabel(v)}>{folderLabel(v)}</span>
+                  <span className="text-sm text-[#656d76] w-[70px] shrink-0 py-2 pr-3">{v.type}</span>
                 </label>
               ))}
               {filteredExistingVars.map(v => (
@@ -401,7 +401,7 @@ export function ImportResultModal({
                   </span>
                   <span className="text-sm font-mono text-[#656d76] truncate py-2 pr-2" style={{ width: nameColWidth }}>{v.name}</span>
                   <span className="text-xs text-[#656d76] italic py-2 pr-2" style={{ width: folderColWidth }}>(already exists)</span>
-                  <span className="text-sm text-[#656d76] flex-1 min-w-[60px] py-2 pr-3">{v.type}</span>
+                  <span className="text-sm text-[#656d76] w-[70px] shrink-0 py-2 pr-3">{v.type}</span>
                 </label>
               ))}
               {filteredNewVars.length === 0 && filteredExistingVars.length === 0 && varSearch && (
@@ -411,6 +411,7 @@ export function ImportResultModal({
               )}
             </div>
           </div>
+          <p className="text-xs text-[#656d76] mt-2 italic">NOTE: Path parameters are standardized to camelCase</p>
         </div>
       )}
 

@@ -515,7 +515,7 @@ function extractPathParameters(
   paths: Record<string, Record<string, unknown>>,
   spec: Record<string, unknown>,
 ): SuggestedVariable[] {
-  // Keyed by normalized (camelCase) name
+  // Keyed by lowercase name for case-insensitive dedup
   const seen = new Map<string, SuggestedVariable>();
   const paramFolders = new Map<string, Set<string>>();
 
@@ -558,12 +558,21 @@ function extractPathParameters(
         if (!rawName) continue;
 
         const name = toCamelCase(rawName);
+        const key = name.toLowerCase(); // case-insensitive dedup
 
-        // Track folders for this parameter (by normalized name)
-        if (!paramFolders.has(name)) paramFolders.set(name, new Set());
-        for (const f of pathFolders) paramFolders.get(name)!.add(f);
+        // Track folders for this parameter (by lowercase key)
+        if (!paramFolders.has(key)) paramFolders.set(key, new Set());
+        for (const f of pathFolders) paramFolders.get(key)!.add(f);
 
-        if (seen.has(name)) continue;
+        if (seen.has(key)) {
+          // Prefer the variant with mixed case (proper camelCase word boundaries)
+          const existing = seen.get(key)!;
+          if (existing.name === existing.name.toLowerCase() && name !== name.toLowerCase()) {
+            existing.name = name;
+            existing.description = existing.description === existing.name ? name : existing.description;
+          }
+          continue;
+        }
 
         // OAS3: param.schema.type/format/example; Swagger 2: param.type/format/example
         const schema = param["schema"] as Record<string, unknown> | undefined;
@@ -572,7 +581,7 @@ function extractPathParameters(
         const example = (schema?.["example"] ?? param["example"]) as string | undefined;
         const description = (param["description"] as string) ?? rawName;
 
-        seen.set(name, {
+        seen.set(key, {
           name,
           description: description !== rawName ? description : name,
           type: simplifyType(rawType, format),
@@ -583,8 +592,8 @@ function extractPathParameters(
   }
 
   // Attach folder lists
-  for (const [name, variable] of seen) {
-    const folders = paramFolders.get(name);
+  for (const [key, variable] of seen) {
+    const folders = paramFolders.get(key);
     if (folders && folders.size > 0) {
       variable.folders = Array.from(folders).sort();
     }
