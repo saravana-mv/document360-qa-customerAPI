@@ -24,6 +24,8 @@ interface SetupState {
   delayBetweenStepsMs: number;
   /** Delay (ms) between scenarios. 0 = no delay. */
   delayBetweenScenariosMs: number;
+  /** Pre-configured base URL for HAR file filtering. Empty = show dropdown. */
+  harBaseUrl: string;
   loadingProjects: boolean;
   /** True while loading settings from server on first auth */
   settingsLoaded: boolean;
@@ -35,6 +37,7 @@ interface SetupState {
   setAiModel: (model: AiModelId) => void;
   setDelayBetweenStepsMs: (ms: number) => void;
   setDelayBetweenScenariosMs: (ms: number) => void;
+  setHarBaseUrl: (url: string) => void;
   setLoadingProjects: (v: boolean) => void;
   setError: (error: string | null) => void;
   /** Call once after Entra auth is confirmed — loads settings from Cosmos */
@@ -71,6 +74,7 @@ function persistLocal(state: Partial<SetupState>) {
       aiModel: state.aiModel ?? DEFAULT_AI_MODEL,
       delayBetweenStepsMs: state.delayBetweenStepsMs ?? 0,
       delayBetweenScenariosMs: state.delayBetweenScenariosMs ?? 0,
+      harBaseUrl: state.harBaseUrl ?? "",
     }));
   } catch { /* quota exceeded — ignore */ }
 }
@@ -83,6 +87,7 @@ function persistServer(state: Partial<SetupState>) {
     aiModel: state.aiModel ?? DEFAULT_AI_MODEL,
     delayBetweenStepsMs: state.delayBetweenStepsMs ?? 0,
     delayBetweenScenariosMs: state.delayBetweenScenariosMs ?? 0,
+    harBaseUrl: state.harBaseUrl ?? "",
   }).catch((e) => console.warn("[setup.store] Failed to save settings:", e));
 }
 
@@ -99,6 +104,7 @@ export const useSetupStore = create<SetupState>((set, get) => ({
   aiModel: (AI_MODELS.some((m) => m.id === cached.aiModel) ? (cached.aiModel as AiModelId) : DEFAULT_AI_MODEL),
   delayBetweenStepsMs: typeof cached.delayBetweenStepsMs === "number" ? (cached.delayBetweenStepsMs as number) : 0,
   delayBetweenScenariosMs: typeof cached.delayBetweenScenariosMs === "number" ? (cached.delayBetweenScenariosMs as number) : 0,
+  harBaseUrl: (cached.harBaseUrl as string) || "",
   loadingProjects: false,
   settingsLoaded: false,
   error: null,
@@ -131,6 +137,10 @@ export const useSetupStore = create<SetupState>((set, get) => ({
   setDelayBetweenScenariosMs: (delayBetweenScenariosMs) => {
     set({ delayBetweenScenariosMs });
     persist({ ...get(), delayBetweenScenariosMs });
+  },
+  setHarBaseUrl: (harBaseUrl) => {
+    set({ harBaseUrl });
+    persist({ ...get(), harBaseUrl });
   },
 
   setLoadingProjects: (v) => set({ loadingProjects: v }),
@@ -165,6 +175,9 @@ export const useSetupStore = create<SetupState>((set, get) => ({
       }
       if (typeof remote.delayBetweenScenariosMs === "number") {
         updates.delayBetweenScenariosMs = remote.delayBetweenScenariosMs as number;
+      }
+      if (remote.harBaseUrl) {
+        updates.harBaseUrl = remote.harBaseUrl as string;
       }
 
       set({ ...updates, settingsLoaded: true });

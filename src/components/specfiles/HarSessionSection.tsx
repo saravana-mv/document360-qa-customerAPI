@@ -5,9 +5,11 @@ interface HarSessionSectionProps {
   harResult: HarParseResult | null;
   onHarLoaded: (result: HarParseResult) => void;
   onHarRemoved: () => void;
+  /** When set, auto-filter to this URL and skip the base URL dropdown. */
+  forceBaseUrl?: string;
 }
 
-export function HarSessionSection({ harResult, onHarLoaded, onHarRemoved }: HarSessionSectionProps) {
+export function HarSessionSection({ harResult, onHarLoaded, onHarRemoved, forceBaseUrl }: HarSessionSectionProps) {
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +26,7 @@ export function HarSessionSection({ harResult, onHarLoaded, onHarRemoved }: HarS
       const text = await file.text();
       setRawJson(text);
       setFileName(file.name);
-      const result = parseAndFilter(text);
+      const result = parseAndFilter(text, forceBaseUrl || undefined);
       setSelectedBase(result.baseUrlUsed);
       onHarLoaded(result);
       setExpanded(true);
@@ -146,8 +148,8 @@ export function HarSessionSection({ harResult, onHarLoaded, onHarRemoved }: HarS
                 </button>
               </div>
 
-              {/* Base URL selector */}
-              {harResult.detectedBaseUrls.length > 1 && (
+              {/* Base URL selector — hidden when forceBaseUrl is configured */}
+              {!forceBaseUrl && harResult.detectedBaseUrls.length > 1 && (
                 <div>
                   <label className="text-xs text-[#656d76] block mb-1">Base URL filter</label>
                   <select

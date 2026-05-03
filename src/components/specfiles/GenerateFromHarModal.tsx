@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import type { HarParseResult } from "../../lib/harParser";
+import { compactTrace } from "../../lib/harParser";
 import { matchHarToSpecs } from "../../lib/harSpecMatcher";
 import { listSpecFiles } from "../../lib/api/specFilesApi";
 import { HarSessionSection } from "./HarSessionSection";
 import { SpecFilePicker } from "./SpecFilePicker";
 import { useIdeaFoldersStore } from "../../store/ideaFolders.store";
+import { useSetupStore } from "../../store/setup.store";
 
 interface Props {
   folderPath: string;
@@ -19,44 +21,90 @@ export function GenerateFromHarModal({ folderPath, onGenerate, onClose, disabled
   const [specFiles, setSpecFiles] = useState<string[]>([]);
   const [matching, setMatching] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
+  const [selectedCallIndices, setSelectedCallIndices] = useState<Set<number>>(new Set());
+  const [allSpecPaths, setAllSpecPaths] = useState<string[]>([]);
 
+  const harBaseUrl = useSetupStore((s) => s.harBaseUrl);
   const folders = useIdeaFoldersStore((s) => s.folders);
   const folderOptions = buildFolderOptions(folders);
 
-  const canGenerate = !!harResult && !!destinationFolder;
+  // Derived: selected API calls
+  const selectedCalls = useMemo(() => {
+    if (!harResult) return [];
+    return harResult.apiCalls.filter((_, i) => selectedCallIndices.has(i));
+  }, [harResult, selectedCallIndices]);
 
-  async function handleHarLoaded(result: HarParseResult) {
+  const canGenerate = !!harResult && !!destinationFolder && selectedCalls.length > 0;
+
+  // Re-run spec matching when selected calls change
+  useEffect(() => {
+    if (selectedCalls.length === 0 || allSpecPaths.length === 0) {
+      setSpecFiles([]);
+      return;
+    }
+    const matched = matchHarToSpecs(selectedCalls, allSpecPaths);
+    setSpecFiles(matched);
+  }, [selectedCalls, allSpecPaths]);
+
+  const handleHarLoaded = useCallback(async (result: HarParseResult) => {
     setHarResult(result);
-    // Auto-match spec files from HAR API calls
+    // Select all calls by default
+    setSelectedCallIndices(new Set(result.apiCalls.map((_, i) => i)));
+    // Load spec files for matching
     setMatching(true);
     try {
       const allFiles = await listSpecFiles();
-      const allPaths = allFiles.map(f => f.name);
-      const matched = matchHarToSpecs(result.apiCalls, allPaths);
+      const paths = allFiles.map(f => f.name);
+      setAllSpecPaths(paths);
+      const matched = matchHarToSpecs(result.apiCalls, paths);
       setSpecFiles(matched);
     } catch {
-      // If listing fails, leave specFiles empty — user can still pick manually
+      // If listing fails, leave specFiles empty
     } finally {
       setMatching(false);
     }
-  }
+  }, []);
 
-  function handleHarRemoved() {
+  const handleHarRemoved = useCallback(() => {
     setHarResult(null);
     setSpecFiles([]);
-  }
+    setSelectedCallIndices(new Set());
+    setAllSpecPaths([]);
+  }, []);
 
   function handleSubmit() {
     if (!canGenerate) return;
-    onGenerate(destinationFolder, harResult!.trace, specFiles.length > 0 ? specFiles : undefined);
+    // Rebuild trace from selected calls only
+    const trace = compactTrace(selectedCalls);
+    onGenerate(destinationFolder, trace, specFiles.length > 0 ? specFiles : undefined);
     onClose();
   }
+
+  function toggleCall(index: number) {
+    setSelectedCallIndices(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (!harResult) return;
+    if (selectedCallIndices.size === harResult.apiCalls.length) {
+      setSelectedCallIndices(new Set());
+    } else {
+      setSelectedCallIndices(new Set(harResult.apiCalls.map((_, i) => i)));
+    }
+  }
+
+  const allSelected = harResult ? selectedCallIndices.size === harResult.apiCalls.length : false;
 
   return (
     <>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
       <div
-        className="w-[480px] max-w-[92vw] bg-white rounded-2xl shadow-xl border border-[#d1d9e0]/70 overflow-hidden"
+        className="w-[520px] max-w-[92vw] bg-white rounded-2xl shadow-xl border border-[#d1d9e0]/70 overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -103,7 +151,60 @@ export function GenerateFromHarModal({ folderPath, onGenerate, onClose, disabled
             harResult={harResult}
             onHarLoaded={handleHarLoaded}
             onHarRemoved={handleHarRemoved}
+            forceBaseUrl={harBaseUrl || undefined}
           />
+
+          {/* HAR Call Picker */}
+          {harResult && harResult.apiCalls.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-sm font-medium text-[#656d76]">Select API calls</label>
+                <span className="text-xs text-[#656d76]">
+                  {selectedCallIndices.size} of {harResult.apiCalls.length} calls
+                </span>
+              </div>
+              <div className="border border-[#d1d9e0] rounded-lg overflow-hidden">
+                {/* Select all header */}
+                <button
+                  onClick={toggleAll}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 bg-[#f6f8fa] border-b border-[#d1d9e0] text-xs text-[#656d76] hover:bg-[#eef1f6] transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    readOnly
+                    className="w-3.5 h-3.5 rounded border-[#d1d9e0] text-[#0969da] accent-[#0969da]"
+                  />
+                  <span>{allSelected ? "Deselect all" : "Select all"}</span>
+                </button>
+                {/* Call list */}
+                <div className="max-h-[200px] overflow-y-auto divide-y divide-[#d1d9e0]/50">
+                  {harResult.apiCalls.map((call, i) => (
+                    <label
+                      key={i}
+                      className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors hover:bg-[#f6f8fa] ${
+                        selectedCallIndices.has(i) ? "bg-white" : "bg-[#f6f8fa]/50 opacity-60"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedCallIndices.has(i)}
+                        onChange={() => toggleCall(i)}
+                        className="w-3.5 h-3.5 rounded border-[#d1d9e0] text-[#0969da] accent-[#0969da] shrink-0"
+                      />
+                      <MethodBadge method={call.method} />
+                      <span className="text-xs text-[#1f2328] truncate flex-1 font-mono">
+                        {call.pathTemplate}
+                      </span>
+                      <span className={`text-xs shrink-0 ${call.status < 400 ? "text-[#1a7f37]" : "text-[#d1242f]"}`}>
+                        {call.status}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Auto-matched spec files */}
           {harResult && (
@@ -171,6 +272,23 @@ export function GenerateFromHarModal({ folderPath, onGenerate, onClose, disabled
       />
     )}
     </>
+  );
+}
+
+/** Method badge with color coding */
+function MethodBadge({ method }: { method: string }) {
+  const colors: Record<string, string> = {
+    GET: "bg-[#ddf4ff] text-[#0969da]",
+    POST: "bg-[#dafbe1] text-[#1a7f37]",
+    PUT: "bg-[#fff8c5] text-[#9a6700]",
+    PATCH: "bg-[#fff8c5] text-[#9a6700]",
+    DELETE: "bg-[#ffebe9] text-[#d1242f]",
+  };
+  const cls = colors[method] ?? "bg-[#f6f8fa] text-[#656d76]";
+  return (
+    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${cls} shrink-0 w-12 text-center`}>
+      {method}
+    </span>
   );
 }
 

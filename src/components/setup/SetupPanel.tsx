@@ -121,6 +121,17 @@ export function SetupPanel() {
     setTimeout(() => setRunSettingsSaved(false), 2000);
   }
 
+  // ── HAR recording settings ──────────────────────────────────────────
+  const [draftHarBaseUrl, setDraftHarBaseUrl] = useState(setup.harBaseUrl);
+  const [harSaved, setHarSaved] = useState(false);
+  const harDirty = draftHarBaseUrl !== setup.harBaseUrl;
+
+  function saveHarSettings() {
+    setup.setHarBaseUrl(draftHarBaseUrl.replace(/\/$/, ""));
+    setHarSaved(true);
+    setTimeout(() => setHarSaved(false), 2000);
+  }
+
   // ── Reset project state ─────────────────────────────────────────────
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -269,6 +280,42 @@ export function SetupPanel() {
               Save
             </button>
             {runSettingsSaved && (
+              <span className="text-xs text-[#1a7f37] font-medium">Saved</span>
+            )}
+          </div>
+        </AccordionSection>
+
+        {/* ── HAR recording ──────────────────────────── */}
+        <AccordionSection
+          title="HAR recording"
+          description="Pre-configure the API base URL for HAR file filtering."
+          open={!!openSections.har}
+          onToggle={() => toggle("har")}
+        >
+          <div className="mt-3">
+            <label className="block text-sm font-medium text-[#1f2328] mb-1">
+              API Base URL for HAR filtering
+            </label>
+            <input
+              type="url"
+              placeholder="https://portal.document360.io"
+              value={draftHarBaseUrl}
+              onChange={(e) => { setDraftHarBaseUrl(e.target.value); setHarSaved(false); }}
+              className="w-full px-3 py-[7px] border border-[#d1d9e0] rounded-md text-sm bg-[#f6f8fa] focus:bg-white text-[#1f2328] outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da]/30"
+            />
+            <p className="text-xs text-[#656d76] mt-1">
+              Enter the base URL of your API. HAR recordings will auto-filter to this URL, skipping the dropdown. Leave empty to choose each time.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 mt-4">
+            <button
+              onClick={saveHarSettings}
+              disabled={!harDirty}
+              className="px-3 py-[6px] text-sm font-medium text-white bg-[#1a7f37] border border-[#1f883d]/80 rounded-md hover:bg-[#1a7f37]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Save
+            </button>
+            {harSaved && (
               <span className="text-xs text-[#1a7f37] font-medium">Saved</span>
             )}
           </div>
