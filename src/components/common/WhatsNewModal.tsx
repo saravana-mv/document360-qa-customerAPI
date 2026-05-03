@@ -8,7 +8,7 @@ interface ChangelogEntry {
 
 interface Props {
   newVersion: string;
-  currentVersion: string;
+  currentVersion?: string;
   onRelaunch: () => void;
   onClose: () => void;
 }
@@ -26,10 +26,10 @@ const TYPE_STYLES: Record<string, { label: string; bg: string; text: string }> =
   improvement: { label: "Improved",    bg: "#dafbe1", text: "#1a7f37" },
 };
 
-export function WhatsNewModal({ newVersion, currentVersion, onRelaunch, onClose }: Props) {
+export function WhatsNewModal({ newVersion, onRelaunch, onClose }: Props) {
   const [allEntries, setAllEntries] = useState<ChangelogEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const currentBuild = useMemo(() => extractBuild(currentVersion), [currentVersion]);
+  const newBuild = useMemo(() => extractBuild(newVersion), [newVersion]);
 
   useEffect(() => {
     (async () => {
@@ -44,10 +44,10 @@ export function WhatsNewModal({ newVersion, currentVersion, onRelaunch, onClose 
     })();
   }, []);
 
-  // Only show entries with a build number greater than what the user is currently running
+  // Only show the entry for the new build being offered — not historical entries
   const entries = useMemo(
-    () => allEntries.filter((e) => e.build > currentBuild),
-    [allEntries, currentBuild],
+    () => allEntries.filter((e) => e.build === newBuild),
+    [allEntries, newBuild],
   );
 
   return (
