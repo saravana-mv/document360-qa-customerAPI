@@ -295,7 +295,7 @@ export function IdeasFlowsPage() {
 
   // ── Generate flow ideas (AI) ──────────────────────────────────────────────
 
-  async function handleGenerateFlowIdeas(contextPath: string, maxCount?: number, filePaths?: string[], prompt?: string) {
+  async function handleGenerateFlowIdeas(contextPath: string, maxCount?: number, filePaths?: string[], prompt?: string, harTrace?: string) {
     setSelectedFolderPath(contextPath);
 
     const existing = aggregateForPath(workshopMap, contextPath);
@@ -322,7 +322,7 @@ export function IdeasFlowsPage() {
       setIdeasLoading(true);
     }
     try {
-      const result = await generateFlowIdeas(contextPath, existingTitles, undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN, filePaths, ideaMode, prompt);
+      const result = await generateFlowIdeas(contextPath, existingTitles, undefined, aiModel, maxCount ?? MAX_IDEAS_PER_RUN, filePaths, ideaMode, prompt, undefined, harTrace);
       const perIdeaCost = result.usage && result.ideas.length > 0
         ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
         : undefined;
@@ -387,7 +387,7 @@ export function IdeasFlowsPage() {
     }
   }
 
-  async function handleGenerateMoreIdeas(count?: number, specFiles?: string[], prompt?: string, destinationFolder?: string) {
+  async function handleGenerateMoreIdeas(count?: number, specFiles?: string[], prompt?: string, destinationFolder?: string, harTrace?: string) {
     const currentPath = destinationFolder ?? activePath;
     if (!currentPath) return;
     if (destinationFolder && destinationFolder !== activePath) selectFolder(destinationFolder);
@@ -396,7 +396,7 @@ export function IdeasFlowsPage() {
     setIdeasAppending(true);
     const existingTitles = ideas.map((i) => i.title);
     try {
-      const result = await generateFlowIdeas(currentPath, existingTitles, undefined, aiModel, count, specFiles, ideaMode, prompt);
+      const result = await generateFlowIdeas(currentPath, existingTitles, undefined, aiModel, count, specFiles, ideaMode, prompt, undefined, harTrace);
       if (result.ideas.length > 0) {
         const perIdeaCost = result.usage && result.ideas.length > 0
           ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
@@ -1403,11 +1403,11 @@ export function IdeasFlowsPage() {
                           folderPath={activePath!}
 
                           currentMode={ideaMode}
-                          onGenerate={(count, mode, specFiles, prompt, destFolder) => {
+                          onGenerate={(count, mode, specFiles, prompt, destFolder, harTrace) => {
                             const targetPath = destFolder ?? activePath!;
                             setIdeaMode(mode);
                             if (destFolder && destFolder !== activePath) selectFolder(destFolder);
-                            void handleGenerateFlowIdeas(targetPath, count, specFiles, prompt);
+                            void handleGenerateFlowIdeas(targetPath, count, specFiles, prompt, harTrace);
                           }}
                           onClose={() => setShowLandingModal(false)}
                         />
@@ -1471,11 +1471,11 @@ export function IdeasFlowsPage() {
         <GenerateIdeasModal
           folderPath={activePath!}
           currentMode={ideaMode}
-          onGenerate={(count, mode, specFiles, prompt, destFolder) => {
+          onGenerate={(count, mode, specFiles, prompt, destFolder, harTrace) => {
             const targetPath = destFolder ?? activePath!;
             setIdeaMode(mode);
             if (destFolder && destFolder !== activePath) selectFolder(destFolder);
-            void handleGenerateFlowIdeas(targetPath, count, specFiles, prompt);
+            void handleGenerateFlowIdeas(targetPath, count, specFiles, prompt, harTrace);
           }}
           onClose={() => setShowNewIdeasModal(false)}
         />

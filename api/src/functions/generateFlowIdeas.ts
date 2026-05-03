@@ -112,6 +112,13 @@ Always start with the simplest scenarios before progressing to complex ones. The
 
   return `${base}
 
+## Session Recordings
+When a real user session recording is provided, use it to:
+- Identify actual user workflows and API call sequences
+- Prioritize testing the patterns users actually exercise
+- Discover implicit dependencies between endpoints
+- Generate ideas that test both the happy path AND error variations
+
 ## Rules
 1. Generate up to ${maxIdeas} ideas maximum per request
 2. **STRICT SCOPE — NO PRIOR KNOWLEDGE**: Only use API endpoints explicitly described in the provided spec files. Do NOT use your training data or prior knowledge about this API — treat the specs as if you are seeing this API for the first time. For prerequisite setup/teardown steps not in the specs, construct the path by following the EXACT same URL pattern and version prefix as the provided specs.${modeRules}
@@ -289,7 +296,7 @@ export async function generateFlowIdeasHandler(
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
 
   // ── Parse body ──
-  let body: { folderPath?: string; maxBudgetUsd?: number; existingIdeas?: string[]; model?: string; maxCount?: number; filePaths?: string[]; mode?: IdeaMode; prompt?: string; scope?: "folder" | "version" | "custom" };
+  let body: { folderPath?: string; maxBudgetUsd?: number; existingIdeas?: string[]; model?: string; maxCount?: number; filePaths?: string[]; mode?: IdeaMode; prompt?: string; scope?: "folder" | "version" | "custom"; harTrace?: string };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -506,7 +513,14 @@ export async function generateFlowIdeasHandler(
     ? `\n\n## Focus Area\nThe QA engineer wants to focus on: ${rawPrompt}\nGenerate ideas aligned with this focus while still covering the provided specs.`
     : "";
 
-  const userMessage = `Analyze these API specifications and generate up to ${requestedCount} NEW test flow ideas.${scopeNote}${versionDirective}${modeNote}${focusPrompt}${existingList}${dependencyMap}\n\n## Spec Files\n\n${specText}`;
+  // HAR trace injection (server-side safety: truncate to 20K chars)
+  const MAX_HAR_TRACE_CHARS = 20_000;
+  const rawHarTrace = typeof body.harTrace === "string" ? body.harTrace.slice(0, MAX_HAR_TRACE_CHARS) : "";
+  const harSection = rawHarTrace
+    ? `\n\n## Real User Session Recording\nA QA engineer recorded actual browser API calls. Use these patterns to understand real usage workflows and generate ideas that test both the observed happy paths AND error variations around them:\n\n${rawHarTrace}`
+    : "";
+
+  const userMessage = `Analyze these API specifications and generate up to ${requestedCount} NEW test flow ideas.${scopeNote}${versionDirective}${modeNote}${focusPrompt}${harSection}${existingList}${dependencyMap}\n\n## Spec Files\n\n${specText}`;
 
   const SYSTEM_PROMPT = buildSystemPrompt(mode, requestedCount, useDigest);
   const systemPrompt = ctx.enrichSystemPrompt(SYSTEM_PROMPT);

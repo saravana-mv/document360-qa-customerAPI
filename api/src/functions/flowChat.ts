@@ -152,6 +152,7 @@ interface FlowChatBody {
   specFiles?: string[];
   model?: string;
   intent?: "flow" | "idea";
+  harTrace?: string;
 }
 
 const IDEAS_CHAT_SYSTEM_PROMPT = `You are an expert API test designer for the FlowForge API testing platform.
@@ -241,6 +242,13 @@ async function flowChat(req: HttpRequest, _ctx: InvocationContext): Promise<Http
     const depMap = ctx.dependencyInfo ? `\n\n${ctx.dependencyInfo}` : "";
     const crossStepDeps = analyzeCrossStepDependencies(specContext);
     systemPrompt += `\n\n# Available API Specifications (${specFiles.length} file${specFiles.length !== 1 ? "s" : ""})\n\nThe user has provided the following API endpoint specifications. Use ONLY these endpoints when designing flows.\n\n${specContext}${depMap}${crossStepDeps}`;
+  }
+
+  // HAR trace injection (server-side safety: truncate to 20K chars)
+  const MAX_HAR_TRACE_CHARS = 20_000;
+  const rawHarTrace = typeof body.harTrace === "string" ? body.harTrace.slice(0, MAX_HAR_TRACE_CHARS) : "";
+  if (rawHarTrace) {
+    systemPrompt += `\n\n# Real User Session Recording\nA QA engineer recorded actual browser API calls. Use these patterns to understand real usage workflows and generate ideas that test both the observed happy paths AND error variations around them:\n\n${rawHarTrace}`;
   }
 
   const apiMessages: ChatMessage[] = [...body.messages];

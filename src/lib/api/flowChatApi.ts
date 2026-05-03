@@ -81,11 +81,12 @@ export async function sendFlowChatMessage(
   model?: string,
   signal?: AbortSignal,
   intent?: "flow" | "idea",
+  harTrace?: string,
 ): Promise<FlowChatResponse> {
   const res = await fetch("/api/flow-chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, specFiles, ...(model ? { model } : {}), ...(intent ? { intent } : {}) }),
+    body: JSON.stringify({ messages, specFiles, ...(model ? { model } : {}), ...(intent ? { intent } : {}), ...(harTrace ? { harTrace } : {}) }),
     signal,
   });
 

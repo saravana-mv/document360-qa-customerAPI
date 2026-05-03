@@ -1,12 +1,14 @@
 import { useState } from "react";
 import type { IdeaMode } from "../../lib/api/specFilesApi";
+import type { HarParseResult } from "../../lib/harParser";
 import { IDEA_TEMPLATES } from "../../lib/ideaTemplates";
 import { SpecFilePicker } from "./SpecFilePicker";
+import { HarSessionSection } from "./HarSessionSection";
 import { useIdeaFoldersStore } from "../../store/ideaFolders.store";
 
 interface Props {
   folderPath: string;
-  onGenerate: (count: number, mode: IdeaMode, specFiles: string[], prompt?: string, destinationFolder?: string) => void;
+  onGenerate: (count: number, mode: IdeaMode, specFiles: string[], prompt?: string, destinationFolder?: string, harTrace?: string) => void;
   onClose: () => void;
   currentMode: IdeaMode;
   disabled?: boolean;
@@ -35,6 +37,7 @@ export function GenerateIdeasModal({ folderPath, onGenerate, onClose, currentMod
   const [selectedTemplate, setSelectedTemplate] = useState<string>("random");
   const [showPicker, setShowPicker] = useState(false);
   const [destinationFolder, setDestinationFolder] = useState(folderPath);
+  const [harResult, setHarResult] = useState<HarParseResult | null>(null);
 
   const folders = useIdeaFoldersStore((s) => s.folders);
 
@@ -46,7 +49,7 @@ export function GenerateIdeasModal({ folderPath, onGenerate, onClose, currentMod
   function handleSubmit() {
     if (noFiles) return;
     const template = IDEA_TEMPLATES.find((t) => t.key === selectedTemplate);
-    onGenerate(count, mode, specFiles, template?.prompt, destinationFolder !== folderPath ? destinationFolder : undefined);
+    onGenerate(count, mode, specFiles, template?.prompt, destinationFolder !== folderPath ? destinationFolder : undefined, harResult?.trace);
     onClose();
   }
 
@@ -114,6 +117,13 @@ export function GenerateIdeasModal({ folderPath, onGenerate, onClose, currentMod
                 </svg>
               </button>
             </div>
+
+            {/* HAR session recording */}
+            <HarSessionSection
+              harResult={harResult}
+              onHarLoaded={setHarResult}
+              onHarRemoved={() => setHarResult(null)}
+            />
 
             {/* Pattern chips */}
             <div>

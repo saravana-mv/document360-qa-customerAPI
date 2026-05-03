@@ -370,6 +370,7 @@ export async function generateFlowIdeas(
   mode?: IdeaMode,
   prompt?: string,
   scope?: IdeaScope,
+  harTrace?: string,
 ): Promise<GenerateFlowIdeasResponse> {
   const res = await apiFetch("/api/generate-flow-ideas", {
     method: "POST",
@@ -384,6 +385,7 @@ export async function generateFlowIdeas(
       ...(mode ? { mode } : {}),
       ...(prompt ? { prompt } : {}),
       ...(scope && scope !== "folder" ? { scope } : {}),
+      ...(harTrace ? { harTrace } : {}),
     }),
   });
   return res.json() as Promise<GenerateFlowIdeasResponse>;

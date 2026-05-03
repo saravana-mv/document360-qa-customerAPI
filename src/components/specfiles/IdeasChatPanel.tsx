@@ -19,6 +19,7 @@ import { SpecFilePicker } from "./SpecFilePicker";
 import { useIdeaFoldersStore } from "../../store/ideaFolders.store";
 import { useEntraAuthStore } from "../../store/entraAuth.store";
 import type { IdeaMode } from "../../lib/api/specFilesApi";
+import type { HarParseResult } from "../../lib/harParser";
 import { ChatInputCard } from "./ideas-chat/ChatInputCard";
 import { ExampleButtons } from "./ideas-chat/ExampleButtons";
 import { ChatHistorySidebar } from "./ideas-chat/ChatHistorySidebar";
@@ -46,6 +47,7 @@ export function IdeasChatPanel({ aiModel, onIdeaAccepted, onClose, currentFolder
   const [showPicker, setShowPicker] = useState(false);
   const [mode, setMode] = useState<IdeaMode>(currentMode ?? "full");
   const [destinationFolder, setDestinationFolder] = useState(currentFolder ?? "");
+  const [harResult, setHarResult] = useState<HarParseResult | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -193,7 +195,7 @@ export function IdeasChatPanel({ aiModel, onIdeaAccepted, onClose, currentFolder
         ...messages.map((m) => ({ role: m.role, content: m.content })),
         { role: "user" as const, content: fullMessage },
       ];
-      const result = await sendFlowChatMessage(apiMsgs, specFiles, aiModel, ctrl.signal, "idea");
+      const result = await sendFlowChatMessage(apiMsgs, specFiles, aiModel, ctrl.signal, "idea", harResult?.trace);
 
       if (ctrl.signal.aborted) return;
 
@@ -339,6 +341,9 @@ export function IdeasChatPanel({ aiModel, onIdeaAccepted, onClose, currentFolder
                       onFolderChange={setDestinationFolder}
                       folderOptions={folderOptions}
                       textareaRef={textareaRef}
+                      harResult={harResult}
+                      onHarLoaded={setHarResult}
+                      onHarRemoved={() => setHarResult(null)}
                     />
                   </div>
 
@@ -418,6 +423,9 @@ export function IdeasChatPanel({ aiModel, onIdeaAccepted, onClose, currentFolder
                       folderOptions={folderOptions}
                       textareaRef={textareaRef}
                       placeholder="Describe what you want to test..."
+                      harResult={harResult}
+                      onHarLoaded={setHarResult}
+                      onHarRemoved={() => setHarResult(null)}
                     />
                   </div>
                 </>
