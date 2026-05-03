@@ -33,9 +33,9 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 - Import specs from external URLs with sync-from-source
 - **Full spec splitting** — Upload or import an OpenAPI 3.x / Swagger 2.x JSON spec and auto-split into per-endpoint .md files organized by tag-based folders (handles $ref resolution, collision avoidance, batch upload)
 - **Reimport OpenAPI spec** — Replace an existing version folder's spec with a new OpenAPI file or URL. Validates the spec before wiping anything, preserves learned rules (`_rules.json`) and diagnostic lessons (`_skills.md`), then re-runs the full split pipeline. Destructive confirmation required (type folder name).
-- **Auto-detect variables & connections** — After OpenAPI import, `ImportResultModal` shows detected path parameters (saveable as project variables) and security schemes (saveable as draft connections) so endpoint configuration is bootstrapped automatically
+- **Auto-detect variables & connections** — After OpenAPI import, `ImportResultModal` shows detected path parameters (saveable as project variables, with camelCase deduplication) and security schemes (saveable as draft connections) so endpoint configuration is bootstrapped automatically. Path parameters table supports search, sort, folder column, and draggable column resizers.
 - **Import pipeline health reporting** — `ImportResultModal` displays a processing health banner (green/yellow/red) showing distillation results per endpoint and digest build status, with collapsible error details for failures
-- Drag-and-drop file/folder management with rename and move
+- Drag-and-drop file/folder management with rename, move, and server-side bulk delete (version folder deletion requires typing name to confirm)
 - Version history for synced files (`_versions/` subfolder)
 
 ### AI Flow Workshop
