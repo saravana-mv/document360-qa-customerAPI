@@ -263,7 +263,6 @@ interface FolderMenuProps {
   isSelected: boolean;
   hasSourcedFiles: boolean;
   hasSpecFiles: boolean;
-  isRegenerating: boolean;
   isVersionFolder: boolean;
   currentSort: SortOrder;
   onSort: (order: SortOrder) => void;
@@ -271,25 +270,21 @@ interface FolderMenuProps {
   onUploadFiles: () => void;
   onImportFromUrl: () => void;
   onSyncFolder: () => void;
-  onRegenerateSystem: () => void;
   onReimportSpec?: () => void;
   onGenerateFlowIdeas: () => void;
   onRename: () => void;
   onDelete: () => void;
 }
 
-function FolderMenu({ isSelected, hasSourcedFiles, hasSpecFiles, isRegenerating, isVersionFolder, currentSort, onSort, onNewSubfolder, onUploadFiles, onImportFromUrl, onSyncFolder, onRegenerateSystem, onReimportSpec, onGenerateFlowIdeas, onRename, onDelete }: FolderMenuProps) {
+function FolderMenu({ isSelected, hasSourcedFiles, hasSpecFiles, isVersionFolder, currentSort, onSort, onNewSubfolder, onUploadFiles, onImportFromUrl, onSyncFolder, onReimportSpec, onGenerateFlowIdeas, onRename, onDelete }: FolderMenuProps) {
   const noSpecTip = "Upload spec files (.md) first";
   const items: MenuItem[] = [
     { label: "New subfolder", icon: MenuIcons.folder, onClick: onNewSubfolder },
     { label: "Upload files", icon: MenuIcons.upload, onClick: onUploadFiles },
     { label: "Import from URL", icon: MenuIcons.link, onClick: onImportFromUrl },
     { label: "Sync URL sources", icon: MenuIcons.sync, onClick: onSyncFolder, disabled: !hasSourcedFiles, tooltip: hasSourcedFiles ? undefined : "No URL-sourced files in this folder" },
-    ...(isVersionFolder ? [
-      { label: isRegenerating ? "Regenerating..." : "Regenerate system files", icon: MenuIcons.refresh, onClick: onRegenerateSystem, disabled: !hasSpecFiles || isRegenerating, tooltip: hasSpecFiles ? undefined : noSpecTip } as MenuItem,
-    ] : []),
     ...(isVersionFolder && onReimportSpec ? [
-      { label: "Reimport OpenAPI Spec", icon: MenuIcons.refresh, onClick: onReimportSpec, danger: true } as MenuItem,
+      { label: "Reimport OpenAPI Spec", icon: MenuIcons.refresh, onClick: onReimportSpec } as MenuItem,
     ] : []),
     "separator",
     { label: `Sort by name${currentSort === "name" ? "  ✓" : ""}`, icon: MenuIcons.sortAZ, onClick: () => onSort("name") },
@@ -361,8 +356,6 @@ interface NodeProps {
   onImportFromUrl: (folderPath: string) => void;
   onSyncFile: (folderPath: string, filename: string) => void;
   onSyncFolder: (folderPath: string) => void;
-  onRegenerateSystem: (folderPath: string) => void;
-  regeneratingPaths?: Set<string>;
   onReimportSpec?: (folderPath: string) => void;
   onGenerateFlowIdeas: (path: string) => void;
   onCreateCommit: (parentPath: string, name: string) => void;
@@ -377,7 +370,7 @@ function TreeNodeRow({
   onDragStart, onDragOver, onDrop, onDragEnd,
   onSelect, onSelectFolder, onToggle, onSetSort, onMultiSelect, onRenameStart, onRenameCommit, onRenameCancel,
   onDeleteNode, onStartSubfolder, onUploadFiles, onImportFromUrl, onSyncFile, onSyncFolder,
-  onRegenerateSystem, regeneratingPaths, onReimportSpec,
+  onReimportSpec,
   onGenerateFlowIdeas, onCreateCommit, onCreateCancel,
 }: NodeProps) {
   const indent = depth * 12;
@@ -493,7 +486,6 @@ function TreeNodeRow({
                 isSelected={isSelected && !isDropTarget}
                 hasSourcedFiles={sourcedPaths ? Array.from(sourcedPaths).some((p) => p.startsWith(node.path + "/")) : false}
                 hasSpecFiles={countMdFiles(node) > 0}
-                isRegenerating={regeneratingPaths?.has(node.path) === true}
                 isVersionFolder={!node.path.includes("/")}
                 currentSort={folderSortOrder[node.path] ?? "name"}
                 onSort={(order) => onSetSort(node.path, order)}
@@ -501,7 +493,6 @@ function TreeNodeRow({
                 onUploadFiles={() => onUploadFiles(node.path)}
                 onImportFromUrl={() => onImportFromUrl(node.path)}
                 onSyncFolder={() => onSyncFolder(node.path)}
-                onRegenerateSystem={() => onRegenerateSystem(node.path)}
                 onReimportSpec={onReimportSpec ? () => onReimportSpec(node.path) : undefined}
                 onGenerateFlowIdeas={() => onGenerateFlowIdeas(node.path)}
                 onRename={() => onRenameStart(node.path)}
@@ -575,8 +566,6 @@ function TreeNodeRow({
               onImportFromUrl={onImportFromUrl}
               onSyncFile={onSyncFile}
               onSyncFolder={onSyncFolder}
-              onRegenerateSystem={onRegenerateSystem}
-              regeneratingPaths={regeneratingPaths}
               onReimportSpec={onReimportSpec}
               onGenerateFlowIdeas={onGenerateFlowIdeas}
               onCreateCommit={onCreateCommit}
@@ -603,6 +592,95 @@ function TreeNodeRow({
 }
 
 // ── Main FileTree component ───────────────────────────────────────────────────
+
+// ── Delete confirmation modal ─────────────────────────────────────────────────
+
+function DeleteConfirmModal({ node, confirmText, onConfirmTextChange, onConfirm, onCancel }: {
+  node: TreeNode;
+  confirmText: string;
+  onConfirmTextChange: (v: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const isVersionFolder = node.type === "folder" && !node.path.includes("/");
+  const needsTypedConfirm = isVersionFolder;
+  const canConfirm = needsTypedConfirm ? confirmText === node.name : true;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }}>
+      <div className="bg-white rounded-xl shadow-2xl flex flex-col" style={{ width: 440, border: "1px solid #d1d9e0" }}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid #d1d9e0" }}>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#ffebe9] flex items-center justify-center">
+              <svg className="w-4 h-4 text-[#d1242f]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+              </svg>
+            </div>
+            <h2 className="text-sm font-semibold text-[#1f2328]">
+              {isVersionFolder ? "Delete version folder" : node.type === "folder" ? "Delete folder" : "Delete file"}
+            </h2>
+          </div>
+          <button
+            onClick={onCancel}
+            className="p-1.5 rounded-md text-[#656d76] hover:text-[#1f2328] hover:bg-[#f6f8fa] transition-colors"
+            title="Close"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-4 space-y-3">
+          {isVersionFolder ? (
+            <>
+              <p className="text-sm text-[#1f2328]">
+                This will permanently delete <strong>{node.name}</strong> and all its contents including spec files, distilled specs, and system files.
+              </p>
+              <p className="text-sm text-[#656d76]">
+                Type <strong className="text-[#1f2328] font-mono bg-[#f6f8fa] px-1 py-0.5 rounded">{node.name}</strong> to confirm:
+              </p>
+              <input
+                type="text"
+                autoFocus
+                value={confirmText}
+                onChange={(e) => onConfirmTextChange(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && canConfirm) onConfirm(); if (e.key === "Escape") onCancel(); }}
+                className="w-full text-sm px-3 py-1.5 border rounded-md outline-none focus:ring-2 focus:ring-[#0969da]/30 focus:border-[#0969da]"
+                style={{ borderColor: "#d1d9e0" }}
+                placeholder={node.name}
+              />
+            </>
+          ) : (
+            <p className="text-sm text-[#1f2328]">
+              Are you sure you want to delete <strong>{node.name}</strong>{node.type === "folder" ? " and all its contents" : ""}? This action cannot be undone.
+            </p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 px-5 py-4" style={{ borderTop: "1px solid #d1d9e0" }}>
+          <button
+            onClick={onCancel}
+            className="text-sm font-medium text-[#656d76] hover:text-[#1f2328] px-3 py-1.5 rounded-md hover:bg-[#f6f8fa] transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={!canConfirm}
+            className="text-sm font-medium text-white px-4 py-1.5 rounded-md transition-colors disabled:opacity-40"
+            style={{ background: canConfirm ? "#d1242f" : "#d1242f" }}
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface FileTreeProps {
   files: SpecFileItem[];
@@ -631,8 +709,6 @@ interface FileTreeProps {
   onImportFromUrl: (folderPath: string) => void;
   onSyncFile: (folderPath: string, filename: string) => void;
   onSyncFolder: (folderPath: string) => void;
-  onRegenerateSystem: (folderPath: string) => void;
-  regeneratingPaths?: Set<string>;
   onReimportSpec?: (folderPath: string) => void;
   onGenerateFlowIdeas: (path: string) => void;
   onRefresh: () => void;
@@ -644,7 +720,7 @@ export function FileTree({
   files, loading, selectedPath, selectedFolderPath, pathsWithIdeas, sourcedPaths, syncingPaths,
   multiSelectedPaths, onSelectFile, onSelectFolder, onMultiSelect, onSelectAll, onClearMultiSelect, onBulkDelete,
   onCreateFolder, onDeleteFile, onDeleteFolder, onRenameFile,
-  onUploadFiles, onImportFromUrl, onSyncFile, onSyncFolder, onRegenerateSystem, regeneratingPaths,
+  onUploadFiles, onImportFromUrl, onSyncFile, onSyncFolder,
   onReimportSpec, onGenerateFlowIdeas, onRefresh, onNewVersion, onSearch,
 }: FileTreeProps) {
   const tree = buildTree(files);
@@ -691,6 +767,8 @@ export function FileTree({
   }, [files, selectedPath, selectedFolderPath]);
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [creatingUnder, setCreatingUnder] = useState<string | null>(null);
+  const [deletingNode, setDeletingNode] = useState<TreeNode | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   // Per-folder sort order (persisted)
   const [folderSortOrder, setFolderSortOrder] = useState<Record<string, SortOrder>>(() => {
@@ -754,13 +832,17 @@ export function FileTree({
     if (newPath !== node.path) await onRenameFile(node.path, newPath);
   }
 
-  async function handleDeleteNode(node: TreeNode) {
-    const label = node.type === "folder"
-      ? `Delete folder "${node.name}" and all its contents?`
-      : `Delete "${node.name}"?`;
-    if (!confirm(label)) return;
-    if (node.type === "folder") await onDeleteFolder(node.path);
-    else await onDeleteFile(node.path);
+  function handleDeleteNode(node: TreeNode) {
+    setDeletingNode(node);
+    setDeleteConfirmText("");
+  }
+
+  async function confirmDelete() {
+    if (!deletingNode) return;
+    setDeletingNode(null);
+    setDeleteConfirmText("");
+    if (deletingNode.type === "folder") await onDeleteFolder(deletingNode.path);
+    else await onDeleteFile(deletingNode.path);
   }
 
   // ── Drag handlers ───────────────────────────────────────────────────────────
@@ -889,8 +971,6 @@ export function FileTree({
     onImportFromUrl,
     onSyncFile,
     onSyncFolder,
-    onRegenerateSystem,
-    regeneratingPaths,
     onReimportSpec,
     onGenerateFlowIdeas,
     onCreateCommit: (parent: string, name: string) => void handleCreateCommit(parent, name),
@@ -1046,6 +1126,17 @@ export function FileTree({
           </div>
         )}
       </div>
+
+      {/* Delete confirmation modal */}
+      {deletingNode && (
+        <DeleteConfirmModal
+          node={deletingNode}
+          confirmText={deleteConfirmText}
+          onConfirmTextChange={setDeleteConfirmText}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => { setDeletingNode(null); setDeleteConfirmText(""); }}
+        />
+      )}
     </div>
   );
 }

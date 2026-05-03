@@ -25,7 +25,7 @@ import {
 } from "../lib/api/specFilesApi";
 import type { SourceEntry } from "../types/spec.types";
 import { NewVersionModal } from "../components/specfiles/NewVersionModal";
-import { splitSwagger, reimportSpec, regenerateSystemFiles, type SuggestedVariable, type SuggestedConnection, type ProcessingReport } from "../lib/api/specFilesApi";
+import { splitSwagger, reimportSpec, type SuggestedVariable, type SuggestedConnection, type ProcessingReport } from "../lib/api/specFilesApi";
 import { ImportResultModal } from "../components/specfiles/ImportResultModal";
 import { ReimportSpecModal } from "../components/specfiles/ReimportSpecModal";
 import { useProjectVariablesStore } from "../store/projectVariables.store";
@@ -133,7 +133,6 @@ export function SpecFilesPage() {
   const [editingSourceUrl, setEditingSourceUrl] = useState(false);
   const [sourceUrlDraft, setSourceUrlDraft] = useState("");
   const [syncingPaths, setSyncingPaths] = useState<Set<string>>(new Set());
-  const [regeneratingPaths, setRegeneratingPaths] = useState<Set<string>>(new Set());
 
   // ── Source access token ──────────────────────────────────────────────────
   const [sourceAccessToken, setSourceAccessToken] = useState("");
@@ -884,25 +883,6 @@ export function SpecFilesPage() {
     setSyncFolderPath(folderPath);
   }
 
-  async function handleRegenerateSystem(folderPath: string) {
-    setRegeneratingPaths((prev) => new Set([...prev, folderPath]));
-    try {
-      const result = await regenerateSystemFiles(folderPath);
-      const parts: string[] = [];
-      parts.push(`Distilled: ${result.distillation.distilled}/${result.distillation.total} files`);
-      if (result.digest.built) parts.push("Digest rebuilt");
-      else if (result.digest.error) parts.push(`Digest failed: ${result.digest.error}`);
-      if (result.dependencies.built) parts.push("Dependencies rebuilt");
-      else if (result.dependencies.error) parts.push(`Dependencies: ${result.dependencies.error}`);
-      if (result.distillation.errors > 0) parts.push(`${result.distillation.errors} distillation errors`);
-      alert(`System files regenerated\n\n${parts.join("\n")}`);
-      await loadFiles();
-    } catch (e) {
-      alert(`Regeneration failed: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setRegeneratingPaths((prev) => { const next = new Set(prev); next.delete(folderPath); return next; });
-    }
-  }
 
   async function handleSyncForModal(
     folderPath: string,
@@ -1005,8 +985,6 @@ export function SpecFilesPage() {
             onImportFromUrl={(folderPath) => setImportUrlFolderPath(folderPath)}
             onSyncFile={(folderPath, filename) => void handleSyncFile(folderPath, filename)}
             onSyncFolder={(folderPath) => void handleSyncFolder(folderPath)}
-            onRegenerateSystem={(folderPath) => void handleRegenerateSystem(folderPath)}
-            regeneratingPaths={regeneratingPaths}
             onReimportSpec={(folderPath) => setReimportFolderPath(folderPath)}
             onGenerateFlowIdeas={handleNavigateToIdeas}
             onRefresh={loadFiles}
