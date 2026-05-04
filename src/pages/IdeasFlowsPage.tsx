@@ -457,7 +457,7 @@ export function IdeasFlowsPage() {
   }
 
   /** Separate HAR-based idea generation — passes harTrace directly to the API */
-  async function handleGenerateFromHar(contextPath: string, harTrace: string, specFiles?: string[]) {
+  async function handleGenerateFromHar(contextPath: string, harTrace: string, specFiles?: string[], harDescription?: string) {
     setSelectedFolderPath(contextPath);
     const existing = aggregateForPath(workshopMap, contextPath);
     const existingTitles = existing.ideas.map(i => i.title);
@@ -482,7 +482,7 @@ export function IdeasFlowsPage() {
       setIdeasLoading(true);
     }
     try {
-      const result = await generateFlowIdeas(contextPath, existingTitles, undefined, aiModel, 10, specFiles, ideaMode, undefined, undefined, harTrace);
+      const result = await generateFlowIdeas(contextPath, existingTitles, undefined, aiModel, 10, specFiles, ideaMode, undefined, undefined, harTrace, harDescription);
       const perIdeaCost = result.usage && result.ideas.length > 0
         ? parseFloat((result.usage.costUsd / result.ideas.length).toFixed(6))
         : undefined;
@@ -1619,10 +1619,10 @@ export function IdeasFlowsPage() {
       {showHarModal && (
         <GenerateFromHarModal
           folderPath={activePath ?? ""}
-          onGenerate={(destFolder, harTrace, specFiles) => {
+          onGenerate={(destFolder, harTrace, specFiles, harDescription) => {
             const targetPath = destFolder || activePath!;
             if (destFolder && destFolder !== activePath) selectFolder(destFolder);
-            void handleGenerateFromHar(targetPath, harTrace, specFiles);
+            void handleGenerateFromHar(targetPath, harTrace, specFiles, harDescription);
           }}
           onClose={() => setShowHarModal(false)}
         />

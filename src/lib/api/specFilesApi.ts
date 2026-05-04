@@ -371,6 +371,7 @@ export async function generateFlowIdeas(
   prompt?: string,
   scope?: IdeaScope,
   harTrace?: string,
+  harDescription?: string,
 ): Promise<GenerateFlowIdeasResponse> {
   const res = await apiFetch("/api/generate-flow-ideas", {
     method: "POST",
@@ -386,7 +387,32 @@ export async function generateFlowIdeas(
       ...(prompt ? { prompt } : {}),
       ...(scope && scope !== "folder" ? { scope } : {}),
       ...(harTrace ? { harTrace } : {}),
+      ...(harDescription ? { harDescription } : {}),
     }),
   });
   return res.json() as Promise<GenerateFlowIdeasResponse>;
+}
+
+// ── HAR Analysis ──────────────────────────────────────────────────────────────
+
+export interface HarAnalysisScenario {
+  name: string;
+  callIndices: number[];
+}
+
+export interface HarAnalysisResult {
+  scenarios: HarAnalysisScenario[];
+  usage: { inputTokens: number; outputTokens: number; costUsd: number };
+}
+
+export async function analyzeHarCalls(
+  description: string,
+  calls: { seq: number; method: string; path: string; status: number }[],
+): Promise<HarAnalysisResult> {
+  const res = await apiFetch("/api/har-analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ description, calls }),
+  });
+  return res.json() as Promise<HarAnalysisResult>;
 }

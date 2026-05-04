@@ -164,13 +164,6 @@ export function HarSessionSection({ harResult, onHarLoaded, onHarRemoved, forceB
                 </div>
               )}
 
-              {/* Trace preview */}
-              <div className="max-h-[120px] overflow-y-auto rounded border border-[#d1d9e0] bg-[#f6f8fa] px-2 py-1.5">
-                <pre className="text-xs text-[#1f2328] whitespace-pre-wrap font-mono leading-relaxed">
-                  {harResult.trace.split("\n").slice(0, 15).join("\n")}
-                  {harResult.trace.split("\n").length > 15 && "\n..."}
-                </pre>
-              </div>
             </>
           )}
         </div>

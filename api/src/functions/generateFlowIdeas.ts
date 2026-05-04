@@ -296,7 +296,7 @@ export async function generateFlowIdeasHandler(
   if (req.method === "OPTIONS") return { status: 204, headers: CORS_HEADERS };
 
   // ── Parse body ──
-  let body: { folderPath?: string; maxBudgetUsd?: number; existingIdeas?: string[]; model?: string; maxCount?: number; filePaths?: string[]; mode?: IdeaMode; prompt?: string; scope?: "folder" | "version" | "custom"; harTrace?: string };
+  let body: { folderPath?: string; maxBudgetUsd?: number; existingIdeas?: string[]; model?: string; maxCount?: number; filePaths?: string[]; mode?: IdeaMode; prompt?: string; scope?: "folder" | "version" | "custom"; harTrace?: string; harDescription?: string };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -516,8 +516,14 @@ export async function generateFlowIdeasHandler(
   // HAR trace injection (server-side safety: truncate to 20K chars)
   const MAX_HAR_TRACE_CHARS = 20_000;
   const rawHarTrace = typeof body.harTrace === "string" ? body.harTrace.slice(0, MAX_HAR_TRACE_CHARS) : "";
+  const rawHarDescription = typeof body.harDescription === "string"
+    ? body.harDescription.slice(0, 500) : "";
   const harSection = rawHarTrace
-    ? `\n\n## Real User Session Recording\nA QA engineer recorded actual browser API calls. Use these patterns to understand real usage workflows and generate ideas that test both the observed happy paths AND error variations around them:\n\n${rawHarTrace}`
+    ? `\n\n## Real User Session Recording\n${
+        rawHarDescription
+          ? `The QA engineer describes what they were testing: "${rawHarDescription}"\n\n`
+          : ""
+      }The following API calls were recorded. Focus on calls relevant to the described intent and generate ideas that test both happy paths AND error variations:\n\n${rawHarTrace}`
     : "";
 
   const userMessage = `Analyze these API specifications and generate up to ${requestedCount} NEW test flow ideas.${scopeNote}${versionDirective}${modeNote}${focusPrompt}${harSection}${existingList}${dependencyMap}\n\n## Spec Files\n\n${specText}`;
