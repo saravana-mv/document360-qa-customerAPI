@@ -393,26 +393,3 @@ export async function generateFlowIdeas(
   return res.json() as Promise<GenerateFlowIdeasResponse>;
 }
 
-// ── HAR Analysis ──────────────────────────────────────────────────────────────
-
-export interface HarAnalysisScenario {
-  name: string;
-  callIndices: number[];
-}
-
-export interface HarAnalysisResult {
-  scenarios: HarAnalysisScenario[];
-  usage: { inputTokens: number; outputTokens: number; costUsd: number };
-}
-
-export async function analyzeHarCalls(
-  description: string,
-  calls: { seq: number; method: string; path: string; status: number }[],
-): Promise<HarAnalysisResult> {
-  const res = await apiFetch("/api/har-analyze", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ description, calls }),
-  });
-  return res.json() as Promise<HarAnalysisResult>;
-}
