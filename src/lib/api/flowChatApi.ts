@@ -1,4 +1,5 @@
 import type { FlowUsage } from "./specFilesApi";
+import { tryGetProjectHeaders } from "./projectHeader";
 
 export interface ChatMessage {
   id: string;
@@ -83,13 +84,17 @@ export async function sendFlowChatMessage(
   intent?: "flow" | "idea",
   harTrace?: string,
 ): Promise<FlowChatResponse> {
+  const projectHeaders = tryGetProjectHeaders();
   const res = await fetch("/api/flow-chat", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...projectHeaders },
     body: JSON.stringify({ messages, specFiles, ...(model ? { model } : {}), ...(intent ? { intent } : {}), ...(harTrace ? { harTrace } : {}) }),
     signal,
   });
 
+  if (res.status === 401) {
+    window.dispatchEvent(new CustomEvent("session-expired"));
+  }
   if (!res.ok) {
     let msg = res.statusText;
     try {
