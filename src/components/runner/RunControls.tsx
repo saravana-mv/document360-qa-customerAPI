@@ -33,6 +33,7 @@ export function RunControls() {
 
   // Check for unconnected versions
   const versionConfigs = useScenarioOrgStore((s) => s.versionConfigs);
+  const connections = useConnectionsStore((s) => s.connections);
   const unconnectedVersions = useMemo(() => {
     const versions = new Set<string>();
     for (const t of allTests) {
@@ -45,9 +46,12 @@ export function RunControls() {
       if (!vc) return true;
       if (vc.authType === "none") return false;
       if (vc.authType === "oauth") return !vc.connectionId;
-      return !vc.credentialConfigured;
+      // For non-OAuth: check both the version config flag and the actual connection record
+      if (vc.credentialConfigured) return false;
+      const conn = vc.connectionId ? connections.find(c => c.id === vc.connectionId) : undefined;
+      return !conn?.hasCredential;
     });
-  }, [allTests, versionConfigs]);
+  }, [allTests, versionConfigs, connections]);
 
   // ── Pre-run connection health check ──────────────────────────────────
   // Runs a real health check for OAuth connections and verifies non-OAuth
@@ -59,7 +63,6 @@ export function RunControls() {
   }
   const [connectionIssues, setConnectionIssues] = useState<ConnectionIssue[]>([]);
   const [healthCheckDone, setHealthCheckDone] = useState(false);
-  const connections = useConnectionsStore((s) => s.connections);
 
   // Stabilise the version list so the health-check effect doesn't re-fire
   // on every render (getAllTests() returns a new array reference each time).
@@ -94,18 +97,23 @@ export function RunControls() {
         }
 
         const isOAuth = vc.authType === "oauth";
-        const hasCredential = vc.credentialConfigured || (isOAuth && !!vc.connectionId);
 
-        // Same logic as VersionAccordion's isConnected check
+        // For connection-based configs, look up the actual connection record
+        const conn = vc.connectionId ? connections.find(c => c.id === vc.connectionId) : undefined;
+        const connName = conn?.name || vc.connectionId || "(none)";
+
+        // Check if any credential is configured
+        const hasCredential = vc.credentialConfigured
+          || (isOAuth && !!vc.connectionId)
+          || (conn?.hasCredential === true);
+
         if (!hasCredential) {
-          issues.push({ version, connectionName: "(none)", reason: "No connection configured" });
+          issues.push({ version, connectionName: connName, reason: "No connection configured" });
           continue;
         }
 
-        // For OAuth connections, run a real health check
+        // For OAuth connections, run a real health check (token validity)
         if (isOAuth && vc.connectionId) {
-          const conn = connections.find(c => c.id === vc.connectionId);
-          const connName = conn?.name || vc.connectionId;
           try {
             const result: HealthCheckResult = await healthCheckOAuth(vc.connectionId);
             if (!result.healthy) {
@@ -115,6 +123,7 @@ export function RunControls() {
             issues.push({ version, connectionName: connName, reason: "OAuth sign-in required" });
           }
         }
+        // Non-OAuth connections: credential exists server-side — no dynamic health check needed
       }
 
       if (!cancelled) {
