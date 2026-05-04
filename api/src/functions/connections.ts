@@ -50,6 +50,9 @@ interface ConnectionDoc {
   authHeaderName?: string;        // For apikey_header
   authQueryParam?: string;        // For apikey_query
 
+  // Custom headers (non-secret, passed through to client)
+  customHeaders?: Array<{ name: string; value: string }>;
+
   createdAt: string;
   createdBy: { oid: string; name: string };
   updatedAt: string;
@@ -127,6 +130,9 @@ async function createConnection(req: HttpRequest): Promise<HttpResponseInit> {
       credential: provider !== "oauth2" ? (body.credential?.trim() || undefined) : undefined,
       authHeaderName: provider === "apikey_header" ? (body.authHeaderName?.trim() || undefined) : undefined,
       authQueryParam: provider === "apikey_query" ? (body.authQueryParam?.trim() || undefined) : undefined,
+      customHeaders: Array.isArray(body.customHeaders)
+        ? body.customHeaders.filter((h: { name?: string }) => h.name?.trim()).map((h: { name: string; value?: string }) => ({ name: h.name.trim(), value: (h.value ?? "").trim() }))
+        : undefined,
       createdAt: new Date().toISOString(),
       createdBy: user,
       updatedAt: new Date().toISOString(),
@@ -185,6 +191,12 @@ async function updateConnection(req: HttpRequest): Promise<HttpResponseInit> {
       if (existing.provider === "apikey_query" && body.authQueryParam !== undefined) {
         existing.authQueryParam = body.authQueryParam.trim() || existing.authQueryParam;
       }
+    }
+
+    if (body.customHeaders !== undefined) {
+      existing.customHeaders = Array.isArray(body.customHeaders)
+        ? body.customHeaders.filter((h: { name?: string }) => h.name?.trim()).map((h: { name: string; value?: string }) => ({ name: h.name.trim(), value: (h.value ?? "").trim() }))
+        : undefined;
     }
 
     existing.updatedAt = new Date().toISOString();

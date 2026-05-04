@@ -37,6 +37,14 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
   const [authHeaderName, setAuthHeaderName] = useState(connection?.authHeaderName ?? "");
   const [authQueryParam, setAuthQueryParam] = useState(connection?.authQueryParam ?? "");
 
+  // Custom headers
+  const [customHeaders, setCustomHeaders] = useState<Array<{ name: string; value: string }>>(
+    () => connection?.customHeaders ?? []
+  );
+  const [headersExpanded, setHeadersExpanded] = useState(
+    () => (connection?.customHeaders?.length ?? 0) > 0
+  );
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,11 +68,13 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
     setSaving(true);
     setError(null);
     try {
+      const filteredHeaders = customHeaders.filter((h) => h.name.trim());
       if (isEdit) {
-        const payload: Record<string, string | undefined> = {
+        const payload: Record<string, unknown> = {
           name: name.trim(),
           baseUrl: baseUrl.trim() || undefined,
           apiVersion: apiVersion.trim() || undefined,
+          customHeaders: filteredHeaders,
         };
         if (isOAuth) {
           payload.authorizationUrl = authorizationUrl.trim();
@@ -84,6 +94,7 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
           provider,
           baseUrl: baseUrl.trim() || undefined,
           apiVersion: apiVersion.trim() || undefined,
+          customHeaders: filteredHeaders.length > 0 ? filteredHeaders : undefined,
           ...(isOAuth ? {
             authorizationUrl: authorizationUrl.trim(),
             tokenUrl: tokenUrl.trim(),
@@ -305,6 +316,77 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
               </Field>
             </>
           )}
+
+          {/* Custom Headers — collapsed accordion, all provider types */}
+          <div className="border border-[#d1d9e0] rounded-md overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setHeadersExpanded((v) => !v)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#1f2328] hover:bg-[#f6f8fa] transition-colors"
+            >
+              <svg
+                className={`w-3.5 h-3.5 text-[#656d76] transition-transform ${headersExpanded ? "rotate-90" : ""}`}
+                fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="m9 5 7 7-7 7" />
+              </svg>
+              <span className="font-medium">Custom Headers</span>
+              <span className="text-xs text-[#656d76]">(optional)</span>
+              {customHeaders.filter((h) => h.name.trim()).length > 0 && (
+                <span className="ml-auto text-xs font-medium bg-[#ddf4ff] text-[#0969da] px-1.5 py-0.5 rounded-full">
+                  {customHeaders.filter((h) => h.name.trim()).length}
+                </span>
+              )}
+            </button>
+            {headersExpanded && (
+              <div className="border-t border-[#d1d9e0] px-3 py-2.5 space-y-2">
+                <p className="text-xs text-[#656d76]">
+                  {"Use {{proj.variable_name}} to reference project variables"}
+                </p>
+                {customHeaders.map((h, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      className="flex-1 text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2 py-1 outline-none focus:border-[#0969da] font-mono"
+                      value={h.name}
+                      onChange={(e) => {
+                        const next = [...customHeaders];
+                        next[i] = { ...next[i], name: e.target.value };
+                        setCustomHeaders(next);
+                      }}
+                      placeholder="Header name"
+                    />
+                    <input
+                      className="flex-[2] text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2 py-1 outline-none focus:border-[#0969da] font-mono"
+                      value={h.value}
+                      onChange={(e) => {
+                        const next = [...customHeaders];
+                        next[i] = { ...next[i], value: e.target.value };
+                        setCustomHeaders(next);
+                      }}
+                      placeholder="Value or {{proj.var}}"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCustomHeaders(customHeaders.filter((_, j) => j !== i))}
+                      className="p-1 text-[#656d76] hover:text-[#d1242f] rounded-md transition-colors shrink-0"
+                      title="Remove header"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setCustomHeaders([...customHeaders, { name: "", value: "" }])}
+                  className="text-sm text-[#0969da] hover:underline"
+                >
+                  + Add header
+                </button>
+              </div>
+            )}
+          </div>
 
           {error && (
             <div className="p-2.5 bg-[#ffebe9] border border-[#ffcecb] rounded-md text-sm text-[#d1242f]">

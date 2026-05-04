@@ -276,3 +276,78 @@ describe("connectionItemRouter", () => {
     expect(res.status).toBe(405);
   });
 });
+
+describe("customHeaders", () => {
+  it("POST creates connection with customHeaders", async () => {
+    mockCreate.mockResolvedValueOnce({});
+    const res = await connectionsHandler(
+      makeReq("POST", {
+        name: "Bearer With Headers",
+        provider: "bearer",
+        credential: "tok-123",
+        customHeaders: [
+          { name: "projectid", value: "{{proj.d360_project_id}}" },
+          { name: "", value: "empty-name-should-be-filtered" },
+          { name: "X-Custom", value: "literal" },
+        ],
+      }),
+      ctx
+    );
+    expect(res.status).toBe(200);
+    const body = parseBody(res);
+    // Empty-name header should be filtered out
+    expect(body.customHeaders).toHaveLength(2);
+    expect(body.customHeaders[0]).toEqual({ name: "projectid", value: "{{proj.d360_project_id}}" });
+    expect(body.customHeaders[1]).toEqual({ name: "X-Custom", value: "literal" });
+    // Verify what was persisted
+    const created = mockCreate.mock.calls[0][0];
+    expect(created.customHeaders).toHaveLength(2);
+  });
+
+  it("PUT replaces customHeaders on update", async () => {
+    const existingDoc = {
+      ...BEARER_DOC,
+      customHeaders: [{ name: "old-header", value: "old-value" }],
+    };
+    mockRead.mockResolvedValueOnce({ resource: { ...existingDoc } });
+    mockUpsert.mockResolvedValueOnce({});
+    const req = makeReq(
+      "PUT",
+      { customHeaders: [{ name: "new-header", value: "new-value" }] },
+      { connectionId: "conn-2" }
+    );
+    const res = await connectionItemHandler(req, ctx);
+    expect(res.status).toBe(200);
+    const body = parseBody(res);
+    expect(body.customHeaders).toHaveLength(1);
+    expect(body.customHeaders[0]).toEqual({ name: "new-header", value: "new-value" });
+  });
+
+  it("PUT clears customHeaders when set to empty array", async () => {
+    const existingDoc = {
+      ...BEARER_DOC,
+      customHeaders: [{ name: "to-remove", value: "val" }],
+    };
+    mockRead.mockResolvedValueOnce({ resource: { ...existingDoc } });
+    mockUpsert.mockResolvedValueOnce({});
+    const req = makeReq("PUT", { customHeaders: [] }, { connectionId: "conn-2" });
+    const res = await connectionItemHandler(req, ctx);
+    expect(res.status).toBe(200);
+    const body = parseBody(res);
+    expect(body.customHeaders).toEqual([]);
+  });
+
+  it("sanitize passes customHeaders through (not stripped)", async () => {
+    const docWithHeaders = {
+      ...OAUTH_DOC,
+      customHeaders: [{ name: "projectid", value: "abc" }],
+    };
+    mockQuery.mockResolvedValueOnce({ resources: [docWithHeaders] });
+    const res = await connectionsHandler(makeReq("GET"), ctx);
+    expect(res.status).toBe(200);
+    const body = parseBody(res);
+    expect(body[0].customHeaders).toEqual([{ name: "projectid", value: "abc" }]);
+    // Secrets still stripped
+    expect(body[0].clientSecret).toBeUndefined();
+  });
+});

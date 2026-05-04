@@ -25,6 +25,9 @@ export interface Connection {
   authHeaderName?: string;
   authQueryParam?: string;
 
+  // Custom headers (non-secret, editable by user)
+  customHeaders?: Array<{ name: string; value: string }>;
+
   createdAt: string;
   createdBy: { oid: string; name: string };
   updatedAt: string;
@@ -47,6 +50,8 @@ export interface CreateConnectionPayload {
   credential?: string;
   authHeaderName?: string;
   authQueryParam?: string;
+  // Custom headers
+  customHeaders?: Array<{ name: string; value: string }>;
   /** Skip credential validation — auto-detected from spec, needs manual config */
   draft?: boolean;
 }

@@ -134,7 +134,7 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
     // Connection-based auth: look up the connection doc from Cosmos by id
     // Proxy doesn't receive X-FlowForge-ProjectId, so use cross-partition query
     const container = await getConnectionsContainer();
-    let connDoc: { provider: string; credential?: string; authHeaderName?: string; authQueryParam?: string } | undefined;
+    let connDoc: { projectId?: string; provider: string; credential?: string; authHeaderName?: string; authQueryParam?: string; customHeaders?: Array<{ name: string; value: string }> } | undefined;
     try {
       const { resources } = await container.items.query({
         query: "SELECT * FROM c WHERE c.id = @id AND c.type = 'connection'",
@@ -179,6 +179,17 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
         forwardHeaders["Authorization"] = `Basic ${cred}`;
       } else if (connDoc.provider === "cookie") {
         forwardHeaders["Cookie"] = cred;
+      }
+    }
+
+    // Inject custom headers (resolve {{proj.xxx}} placeholders)
+    if (connDoc.customHeaders?.length) {
+      const { loadProjectVariables } = await import("../lib/projectVariables");
+      const vars = await loadProjectVariables(connDoc.projectId ?? "");
+      const varMap = new Map(vars.map((v: { name: string; value: string }) => [v.name, v.value]));
+      for (const h of connDoc.customHeaders) {
+        const resolved = h.value.replace(/\{\{proj\.([^}]+)\}\}/g, (_, key: string) => varMap.get(key) ?? `{{proj.${key}}}`);
+        forwardHeaders[h.name] = resolved;
       }
     }
   } else if (authTypeHint && authTypeHint !== "none" && authTypeHint !== "oauth" && versionHint) {
