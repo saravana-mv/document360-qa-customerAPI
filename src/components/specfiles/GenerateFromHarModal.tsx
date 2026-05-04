@@ -343,7 +343,7 @@ export function GenerateFromHarModal({ folderPath, onGenerate, onClose, disabled
         </div>
 
         {/* Footer with generate button */}
-        <div className="px-5 pt-4 pb-5 flex justify-center">
+        <div className="px-5 pt-4 pb-5 flex flex-col items-center gap-1.5">
           <button
             onClick={handleSubmit}
             disabled={disabled || !canGenerate || matching || analyzing}
@@ -354,6 +354,7 @@ export function GenerateFromHarModal({ folderPath, onGenerate, onClose, disabled
             </svg>
             Generate ideas
           </button>
+          <p className="text-xs text-[#656d76]/60">We will generate 10 ideas in Full Lifecycle mode</p>
         </div>
       </div>
     </div>
