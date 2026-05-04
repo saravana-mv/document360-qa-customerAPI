@@ -314,6 +314,25 @@ export async function searchSpecFiles(query: string, version?: string): Promise<
   return res.json() as Promise<SpecSearchResult[]>;
 }
 
+// ── HAR Keyword Extraction (AI) ───────────────────────────────────────────────
+
+export interface HarKeywordResult {
+  keywords: string[];
+  usage: { inputTokens: number; outputTokens: number; totalTokens: number; costUsd: number };
+}
+
+export async function extractHarKeywords(
+  description: string,
+  model?: string,
+): Promise<HarKeywordResult> {
+  const res = await apiFetch("/api/har-extract-keywords", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ description, ...(model ? { model } : {}) }),
+  });
+  return res.json() as Promise<HarKeywordResult>;
+}
+
 // ── Flow Ideas (AI) ───────────────────────────────────────────────────────────
 
 export type IdeaMode = "full" | "no-prereqs" | "no-prereqs-no-teardown";

@@ -18,7 +18,7 @@ export type AiSource =
   | "skillsChat"
   | "debugAnalyze"
   | "generateTitle"
-;
+  | "harExtractKeywords";
 
 // Per-source default model overrides (extensible, empty by default).
 // All sources default to Sonnet 4.6 (DEFAULT_FLOW_MODEL) unless overridden.

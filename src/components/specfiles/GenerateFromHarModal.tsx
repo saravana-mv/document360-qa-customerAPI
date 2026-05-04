@@ -1,13 +1,14 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import type { HarParseResult } from "../../lib/harParser";
 import { compactTrace } from "../../lib/harParser";
 import { matchHarToSpecs } from "../../lib/harSpecMatcher";
-import { filterHarCallsByDescription } from "../../lib/harCallFilter";
-import { listSpecFiles } from "../../lib/api/specFilesApi";
+import { filterHarCallsByKeywords } from "../../lib/harCallFilter";
+import { listSpecFiles, extractHarKeywords } from "../../lib/api/specFilesApi";
 import { HarSessionSection } from "./HarSessionSection";
 import { SpecFilePicker } from "./SpecFilePicker";
 import { useIdeaFoldersStore } from "../../store/ideaFolders.store";
 import { useSetupStore } from "../../store/setup.store";
+import { useAiCostStore } from "../../store/aiCost.store";
 
 interface Props {
   folderPath: string;
@@ -25,30 +26,16 @@ export function GenerateFromHarModal({ folderPath, onGenerate, onClose, disabled
   const [allSpecPaths, setAllSpecPaths] = useState<string[]>([]);
 
   const [description, setDescription] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [analyzed, setAnalyzed] = useState(false);
+  const [extractedKeywords, setExtractedKeywords] = useState<string[]>([]);
   const [selectedCallIndices, setSelectedCallIndices] = useState<Set<number>>(new Set());
 
+  const aiModel = useSetupStore((s) => s.aiModel);
   const harBaseUrl = useSetupStore((s) => s.harBaseUrl);
   const folders = useIdeaFoldersStore((s) => s.folders);
   const folderOptions = buildFolderOptions(folders);
-
-  // Debounce timer ref
-  const filterTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  // Auto-filter calls when description changes
-  useEffect(() => {
-    if (!harResult) return;
-    clearTimeout(filterTimer.current);
-    filterTimer.current = setTimeout(() => {
-      if (!description.trim()) {
-        // No description → select all
-        setSelectedCallIndices(new Set(harResult.apiCalls.map((_, i) => i)));
-      } else {
-        const indices = filterHarCallsByDescription(harResult.apiCalls, description.trim());
-        setSelectedCallIndices(new Set(indices));
-      }
-    }, 300);
-    return () => clearTimeout(filterTimer.current);
-  }, [description, harResult]);
 
   // Derived: selected API calls
   const selectedCalls = useMemo(() => {
@@ -56,7 +43,7 @@ export function GenerateFromHarModal({ folderPath, onGenerate, onClose, disabled
     return harResult.apiCalls.filter((_, i) => selectedCallIndices.has(i));
   }, [harResult, selectedCallIndices]);
 
-  const canGenerate = !!harResult && !!destinationFolder && !!description.trim() && selectedCalls.length > 0;
+  const canGenerate = !!harResult && !!destinationFolder && !!description.trim() && analyzed && selectedCalls.length > 0;
 
   // Re-run spec matching when selected calls change
   useEffect(() => {
@@ -70,7 +57,10 @@ export function GenerateFromHarModal({ folderPath, onGenerate, onClose, disabled
 
   const handleHarLoaded = useCallback(async (result: HarParseResult) => {
     setHarResult(result);
-    setSelectedCallIndices(new Set(result.apiCalls.map((_, i) => i)));
+    setSelectedCallIndices(new Set());
+    setAnalyzed(false);
+    setExtractedKeywords([]);
+    setAnalyzeError(null);
     // Load spec files for matching
     setMatching(true);
     try {
@@ -89,7 +79,36 @@ export function GenerateFromHarModal({ folderPath, onGenerate, onClose, disabled
     setSpecFiles([]);
     setSelectedCallIndices(new Set());
     setAllSpecPaths([]);
+    setAnalyzed(false);
+    setExtractedKeywords([]);
+    setAnalyzeError(null);
   }, []);
+
+  async function handleAnalyze() {
+    if (!harResult || !description.trim()) return;
+    setAnalyzing(true);
+    setAnalyzeError(null);
+    setAnalyzed(false);
+    setExtractedKeywords([]);
+    setSelectedCallIndices(new Set());
+    try {
+      const result = await extractHarKeywords(description.trim(), aiModel);
+      const keywords = result.keywords;
+      setExtractedKeywords(keywords);
+
+      // Report cost via centralized store
+      useAiCostStore.getState().addAdhocCost(result.usage.costUsd);
+
+      // Apply keyword matching
+      const indices = filterHarCallsByKeywords(harResult.apiCalls, keywords);
+      setSelectedCallIndices(new Set(indices));
+      setAnalyzed(true);
+    } catch (e) {
+      setAnalyzeError(e instanceof Error ? e.message : "Keyword extraction failed");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
 
   function toggleCall(index: number) {
     setSelectedCallIndices(prev => {
@@ -170,7 +189,7 @@ export function GenerateFromHarModal({ folderPath, onGenerate, onClose, disabled
             forceBaseUrl={harBaseUrl || undefined}
           />
 
-          {/* Description textarea */}
+          {/* Description textarea + Analyze button */}
           {harResult && (
             <div>
               <label className="text-sm font-medium text-[#656d76] mb-1.5 block">
@@ -178,27 +197,74 @@ export function GenerateFromHarModal({ folderPath, onGenerate, onClose, disabled
               </label>
               <textarea
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                  // Reset analysis when description changes
+                  if (analyzed) {
+                    setAnalyzed(false);
+                    setExtractedKeywords([]);
+                    setSelectedCallIndices(new Set());
+                  }
+                }}
                 placeholder="I was creating a snippet and verifying it appears in the snippet list"
                 rows={2}
-                maxLength={500}
+                maxLength={2000}
                 className="w-full text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-lg px-3 py-2 outline-none focus:border-[#0969da] focus:ring-1 focus:ring-[#0969da]/30 resize-none transition-colors placeholder:text-[#656d76]/50"
               />
-              <p className="text-xs text-[#656d76]/60 mt-1">Describe the actions you performed. Matching calls are auto-selected below.</p>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-xs text-[#656d76]/60">Describe the actions you performed.</p>
+                <button
+                  onClick={handleAnalyze}
+                  disabled={analyzing || !description.trim()}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-[#0969da] hover:text-[#0550ae] disabled:text-[#656d76]/40 disabled:cursor-not-allowed transition-colors"
+                >
+                  {analyzing ? (
+                    <>
+                      <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                      </svg>
+                      Analyze calls
+                    </>
+                  )}
+                </button>
+              </div>
+              {analyzeError && (
+                <p className="text-xs text-[#d1242f] mt-1">{analyzeError}</p>
+              )}
             </div>
           )}
 
-          {/* Toggleable call list */}
-          {harResult && harResult.apiCalls.length > 0 && (
+          {/* Extracted keywords pill */}
+          {analyzed && extractedKeywords.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {extractedKeywords.map((kw) => (
+                <span
+                  key={kw}
+                  className="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-[#ddf4ff] text-[#0969da] border border-[#0969da]/20"
+                >
+                  {kw}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Toggleable call list — only shown after analysis */}
+          {analyzed && harResult && harResult.apiCalls.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-sm font-medium text-[#656d76]">API calls</label>
                 <div className="flex items-center gap-2">
-                  {description.trim() && (
-                    <span className="text-xs text-[#656d76]">
-                      {selectedCallIndices.size} of {harResult.apiCalls.length} matched
-                    </span>
-                  )}
+                  <span className="text-xs text-[#656d76]">
+                    {selectedCallIndices.size} of {harResult.apiCalls.length} selected
+                  </span>
                   <button
                     onClick={toggleAll}
                     className="text-xs text-[#0969da] hover:text-[#0550ae] transition-colors"
@@ -235,8 +301,8 @@ export function GenerateFromHarModal({ folderPath, onGenerate, onClose, disabled
             </div>
           )}
 
-          {/* Auto-matched spec files */}
-          {harResult && selectedCalls.length > 0 && (
+          {/* Auto-matched spec files — only shown after analysis with selected calls */}
+          {analyzed && harResult && selectedCalls.length > 0 && (
             <div>
               <label className="text-sm font-medium text-[#656d76] mb-1.5 block">
                 Matched spec files
@@ -280,7 +346,7 @@ export function GenerateFromHarModal({ folderPath, onGenerate, onClose, disabled
         <div className="px-5 pt-4 pb-5 flex justify-center">
           <button
             onClick={handleSubmit}
-            disabled={disabled || !canGenerate || matching}
+            disabled={disabled || !canGenerate || matching || analyzing}
             className="inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-[#1f883d] hover:bg-[#1a7f37] disabled:bg-[#d1d9e0] disabled:cursor-not-allowed rounded-lg px-6 py-2.5 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
