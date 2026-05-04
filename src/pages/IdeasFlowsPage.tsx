@@ -1468,25 +1468,25 @@ export function IdeasFlowsPage() {
               ) : (
                 /* Generate Ideas landing */
                 <div className="flex-1 flex items-center justify-center bg-white">
-                  <div className="text-center space-y-4 max-w-sm">
-                    <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto bg-[#0969da]/10">
+                  <div className="flex flex-col items-center space-y-4">
+                    <div className="w-14 h-14 rounded-full flex items-center justify-center bg-[#0969da]/10">
                       <svg className="w-7 h-7 text-[#0969da]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
                       </svg>
                     </div>
-                    <div>
+                    <div className="text-center max-w-sm">
                       <p className="text-sm font-medium text-[#1f2328] mb-1">Generate test flow ideas</p>
                       <p className="text-sm text-[#656d76]">
                         Select spec files and let AI suggest test scenarios.
                       </p>
                     </div>
-                    <div className="flex items-center gap-2 justify-center">
+                    <div className="flex items-center gap-2 justify-center flex-nowrap">
                       <button
                         onClick={() => setShowLandingModal(true)}
                         title="Generate test flow ideas with AI"
-                        className="inline-flex items-center justify-center gap-1.5 w-44 bg-[#1f883d] hover:bg-[#1a7f37] text-white text-sm font-medium rounded-md px-3 py-2 transition-colors border border-[#1f883d]/80"
+                        className="inline-flex items-center justify-center gap-1.5 w-[170px] h-[38px] bg-[#1f883d] hover:bg-[#1a7f37] text-white text-sm font-medium rounded-md px-3 whitespace-nowrap transition-colors border border-[#1f883d]/80"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
                         </svg>
                         Generate ideas
@@ -1494,9 +1494,9 @@ export function IdeasFlowsPage() {
                       <button
                         onClick={() => setShowIdeasChat(true)}
                         title="Create ideas interactively via chat"
-                        className="inline-flex items-center justify-center gap-1.5 w-44 bg-[#1f883d] hover:bg-[#1a7f37] text-white text-sm font-medium rounded-md px-3 py-2 transition-colors border border-[#1f883d]/80"
+                        className="inline-flex items-center justify-center gap-1.5 w-[170px] h-[38px] bg-[#1f883d] hover:bg-[#1a7f37] text-white text-sm font-medium rounded-md px-3 whitespace-nowrap transition-colors border border-[#1f883d]/80"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
                         </svg>
                         Ideas chat
@@ -1504,9 +1504,9 @@ export function IdeasFlowsPage() {
                       <button
                         onClick={() => setShowHarModal(true)}
                         title="Generate ideas from a HAR recording"
-                        className="inline-flex items-center justify-center gap-1.5 w-44 bg-[#1f883d] hover:bg-[#1a7f37] text-white text-sm font-medium rounded-md px-3 py-2 transition-colors border border-[#1f883d]/80"
+                        className="inline-flex items-center justify-center gap-1.5 w-[170px] h-[38px] bg-[#1f883d] hover:bg-[#1a7f37] text-white text-sm font-medium rounded-md px-3 whitespace-nowrap transition-colors border border-[#1f883d]/80"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
                         </svg>
                         Ideas from HAR
