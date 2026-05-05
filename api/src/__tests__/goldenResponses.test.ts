@@ -18,6 +18,7 @@ import {
   formatGoldenResponses,
   loadGoldenResponses,
   extractEndpointsFromContext,
+  normalizePath,
 } from "../lib/goldenResponses";
 
 describe("truncateBody", () => {
@@ -36,6 +37,35 @@ describe("truncateBody", () => {
   it("handles invalid JSON gracefully", () => {
     const result = truncateBody("not json at all");
     expect(result).toBe("not json at all");
+  });
+});
+
+describe("normalizePath", () => {
+  it("strips version prefix", () => {
+    expect(normalizePath("/v3/projects/articles")).toBe("/projects/articles");
+  });
+
+  it("replaces {placeholders} with *", () => {
+    expect(normalizePath("/v3/projects/{project_id}/articles")).toBe("/projects/*/articles");
+  });
+
+  it("replaces UUID segments with *", () => {
+    expect(normalizePath("/v3/projects/72df837d-80a0-403d-ac30-93c328a7a57c/articles"))
+      .toBe("/projects/*/articles");
+  });
+
+  it("replaces long numeric IDs with *", () => {
+    expect(normalizePath("/v3/projects/123456/articles")).toBe("/projects/*/articles");
+  });
+
+  it("normalized template and resolved paths match", () => {
+    const template = normalizePath("/v3/projects/{project_id}/categories/{category_id}");
+    const resolved = normalizePath("/v3/projects/72df837d-80a0-403d-ac30-93c328a7a57c/categories/045d432b-ecc6-4bee-b6af-68c3d34abf29");
+    expect(template).toBe(resolved);
+  });
+
+  it("strips query strings", () => {
+    expect(normalizePath("/v3/articles?limit=10")).toBe("/articles");
   });
 });
 
@@ -100,7 +130,7 @@ describe("loadGoldenResponses", () => {
     expect(result).toEqual([]);
   });
 
-  it("extracts passing steps from server-side runs", async () => {
+  it("extracts passing steps from server-side runs (steps array)", async () => {
     mockFetchAll.mockResolvedValue({
       resources: [{
         id: "run-1",
@@ -129,19 +159,26 @@ describe("loadGoldenResponses", () => {
     expect(result[0].statusCode).toBe(201);
   });
 
-  it("extracts passing steps from browser-side runs", async () => {
+  it("extracts passing steps from browser-side runs (testResults object)", async () => {
     mockFetchAll.mockResolvedValue({
       resources: [{
         id: "run-2",
-        tagResults: [{
-          tests: [{
+        testResults: {
+          "xml:flow.s1": {
             status: "pass",
             method: "GET",
             path: "/v3/articles",
             httpStatus: 200,
             responseBody: { data: [{ id: "a1" }] },
-          }],
-        }],
+          },
+          "xml:flow.s2": {
+            status: "fail",
+            method: "DELETE",
+            path: "/v3/articles/{id}",
+            httpStatus: 500,
+            responseBody: { error: "internal" },
+          },
+        },
       }],
     });
 
@@ -150,28 +187,78 @@ describe("loadGoldenResponses", () => {
     expect(result[0].method).toBe("GET");
   });
 
-  it("deduplicates by method+path (keeps first/most recent)", async () => {
+  it("falls back to tagResults when testResults is missing", async () => {
+    mockFetchAll.mockResolvedValue({
+      resources: [{
+        id: "run-3",
+        tagResults: {
+          "My Flow": {
+            tests: [{
+              status: "pass",
+              method: "POST",
+              path: "/v3/categories",
+              httpStatus: 201,
+              responseBody: { data: { id: "c1" } },
+            }],
+          },
+        },
+      }],
+    });
+
+    const result = await loadGoldenResponses("proj1", ["/v3/categories"]);
+    expect(result).toHaveLength(1);
+    expect(result[0].method).toBe("POST");
+  });
+
+  it("matches resolved URLs against template endpoints via normalization", async () => {
+    mockFetchAll.mockResolvedValue({
+      resources: [{
+        id: "run-4",
+        testResults: {
+          "xml:flow.s1": {
+            status: "pass",
+            method: "POST",
+            path: "/v3/projects/{project_id}/categories",
+            httpStatus: 201,
+            responseBody: { data: { id: "cat-1", name: "Test" } },
+            requestUrl: "https://api.example.com/v3/projects/72df837d-80a0-403d-ac30-93c328a7a57c/categories",
+          },
+        },
+      }],
+    });
+
+    // Spec endpoint has {placeholders}
+    const result = await loadGoldenResponses("proj1", ["/v3/projects/{project_id}/categories"]);
+    expect(result).toHaveLength(1);
+    expect(result[0].statusCode).toBe(201);
+  });
+
+  it("deduplicates by method+normalized path (keeps first/most recent)", async () => {
     mockFetchAll.mockResolvedValue({
       resources: [
         {
           id: "run-new",
-          steps: [{
-            status: "pass",
-            method: "POST",
-            requestUrl: "https://api.example.com/v3/articles",
-            httpStatus: 201,
-            responseBody: { data: { id: "newer" } },
-          }],
+          testResults: {
+            "s1": {
+              status: "pass",
+              method: "POST",
+              path: "/v3/articles",
+              httpStatus: 201,
+              responseBody: { data: { id: "newer" } },
+            },
+          },
         },
         {
           id: "run-old",
-          steps: [{
-            status: "pass",
-            method: "POST",
-            requestUrl: "https://api.example.com/v3/articles",
-            httpStatus: 201,
-            responseBody: { data: { id: "older" } },
-          }],
+          testResults: {
+            "s1": {
+              status: "pass",
+              method: "POST",
+              path: "/v3/articles",
+              httpStatus: 201,
+              responseBody: { data: { id: "older" } },
+            },
+          },
         },
       ],
     });
@@ -182,19 +269,22 @@ describe("loadGoldenResponses", () => {
   });
 
   it("limits to 5 golden responses", async () => {
-    const steps = Array.from({ length: 10 }, (_, i) => ({
-      status: "pass",
-      method: "GET",
-      path: `/v3/endpoint${i}`,
-      httpStatus: 200,
-      responseBody: { data: { id: `item${i}` } },
-    }));
+    const testResults = {};
+    for (let i = 0; i < 10; i++) {
+      (testResults as any)[`s${i}`] = {
+        status: "pass",
+        method: "GET",
+        path: `/v3/endpoint${i}`,
+        httpStatus: 200,
+        responseBody: { data: { id: `item${i}` } },
+      };
+    }
 
     mockFetchAll.mockResolvedValue({
-      resources: [{ id: "run-1", tagResults: [{ tests: steps }] }],
+      resources: [{ id: "run-1", testResults }],
     });
 
-    const endpoints = steps.map(s => s.path);
+    const endpoints = Array.from({ length: 10 }, (_, i) => `/v3/endpoint${i}`);
     const result = await loadGoldenResponses("proj1", endpoints);
     expect(result.length).toBeLessThanOrEqual(5);
   });
@@ -207,7 +297,19 @@ describe("loadGoldenResponses", () => {
 });
 
 describe("extractEndpointsFromContext", () => {
-  it("extracts paths from method+path patterns", () => {
+  it("extracts from distilled '## Endpoint: METHOD /path' headers", () => {
+    const ctx = "## Endpoint: GET /v3/projects/{project_id}/articles\nSome description\n## Endpoint: POST /v3/projects/{project_id}/articles\n";
+    const result = extractEndpointsFromContext([], ctx);
+    expect(result).toContain("/v3/projects/{project_id}/articles");
+  });
+
+  it("extracts from digest '**METHOD /path**' format", () => {
+    const ctx = "- **GET /v3/projects/{project_id}/articles** — List all articles\n";
+    const result = extractEndpointsFromContext([], ctx);
+    expect(result).toContain("/v3/projects/{project_id}/articles");
+  });
+
+  it("extracts from bare method+path patterns", () => {
     const ctx = "GET /v3/projects/{project_id}/articles\nPOST /v3/projects/{project_id}/articles";
     const result = extractEndpointsFromContext([], ctx);
     expect(result).toContain("/v3/projects/{project_id}/articles");
@@ -217,5 +319,11 @@ describe("extractEndpointsFromContext", () => {
     const ctx = "**Path**: `/v3/categories/{id}`\n";
     const result = extractEndpointsFromContext([], ctx);
     expect(result).toContain("/v3/categories/{id}");
+  });
+
+  it("deduplicates paths", () => {
+    const ctx = "## Endpoint: GET /v3/articles\nGET /v3/articles\n**Path**: `/v3/articles`";
+    const result = extractEndpointsFromContext([], ctx);
+    expect(result.filter(p => p === "/v3/articles")).toHaveLength(1);
   });
 });

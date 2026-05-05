@@ -68,8 +68,9 @@ export function formatGoldenResponses(responses: GoldenResponse[]): string {
 }
 
 /**
- * Extract method + path from step results across both browser-side
- * and server-side run document formats.
+ * Step-like structure from test run results.
+ * Browser-side: testResults object values have path+method as template paths.
+ * Server-side: steps array items have requestUrl (resolved) + method.
  */
 interface StepLike {
   status?: string;
@@ -81,14 +82,34 @@ interface StepLike {
   requestBody?: unknown;
 }
 
-function extractMethodPath(step: StepLike, runBaseUrl?: string): { method: string; path: string } | null {
-  // Server-side runs: step has method + url directly
+/**
+ * Normalize an endpoint path into a structural pattern for matching.
+ * - Strips version prefix (/v3/ → /)
+ * - Replaces {placeholder} tokens with *
+ * - Replaces UUID-like segments with * (for resolved URLs from server-side runs)
+ * - Replaces numeric segments that look like IDs with *
+ * - Lowercases
+ */
+export function normalizePath(p: string): string {
+  return p
+    .replace(/^\/v\d+\//, "/")                           // strip version prefix
+    .replace(/\{[^}]+\}/g, "*")                          // {placeholder} → *
+    .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "/*") // UUID segments → *
+    .replace(/\/\d{5,}/g, "/*")                          // long numeric IDs → *
+    .replace(/\?.*$/, "")                                // strip query string
+    .toLowerCase();
+}
+
+function extractMethodPath(step: StepLike): { method: string; path: string } | null {
+  // Browser-side runs: testResult has path (template) + method
+  // Prefer this over requestUrl because templates match spec endpoints better
+  if (step.method && step.path) {
+    return { method: step.method, path: step.path };
+  }
+
+  // Server-side runs: step has method + requestUrl (resolved, full URL)
   if (step.method && step.requestUrl) {
     let path = step.requestUrl;
-    // Strip base URL to get just the path
-    if (runBaseUrl && path.startsWith(runBaseUrl)) {
-      path = path.slice(runBaseUrl.length);
-    }
     try {
       const url = new URL(path.startsWith("http") ? path : `https://dummy${path}`);
       path = url.pathname;
@@ -96,17 +117,47 @@ function extractMethodPath(step: StepLike, runBaseUrl?: string): { method: strin
     return { method: step.method, path };
   }
 
-  // Browser-side runs: testResult has path + method at top level
-  if (step.method && step.path) {
-    return { method: step.method, path: step.path };
-  }
-
   return null;
 }
 
 /**
+ * Collect all step-like results from a test run document.
+ * Handles both browser-side format (tagResults object + testResults object)
+ * and server-side format (steps array).
+ */
+function collectSteps(run: Record<string, unknown>): StepLike[] {
+  const steps: StepLike[] = [];
+
+  // Server-side runs: .steps[] array
+  if (Array.isArray(run.steps)) {
+    steps.push(...(run.steps as StepLike[]));
+  }
+
+  // Browser-side runs: .testResults is an OBJECT keyed by testId, not an array
+  // e.g., { "xml:flow.s1": { status: "pass", path: "...", method: "POST", ... } }
+  if (run.testResults && typeof run.testResults === "object" && !Array.isArray(run.testResults)) {
+    steps.push(...Object.values(run.testResults as Record<string, StepLike>));
+  }
+
+  // Browser-side: .tagResults is an OBJECT keyed by tag name
+  // e.g., { "Flow Name": { tests: [...] } }
+  // The tests inside tagResults are the initial TestDef snapshots (status:"idle"),
+  // not the final results — prefer testResults above which has the actual results.
+  // Only fall back to tagResults if testResults is missing.
+  if (steps.length === 0 && run.tagResults && typeof run.tagResults === "object" && !Array.isArray(run.tagResults)) {
+    for (const tag of Object.values(run.tagResults as Record<string, { tests?: StepLike[] }>)) {
+      if (Array.isArray(tag.tests)) {
+        steps.push(...tag.tests);
+      }
+    }
+  }
+
+  return steps;
+}
+
+/**
  * Query Cosmos for recent successful step results matching the given endpoints.
- * Returns deduplicated golden responses (most recent per method+path).
+ * Returns deduplicated golden responses (most recent per method+normalized path).
  */
 export async function loadGoldenResponses(
   projectId: string,
@@ -127,38 +178,20 @@ export async function loadGoldenResponses(
       .query(query, { partitionKey: projectId })
       .fetchAll();
 
-    if (!runs || runs.length === 0) return [];
+    if (!runs || runs.length === 0) {
+      console.log("[goldenResponses] No recent runs found");
+      return [];
+    }
 
-    // Normalize endpoint paths for matching (strip version prefix for flexible matching)
-    const normalizeEndpoint = (p: string): string =>
-      p.replace(/^\/v\d+\//, "/").replace(/\{[^}]+\}/g, "*").toLowerCase();
+    const endpointPatterns = endpoints.map(normalizePath);
+    console.log(`[goldenResponses] Searching ${runs.length} runs for ${endpointPatterns.length} endpoint patterns:`, endpointPatterns.slice(0, 10));
 
-    const endpointPatterns = endpoints.map(normalizeEndpoint);
-
-    // Collect passing step results across all runs
-    const seen = new Map<string, GoldenResponse>(); // method+path → golden
+    // Collect passing step results across all runs, dedup by normalized method+path
+    const seen = new Map<string, GoldenResponse>();
 
     for (const run of runs) {
       const runId = run.id as string;
-
-      // Server-side runs have .steps[]
-      const serverSteps: StepLike[] = Array.isArray(run.steps) ? run.steps : [];
-
-      // Browser-side runs have .tagResults[].tests[]
-      const browserSteps: StepLike[] = [];
-      if (Array.isArray(run.tagResults)) {
-        for (const tag of run.tagResults) {
-          if (Array.isArray(tag.tests)) {
-            browserSteps.push(...tag.tests);
-          }
-        }
-      }
-      // Also check flat testResults array
-      if (Array.isArray(run.testResults)) {
-        browserSteps.push(...run.testResults);
-      }
-
-      const allSteps = [...serverSteps, ...browserSteps];
+      const allSteps = collectSteps(run as Record<string, unknown>);
 
       for (let i = 0; i < allSteps.length; i++) {
         const step = allSteps[i];
@@ -168,12 +201,13 @@ export async function loadGoldenResponses(
         const mp = extractMethodPath(step);
         if (!mp) continue;
 
-        const normalizedPath = normalizeEndpoint(mp.path);
+        const normalizedPath = normalizePath(mp.path);
         const matches = endpointPatterns.some((ep) => normalizedPath === ep);
         if (!matches) continue;
 
-        const key = `${mp.method} ${mp.path}`;
-        if (seen.has(key)) continue; // keep most recent (first encountered)
+        // Dedup by method + normalized path (keep most recent = first encountered)
+        const dedupKey = `${mp.method} ${normalizedPath}`;
+        if (seen.has(dedupKey)) continue;
 
         const responseStr = typeof step.responseBody === "string"
           ? step.responseBody
@@ -183,7 +217,7 @@ export async function loadGoldenResponses(
           ? (typeof step.requestBody === "string" ? step.requestBody : JSON.stringify(step.requestBody))
           : undefined;
 
-        seen.set(key, {
+        seen.set(dedupKey, {
           method: mp.method,
           path: mp.path,
           statusCode: step.httpStatus ?? 200,
@@ -195,8 +229,9 @@ export async function loadGoldenResponses(
       }
     }
 
-    // Return up to MAX_GOLDEN_RESPONSES
-    return [...seen.values()].slice(0, MAX_GOLDEN_RESPONSES);
+    const result = [...seen.values()].slice(0, MAX_GOLDEN_RESPONSES);
+    console.log(`[goldenResponses] Found ${result.length} golden responses from ${seen.size} unique matches`);
+    return result;
   } catch (e) {
     console.error("[goldenResponses] Failed to load golden responses:", e instanceof Error ? e.message : String(e));
     return [];
@@ -204,24 +239,39 @@ export async function loadGoldenResponses(
 }
 
 /**
- * Extract endpoint paths from spec file names.
- * e.g., "v3/articles/create-article.md" → "/v3/projects/{project_id}/articles"
- * Falls back to extracting paths from idea step descriptions.
+ * Extract endpoint paths from spec context markdown.
+ * Handles multiple formats:
+ * - Distilled: "## Endpoint: GET /v3/projects/{project_id}/articles"
+ * - Digest:    "- **GET /v3/projects/{project_id}/articles** — summary"
+ * - Raw:       "GET /v3/projects/{project_id}/articles"
+ * - Markdown:  "**Path**: `/v3/projects/{project_id}/articles`"
  */
 export function extractEndpointsFromContext(
-  specFiles: string[],
+  _specFiles: string[],
   specContext: string,
 ): string[] {
   const paths = new Set<string>();
-
-  // Extract from <path> elements in spec context
-  const pathRe = /(?:GET|POST|PUT|PATCH|DELETE)\s+(\/[^\s\n]+)/gi;
   let m: RegExpExecArray | null;
-  while ((m = pathRe.exec(specContext)) !== null) {
+
+  // Distilled format: "## Endpoint: METHOD /path"
+  const endpointHeaderRe = /^##\s+Endpoint:\s+(?:GET|POST|PUT|PATCH|DELETE)\s+(\/[^\s\n]+)/gim;
+  while ((m = endpointHeaderRe.exec(specContext)) !== null) {
     paths.add(m[1]);
   }
 
-  // Also try "Path: /v3/..." or "**Path**: /v3/..." patterns in spec markdown
+  // Digest format: "- **METHOD /path**"
+  const digestRe = /\*\*(?:GET|POST|PUT|PATCH|DELETE)\s+(\/[^\s*]+)\*\*/gi;
+  while ((m = digestRe.exec(specContext)) !== null) {
+    paths.add(m[1]);
+  }
+
+  // Generic: bare "METHOD /path" (catches raw spec and other formats)
+  const bareRe = /(?:^|[\s>])(?:GET|POST|PUT|PATCH|DELETE)\s+(\/[^\s\n,)]+)/gim;
+  while ((m = bareRe.exec(specContext)) !== null) {
+    paths.add(m[1]);
+  }
+
+  // Markdown path label: "**Path**: `/v3/...`" or "Path: /v3/..."
   const mdPathRe = /\*?\*?Path\*?\*?:\s*`?(\/[^\s`\n]+)/gi;
   while ((m = mdPathRe.exec(specContext)) !== null) {
     paths.add(m[1]);
