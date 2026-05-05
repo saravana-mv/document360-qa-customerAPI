@@ -3,7 +3,7 @@ import { MethodBadge } from "./MethodBadge";
 import { ParameterTable } from "./ParameterTable";
 import { ResponseTabs } from "./ResponseTabs";
 import { SchemaTree } from "./SchemaTree";
-import { InlineMarkdown } from "./InlineMarkdown";
+import { InlineMarkdown, InlineCode } from "./InlineMarkdown";
 import { JsonCodeBlock } from "../common/JsonCodeBlock";
 import { generateSchemaExample } from "../../lib/spec/schemaExample";
 import type { ParsedEndpointDoc } from "../../lib/spec/swaggerParser";
@@ -11,8 +11,54 @@ import type { SecurityScheme } from "../../types/spec.types";
 
 interface Props {
   endpoint: ParsedEndpointDoc;
-  /** Kept for backward compatibility; security details are no longer rendered per-endpoint. */
+  /** Resolved security schemes from the spec — used by the Security section. */
   securitySchemes?: Record<string, SecurityScheme>;
+}
+
+interface ResolvedSecurityScheme {
+  name: string;
+  scheme: SecurityScheme;
+}
+
+/** Resolve the security schemes referenced by the endpoint into concrete details. */
+export function resolveEndpointSecurity(
+  endpoint: ParsedEndpointDoc,
+  securitySchemes?: Record<string, SecurityScheme>,
+): ResolvedSecurityScheme[] {
+  if (!endpoint.security || !securitySchemes) return [];
+  const out: ResolvedSecurityScheme[] = [];
+  const seen = new Set<string>();
+  for (const req of endpoint.security) {
+    for (const name of Object.keys(req)) {
+      if (seen.has(name)) continue;
+      const scheme = securitySchemes[name];
+      if (scheme) {
+        out.push({ name, scheme });
+        seen.add(name);
+      }
+    }
+  }
+  return out;
+}
+
+/** Display label for the security scheme type (e.g. "API Key", "Bearer Token"). */
+export function formatSchemeType(scheme: SecurityScheme): string {
+  if (scheme.type === "oauth2") return "OAuth 2.0";
+  if (scheme.type === "http" && scheme.scheme === "bearer") return "Bearer Token";
+  if (scheme.type === "http" && scheme.scheme === "basic") return "Basic Auth";
+  if (scheme.type === "apiKey") return "API Key";
+  return scheme.type;
+}
+
+/** Where the credential lives — "Header name", "Query parameter name", "Cookie name". */
+export function formatSchemeLocation(scheme: SecurityScheme): string | null {
+  if (!scheme.in) return null;
+  switch (scheme.in.toLowerCase()) {
+    case "header": return "Header name";
+    case "query": return "Query parameter name";
+    case "cookie": return "Cookie name";
+    default: return scheme.in;
+  }
 }
 
 // ── Method badge border color for the path box ──────────────────────────────
@@ -24,12 +70,17 @@ const METHOD_BOX_STYLES: Record<string, string> = {
   delete: "border-[#ffcecb] bg-[#fff5f5]",
 };
 
-export function EndpointDocView({ endpoint }: Props) {
+export function EndpointDocView({ endpoint, securitySchemes }: Props) {
   const pathParams = endpoint.parameters.filter(p => p.in === "path");
   const queryParams = endpoint.parameters.filter(p => p.in === "query");
   const headerParams = endpoint.parameters.filter(p => p.in === "header");
 
   const methodBox = METHOD_BOX_STYLES[endpoint.method.toLowerCase()] ?? "border-[#d1d9e0] bg-[#f6f8fa]";
+
+  const securityDetails = useMemo(
+    () => resolveEndpointSecurity(endpoint, securitySchemes),
+    [endpoint, securitySchemes],
+  );
 
   return (
     <div className="flex-1 overflow-y-auto p-8 space-y-8">
@@ -61,6 +112,11 @@ export function EndpointDocView({ endpoint }: Props) {
         )}
       </div>
 
+      {/* ── Security ──────────────────────────────────────────────── */}
+      {securityDetails.length > 0 && (
+        <SecuritySection details={securityDetails} />
+      )}
+
       {/* ── Parameters ────────────────────────────────────────────── */}
       <ParameterTable title="Path Parameters" parameters={pathParams} />
       <ParameterTable title="Query Parameters" parameters={queryParams} />
@@ -73,6 +129,57 @@ export function EndpointDocView({ endpoint }: Props) {
 
       {/* ── Responses ─────────────────────────────────────────────── */}
       <ResponseTabs responses={endpoint.responses} />
+    </div>
+  );
+}
+
+// ── Security Section ───────────────────────────────────────────────────────
+
+function SecuritySection({ details }: { details: ResolvedSecurityScheme[] }) {
+  return (
+    <div className="space-y-3">
+      <h4 className="text-sm font-semibold text-[#1f2328] pb-2 border-b border-[#d1d9e0]">Security</h4>
+      <div className="space-y-3">
+        {details.map(({ name, scheme }, i) => {
+          const typeLabel = formatSchemeType(scheme);
+          const locLabel = formatSchemeLocation(scheme);
+          return (
+            <div key={i} className="border border-[#d1d9e0] rounded-lg px-4 py-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-[#656d76] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                </svg>
+                <span className="text-sm font-semibold text-[#1f2328]">
+                  {typeLabel}: <span className="font-mono">{name}</span>
+                </span>
+              </div>
+
+              {/* Location row — "Query parameter name: code" */}
+              {locLabel && scheme.name && (
+                <div className="text-sm text-[#656d76] flex items-center gap-1.5 flex-wrap">
+                  <span>{locLabel}</span>
+                  <InlineCode>{scheme.name}</InlineCode>
+                </div>
+              )}
+
+              {/* Bearer format / OAuth scheme detail */}
+              {scheme.bearerFormat && (
+                <div className="text-sm text-[#656d76] flex items-center gap-1.5 flex-wrap">
+                  <span>Format</span>
+                  <InlineCode>{scheme.bearerFormat}</InlineCode>
+                </div>
+              )}
+
+              {/* Description */}
+              {scheme.description && (
+                <p className="text-sm text-[#656d76] leading-relaxed">
+                  <InlineMarkdown text={scheme.description} />
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

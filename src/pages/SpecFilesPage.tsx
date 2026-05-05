@@ -1315,6 +1315,7 @@ export function SpecFilesPage() {
                       canSend={tryItStatus.canSend}
                       connectionWarning={tryItStatus.warning}
                       onOpenConnect={() => setShowConnectModal(true)}
+                      securitySchemes={parsedSpec?.securitySchemes}
                     />
                   )}
                 </div>

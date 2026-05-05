@@ -5,7 +5,13 @@ import { JsonEditor } from "../common/JsonEditor";
 import { HeadersTable } from "../common/HeadersTable";
 import { useProjectVariablesStore } from "../../store/projectVariables.store";
 import type { ParsedEndpointDoc } from "../../lib/spec/swaggerParser";
-import type { Schema } from "../../types/spec.types";
+import type { Schema, SecurityScheme } from "../../types/spec.types";
+import {
+  resolveEndpointSecurity,
+  formatSchemeType,
+  formatSchemeLocation,
+} from "./EndpointDocView";
+import { InlineCode, InlineMarkdown } from "./InlineMarkdown";
 
 // Renders a warning string with two clickable hot-words:
 //   • "Settings > Connections" / "Settings → Connections" → routes to /settings/connections
@@ -57,6 +63,8 @@ interface Props {
   connectionWarning?: string;
   /** Opens the Connect Endpoint modal — used by the "Configure" link in warnings */
   onOpenConnect?: () => void;
+  /** Resolved security schemes from the spec — used for the Authentication section */
+  securitySchemes?: Record<string, SecurityScheme>;
 }
 
 interface TryItResponse {
@@ -397,7 +405,7 @@ function collectExamples(endpoint: ParsedEndpointDoc): NamedExample[] {
   return results;
 }
 
-export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectionWarning, onOpenConnect }: Props) {
+export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectionWarning, onOpenConnect, securitySchemes }: Props) {
   const variables = useProjectVariablesStore((s) => s.variables);
 
   const [sending, setSending] = useState(false);
@@ -419,6 +427,12 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
 
   // Collect available examples from the spec
   const examples = useMemo(() => collectExamples(endpoint), [endpoint]);
+
+  // Resolve security schemes referenced by this endpoint
+  const securityDetails = useMemo(
+    () => resolveEndpointSecurity(endpoint, securitySchemes),
+    [endpoint, securitySchemes],
+  );
 
   // ── Body content-type detection ──────────────────────────────────────────
   const contentType = endpoint.requestBody?.contentType?.toLowerCase() ?? "";
@@ -711,6 +725,52 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
             </svg>
             <ConnectionWarning text={connectionWarning} onConnect={onOpenConnect} />
           </div>
+        )}
+
+        {/* ── Authentication ───────────────────────────────────────── */}
+        {securityDetails.length > 0 && (
+          <Accordion
+            title="Authentication"
+            defaultOpen={true}
+            badge={
+              <svg className="w-3.5 h-3.5 text-[#656d76]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+              </svg>
+            }
+          >
+            <div className="px-3 py-2.5 space-y-3">
+              {securityDetails.map(({ name, scheme }, i) => {
+                const typeLabel = formatSchemeType(scheme);
+                const locLabel = formatSchemeLocation(scheme);
+                return (
+                  <div key={i} className="space-y-1.5">
+                    <div className="text-sm">
+                      <span className="font-semibold text-[#1f2328]">{typeLabel}: </span>
+                      <span className="font-mono text-[#1f2328]">{name}</span>
+                    </div>
+                    {locLabel && scheme.name && (
+                      <div className="text-sm text-[#656d76] flex items-center gap-1.5 flex-wrap">
+                        <span>{locLabel}</span>
+                        <InlineCode>{scheme.name}</InlineCode>
+                      </div>
+                    )}
+                    {scheme.description && (
+                      <p className="text-sm text-[#656d76] leading-relaxed">
+                        <InlineMarkdown text={scheme.description} />
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+              <p className="text-xs text-[#656d76] pt-1 border-t border-[#d1d9e0]">
+                Credentials are managed in{" "}
+                <Link to="/settings/connections" className="text-[#0969da] hover:underline">
+                  Settings → Connections
+                </Link>
+                {" "}and injected by the proxy on Send.
+              </p>
+            </div>
+          </Accordion>
         )}
 
         {/* ── URL preview ──────────────────────────────────────────── */}
