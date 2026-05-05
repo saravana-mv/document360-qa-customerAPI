@@ -102,6 +102,19 @@ export interface FlowTrace {
     outputTokens: number;
     costUsd: number;
   } | null;
+
+  goldenResponseSearch?: {
+    endpointsSearched: string[];
+    runsScanned: number;
+    matchesFound: number;
+    responses: {
+      method: string;
+      path: string;
+      statusCode: number;
+      runId: string;
+      stepIndex: number;
+    }[];
+  } | null;
 }
 
 export async function getFlowTrace(traceId: string): Promise<FlowTrace | null> {

@@ -146,6 +146,68 @@ export default function FlowTraceModal({ trace, onClose }: Props) {
             </div>
           </Section>
 
+          {/* Golden Responses */}
+          {trace.goldenResponseSearch != null && (
+            <Section
+              title="Golden Responses"
+              defaultOpen={trace.goldenResponseSearch.matchesFound > 0}
+              badge={trace.goldenResponseSearch.matchesFound > 0
+                ? `${trace.goldenResponseSearch.matchesFound} matched`
+                : "none"}
+            >
+              <div className="grid grid-cols-2 gap-x-6 gap-y-0.5">
+                <KV label="Runs scanned" value={trace.goldenResponseSearch.runsScanned} />
+                <KV label="Matches found" value={trace.goldenResponseSearch.matchesFound} />
+                <KV label="Endpoints searched" value={trace.goldenResponseSearch.endpointsSearched.length} />
+              </div>
+
+              {trace.goldenResponseSearch.endpointsSearched.length > 0 && (
+                <div className="mt-2">
+                  <span className="text-sm font-medium" style={{ color: "#656d76" }}>
+                    Endpoints searched ({trace.goldenResponseSearch.endpointsSearched.length}):
+                  </span>
+                  <div className="mt-1 text-xs font-mono space-y-0.5" style={{ color: "#1f2328" }}>
+                    {trace.goldenResponseSearch.endpointsSearched.map((ep, i) => (
+                      <div key={i}>{ep}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {trace.goldenResponseSearch.responses.length > 0 && (
+                <div className="mt-2">
+                  <span className="text-sm font-medium" style={{ color: "#1a7f37" }}>
+                    Injected responses ({trace.goldenResponseSearch.responses.length}):
+                  </span>
+                  <div className="mt-1 text-xs font-mono space-y-0.5">
+                    {trace.goldenResponseSearch.responses.map((r, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span style={{ color: "#1a7f37" }}>✓</span>
+                        <span style={{ color: "#0969da" }}>{r.method}</span>
+                        <span style={{ color: "#1f2328" }}>{r.path}</span>
+                        <span style={{ color: "#656d76" }}>→ {r.statusCode}</span>
+                        <span className="text-xs" style={{ color: "#8b949e" }}>from run {r.runId.slice(0, 12)}…</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {trace.goldenResponseSearch.runsScanned > 0 && trace.goldenResponseSearch.matchesFound === 0 && (
+                <div className="mt-2 text-sm px-2 py-1 rounded" style={{ background: "#fff8c5", color: "#9a6700" }}>
+                  No passing steps from recent runs matched the searched endpoints.
+                  Run the related scenarios first, then regenerate to get golden response data.
+                </div>
+              )}
+
+              {trace.goldenResponseSearch.runsScanned === 0 && (
+                <div className="mt-2 text-sm px-2 py-1 rounded" style={{ background: "#f6f8fa", color: "#656d76" }}>
+                  No test runs found for this project. Golden responses require at least one successful run.
+                </div>
+              )}
+            </Section>
+          )}
+
           {/* Idea Reference */}
           {trace.ideaRef && (
             <Section title="Idea Reference">
