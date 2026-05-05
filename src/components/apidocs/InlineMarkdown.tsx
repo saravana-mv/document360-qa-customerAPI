@@ -2,7 +2,7 @@
  * Lightweight inline markdown renderer for API doc descriptions.
  *
  * Handles only what's needed to make descriptions readable:
- *   • `code`       → pink monospaced pill  (Primer red on canvas-subtle)
+ *   • `code`       → green monospaced text  (#1a7f37)
  *   • **bold**     → semibold span
  *
  * Deliberately tiny — no full markdown grammar (no headings, lists, links,
@@ -48,10 +48,10 @@ function tokenize(text: string): Token[] {
   return out;
 }
 
-/** Inline pink-tinted code pill — reused across the API doc components. */
+/** Inline code — green text only, no background or border. */
 export function InlineCode({ children }: { children: React.ReactNode }) {
   return (
-    <code className="font-mono text-[#cf222e] bg-[#f6f8fa] border border-[#d1d9e0] rounded px-1 py-px">
+    <code className="font-mono text-[#1a7f37]">
       {children}
     </code>
   );
