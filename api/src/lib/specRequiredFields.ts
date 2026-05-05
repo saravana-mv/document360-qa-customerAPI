@@ -1533,8 +1533,34 @@ export function injectEndpointRefs(xml: string, specContext: string): string {
   let result = xml;
   let injected = 0;
 
-  // Collect known spec file names for validation
+  // Collect known spec file names for validation.
+  // AI-generated endpointRefs may omit the version prefix (e.g., "PII/image/detect-image.md"
+  // vs header "V3/PII/image/detect-image.md"), so we also build a normalized lookup that
+  // strips the version prefix for flexible matching.
   const knownFiles = new Set(fileHeaders.map((fh) => fh.name));
+  const stripVer = (p: string) => p.replace(/^v\d+\//i, "").toLowerCase();
+  const knownNormalized = new Map<string, string>(); // normalized → original
+  for (const fh of fileHeaders) {
+    knownNormalized.set(stripVer(fh.name), fh.name);
+  }
+
+  /** Check if ref matches any known file (exact or version-stripped). */
+  function isKnownFile(ref: string): boolean {
+    if (knownFiles.has(ref)) return true;
+    // Only match via version-strip if the ref has folder structure (not bare filename)
+    if (ref.includes("/")) return knownNormalized.has(stripVer(ref));
+    return false;
+  }
+
+  /** Check if ref matches any candidate (exact or version-stripped). */
+  function isCandidate(ref: string, cands: string[] | undefined): boolean {
+    if (!cands) return false;
+    if (cands.includes(ref)) return true;
+    // Only match via version-strip if the ref has folder structure (not bare filename)
+    if (!ref.includes("/")) return false;
+    const refNorm = stripVer(ref);
+    return cands.some((c) => stripVer(c) === refNorm);
+  }
 
   // Process in reverse to preserve string offsets
   for (let i = xmlSteps.length - 1; i >= 0; i--) {
@@ -1551,8 +1577,8 @@ export function injectEndpointRefs(xml: string, specContext: string): string {
       // Validate the existing ref is correct: must be a known file AND must be
       // one of the candidates for this step's method+path. A known file that
       // maps to a different endpoint (e.g., create.md on a PATCH step) is wrong.
-      const isValidForStep = candidates?.includes(existingRef) ?? false;
-      if (knownFiles.has(existingRef) && isValidForStep) continue;
+      const isValidForStep = isCandidate(existingRef, candidates);
+      if (isKnownFile(existingRef) && isValidForStep) continue;
       // Otherwise it's wrong — we'll replace it below
       console.log(`[injectEndpointRefs] Wrong endpointRef: "${existingRef}" for ${step.method} ${step.path} — will correct`);
     }
