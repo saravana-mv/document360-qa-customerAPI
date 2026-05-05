@@ -56,11 +56,16 @@ export interface SplitResult {
 
 /** Convert a tag name to kebab-case folder name. */
 export function tagToFolder(tag: string): string {
-  return tag
-    .replace(/([a-z])([A-Z])/g, "$1-$2")   // camelCase → camel-Case
+  return toKebabCase(tag);
+}
+
+/** Convert a camelCase/PascalCase/mixed string to kebab-case. */
+function toKebabCase(s: string): string {
+  return s
+    .replace(/([a-z])([A-Z])/g, "$1-$2")      // camelCase → camel-Case
     .replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2") // AISearch → AI-Search
-    .replace(/[\s_]+/g, "-")                // spaces/underscores → hyphens
-    .replace(/[^a-zA-Z0-9-]/g, "")          // strip non-alnum
+    .replace(/[\s_]+/g, "-")                   // spaces/underscores → hyphens
+    .replace(/[^a-zA-Z0-9-]/g, "")             // strip non-alnum
     .toLowerCase();
 }
 
@@ -115,23 +120,32 @@ export function operationToFilename(
   path: string,
   existingNames: Set<string>,
   resourceFolder?: string,
+  operationId?: string,
 ): string {
-  const m = method.toLowerCase();
-  let action: string;
+  let base: string;
 
-  if (m === "get") {
-    action = endsWithParam(path) ? "get" : "list";
+  if (operationId) {
+    // operationId-first: kebab-case the operationId directly
+    base = toKebabCase(operationId);
   } else {
-    action = methodToBaseName(m);
-  }
+    // Fallback: method-based CRUD naming
+    const m = method.toLowerCase();
+    let action: string;
 
-  // Build descriptive name: "create-category", "list-categories", "get-article"
-  const resource = resourceFolder ? singularize(resourceFolder) : "";
-  // "list" keeps plural form (list-categories), others use singular (create-category)
-  const suffix = resourceFolder
-    ? (action === "list" ? resourceFolder : resource)
-    : "";
-  const base = suffix ? `${action}-${suffix}` : action;
+    if (m === "get") {
+      action = endsWithParam(path) ? "get" : "list";
+    } else {
+      action = methodToBaseName(m);
+    }
+
+    // Build descriptive name: "create-category", "list-categories", "get-article"
+    const resource = resourceFolder ? singularize(resourceFolder) : "";
+    // "list" keeps plural form (list-categories), others use singular (create-category)
+    const suffix = resourceFolder
+      ? (action === "list" ? resourceFolder : resource)
+      : "";
+    base = suffix ? `${action}-${suffix}` : action;
+  }
 
   const candidate = `${base}.md`;
   if (!existingNames.has(candidate)) {
@@ -429,7 +443,8 @@ export function splitSwagger(specJson: Record<string, unknown>): SplitResult {
       // Track filenames per folder
       if (!folderFileNames[folder]) folderFileNames[folder] = new Set();
 
-      const filename = operationToFilename(method, path, folderFileNames[folder], folder);
+      const operationId = operation["operationId"] as string | undefined;
+      const filename = operationToFilename(method, path, folderFileNames[folder], folder, operationId);
 
       try {
         const content = buildEndpointMarkdown(

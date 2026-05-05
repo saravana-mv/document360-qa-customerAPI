@@ -121,6 +121,42 @@ describe("operationToFilename", () => {
     const existing = new Set<string>();
     expect(operationToFilename("POST", "/v3/items", existing)).toBe("create.md");
   });
+
+  // ── operationId-first naming ──────────────────────────────────────────────
+
+  test("operationId 'detectText' → detect-text.md (non-CRUD)", () => {
+    const existing = new Set<string>();
+    expect(operationToFilename("POST", "/detect-text", existing, "pii-detection", "detectText")).toBe("detect-text.md");
+  });
+
+  test("operationId 'detectImage' → detect-image.md (non-CRUD)", () => {
+    const existing = new Set<string>();
+    expect(operationToFilename("POST", "/detect-image", existing, "pii-detection", "detectImage")).toBe("detect-image.md");
+  });
+
+  test("operationId 'createArticle' → create-article.md (CRUD — same as before)", () => {
+    const existing = new Set<string>();
+    expect(operationToFilename("POST", "/v3/articles", existing, "articles", "createArticle")).toBe("create-article.md");
+  });
+
+  test("operationId 'listAPIKeys' → list-api-keys.md (acronym handling)", () => {
+    const existing = new Set<string>();
+    expect(operationToFilename("GET", "/v3/api-keys", existing, "api-keys", "listAPIKeys")).toBe("list-api-keys.md");
+  });
+
+  test("operationId absent → falls back to method-based naming", () => {
+    const existing = new Set<string>();
+    expect(operationToFilename("POST", "/v3/articles", existing, "articles", undefined)).toBe("create-article.md");
+  });
+
+  test("operationId collision → uses path discriminator", () => {
+    const existing = new Set<string>();
+    const first = operationToFilename("POST", "/v3/items/process", existing, "items", "processItem");
+    expect(first).toBe("process-item.md");
+    const second = operationToFilename("POST", "/v3/items/batch", existing, "items", "processItem");
+    expect(second).not.toBe("process-item.md");
+    expect(second).toMatch(/^process-item-.+\.md$/);
+  });
 });
 
 // ── resolveRefs ──────────────────────────────────────────────────────────────
@@ -269,11 +305,13 @@ describe("splitSwagger", () => {
         "/v3/articles": {
           get: {
             tags: ["Articles"],
+            operationId: "listArticles",
             summary: "List articles",
             responses: { "200": { description: "Success" } },
           },
           post: {
             tags: ["Articles"],
+            operationId: "createArticle",
             summary: "Create article",
             responses: { "201": { description: "Created" } },
           },
@@ -281,11 +319,13 @@ describe("splitSwagger", () => {
         "/v3/articles/{id}": {
           get: {
             tags: ["Articles"],
+            operationId: "getArticle",
             summary: "Get article",
             responses: { "200": { description: "Success" } },
           },
           delete: {
             tags: ["Articles"],
+            operationId: "deleteArticle",
             summary: "Delete article",
             responses: { "204": { description: "Deleted" } },
           },
@@ -293,6 +333,7 @@ describe("splitSwagger", () => {
         "/v3/categories": {
           get: {
             tags: ["Categories"],
+            operationId: "listCategories",
             summary: "List categories",
             responses: { "200": { description: "Success" } },
           },
@@ -317,6 +358,39 @@ describe("splitSwagger", () => {
     expect(articleNames).toContain("create-article.md");
     expect(articleNames).toContain("get-article.md");
     expect(articleNames).toContain("delete-article.md");
+  });
+
+  test("uses operationId for non-CRUD endpoints", () => {
+    const spec = {
+      openapi: "3.0.1",
+      info: { title: "PII Detection API", version: "1.0" },
+      paths: {
+        "/detect-text": {
+          post: {
+            tags: ["PIIDetection"],
+            operationId: "detectText",
+            summary: "Detect PII in text",
+            responses: { "200": { description: "Success" } },
+          },
+        },
+        "/detect-image": {
+          post: {
+            tags: ["PIIDetection"],
+            operationId: "detectImage",
+            summary: "Detect PII in image",
+            responses: { "200": { description: "Success" } },
+          },
+        },
+      },
+      components: { schemas: {} },
+    };
+
+    const result = splitSwagger(spec as Record<string, unknown>);
+    const names = result.files.map(f => f.filename);
+    expect(names).toContain("detect-text.md");
+    expect(names).toContain("detect-image.md");
+    // Should NOT produce create-* names
+    expect(names.some(n => n.startsWith("create-"))).toBe(false);
   });
 
   test("handles Swagger 2.x with definitions", () => {

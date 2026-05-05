@@ -317,7 +317,11 @@ function normalizeSwagger2(spec: Record<string, unknown>) {
 
 /** Convert a tag name to a kebab-case folder name (mirrors server tagToFolder). */
 function tagToFolder(tag: string): string {
-  return tag
+  return toKebabCase(tag);
+}
+
+function toKebabCase(s: string): string {
+  return s
     .replace(/([a-z])([A-Z])/g, "$1-$2")
     .replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2")
     .replace(/[\s_]+/g, "-")
@@ -359,12 +363,20 @@ function operationToFilename(
   path: string,
   existingNames: Set<string>,
   resourceFolder?: string,
+  operationId?: string,
 ): string {
-  const m = method.toLowerCase();
-  const action = m === "get" ? (endsWithParam(path) ? "get" : "list") : methodToBaseName(m);
-  const resource = resourceFolder ? singularize(resourceFolder) : "";
-  const suffix = resourceFolder ? (action === "list" ? resourceFolder : resource) : "";
-  const base = suffix ? `${action}-${suffix}` : action;
+  let base: string;
+
+  if (operationId) {
+    base = toKebabCase(operationId);
+  } else {
+    const m = method.toLowerCase();
+    const action = m === "get" ? (endsWithParam(path) ? "get" : "list") : methodToBaseName(m);
+    const resource = resourceFolder ? singularize(resourceFolder) : "";
+    const suffix = resourceFolder ? (action === "list" ? resourceFolder : resource) : "";
+    base = suffix ? `${action}-${suffix}` : action;
+  }
+
   const candidate = `${base}.md`;
   if (!existingNames.has(candidate)) {
     existingNames.add(candidate);
@@ -389,7 +401,7 @@ export function buildEndpointFileMap(spec: ParsedSpec): Map<string, ParsedEndpoi
     if (!folderFileNames[folder]) folderFileNames[folder] = new Set();
 
     for (const ep of group.endpoints) {
-      const filename = operationToFilename(ep.method, ep.path, folderFileNames[folder], folder);
+      const filename = operationToFilename(ep.method, ep.path, folderFileNames[folder], folder, ep.operationId);
       map.set(`${folder}/${filename}`, ep);
     }
   }
