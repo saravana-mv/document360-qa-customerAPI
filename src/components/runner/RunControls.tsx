@@ -179,7 +179,7 @@ export function RunControls() {
       const sc = scenarioOrg.scenarioConfigs[flowPath];
       byTag[t.tag] = buildTestContext({
         token: PROXY_TOKEN,
-        apiVersion: sc?.apiVersion || conn?.apiVersion || vc.apiVersion || setup.apiVersion,
+        apiVersion: sc?.apiVersion ?? (conn ? (conn.apiVersion ?? "") : vc.apiVersion ?? setup.apiVersion),
         baseUrl: sc?.baseUrl || conn?.baseUrl || vc.baseUrl || undefined,
         authType: sc?.authType || vc.authType || "none",
         authVersion: version,

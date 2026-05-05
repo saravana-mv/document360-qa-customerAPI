@@ -118,7 +118,7 @@ async function createConnection(req: HttpRequest): Promise<HttpResponseInit> {
       provider,
       // Endpoint config
       baseUrl: body.baseUrl?.trim() || undefined,
-      apiVersion: body.apiVersion?.trim() || undefined,
+      apiVersion: body.apiVersion?.trim() ?? "",
       // OAuth fields
       authorizationUrl: provider === "oauth2" ? (body.authorizationUrl?.trim() || undefined) : undefined,
       tokenUrl: provider === "oauth2" ? (body.tokenUrl?.trim() || undefined) : undefined,
@@ -170,7 +170,7 @@ async function updateConnection(req: HttpRequest): Promise<HttpResponseInit> {
 
     existing.name = body.name?.trim() || existing.name;
     if (body.baseUrl !== undefined) existing.baseUrl = body.baseUrl.trim() || undefined;
-    if (body.apiVersion !== undefined) existing.apiVersion = body.apiVersion.trim() || undefined;
+    if (body.apiVersion !== undefined) existing.apiVersion = body.apiVersion.trim();
 
     if (existing.provider === "oauth2") {
       existing.authorizationUrl = body.authorizationUrl?.trim() || existing.authorizationUrl;
