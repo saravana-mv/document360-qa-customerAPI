@@ -113,7 +113,7 @@ async function handleRunScenario(req: HttpRequest, _ctx: InvocationContext): Pro
 
   const delayBetweenStepsMs = typeof settings.delayBetweenStepsMs === "number"
     ? (settings.delayBetweenStepsMs as number)
-    : 0;
+    : 2000;
 
   const ctx: RunContext = {
     apiVersion,
