@@ -540,6 +540,50 @@ describe("detectStaleEndpointRefs", () => {
     const issues = detectStaleEndpointRefs(flow, []);
     expect(issues).toHaveLength(0);
   });
+
+  it("does not flag when endpointRef has folder path but spec header is bare filename", () => {
+    // Validation spec context uses bare filenames (from findMatchingSpec inner headers)
+    // while endpointRefs use nested folder paths — should still match by basename
+    const flow = parseFlowXml(`<?xml version="1.0" encoding="UTF-8"?>
+<flow xmlns="https://flowforge.io/qa/flow/v1">
+  <name>Test</name><entity>image</entity>
+  <steps>
+    <step number="1">
+      <name>Detect Image</name><method>POST</method><path>/v1/detect-image</path>
+      <endpointRef>PII/image/detect-image.md</endpointRef>
+      <body><![CDATA[{"url": "https://example.com/img.png"}]]></body>
+      <assertions><assertion type="status" code="200" /></assertions>
+    </step>
+  </steps>
+</flow>`);
+    // Spec context header is just the bare filename (as returned by findMatchingSpec)
+    const specCtx = `## detect-image.md\n\n## Endpoint: POST /v1/detect-image\n\n### Request Body\n| Field | Type | Required |\n|---|---|---|\n| url | string | yes |\n`;
+    const { parseSpecEndpoints } = require("../lib/specRequiredFields");
+    const endpoints = parseSpecEndpoints(specCtx);
+    const issues = detectStaleEndpointRefs(flow, endpoints);
+    expect(issues).toHaveLength(0);
+  });
+
+  it("does not flag when endpointRef differs by version prefix", () => {
+    const flow = parseFlowXml(`<?xml version="1.0" encoding="UTF-8"?>
+<flow xmlns="https://flowforge.io/qa/flow/v1">
+  <name>Test</name><entity>articles</entity>
+  <steps>
+    <step number="1">
+      <name>Create</name><method>POST</method><path>/v2/articles</path>
+      <endpointRef>articles/create-article.md</endpointRef>
+      <body><![CDATA[{"title": "Test"}]]></body>
+      <assertions><assertion type="status" code="201" /></assertions>
+    </step>
+  </steps>
+</flow>`);
+    // Spec context header includes version prefix
+    const specCtx = `## V3/articles/create-article.md\n\n## Endpoint: POST /v2/articles\n\n### Request Body\n| Field | Type | Required |\n|---|---|---|\n| title | string | yes |\n`;
+    const { parseSpecEndpoints } = require("../lib/specRequiredFields");
+    const endpoints = parseSpecEndpoints(specCtx);
+    const issues = detectStaleEndpointRefs(flow, endpoints);
+    expect(issues).toHaveLength(0);
+  });
 });
 
 describe("validateFlowXml (integration)", () => {

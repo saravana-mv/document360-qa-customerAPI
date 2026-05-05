@@ -591,18 +591,47 @@ export function detectMismatchedEndpointRefs(
   return issues;
 }
 
+/** Strip version prefix (e.g. "V3/") and lowercase for comparison. */
+function stripVersionPrefix(p: string): string {
+  return p.replace(/^v\d+\//i, "").toLowerCase();
+}
+
 export function detectStaleEndpointRefs(
   flow: ParsedFlow,
   endpoints: SpecEndpoint[],
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const knownFiles = new Set(
-    endpoints.map((ep) => ep.specFilePath).filter(Boolean),
-  );
+  const knownFiles = endpoints
+    .map((ep) => ep.specFilePath)
+    .filter((f): f is string => f != null);
+
+  // Build normalized sets for flexible matching: spec context headers may use
+  // bare filenames ("detect-image.md") while endpointRefs use folder paths
+  // ("PII/image/detect-image.md") or vice versa with version prefixes.
+  const knownExact = new Set(knownFiles);
+  const knownNormalized = new Set(knownFiles.map(stripVersionPrefix));
+  const knownBasenames = new Set(knownFiles.map((f) => f.split("/").pop()!.toLowerCase()));
 
   for (const step of flow.steps) {
     if (!step.endpointRef) continue;
-    if (knownFiles.has(step.endpointRef)) continue;
+
+    // Try exact match first
+    if (knownExact.has(step.endpointRef)) continue;
+
+    // Try normalized (strip version prefix, lowercase)
+    const refNorm = stripVersionPrefix(step.endpointRef);
+    if (knownNormalized.has(refNorm)) continue;
+
+    // Try basename match (handles path format differences)
+    const refBasename = step.endpointRef.split("/").pop()!.toLowerCase();
+    if (knownBasenames.has(refBasename)) continue;
+
+    // Try suffix match: either side could be a suffix of the other
+    const matchesSuffix = knownFiles.some((kf) => {
+      const kNorm = stripVersionPrefix(kf);
+      return kNorm.endsWith(refNorm) || refNorm.endsWith(kNorm);
+    });
+    if (matchesSuffix) continue;
 
     issues.push({
       severity: "info",
