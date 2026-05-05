@@ -305,7 +305,7 @@ function extractResponseKeyFields(
     const type = extractFieldType(def, schemas);
 
     if (type === "array") {
-      // For arrays, follow items.$ref to show item-level fields with [] notation
+      // For arrays, follow items.$ref or inline items to show item-level fields with [] notation
       const items = def.items as Record<string, unknown> | undefined;
       let itemSchema: Record<string, unknown> | null = null;
       if (items?.$ref) itemSchema = resolveRef(items.$ref as string, schemas);
@@ -313,6 +313,10 @@ function extractResponseKeyFields(
         for (const r of items.allOf as Record<string, string>[]) {
           if (r.$ref) { itemSchema = resolveRef(r.$ref, schemas); break; }
         }
+      }
+      // Inline items schema (no $ref) — use directly if it has properties
+      if (!itemSchema && items?.properties) {
+        itemSchema = items as Record<string, unknown>;
       }
       if (itemSchema && depth < 2) {
         // Show array with item fields: response.data[].id, response.data[].name, etc.
@@ -322,13 +326,17 @@ function extractResponseKeyFields(
         result.push(`${fieldPath} (${type})`);
       }
     } else if (type === "object" || def.allOf || def.$ref) {
-      // For nested objects, recurse if it's a $ref we can resolve
+      // For nested objects, recurse if it's a $ref we can resolve, or inline
       let nested: Record<string, unknown> | null = null;
       if (def.$ref) nested = resolveRef(def.$ref as string, schemas);
       if (def.allOf) {
         for (const r of def.allOf as Record<string, string>[]) {
           if (r.$ref) { nested = resolveRef(r.$ref, schemas); break; }
         }
+      }
+      // Inline object schema (no $ref) — use directly if it has properties
+      if (!nested && def.properties) {
+        nested = def as Record<string, unknown>;
       }
       if (nested && depth < 2) {
         extractResponseKeyFields(nested, schemas, fieldPath, result, depth + 1);
