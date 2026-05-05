@@ -26,6 +26,9 @@ import {
   coerce,
   type RunState,
 } from "./interpolation";
+import { downloadBlobBuffer } from "../blobClient";
+
+const FILE_SENTINEL_PREFIX = "__ff_file__:";
 
 /**
  * Execute a parsed flow end-to-end. Returns a structured result object.
@@ -156,6 +159,7 @@ async function executeStep(
 
   // Resolve body — fail the step if any state/proj variables are unresolved
   let requestBody: unknown = undefined;
+  let interpolatedBodyStr: string | undefined;
   if (step.body) {
     try {
       const { result: interpolated, unresolved } = substituteStrict(step.body, ctx, state);
@@ -166,6 +170,7 @@ async function executeStep(
           requestUrl,
         });
       }
+      interpolatedBodyStr = interpolated;
       requestBody = JSON.parse(interpolated);
     } catch (err) {
       return makeResult(step, start, "error", {
@@ -177,12 +182,46 @@ async function executeStep(
 
   // Build headers — call upstream API directly (no proxy)
   const headers: Record<string, string> = {};
-  if (requestBody !== undefined) headers["Content-Type"] = "application/json";
   if (!step.noAuth) {
     if (ctx.authMethod === "oauth" && ctx.accessToken) {
       headers["Authorization"] = `Bearer ${ctx.accessToken}`;
     } else if (ctx.authMethod === "apikey" && ctx.apiKey) {
       headers["api_token"] = ctx.apiKey;
+    }
+  }
+
+  // Determine fetch body — multipart/form-data or JSON
+  let fetchBody: FormData | string | undefined;
+  const isMultipart = step.bodyContentType === "multipart/form-data";
+  if (requestBody !== undefined) {
+    if (isMultipart && typeof requestBody === "object" && requestBody !== null) {
+      // Build FormData from the parsed JSON body
+      const formData = new FormData();
+      for (const [key, val] of Object.entries(requestBody as Record<string, unknown>)) {
+        const strVal = String(val);
+        if (strVal.startsWith(FILE_SENTINEL_PREFIX)) {
+          // Parse sentinel: __ff_file__:{blobPath}|{fileName}|{mimeType}
+          const parts = strVal.slice(FILE_SENTINEL_PREFIX.length).split("|");
+          const [blobPath, fileName, mimeType] = parts;
+          try {
+            const { buffer } = await downloadBlobBuffer(blobPath);
+            const blob = new Blob([buffer], { type: mimeType || "application/octet-stream" });
+            formData.append(key, blob, fileName || "file");
+          } catch (err) {
+            return makeResult(step, start, "error", {
+              failureReason: `Failed to download file variable "${key}": ${(err as Error).message}`,
+              requestUrl,
+            });
+          }
+        } else {
+          formData.append(key, strVal);
+        }
+      }
+      fetchBody = formData;
+      // Do NOT set Content-Type — let fetch auto-set with boundary
+    } else {
+      headers["Content-Type"] = "application/json";
+      fetchBody = JSON.stringify(requestBody);
     }
   }
 
@@ -194,7 +233,7 @@ async function executeStep(
     const res = await fetch(requestUrl, {
       method: step.method,
       headers,
-      body: requestBody !== undefined ? JSON.stringify(requestBody) : undefined,
+      body: fetchBody,
     });
     httpStatus = res.status;
     if (res.status !== 204) {

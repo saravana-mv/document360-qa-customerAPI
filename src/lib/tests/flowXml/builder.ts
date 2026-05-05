@@ -255,6 +255,9 @@ async function executeStep(step: ParsedStep, ctx: TestContext, state: RunState):
   //
   const headers: Record<string, string> = {};
   if (requestBody !== undefined) headers["Content-Type"] = "application/json";
+  if (step.bodyContentType === "multipart/form-data") {
+    headers["X-FF-Content-Type"] = "multipart/form-data";
+  }
   if (step.noAuth) headers["X-FF-No-Auth"] = "1";
   if (ctx.authType && ctx.authType !== "none" && ctx.authVersion) {
     headers["X-FF-Auth-Type"] = ctx.authType;

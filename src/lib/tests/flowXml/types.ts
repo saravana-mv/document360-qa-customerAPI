@@ -24,6 +24,8 @@ export interface ParsedStep {
   queryParams: Record<string, string>;
   /** Raw body text as written in XML (with placeholders, before interpolation). */
   body?: string;
+  /** Optional content type override, e.g. "multipart/form-data". */
+  bodyContentType?: string;
   captures: ParsedCapture[];
   assertions: ParsedAssertion[];
   teardown: boolean;

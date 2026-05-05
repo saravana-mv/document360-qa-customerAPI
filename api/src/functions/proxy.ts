@@ -14,6 +14,9 @@ import { withAuth, parseClientPrincipal } from "../lib/auth";
 import { getValidOAuthToken } from "../lib/oauthTokenStore";
 import { getCredentialForVersion, getApiKeyForVersion } from "../lib/versionApiKeyStore";
 import { getConnectionsContainer } from "../lib/cosmosClient";
+import { downloadBlobBuffer } from "../lib/blobClient";
+
+const FILE_SENTINEL_PREFIX = "__ff_file__:";
 
 const DEFAULT_BASE_URL =
   (process.env.DEFAULT_API_BASE_URL ?? "").replace(/\/+$/, "");
@@ -27,6 +30,7 @@ const ALLOWED_REQUEST_HEADERS = new Set([
   "accept",
   "if-match",
   "if-none-match",
+  "x-ff-content-type",
 ]);
 
 // Response headers we forward back to the browser. Everything else is
@@ -36,7 +40,7 @@ const FORWARDED_RESPONSE_HEADERS = ["content-type", "content-language", "etag"];
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-FF-Method, X-FF-No-Auth, X-FF-Auth-Type, X-FF-Auth-Method, X-FF-Version, X-FF-Auth-Header-Name, X-FF-Auth-Query-Param, X-FF-Base-Url, X-FF-Connection-Id",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-FF-Method, X-FF-No-Auth, X-FF-Auth-Type, X-FF-Auth-Method, X-FF-Version, X-FF-Auth-Header-Name, X-FF-Auth-Query-Param, X-FF-Base-Url, X-FF-Connection-Id, X-FF-Content-Type",
   // Allow the SPA to read our debug headers from cross-origin responses.
   "Access-Control-Expose-Headers": "X-FF-Proxy-Build, X-FF-Proxy-Crash, X-FF-Upstream-Status, X-FF-Upstream-Url, X-FF-Trace-Id, Content-Type",
 };
@@ -232,6 +236,35 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
   const methodsWithBody = new Set(["POST", "PUT", "PATCH", "DELETE"]);
   const bodyBuf = methodsWithBody.has(effectiveMethod) ? await req.arrayBuffer() : undefined;
 
+  // Multipart assembly: if browser sends X-FF-Content-Type: multipart/form-data,
+  // the body is JSON with potential file sentinel values. Parse and build FormData.
+  const ffContentType = req.headers.get("x-ff-content-type") ?? "";
+  let multipartBody: FormData | undefined;
+  if (ffContentType === "multipart/form-data" && bodyBuf && bodyBuf.byteLength > 0) {
+    try {
+      const jsonBody = JSON.parse(Buffer.from(bodyBuf).toString("utf-8")) as Record<string, unknown>;
+      const formData = new FormData();
+      for (const [key, val] of Object.entries(jsonBody)) {
+        const strVal = String(val);
+        if (strVal.startsWith(FILE_SENTINEL_PREFIX)) {
+          const parts = strVal.slice(FILE_SENTINEL_PREFIX.length).split("|");
+          const [blobPath, fileName, mimeType] = parts;
+          const { buffer } = await downloadBlobBuffer(blobPath);
+          const blob = new Blob([buffer], { type: mimeType || "application/octet-stream" });
+          formData.append(key, blob, fileName || "file");
+        } else {
+          formData.append(key, strVal);
+        }
+      }
+      multipartBody = formData;
+      // Remove content-type so fetch auto-sets multipart boundary
+      delete forwardHeaders["content-type"];
+      delete forwardHeaders["Content-Type"];
+    } catch (e) {
+      return errJson(400, `Failed to build multipart form: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
   // SWA Free plan kills Functions at 30s. Cap the upstream request at 25s and
   // return a clean 502 envelope before SWA returns its generic bare 500.
   const controller = new AbortController();
@@ -242,7 +275,7 @@ async function proxyHandlerInner(req: HttpRequest, ctx: InvocationContext): Prom
     upstream = await fetch(upstreamUrl, {
       method: effectiveMethod,
       headers: forwardHeaders,
-      body: bodyBuf && bodyBuf.byteLength > 0 ? Buffer.from(bodyBuf) : undefined,
+      body: multipartBody ?? (bodyBuf && bodyBuf.byteLength > 0 ? Buffer.from(bodyBuf) : undefined),
       signal: controller.signal,
     });
   } catch (e) {

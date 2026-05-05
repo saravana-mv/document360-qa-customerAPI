@@ -22,6 +22,7 @@ export interface ParsedStep {
   pathParams: Record<string, string>;
   queryParams: Record<string, string>;
   body?: string;
+  bodyContentType?: string;
   captures: ParsedCapture[];
   assertions: ParsedAssertion[];
   teardown: boolean;

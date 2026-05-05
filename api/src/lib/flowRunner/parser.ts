@@ -89,6 +89,7 @@ function parseStep(el: XmlElement): ParsedStep {
 
   const bodyEl = childElement(el, "body");
   const body = bodyEl ? bodyEl.textContent?.trim() : undefined;
+  const bodyContentType = bodyEl?.getAttribute("contentType") || undefined;
 
   // captures
   const captures: ParsedCapture[] = [];
@@ -164,6 +165,7 @@ function parseStep(el: XmlElement): ParsedStep {
     pathParams,
     queryParams,
     body,
+    bodyContentType,
     captures,
     assertions,
     teardown,

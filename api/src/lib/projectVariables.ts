@@ -6,6 +6,10 @@ import { getSettingsContainer } from "./cosmosClient";
 interface ProjectVariable {
   name: string;
   value: string;
+  type?: "text" | "file";
+  fileName?: string;
+  mimeType?: string;
+  fileSize?: number;
 }
 
 interface ProjectVariablesDoc {
@@ -33,8 +37,15 @@ export function injectProjectVariables(basePrompt: string, variables: ProjectVar
   if (variables.length === 0) return basePrompt;
 
   const varList = variables.map((v) => {
-    const hint = v.value ? ` — current value: \`${v.value}\`` : "";
-    return `| \`{{proj.${v.name}}}\` |${hint} |`;
+    let hint: string;
+    if (v.type === "file" || v.value.startsWith("__ff_file__:")) {
+      const sizeStr = v.fileSize ? `, ${(v.fileSize / 1024).toFixed(0)} KB` : "";
+      hint = ` — [FILE: ${v.fileName ?? "file"}${v.mimeType ? `, ${v.mimeType}` : ""}${sizeStr}] |`;
+    } else {
+      hint = v.value ? ` — current value: \`${v.value}\`` : "";
+      hint += " |";
+    }
+    return `| \`{{proj.${v.name}}}\` |${hint}`;
   });
 
   return `${basePrompt}
@@ -55,5 +66,13 @@ ${varList.join("\n")}
 <param name="project_id">{{proj.projectID}}</param>      <!-- ❌ WRONG — case mismatch -->
 \`\`\`
 
-**PREREQUISITE SKIP RULE — MANDATORY**: The variables above represent pre-provisioned resources in the test environment. You MUST NOT generate setup steps to create these entities. Reference their variables directly. Only generate prerequisites for entities whose IDs are NOT in this list.`;
+**PREREQUISITE SKIP RULE — MANDATORY**: The variables above represent pre-provisioned resources in the test environment. You MUST NOT generate setup steps to create these entities. Reference their variables directly. Only generate prerequisites for entities whose IDs are NOT in this list.
+
+**FILE VARIABLES**: Variables marked [FILE] contain uploaded binary files (images, documents, etc). When referencing file variables in a step that needs \`multipart/form-data\`, use \`<body contentType="multipart/form-data">\` and include the file variable in the JSON body:
+\`\`\`xml
+<body contentType="multipart/form-data"><![CDATA[{
+  "file": "{{proj.test_image}}",
+  "field": "text value"
+}]]></body>
+\`\`\``;
 }

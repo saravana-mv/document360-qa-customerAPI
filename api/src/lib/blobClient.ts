@@ -119,6 +119,39 @@ export async function uploadBlob(
   });
 }
 
+/** Upload binary content (Buffer) to blob storage. */
+export async function uploadBlobBuffer(
+  name: string,
+  buffer: Buffer,
+  contentType: string,
+  container?: string,
+): Promise<void> {
+  const c = getContainerClient(container);
+  await c.createIfNotExists();
+  const blockBlobClient = c.getBlockBlobClient(name);
+  await blockBlobClient.upload(buffer, buffer.length, {
+    blobHTTPHeaders: { blobContentType: contentType },
+  });
+}
+
+/** Download blob as raw Buffer (for binary files). */
+export async function downloadBlobBuffer(
+  name: string,
+  container?: string,
+): Promise<{ buffer: Buffer; contentType: string }> {
+  const c = getContainerClient(container);
+  const blobClient = c.getBlobClient(name);
+  const response = await blobClient.download();
+  const chunks: Buffer[] = [];
+  for await (const chunk of response.readableStreamBody as AsyncIterable<Buffer>) {
+    chunks.push(chunk);
+  }
+  return {
+    buffer: Buffer.concat(chunks),
+    contentType: response.contentType ?? "application/octet-stream",
+  };
+}
+
 /** Delete a blob. */
 export async function deleteBlob(name: string, container?: string): Promise<void> {
   const c = getContainerClient(container);

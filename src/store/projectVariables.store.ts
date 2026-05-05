@@ -1,5 +1,11 @@
 import { create } from "zustand";
-import { getProjectVariables, saveProjectVariables, type ProjectVariable } from "../lib/api/projectVariablesApi";
+import {
+  getProjectVariables,
+  saveProjectVariables,
+  uploadFileVariable,
+  deleteFileVariable,
+  type ProjectVariable,
+} from "../lib/api/projectVariablesApi";
 
 interface ProjectVariablesState {
   variables: ProjectVariable[];
@@ -12,6 +18,12 @@ interface ProjectVariablesState {
 
   /** Save variables to API (replaces all) */
   save: (variables: ProjectVariable[]) => Promise<void>;
+
+  /** Upload a file variable */
+  uploadFile: (name: string, file: File) => Promise<ProjectVariable>;
+
+  /** Delete a file variable */
+  deleteFile: (name: string) => Promise<void>;
 
   /** Get variables as a flat record for runtime interpolation */
   asRecord: () => Record<string, string>;
@@ -40,6 +52,38 @@ export const useProjectVariablesStore = create<ProjectVariablesState>((set, get)
     set({ saving: true, error: null });
     try {
       await saveProjectVariables(variables);
+      set({ variables, saving: false });
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e), saving: false });
+      throw e;
+    }
+  },
+
+  uploadFile: async (name: string, file: File) => {
+    set({ saving: true, error: null });
+    try {
+      const updated = await uploadFileVariable(name, file);
+      // Replace or add the variable in the local list
+      const variables = get().variables.slice();
+      const idx = variables.findIndex(v => v.name === name);
+      if (idx >= 0) {
+        variables[idx] = updated;
+      } else {
+        variables.push(updated);
+      }
+      set({ variables, saving: false });
+      return updated;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e), saving: false });
+      throw e;
+    }
+  },
+
+  deleteFile: async (name: string) => {
+    set({ saving: true, error: null });
+    try {
+      await deleteFileVariable(name);
+      const variables = get().variables.filter(v => v.name !== name);
       set({ variables, saving: false });
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e), saving: false });

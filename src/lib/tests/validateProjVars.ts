@@ -148,7 +148,8 @@ export function findEmptyProjVars(
   tests: TestDef[],
   variables: Array<{ name: string; value: string }>,
 ): EmptyVarInfo[] {
-  const emptyNames = new Set(variables.filter(v => !v.value.trim()).map(v => v.name));
+  // Skip file variables — they have sentinel values (not empty)
+  const emptyNames = new Set(variables.filter(v => !v.value.trim() && !v.value.startsWith("__ff_file__:")).map(v => v.name));
   if (emptyNames.size === 0) return [];
 
   const refsByVar = new Map<string, Set<string>>();
