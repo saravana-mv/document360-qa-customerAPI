@@ -812,88 +812,94 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
 
         {/* ── Path Parameters ──────────────────────────────────────── */}
         {pathParams.length > 0 && (
-          <div className="flex flex-col items-center space-y-1.5">
-            <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide self-center">Path parameters</label>
-            {pathParams.map((p) => (
-              <div key={p.name} className="space-y-0.5">
-                <div className="flex items-center gap-1">
-                  <span className="text-sm font-mono text-[#1f2328]">
-                    {p.name}
-                    {p.required && <span className="text-[#d1242f] ml-0.5">*</span>}
-                  </span>
-                  {p.schema?.type && (
-                    <span className="text-xs text-[#656d76]">
-                      {p.schema.enum ? "enum" : p.schema.type}
-                      {!p.schema.enum && p.schema.format ? ` (${p.schema.format})` : ""}
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide block">Path parameters</label>
+            <div className="border border-[#d1d9e0] rounded-lg p-4 flex flex-col items-center space-y-3">
+              {pathParams.map((p) => (
+                <div key={p.name} className="space-y-0.5">
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm font-mono text-[#1f2328]">
+                      {p.name}
+                      {p.required && <span className="text-[#d1242f] ml-0.5">*</span>}
                     </span>
-                  )}
+                    {p.schema?.type && (
+                      <span className="text-xs text-[#656d76]">
+                        {p.schema.enum ? "enum" : p.schema.type}
+                        {!p.schema.enum && p.schema.format ? ` (${p.schema.format})` : ""}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <ParamInput
+                      schema={p.schema}
+                      value={paramValues[p.name] ?? ""}
+                      onChange={(v) => updateParam(p.name, v)}
+                      placeholder={p.schema?.example != null ? String(p.schema.example) : p.schema?.type ?? ""}
+                      idHint={p.name}
+                    />
+                    <UseVarButton paramName={p.name} varMap={varMap} onApply={(v) => updateParam(p.name, v)} />
+                  </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <ParamInput
-                    schema={p.schema}
-                    value={paramValues[p.name] ?? ""}
-                    onChange={(v) => updateParam(p.name, v)}
-                    placeholder={p.schema?.example != null ? String(p.schema.example) : p.schema?.type ?? ""}
-                    idHint={p.name}
-                  />
-                  <UseVarButton paramName={p.name} varMap={varMap} onApply={(v) => updateParam(p.name, v)} />
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
         {/* ── Query Parameters ─────────────────────────────────────── */}
         {queryParams.length > 0 && (
-          <div className="flex flex-col items-center space-y-1.5">
-            <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide self-center">Query parameters</label>
-            {queryParams.map((p) => (
-              <div key={p.name} className="space-y-0.5">
-                <div className="flex items-center gap-1">
-                  <span className="text-sm font-mono text-[#1f2328]">
-                    {p.name}
-                    {p.required && <span className="text-[#d1242f] ml-0.5">*</span>}
-                  </span>
-                  {p.schema?.type && (
-                    <span className="text-xs text-[#656d76]">
-                      {p.schema.enum ? "enum" : p.schema.type}
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide block">Query parameters</label>
+            <div className="border border-[#d1d9e0] rounded-lg p-4 flex flex-col items-center space-y-3">
+              {queryParams.map((p) => (
+                <div key={p.name} className="space-y-0.5">
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm font-mono text-[#1f2328]">
+                      {p.name}
+                      {p.required && <span className="text-[#d1242f] ml-0.5">*</span>}
                     </span>
-                  )}
+                    {p.schema?.type && (
+                      <span className="text-xs text-[#656d76]">
+                        {p.schema.enum ? "enum" : p.schema.type}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <ParamInput
+                      schema={p.schema}
+                      value={paramValues[p.name] ?? ""}
+                      onChange={(v) => updateParam(p.name, v)}
+                      placeholder={p.schema?.example != null ? String(p.schema.example) : p.schema?.type ?? ""}
+                      idHint={p.name}
+                    />
+                    <UseVarButton paramName={p.name} varMap={varMap} onApply={(v) => updateParam(p.name, v)} />
+                  </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <ParamInput
-                    schema={p.schema}
-                    value={paramValues[p.name] ?? ""}
-                    onChange={(v) => updateParam(p.name, v)}
-                    placeholder={p.schema?.example != null ? String(p.schema.example) : p.schema?.type ?? ""}
-                    idHint={p.name}
-                  />
-                  <UseVarButton paramName={p.name} varMap={varMap} onApply={(v) => updateParam(p.name, v)} />
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
         {/* ── Header Parameters ────────────────────────────────────── */}
         {headerParams.length > 0 && (
-          <div className="flex flex-col items-center space-y-1.5">
-            <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide self-center">Headers</label>
-            {headerParams.map((p) => (
-              <div key={p.name} className="space-y-0.5">
-                <span className="text-sm font-mono text-[#1f2328]">{p.name}</span>
-                <div className="flex items-center gap-1">
-                  <ParamInput
-                    schema={p.schema}
-                    value={paramValues[p.name] ?? ""}
-                    onChange={(v) => updateParam(p.name, v)}
-                    placeholder={p.schema?.example != null ? String(p.schema.example) : p.schema?.type ?? ""}
-                    idHint={p.name}
-                  />
-                  <UseVarButton paramName={p.name} varMap={varMap} onApply={(v) => updateParam(p.name, v)} />
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide block">Headers</label>
+            <div className="border border-[#d1d9e0] rounded-lg p-4 flex flex-col items-center space-y-3">
+              {headerParams.map((p) => (
+                <div key={p.name} className="space-y-0.5">
+                  <span className="text-sm font-mono text-[#1f2328]">{p.name}</span>
+                  <div className="flex items-center gap-1">
+                    <ParamInput
+                      schema={p.schema}
+                      value={paramValues[p.name] ?? ""}
+                      onChange={(v) => updateParam(p.name, v)}
+                      placeholder={p.schema?.example != null ? String(p.schema.example) : p.schema?.type ?? ""}
+                      idHint={p.name}
+                    />
+                    <UseVarButton paramName={p.name} varMap={varMap} onApply={(v) => updateParam(p.name, v)} />
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
