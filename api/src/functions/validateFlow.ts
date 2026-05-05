@@ -46,12 +46,18 @@ async function handler(req: HttpRequest, _context: InvocationContext): Promise<H
     if (ss.spec) specParts.push(ss.spec);
   }
   const specContext = specParts.join("\n\n");
+  console.log(`[validateFlow] flowStepSpecs: ${aiCtx.flowStepSpecs.length} steps, ${specParts.length} with spec, specContext length=${specContext.length}`);
+  if (specContext.length > 0) {
+    // Log first 500 chars to see what headers are present
+    console.log(`[validateFlow] specContext preview: ${specContext.slice(0, 500)}`);
+  }
 
   // Load project variables
   const projVars = await loadProjectVariables(projectId);
 
   // Run validation
   const result = validateFlowXml(flowXml, specContext, projVars);
+  console.log(`[validateFlow] result: ${result.summary.errors}E ${result.summary.warnings}W ${result.summary.info}I, issues: ${result.issues.map(i => `[${i.severity}] ${i.category}: ${i.message.slice(0, 80)}`).join(" | ")}`);
 
   return {
     status: 200,

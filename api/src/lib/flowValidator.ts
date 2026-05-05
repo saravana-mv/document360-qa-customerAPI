@@ -608,6 +608,7 @@ export function detectStaleEndpointRefs(
   // When the validation spec context comes from findMatchingSpec (per-step lookup),
   // the distilled content often lacks ## filename.md headers, so all specFilePath
   // values are null. We can't determine staleness without file identity — skip entirely.
+  console.log(`[detectStaleEndpointRefs] endpoints=${endpoints.length}, knownFiles=${knownFiles.length}, files=[${knownFiles.join(", ")}]`);
   if (knownFiles.length === 0 && endpoints.length > 0) return issues;
 
   // Build normalized sets for flexible matching: spec context headers may use
