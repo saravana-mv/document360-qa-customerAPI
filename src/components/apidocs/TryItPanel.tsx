@@ -9,9 +9,9 @@ import type { Schema } from "../../types/spec.types";
 
 // Renders a warning string with two clickable hot-words:
 //   • "Settings > Connections" / "Settings → Connections" → routes to /settings/connections
-//   • "Connect now" → triggers onConnect (opens the ConnectEndpointModal)
+//   • "Configure" → triggers onConnect (opens the ConnectEndpointModal)
 function ConnectionWarning({ text, onConnect }: { text: string; onConnect?: () => void }) {
-  const linkPattern = /(Settings\s*[→>]\s*Connections|Connect now)/;
+  const linkPattern = /(Settings\s*[→>]\s*Connections|Configure)/;
   const parts = text.split(linkPattern);
   return (
     <p className="text-sm text-[#9a6700]">
@@ -27,7 +27,7 @@ function ConnectionWarning({ text, onConnect }: { text: string; onConnect?: () =
             </Link>
           );
         }
-        if (part === "Connect now" && onConnect) {
+        if (part === "Configure" && onConnect) {
           return (
             <button
               key={i}
@@ -55,7 +55,7 @@ interface Props {
   canSend: boolean;
   /** Message to show when connection is not ready */
   connectionWarning?: string;
-  /** Opens the Connect Endpoint modal — used by the "Connect now" link in warnings */
+  /** Opens the Connect Endpoint modal — used by the "Configure" link in warnings */
   onOpenConnect?: () => void;
 }
 
@@ -77,10 +77,11 @@ const STATUS_COLORS: Record<string, string> = {
   "5": "text-[#d1242f] bg-[#ffebe9]",
 };
 
-// Shared input/select base styles — keep look consistent across param + body controls.
-const INPUT_BASE = "flex-1 text-sm border border-[#d1d9e0] rounded-md px-2 py-1 bg-white text-[#1f2328] placeholder-[#afb8c1] outline-none focus:border-[#0969da]";
+// Shared input/select base styles — fixed 380×40 size for consistent layout
+// across all input controls in the Try It panel.
+const INPUT_BASE = "w-[380px] h-[40px] text-sm border border-[#d1d9e0] rounded-md px-3 bg-white text-[#1f2328] placeholder-[#afb8c1] outline-none focus:border-[#0969da]";
 const INPUT_MONO = `${INPUT_BASE} font-mono`;
-const SELECT_BASE = "flex-1 text-sm border border-[#d1d9e0] rounded-md px-2 py-1 bg-white text-[#1f2328] outline-none focus:border-[#0969da] cursor-pointer font-mono";
+const SELECT_BASE = "w-[380px] h-[40px] text-sm border border-[#d1d9e0] rounded-md px-3 bg-white text-[#1f2328] outline-none focus:border-[#0969da] cursor-pointer font-mono";
 
 /** Inline copy button with checkmark feedback. */
 function CopyButton({ value, label }: { value: string; label?: string }) {
@@ -236,11 +237,11 @@ function FileInput({ file, onChange, accept }: {
   accept?: string;
 }) {
   return (
-    <label className="flex items-center gap-2 text-sm border border-[#d1d9e0] rounded-md bg-white cursor-pointer overflow-hidden hover:border-[#afb8c1] transition-colors w-full">
-      <span className="px-3 py-1 bg-[#f6f8fa] border-r border-[#d1d9e0] text-[#1f2328] font-medium shrink-0 hover:bg-[#eef1f6]">
+    <label className="flex items-center text-sm border border-[#d1d9e0] rounded-md bg-white cursor-pointer overflow-hidden hover:border-[#afb8c1] transition-colors w-[380px] h-[40px]">
+      <span className="h-full flex items-center px-3 bg-[#f6f8fa] border-r border-[#d1d9e0] text-[#1f2328] font-medium shrink-0 hover:bg-[#eef1f6]">
         Choose File
       </span>
-      <span className={`px-1 truncate ${file ? "text-[#1f2328]" : "text-[#656d76]"}`}>
+      <span className={`px-2 truncate flex-1 ${file ? "text-[#1f2328]" : "text-[#656d76]"}`}>
         {file ? `${file.name} (${formatBytes(file.size)})` : "No file chosen"}
       </span>
       <input
@@ -257,6 +258,59 @@ function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// ── Form ↔ Raw mode toggle for the body section ────────────────────────────
+
+type BodyMode = "form" | "raw";
+
+function ModeToggle({ mode, onChange }: { mode: BodyMode; onChange: (m: BodyMode) => void }) {
+  return (
+    <div className="inline-flex items-center border border-[#d1d9e0] rounded-md overflow-hidden">
+      {(["form", "raw"] as const).map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => onChange(m)}
+          className={`text-xs font-medium px-2.5 py-1 transition-colors ${
+            mode === m
+              ? "bg-[#0969da] text-white"
+              : "bg-white text-[#656d76] hover:bg-[#f6f8fa]"
+          }`}
+        >
+          {m === "form" ? "Form" : "Raw"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Convert a form-input string into a typed JS value based on schema.
+ * Used when serializing a form-mode body into JSON.
+ */
+function coerceFormValue(value: string, schema?: Schema): unknown {
+  if (value === "") return undefined;
+  if (!schema) return value;
+  if (schema.enum && schema.enum.length > 0) {
+    // If the original enum entry is a number and the form value matches as a number, return number
+    const found = schema.enum.find((e) => String(e) === value);
+    return found ?? value;
+  }
+  if (schema.type === "boolean") return value === "true";
+  if (schema.type === "integer") {
+    const n = parseInt(value, 10);
+    return Number.isFinite(n) ? n : value;
+  }
+  if (schema.type === "number") {
+    const n = parseFloat(value);
+    return Number.isFinite(n) ? n : value;
+  }
+  // For object/array, the form stores them as JSON strings — try to parse
+  if (schema.type === "object" || schema.type === "array") {
+    try { return JSON.parse(value); } catch { return value; }
+  }
+  return value;
 }
 
 /** Collapsible accordion section — same design as Scenario Manager Run tab. */
@@ -395,10 +449,19 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
     return vals;
   });
 
-  // Body state — separate channels for JSON / form fields / files
+  // Body state — separate channels for raw text / form fields / files
   const [body, setBody] = useState("");
   const [formFields, setFormFields] = useState<Record<string, string>>({});
   const [formFiles, setFormFiles] = useState<Record<string, File | null>>({});
+
+  // Form / Raw toggle — defaults to form when properties exist, raw otherwise
+  const [bodyMode, setBodyMode] = useState<BodyMode>(
+    bodyProperties.length > 0 ? "form" : "raw",
+  );
+
+  // Multipart bodies can't be meaningfully edited as raw text (binary boundaries),
+  // so the toggle is hidden and mode is locked to "form" for them.
+  const showBodyModeToggle = bodyProperties.length > 0 && !isMultipart;
 
   // Reset everything when endpoint changes
   useEffect(() => {
@@ -410,9 +473,46 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
     setBody("");
     setFormFields({});
     setFormFiles({});
+    setBodyMode(bodyProperties.length > 0 ? "form" : "raw");
     setResponse(null);
     setError(null);
-  }, [endpoint]);
+  }, [endpoint, bodyProperties.length]);
+
+  /**
+   * Switch between Form and Raw body editors and best-effort sync state in the
+   * direction the user is moving:
+   *   • form → raw : serialize current form fields as a pretty JSON object
+   *   • raw  → form: parse current raw text as JSON and populate form fields
+   */
+  function switchBodyMode(target: BodyMode) {
+    if (target === bodyMode) return;
+    if (target === "raw") {
+      const obj: Record<string, unknown> = {};
+      for (const prop of bodyProperties) {
+        const v = formFields[prop.name];
+        if (v == null || v === "") continue;
+        const coerced = coerceFormValue(v, prop.schema);
+        if (coerced !== undefined) obj[prop.name] = coerced;
+      }
+      if (Object.keys(obj).length > 0) {
+        setBody(JSON.stringify(obj, null, 2));
+      }
+    } else {
+      if (body.trim()) {
+        try {
+          const parsed = JSON.parse(body);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            const next: Record<string, string> = {};
+            for (const [k, v] of Object.entries(parsed)) {
+              next[k] = v == null ? "" : (typeof v === "object" ? JSON.stringify(v) : String(v));
+            }
+            setFormFields((prev) => ({ ...prev, ...next }));
+          }
+        } catch { /* ignore — leave form fields untouched */ }
+      }
+    }
+    setBodyMode(target);
+  }
 
   const updateParam = useCallback((name: string, value: string) => {
     setParamValues((prev) => ({ ...prev, [name]: value }));
@@ -427,19 +527,23 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
       return next;
     });
     if (!ex.body) return;
-    if (isFormBody) {
-      // Try to interpret the example as a flat object → form fields
+
+    // If we're in form mode (or the body is multipart, which is form-only),
+    // try to populate form fields from the example object.
+    if (bodyMode === "form" || isMultipart) {
       try {
         const parsed = JSON.parse(ex.body);
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
           const next: Record<string, string> = {};
           for (const [k, v] of Object.entries(parsed)) {
-            next[k] = v == null ? "" : String(v);
+            next[k] = v == null ? "" : (typeof v === "object" ? JSON.stringify(v) : String(v));
           }
           setFormFields(next);
+          // Also stash the example into body so users see it if they switch to Raw
+          setBody(ex.body);
           return;
         }
-      } catch { /* fall through */ }
+      } catch { /* fall through to raw */ }
     }
     setBody(ex.body);
   }
@@ -490,11 +594,12 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
         if (val) headers[p.name] = val;
       }
 
-      // Build the body based on the detected content type
+      // Build the body based on the detected content type and active body mode
       let fetchBody: BodyInit | undefined;
       let bodyPreview: string | null = null;
 
       if (isMultipart) {
+        // Multipart is form-only — always build FormData
         const fd = new FormData();
         const previewLines: string[] = [];
         for (const [k, v] of Object.entries(formFields)) {
@@ -514,6 +619,13 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
           bodyPreview = previewLines.join("\n");
         }
         // NOTE: do NOT set Content-Type — the browser adds it with the correct boundary.
+      } else if (bodyMode === "raw") {
+        // Raw mode — send the editor text verbatim
+        if (body.trim()) {
+          fetchBody = body;
+          bodyPreview = body;
+          headers["Content-Type"] = endpoint.requestBody?.contentType || "application/json";
+        }
       } else if (isFormUrlEncoded) {
         const params = new URLSearchParams();
         for (const [k, v] of Object.entries(formFields)) {
@@ -525,7 +637,23 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
           bodyPreview = encoded;
           headers["Content-Type"] = "application/x-www-form-urlencoded";
         }
+      } else if (isJsonBody && bodyProperties.length > 0) {
+        // Form mode for JSON — coerce form values into a typed object and stringify
+        const obj: Record<string, unknown> = {};
+        for (const prop of bodyProperties) {
+          const v = formFields[prop.name];
+          if (v == null || v === "") continue;
+          const coerced = coerceFormValue(v, prop.schema);
+          if (coerced !== undefined) obj[prop.name] = coerced;
+        }
+        if (Object.keys(obj).length > 0) {
+          const json = JSON.stringify(obj);
+          fetchBody = json;
+          bodyPreview = JSON.stringify(obj, null, 2);
+          headers["Content-Type"] = endpoint.requestBody?.contentType || "application/json";
+        }
       } else if (body.trim()) {
+        // Fallback: text/plain, application/xml, JSON without properties — send raw text
         fetchBody = body;
         bodyPreview = body;
         headers["Content-Type"] = endpoint.requestBody?.contentType || "application/json";
@@ -704,13 +832,18 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
         {/* ── Request Body ─────────────────────────────────────────── */}
         {endpoint.requestBody && (
           <div className="space-y-1.5">
-            <div className="flex items-baseline gap-2">
-              <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide">Request body</label>
-              <span className="text-xs font-mono text-[#656d76]">{endpoint.requestBody.contentType}</span>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-baseline gap-2">
+                <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide">Request body</label>
+                <span className="text-xs font-mono text-[#656d76]">{endpoint.requestBody.contentType}</span>
+              </div>
+              {showBodyModeToggle && (
+                <ModeToggle mode={bodyMode} onChange={switchBodyMode} />
+              )}
             </div>
 
-            {/* Multipart / form-urlencoded → flat field-by-field form */}
-            {isFormBody && bodyProperties.length > 0 ? (
+            {/* Form mode — flat field-by-field form (always used for multipart) */}
+            {(bodyMode === "form" || isMultipart) && bodyProperties.length > 0 ? (
               <div className="space-y-2">
                 {bodyProperties.map((prop) => (
                   <div key={prop.name} className="space-y-0.5">
