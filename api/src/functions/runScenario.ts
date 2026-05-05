@@ -96,9 +96,9 @@ async function handleRunScenario(req: HttpRequest, _ctx: InvocationContext): Pro
   const baseUrl = (typeof settings.baseUrl === "string" && settings.baseUrl)
     ? settings.baseUrl
     : "";
-  const apiVersion = (typeof settings.apiVersion === "string" && settings.apiVersion)
+  const apiVersion = (typeof settings.apiVersion === "string")
     ? settings.apiVersion
-    : "v2";
+    : "";
 
   // Load project variables (these now hold all dynamic values like project_id, version_id, etc.)
   let projectVariables: Record<string, string> | undefined;

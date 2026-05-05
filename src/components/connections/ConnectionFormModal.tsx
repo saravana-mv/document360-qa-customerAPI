@@ -73,7 +73,7 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
         const payload: Record<string, unknown> = {
           name: name.trim(),
           baseUrl: baseUrl.trim() || undefined,
-          apiVersion: apiVersion.trim() || undefined,
+          apiVersion: apiVersion.trim(),  // send empty string to clear
           customHeaders: filteredHeaders,
         };
         if (isOAuth) {
@@ -190,7 +190,7 @@ export function ConnectionFormModal({ connection, onClose }: ConnectionFormModal
             />
           </Field>
 
-          <Field label="API Version" hint="Version prefix for API paths (e.g. v2, v3)">
+          <Field label="API Version" hint="Version prefix for API paths (e.g. v2, v3, or blank for no prefix)">
             <input
               className="w-full text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-2.5 py-1.5 outline-none focus:border-[#0969da]"
               value={apiVersion}

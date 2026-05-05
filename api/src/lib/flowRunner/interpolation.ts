@@ -60,6 +60,10 @@ export function enumMatches(name: string, value: number): boolean {
 // ── Path rewriting ──────────────────────────────────────────────────────────
 
 export function rewriteApiVersion(path: string, apiVersion: string): string {
+  if (!apiVersion) {
+    // No version configured — strip the leading /vN/ prefix entirely
+    return path.replace(/^\/v\d+(?=\/)/, "");
+  }
   return path.replace(/^\/v\d+(?=\/)/, `/${apiVersion}`);
 }
 

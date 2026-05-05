@@ -26,6 +26,10 @@ function slug(s: string): string {
  * API version. Paths without a version segment are returned unchanged.
  */
 export function rewriteApiVersion(path: string, apiVersion: string): string {
+  if (!apiVersion) {
+    // No version configured — strip the leading /vN/ prefix entirely
+    return path.replace(/^\/v\d+(?=\/)/, "");
+  }
   return path.replace(/^\/v\d+(?=\/)/, `/${apiVersion}`);
 }
 

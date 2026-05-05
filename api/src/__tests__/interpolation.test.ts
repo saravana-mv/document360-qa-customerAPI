@@ -212,6 +212,18 @@ describe("rewriteApiVersion", () => {
   it("rewrites multi-digit versions like /v10/", () => {
     expect(rewriteApiVersion("/v10/resources", "v2")).toBe("/v2/resources");
   });
+
+  it("strips version prefix when apiVersion is empty string", () => {
+    expect(rewriteApiVersion("/v1/detect-image", "")).toBe("/detect-image");
+  });
+
+  it("strips version prefix when apiVersion is empty — preserves deeper path", () => {
+    expect(rewriteApiVersion("/v2/categories/123", "")).toBe("/categories/123");
+  });
+
+  it("leaves path unchanged when apiVersion is empty and no version prefix", () => {
+    expect(rewriteApiVersion("/detect-image", "")).toBe("/detect-image");
+  });
 });
 
 // ---------------------------------------------------------------------------
