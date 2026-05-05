@@ -609,7 +609,9 @@ export function detectStaleEndpointRefs(
   // the distilled content often lacks ## filename.md headers, so all specFilePath
   // values are null. We can't determine staleness without file identity — skip entirely.
   console.log(`[detectStaleEndpointRefs] endpoints=${endpoints.length}, knownFiles=${knownFiles.length}, files=[${knownFiles.join(", ")}]`);
-  if (knownFiles.length === 0 && endpoints.length > 0) return issues;
+  // Cannot determine staleness when no spec file identities are available —
+  // either no specs were loaded or the distilled content lacks ## filename.md headers.
+  if (knownFiles.length === 0) return issues;
 
   // Build normalized sets for flexible matching: spec context headers may use
   // bare filenames ("detect-image.md") while endpointRefs use folder paths
