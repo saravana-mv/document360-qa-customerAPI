@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { SchemaTree } from "./SchemaTree";
+import { InlineMarkdown } from "./InlineMarkdown";
 import { JsonCodeBlock } from "../common/JsonCodeBlock";
 import { generateSchemaExample } from "../../lib/spec/schemaExample";
 import type { ParsedEndpointDoc } from "../../lib/spec/swaggerParser";
@@ -71,7 +72,9 @@ export function ResponseTabs({ responses }: Props) {
           {(active.description || active.schema) && (
             <div className="flex items-start justify-between gap-4">
               {active.description ? (
-                <p className="text-sm text-[#656d76] leading-relaxed flex-1 min-w-0">{active.description}</p>
+                <p className="text-sm text-[#656d76] leading-relaxed flex-1 min-w-0">
+                  <InlineMarkdown text={active.description} />
+                </p>
               ) : (
                 <div className="flex-1" />
               )}

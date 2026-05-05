@@ -3,6 +3,7 @@ import { MethodBadge } from "./MethodBadge";
 import { ParameterTable } from "./ParameterTable";
 import { ResponseTabs } from "./ResponseTabs";
 import { SchemaTree } from "./SchemaTree";
+import { InlineMarkdown } from "./InlineMarkdown";
 import { JsonCodeBlock } from "../common/JsonCodeBlock";
 import { generateSchemaExample } from "../../lib/spec/schemaExample";
 import type { ParsedEndpointDoc } from "../../lib/spec/swaggerParser";
@@ -54,7 +55,9 @@ export function EndpointDocView({ endpoint }: Props) {
         </div>
 
         {endpoint.description && (
-          <p className="text-sm text-[#656d76] leading-relaxed">{endpoint.description}</p>
+          <p className="text-sm text-[#656d76] leading-relaxed">
+            <InlineMarkdown text={endpoint.description} />
+          </p>
         )}
       </div>
 
@@ -105,7 +108,9 @@ function RequestBodySection({ requestBody }: { requestBody: NonNullable<ParsedEn
       {(requestBody.description || requestBody.schema) && (
         <div className="flex items-start justify-between gap-4">
           {requestBody.description ? (
-            <p className="text-sm text-[#656d76] leading-relaxed flex-1 min-w-0">{requestBody.description}</p>
+            <p className="text-sm text-[#656d76] leading-relaxed flex-1 min-w-0">
+              <InlineMarkdown text={requestBody.description} />
+            </p>
           ) : (
             <div className="flex-1" />
           )}

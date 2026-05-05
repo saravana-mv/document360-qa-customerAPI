@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Schema } from "../../types/spec.types";
+import { InlineCode, InlineMarkdown } from "./InlineMarkdown";
 
 const MAX_DEPTH = 6;
 
@@ -124,19 +125,23 @@ function PropertyRow({ name, schema, required, pathPrefix, defaultExpanded, dept
         )}
       </div>
 
-      {/* Description */}
+      {/* Description (with inline markdown for `code` and **bold**) */}
       {schema.description && (
-        <p className="text-sm text-[#656d76] mt-1 leading-relaxed">{schema.description}</p>
+        <p className="text-sm text-[#656d76] mt-1 leading-relaxed">
+          <InlineMarkdown text={schema.description} />
+        </p>
       )}
 
-      {/* Enum values */}
+      {/* Enum values — pink-coded chips after the VALID VALUES pill */}
       {schema.enum && schema.enum.length > 0 && (
-        <div className="mt-1.5 flex items-baseline gap-1.5 flex-wrap">
-          <span className="text-xs font-semibold text-[#656d76]">VALID VALUES:</span>
+        <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+          <span className="text-xs font-semibold text-[#656d76] bg-[#f6f8fa] border border-[#d1d9e0] rounded px-1.5 py-0.5">
+            VALID VALUES
+          </span>
           {schema.enum.map((v, i) => (
-            <span key={i} className="text-sm font-mono text-[#1f2328]">
-              {i > 0 && <span className="text-[#656d76] mr-1">·</span>}
-              {String(v)}
+            <span key={i} className="inline-flex items-center">
+              {i > 0 && <span className="text-[#656d76] mx-1">·</span>}
+              <InlineCode>{String(v)}</InlineCode>
             </span>
           ))}
         </div>
@@ -144,17 +149,21 @@ function PropertyRow({ name, schema, required, pathPrefix, defaultExpanded, dept
 
       {/* Default */}
       {schema.default != null && !schema.enum && (
-        <div className="mt-1 flex items-baseline gap-1.5">
-          <span className="text-xs font-semibold text-[#656d76]">DEFAULT:</span>
-          <code className="text-sm font-mono text-[#1f2328]">{JSON.stringify(schema.default)}</code>
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <span className="text-xs font-semibold text-[#656d76] bg-[#f6f8fa] border border-[#d1d9e0] rounded px-1.5 py-0.5">
+            DEFAULT
+          </span>
+          <InlineCode>{JSON.stringify(schema.default)}</InlineCode>
         </div>
       )}
 
       {/* Pattern */}
       {schema.pattern && (
-        <div className="mt-1 flex items-baseline gap-1.5">
-          <span className="text-xs font-semibold text-[#656d76]">PATTERN:</span>
-          <code className="text-sm font-mono text-[#1f2328]">{schema.pattern}</code>
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <span className="text-xs font-semibold text-[#656d76] bg-[#f6f8fa] border border-[#d1d9e0] rounded px-1.5 py-0.5">
+            PATTERN
+          </span>
+          <InlineCode>{schema.pattern}</InlineCode>
         </div>
       )}
 
