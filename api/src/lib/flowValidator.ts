@@ -605,6 +605,11 @@ export function detectStaleEndpointRefs(
     .map((ep) => ep.specFilePath)
     .filter((f): f is string => f != null);
 
+  // When the validation spec context comes from findMatchingSpec (per-step lookup),
+  // the distilled content often lacks ## filename.md headers, so all specFilePath
+  // values are null. We can't determine staleness without file identity — skip entirely.
+  if (knownFiles.length === 0 && endpoints.length > 0) return issues;
+
   // Build normalized sets for flexible matching: spec context headers may use
   // bare filenames ("detect-image.md") while endpointRefs use folder paths
   // ("PII/image/detect-image.md") or vice versa with version prefixes.
