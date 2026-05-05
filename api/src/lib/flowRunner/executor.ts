@@ -408,6 +408,7 @@ function skipResult(step: ParsedStep, reason: string): StepResult {
   return {
     number: step.number,
     name: `Step ${step.number}: ${step.name}`,
+    method: step.method,
     status: "skip",
     durationMs: 0,
     failureReason: reason,
@@ -424,6 +425,7 @@ function makeResult(
   return {
     number: step.number,
     name: `Step ${step.number}: ${step.name}`,
+    method: step.method,
     status,
     durationMs: Date.now() - startMs,
     assertionResults: [],

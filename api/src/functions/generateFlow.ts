@@ -10,6 +10,7 @@ import { getIdeasContainer } from "../lib/cosmosClient";
 import { filterRelevantSpecs, resolveCrossFolderDeps } from "../lib/specFileSelection";
 import { createTraceBuilder, TraceBuilder } from "../lib/flowTrace";
 import { buildStepContext, formatStepContext } from "../lib/stepContext";
+import { loadGoldenResponses, formatGoldenResponses, extractEndpointsFromContext } from "../lib/goldenResponses";
 
 /** Inject a metadata comment after the XML declaration so diagnostics can detect the generation mode. */
 function injectModeComment(xml: string, mode: string | undefined): string {
@@ -582,6 +583,7 @@ Supported types (exact strings): \`status\`, \`field-equals\`, \`field-exists\`,
    - PUT/PATCH (update) → \`200\`
    - DELETE → \`204\` (No Content) — the response body is typically EMPTY. Do not add body-level assertions on DELETE steps unless the spec explicitly documents a response body.
 9. **Spec-driven assertions**: When spec files are provided, read the documented response schema and status codes carefully. The spec is the source of truth. Assertions (especially \`field-exists\`) must only reference fields that appear in the spec's response example — never assert on fields you assume exist but that aren't in the spec.
+   When "Real API Response Examples" are provided, use the actual field names, value types, and structure from those examples to write assertions. Prefer asserting on fields you can see in real responses over fields you infer from the spec alone.
    **NEVER use \`{{timestamp}}\` in assertion values** — the token re-evaluates at assertion time to a DIFFERENT value than was used in the request. To verify a field matches the sent value, capture the field from the response and use \`{{state.X}}\` in subsequent step assertions. For same-step assertions on request-derived values, use \`field-exists\` instead.
    **NEVER assert a field equals a value captured from the SAME response** — this is circular and always passes. Either assert against a value from a PRIOR step (\`{{state.X}}\` captured earlier) or against a known constant. For example, assert \`response.data.category_id\` equals \`{{state.categoryId}}\` (captured from the create step), NOT a value captured from the same GET response.
 10. **Schema exactness**: Elements must appear in the order listed above. Use \`<assertion>\` not \`<assert>\`. Use \`code\` not \`value\` for status. Use \`field-exists\` / \`field-equals\` / \`array-not-empty\` — no other assertion types exist.
@@ -940,6 +942,17 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     ? `\n\n**CRITICAL — API VERSION**: This API uses ${canonicalVersion} endpoints EXCLUSIVELY. ALL paths in your XML — including prerequisite/setup/teardown steps — MUST use /${canonicalVersion}/ prefix. Do NOT use any other version.`
     : "";
 
+  // Load golden responses from recent successful test runs
+  const goldenEndpoints = specContext ? extractEndpointsFromContext(specFiles, specContext) : [];
+  const goldenResponses = goldenEndpoints.length > 0
+    ? await loadGoldenResponses(projectId, goldenEndpoints)
+    : [];
+  const goldenBlock = formatGoldenResponses(goldenResponses);
+  if (goldenResponses.length > 0) {
+    console.log(`[generateFlow] Golden responses: ${goldenResponses.length} for ${goldenEndpoints.length} endpoints (${goldenBlock.length} chars)`);
+    trace.setGoldenResponses(goldenResponses);
+  }
+
   // Analyze cross-step dependencies between endpoints in the spec context
   const crossStepDeps = specContext ? analyzeCrossStepDependencies(specContext, projVars) : "";
   if (crossStepDeps) {
@@ -953,15 +966,16 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
     const stepContextText = formatStepContext(stepEntries);
     console.log(`[generateFlow] Step context built: ${stepEntries.length} steps, ${stepContextText.length} chars`);
     trace.setStepContext(stepContextText);
-    // Step context first (cheat sheet), full specs second (reference)
+    // Step context first (cheat sheet), full specs second (reference), golden responses last
     userMessage = `${body.prompt}${scopeNote}${versionDirective}\n\n` +
       `# Per-Step Context (follow this precisely)\n\n${stepContextText}\n\n` +
-      `# Full API Specifications (reference)\n\n${specContext}`;
+      `# Full API Specifications (reference)\n\n${specContext}` +
+      (goldenBlock ? `\n\n${goldenBlock}` : "");
     // crossStepDeps omitted — step context already contains data flow
   } else {
     // Fallback: ad-hoc prompt — current behavior
     userMessage = specContext
-      ? `${body.prompt}${scopeNote}${versionDirective}\n\n# Relevant API Specification\n\n${specContext}${crossStepDeps}`
+      ? `${body.prompt}${scopeNote}${versionDirective}\n\n# Relevant API Specification\n\n${specContext}${crossStepDeps}${goldenBlock ? `\n\n${goldenBlock}` : ""}`
       : body.prompt;
   }
 

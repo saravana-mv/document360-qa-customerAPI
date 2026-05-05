@@ -72,6 +72,7 @@ export type StepStatus = "pass" | "fail" | "skip" | "error";
 export interface StepResult {
   number: number;
   name: string;
+  method?: string;
   status: StepStatus;
   httpStatus?: number;
   durationMs: number;
