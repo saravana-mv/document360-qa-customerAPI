@@ -550,6 +550,30 @@ export function detectMismatchedEndpointRefs(
   return issues;
 }
 
+export function detectStaleEndpointRefs(
+  flow: ParsedFlow,
+  endpoints: SpecEndpoint[],
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const knownFiles = new Set(
+    endpoints.map((ep) => ep.specFilePath).filter(Boolean),
+  );
+
+  for (const step of flow.steps) {
+    if (!step.endpointRef) continue;
+    if (knownFiles.has(step.endpointRef)) continue;
+
+    issues.push({
+      severity: "info",
+      step: step.number,
+      category: "stale-ref",
+      message: `endpointRef "${step.endpointRef}" points to a spec file that no longer exists — will auto-correct on next flow edit`,
+    });
+  }
+
+  return issues;
+}
+
 export function detectPathParamIssues(flow: ParsedFlow): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
@@ -609,6 +633,7 @@ export function validateFlowXml(
   allIssues.push(...detectMissingTeardown(flow));
   allIssues.push(...detectUnresolvedVariables(flowXml, projVars));
   allIssues.push(...detectMismatchedEndpointRefs(flow, endpoints));
+  allIssues.push(...detectStaleEndpointRefs(flow, endpoints));
   allIssues.push(...detectPathParamIssues(flow));
 
   const errors = allIssues.filter((i) => i.severity === "error").length;

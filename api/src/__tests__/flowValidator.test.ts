@@ -12,6 +12,7 @@ import {
   detectMissingTeardown,
   detectUnresolvedVariables,
   detectMismatchedEndpointRefs,
+  detectStaleEndpointRefs,
   detectPathParamIssues,
 } from "../lib/flowValidator";
 import { parseFlowXml } from "../lib/flowRunner/parser";
@@ -431,6 +432,54 @@ describe("detectPathParamIssues", () => {
   it("passes when pathParams are provided", () => {
     const flow = parseFlowXml(VALID_FLOW);
     const issues = detectPathParamIssues(flow);
+    expect(issues).toHaveLength(0);
+  });
+});
+
+describe("detectStaleEndpointRefs", () => {
+  it("emits info when endpointRef points to a non-existent spec file", () => {
+    const flow = parseFlowXml(`<?xml version="1.0" encoding="UTF-8"?>
+<flow xmlns="https://flowforge.io/qa/flow/v1">
+  <name>Test</name><entity>articles</entity>
+  <steps>
+    <step number="1">
+      <name>Create</name><method>POST</method><path>/v2/articles</path>
+      <endpointRef>articles/old-create-article.md</endpointRef>
+      <body><![CDATA[{"title": "Test"}]]></body>
+      <assertions><assertion type="status" code="201" /></assertions>
+    </step>
+  </steps>
+</flow>`);
+    const { parseSpecEndpoints } = require("../lib/specRequiredFields");
+    const endpoints = parseSpecEndpoints(SPEC_CONTEXT);
+    const issues = detectStaleEndpointRefs(flow, endpoints);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].severity).toBe("info");
+    expect(issues[0].category).toBe("stale-ref");
+    expect(issues[0].message).toContain("old-create-article.md");
+  });
+
+  it("does not flag endpointRefs that match known spec files", () => {
+    const flow = parseFlowXml(VALID_FLOW);
+    const { parseSpecEndpoints } = require("../lib/specRequiredFields");
+    const endpoints = parseSpecEndpoints(SPEC_CONTEXT);
+    const issues = detectStaleEndpointRefs(flow, endpoints);
+    expect(issues).toHaveLength(0);
+  });
+
+  it("does not flag steps without endpointRef", () => {
+    const flow = parseFlowXml(`<?xml version="1.0" encoding="UTF-8"?>
+<flow xmlns="https://flowforge.io/qa/flow/v1">
+  <name>Test</name><entity>articles</entity>
+  <steps>
+    <step number="1">
+      <name>Create</name><method>POST</method><path>/v2/categories</path>
+      <body><![CDATA[{"name": "Test"}]]></body>
+      <assertions><assertion type="status" code="201" /></assertions>
+    </step>
+  </steps>
+</flow>`);
+    const issues = detectStaleEndpointRefs(flow, []);
     expect(issues).toHaveLength(0);
   });
 });
