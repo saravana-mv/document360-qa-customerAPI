@@ -562,7 +562,9 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
     setBody(ex.body);
   }
 
-  // Live URL preview — path params resolved, query params appended.
+  // Live URL preview — path params resolved, query params appended, and any
+  // API-key security scheme that lives in the query string also surfaced (with
+  // a {placeholder} for the credential) so users see exactly what will be hit.
   const previewUrl = useMemo(() => {
     let path = endpoint.path;
     for (const p of pathParams) {
@@ -574,9 +576,15 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
       const val = paramValues[p.name];
       if (val) queryParts.push(`${encodeURIComponent(p.name)}=${encodeURIComponent(val)}`);
     }
+    // API-key security scheme delivered via query → e.g. ?code={functionKey}
+    for (const { name, scheme } of securityDetails) {
+      if (scheme.type === "apiKey" && scheme.in?.toLowerCase() === "query" && scheme.name) {
+        queryParts.push(`${scheme.name}={${name}}`);
+      }
+    }
     const qs = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
     return `${baseUrl ?? ""}${path}${qs}`;
-  }, [endpoint.path, paramValues, baseUrl, pathParams, queryParams]);
+  }, [endpoint.path, paramValues, baseUrl, pathParams, queryParams, securityDetails]);
 
   async function handleSend() {
     setSending(true);
@@ -731,7 +739,7 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
         {securityDetails.length > 0 && (
           <Accordion
             title="Authentication"
-            defaultOpen={true}
+            defaultOpen={false}
             badge={
               <svg className="w-3.5 h-3.5 text-[#656d76]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
@@ -804,8 +812,8 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
 
         {/* ── Path Parameters ──────────────────────────────────────── */}
         {pathParams.length > 0 && (
-          <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide">Path parameters</label>
+          <div className="flex flex-col items-center space-y-1.5">
+            <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide self-center">Path parameters</label>
             {pathParams.map((p) => (
               <div key={p.name} className="space-y-0.5">
                 <div className="flex items-center gap-1">
@@ -837,8 +845,8 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
 
         {/* ── Query Parameters ─────────────────────────────────────── */}
         {queryParams.length > 0 && (
-          <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide">Query parameters</label>
+          <div className="flex flex-col items-center space-y-1.5">
+            <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide self-center">Query parameters</label>
             {queryParams.map((p) => (
               <div key={p.name} className="space-y-0.5">
                 <div className="flex items-center gap-1">
@@ -869,8 +877,8 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
 
         {/* ── Header Parameters ────────────────────────────────────── */}
         {headerParams.length > 0 && (
-          <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide">Headers</label>
+          <div className="flex flex-col items-center space-y-1.5">
+            <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide self-center">Headers</label>
             {headerParams.map((p) => (
               <div key={p.name} className="space-y-0.5">
                 <span className="text-sm font-mono text-[#1f2328]">{p.name}</span>
@@ -904,7 +912,7 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
 
             {/* Form mode — flat field-by-field form (always used for multipart) */}
             {(bodyMode === "form" || isMultipart) && bodyProperties.length > 0 ? (
-              <div className="space-y-2">
+              <div className="border border-[#d1d9e0] rounded-lg p-4 flex flex-col items-center space-y-3">
                 {bodyProperties.map((prop) => (
                   <div key={prop.name} className="space-y-0.5">
                     <div className="flex items-center gap-1">
