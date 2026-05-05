@@ -619,7 +619,8 @@ async function saveDiagnosticLesson(
   endpoint: string,
 ): Promise<void> {
   // Extract version folder from flow file path (e.g. "V3/Categories/foo.flow.xml" → "V3")
-  const versionFolder = flowFileName.split("/")[0];
+  // Normalize to uppercase — spec blobs use uppercase (V1) but flow paths may use lowercase (v1)
+  const versionFolder = flowFileName.split("/")[0]?.toUpperCase();
   if (!versionFolder) return;
 
   const skillsPath = `${versionFolder}/_system/_skills.md`;

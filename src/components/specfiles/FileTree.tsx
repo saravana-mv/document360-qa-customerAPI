@@ -51,8 +51,8 @@ export function buildTree(files: SpecFileItem[]): TreeNode[] {
     const parts = file.name.split("/");
     const filename = parts[parts.length - 1];
 
-    // Skip _versions folders entirely
-    if (parts.includes("_versions")) continue;
+    // Skip internal folders entirely
+    if (parts.includes("_versions") || parts.includes("_variables")) continue;
 
     // Skip files with no name
     if (!filename) continue;
