@@ -349,6 +349,64 @@ describe("detectMissingTeardown", () => {
     const issues = detectMissingTeardown(flow);
     expect(issues).toHaveLength(0);
   });
+
+  it("does not warn for action/analysis endpoints like /detect-image", () => {
+    const flow = parseFlowXml(`<?xml version="1.0" encoding="UTF-8"?>
+<flow xmlns="https://flowforge.io/qa/flow/v1">
+  <name>Test</name><entity>detect-image</entity>
+  <steps>
+    <step number="1">
+      <name>Detect PII</name><method>POST</method><path>/detect-image</path>
+      <body><![CDATA[{"file": "test.png", "action": "detect"}]]></body>
+      <assertions><assertion type="status" code="200" /></assertions>
+    </step>
+  </steps>
+</flow>`);
+    const issues = detectMissingTeardown(flow);
+    expect(issues).toHaveLength(0);
+  });
+
+  it("does not warn for search/analyze/validate endpoints", () => {
+    const flow = parseFlowXml(`<?xml version="1.0" encoding="UTF-8"?>
+<flow xmlns="https://flowforge.io/qa/flow/v1">
+  <name>Test</name><entity>search</entity>
+  <steps>
+    <step number="1">
+      <name>Search</name><method>POST</method><path>/v3/search</path>
+      <body><![CDATA[{"query": "test"}]]></body>
+      <assertions><assertion type="status" code="200" /></assertions>
+    </step>
+    <step number="2">
+      <name>Analyze</name><method>POST</method><path>/v3/analyze-text</path>
+      <body><![CDATA[{"text": "test"}]]></body>
+      <assertions><assertion type="status" code="200" /></assertions>
+    </step>
+    <step number="3">
+      <name>Validate</name><method>POST</method><path>/v3/validate</path>
+      <body><![CDATA[{"data": "test"}]]></body>
+      <assertions><assertion type="status" code="200" /></assertions>
+    </step>
+  </steps>
+</flow>`);
+    const issues = detectMissingTeardown(flow);
+    expect(issues).toHaveLength(0);
+  });
+
+  it("does not warn for bulk action sub-paths", () => {
+    const flow = parseFlowXml(`<?xml version="1.0" encoding="UTF-8"?>
+<flow xmlns="https://flowforge.io/qa/flow/v1">
+  <name>Test</name><entity>articles</entity>
+  <steps>
+    <step number="1">
+      <name>Bulk Publish</name><method>POST</method><path>/v3/articles/bulk/publish</path>
+      <body><![CDATA[{"ids": ["1","2"]}]]></body>
+      <assertions><assertion type="status" code="200" /></assertions>
+    </step>
+  </steps>
+</flow>`);
+    const issues = detectMissingTeardown(flow);
+    expect(issues).toHaveLength(0);
+  });
 });
 
 describe("detectUnresolvedVariables", () => {

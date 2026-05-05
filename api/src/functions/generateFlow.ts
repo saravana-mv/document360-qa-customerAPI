@@ -330,14 +330,27 @@ function fixMismatchedEndpointRefs(xml: string): string {
     const pathResource = pathSegments[0]?.toLowerCase();
     if (!pathResource) continue;
 
-    // Extract resource from endpointRef path (e.g., "V3/articles/create-article.md" → "articles")
+    // Extract resource identifiers from endpointRef — check both folder and filename
+    // e.g., "V3/articles/create-article.md" → folders: ["articles"], filename stem: "create-article" → stripped: "article"
+    // e.g., "PII/image/detect-image.md" → folders: ["pii","image"], filename stem: "detect-image"
     const refParts = step.refValue.split("/").filter(Boolean);
-    // Find the resource folder — skip version folders like "V3"
-    const refResource = refParts.find(p => !/^v\d+$/i.test(p) && !p.endsWith(".md"))?.toLowerCase();
-    if (!refResource) continue;
+    const refResources = new Set<string>();
+    for (const p of refParts) {
+      if (/^v\d+$/i.test(p)) continue; // skip version prefix
+      if (p.endsWith(".md")) {
+        // Filename: add full stem and action-stripped stem
+        const stem = p.replace(/\.md$/i, "").toLowerCase();
+        refResources.add(stem);
+        const stripped = stem.replace(/^(?:create|get|update|delete|list|add|remove|set|patch|put|bulk)-/, "");
+        if (stripped !== stem) refResources.add(stripped);
+      } else {
+        refResources.add(p.toLowerCase());
+      }
+    }
+    if (refResources.size === 0) continue;
 
-    if (pathResource !== refResource) {
-      console.log(`[fixMismatchedEndpointRefs] Resource mismatch: path has "${pathResource}" but endpointRef points to "${refResource}" (${step.refValue}) — removing endpointRef`);
+    if (!refResources.has(pathResource)) {
+      console.log(`[fixMismatchedEndpointRefs] Resource mismatch: path has "${pathResource}" but endpointRef points to "${[...refResources].join(",")}" (${step.refValue}) — removing endpointRef`);
       const cleaned = step.fullMatch.replace(/\s*<endpointRef>[^<]+<\/endpointRef>/, "");
       result = result.replace(step.fullMatch, cleaned);
       count++;

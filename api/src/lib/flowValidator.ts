@@ -428,13 +428,29 @@ export function detectMissingPrerequisites(
   return issues;
 }
 
+/**
+ * Detect whether a path is an action/analysis endpoint rather than a CRUD
+ * resource creator. Action endpoints (e.g., /detect-image, /search, /bulk/publish)
+ * don't create persistent resources and don't need teardown.
+ */
+function isActionEndpoint(path: string): boolean {
+  const lastSegment = path.split("/").filter(Boolean).pop()?.toLowerCase() ?? "";
+  // Verb-prefixed endpoints: /detect-image, /analyze-text, /search, /export, /import, etc.
+  const actionPrefixes = ["detect", "analyze", "search", "export", "import", "validate", "verify", "check", "scan", "parse", "convert", "transform", "translate", "process", "evaluate", "classify", "predict", "generate"];
+  if (actionPrefixes.some((p) => lastSegment.startsWith(p))) return true;
+  // Bulk action sub-paths: /bulk/publish, /bulk/unpublish, etc.
+  if (/\/bulk\/[a-z]/.test(path.toLowerCase())) return true;
+  return false;
+}
+
 export function detectMissingTeardown(flow: ParsedFlow): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  // Collect resources created by POST
+  // Collect resources created by POST (skip action/analysis endpoints)
   const created: { step: ParsedStep; resource: string }[] = [];
   for (const step of flow.steps) {
     if (step.method !== "POST") continue;
+    if (isActionEndpoint(step.path)) continue;
     const resource = extractPathResource(step.path);
     if (resource) created.push({ step, resource });
   }
@@ -512,15 +528,39 @@ function extractPathResource(path: string): string | null {
   return meaningful[0]?.toLowerCase() ?? null;
 }
 
-/** Extract the resource folder from an endpointRef.
- *  "V3/categories/create-category.md" → "categories"
- *  "articles/create-article.md" → "articles" */
-function extractRefResource(ref: string): string | null {
+/** Extract resource identifiers from an endpointRef — returns both the folder
+ *  and filename-based resource so either can match.
+ *  "V3/categories/create-category.md" → folder: "categories", filename: "category"
+ *  "PII/image/detect-image.md"        → folder: "image", filename: "detect-image"
+ *  "articles/create-article.md"       → folder: "articles", filename: "article" */
+function extractRefResources(ref: string): string[] {
   const parts = ref.split("/").filter(Boolean);
   // Skip version prefix segments (V3, v2, …)
   const meaningful = parts.filter((p) => !/^v\d+$/i.test(p));
-  // The resource folder is the first meaningful segment (before the filename)
-  return meaningful.length > 1 ? meaningful[0].toLowerCase() : null;
+  const resources: string[] = [];
+
+  // Folder-based resource (first meaningful segment before the filename)
+  if (meaningful.length > 1) {
+    resources.push(meaningful[0].toLowerCase());
+    // Also add intermediate folders for deeply nested refs like PII/image/detect-image.md
+    for (let i = 1; i < meaningful.length - 1; i++) {
+      resources.push(meaningful[i].toLowerCase());
+    }
+  }
+
+  // Filename-based resource: strip .md, strip common action prefixes
+  const filename = meaningful[meaningful.length - 1] ?? "";
+  const stem = filename.replace(/\.md$/i, "").toLowerCase();
+  if (stem) {
+    resources.push(stem);
+    // Also try stripping action prefixes: create-article → article, get-category → category
+    const stripped = stem.replace(/^(?:create|get|update|delete|list|add|remove|set|patch|put|bulk)-/, "");
+    if (stripped && stripped !== stem) {
+      resources.push(stripped);
+    }
+  }
+
+  return [...new Set(resources)];
 }
 
 export function detectMismatchedEndpointRefs(
@@ -533,14 +573,15 @@ export function detectMismatchedEndpointRefs(
     if (!step.endpointRef) continue;
 
     const pathResource = extractPathResource(step.path);
-    const refResource = extractRefResource(step.endpointRef);
+    const refResources = extractRefResources(step.endpointRef);
 
-    if (pathResource && refResource && pathResource !== refResource) {
+    // Match if the path resource matches ANY of the ref's derived resources
+    if (pathResource && refResources.length > 0 && !refResources.includes(pathResource)) {
       issues.push({
         severity: "error",
         step: step.number,
         category: "mismatched-ref",
-        message: `Step path targets "${pathResource}" but endpointRef references "${refResource}" spec`,
+        message: `Step path targets "${pathResource}" but endpointRef references "${refResources[0]}" spec`,
         field: step.endpointRef,
         suggestion: `Fix the endpointRef to match the path's resource (${pathResource})`,
       });
