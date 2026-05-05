@@ -20,7 +20,7 @@ import { LoggedOutPage } from "./LoggedOutPage";
 const ANONYMOUS_PATHS = new Set(["/logged-out"]);
 
 export function EntraGate({ children }: { children: ReactNode }) {
-  const { status, check, login } = useEntraAuthStore();
+  const { status, check, login, sessionExpired } = useEntraAuthStore();
   const isAnonymousPath = ANONYMOUS_PATHS.has(window.location.pathname);
 
   // Kick off the session check once on mount.
@@ -29,12 +29,12 @@ export function EntraGate({ children }: { children: ReactNode }) {
   }, [check]);
 
   // SWA reachable but no session — send the user to Entra, UNLESS they're on
-  // the logged-out page (which is the intended landing for anonymous users).
+  // the logged-out page or the session expired mid-use (modal handles re-login).
   useEffect(() => {
-    if (status === "unauthenticated" && !isAnonymousPath) {
+    if (status === "unauthenticated" && !isAnonymousPath && !sessionExpired) {
       login();
     }
-  }, [status, login, isAnonymousPath]);
+  }, [status, login, isAnonymousPath, sessionExpired]);
 
   // On the logged-out path, render the standalone page regardless of auth
   // status — this breaks the logout→auto-login loop.
@@ -42,7 +42,7 @@ export function EntraGate({ children }: { children: ReactNode }) {
     return <LoggedOutPage />;
   }
 
-  if (status === "checking" || status === "unauthenticated") {
+  if (status === "checking" || (status === "unauthenticated" && !sessionExpired)) {
     return (
       <div className="flex flex-col items-center justify-center h-screen w-screen bg-[#f6f8fa] gap-3">
         <Spinner size="lg" className="text-[#0969da]" />
@@ -53,6 +53,6 @@ export function EntraGate({ children }: { children: ReactNode }) {
     );
   }
 
-  // authenticated OR dev-mode — render the app.
+  // authenticated, dev-mode, or session-expired (modal overlays the app) — render children.
   return <>{children}</>;
 }

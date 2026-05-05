@@ -16,14 +16,19 @@ export type EntraStatus =
 interface EntraState {
   status: EntraStatus;
   principal: EntraClientPrincipal | null;
+  /** True when a previously-authenticated session has expired (proactive or reactive detection). */
+  sessionExpired: boolean;
   check: () => Promise<void>;
   login: () => void;
   logout: () => void;
+  /** Mark session as expired (called by session-expired event or periodic health check). */
+  markExpired: () => void;
 }
 
-export const useEntraAuthStore = create<EntraState>((set) => ({
+export const useEntraAuthStore = create<EntraState>((set, get) => ({
   status: "checking",
   principal: null,
+  sessionExpired: false,
 
   check: async () => {
     const { principal, available } = await fetchEntraPrincipal();
@@ -32,9 +37,15 @@ export const useEntraAuthStore = create<EntraState>((set) => ({
       return;
     }
     if (principal) {
-      set({ status: "authenticated", principal });
+      set({ status: "authenticated", principal, sessionExpired: false });
     } else {
-      set({ status: "unauthenticated", principal: null });
+      // If we were previously authenticated, this means the session expired.
+      const prev = get().status;
+      if (prev === "authenticated") {
+        set({ status: "unauthenticated", principal: null, sessionExpired: true });
+      } else {
+        set({ status: "unauthenticated", principal: null });
+      }
     }
   },
 
@@ -46,5 +57,9 @@ export const useEntraAuthStore = create<EntraState>((set) => ({
     try { localStorage.clear(); } catch { /* quota / private-mode errors ignored */ }
     try { sessionStorage.clear(); } catch { /* same */ }
     entraLogout();
+  },
+
+  markExpired: () => {
+    set({ sessionExpired: true });
   },
 }));

@@ -11,6 +11,7 @@ import { AccessGate } from "./components/auth/AccessGate";
 import { ProjectGate } from "./components/auth/ProjectGate";
 import { ProjectSelectionPage } from "./pages/ProjectSelectionPage";
 import { GlobalSettingsPage } from "./pages/GlobalSettingsPage";
+import { SessionExpiredModal } from "./components/auth/SessionExpiredModal";
 
 const SpecFilesPage = lazy(() => import("./pages/SpecFilesPage").then((m) => ({ default: m.SpecFilesPage })));
 const IdeasFlowsPage = lazy(() => import("./pages/IdeasFlowsPage").then((m) => ({ default: m.IdeasFlowsPage })));
@@ -82,14 +83,28 @@ function AppRoutes() {
     }
 
     // Global handler: any 401 from the API client means the session is stale.
-    // Re-check Entra session — if expired, EntraGate will redirect to login.
+    // Show the session-expired modal instead of silently redirecting.
     const onExpired = () => {
-      console.warn("[session-expired] event fired — re-checking Entra session");
-      useAuthStore.getState().logout();
-      void useEntraAuthStore.getState().check();
+      console.warn("[session-expired] event fired — showing session expired modal");
+      useEntraAuthStore.getState().markExpired();
     };
     window.addEventListener("session-expired", onExpired);
-    return () => window.removeEventListener("session-expired", onExpired);
+
+    // Periodic session health check — proactively detect expiry before the
+    // user tries to do something. Checks /.auth/me every 2 minutes.
+    const SESSION_CHECK_INTERVAL = 2 * 60 * 1000;
+    const healthCheckTimer = setInterval(() => {
+      const store = useEntraAuthStore.getState();
+      // Only poll when we believe we're authenticated (not dev-mode, not already expired).
+      if (store.status === "authenticated" && !store.sessionExpired) {
+        void store.check();
+      }
+    }, SESSION_CHECK_INTERVAL);
+
+    return () => {
+      window.removeEventListener("session-expired", onExpired);
+      clearInterval(healthCheckTimer);
+    };
   }, []);
 
   return (
@@ -121,6 +136,7 @@ export default function App() {
             <AppRoutes />
           </BrowserRouter>
         </AccessGate>
+        <SessionExpiredModal />
       </EntraGate>
     </ErrorBoundary>
   );
