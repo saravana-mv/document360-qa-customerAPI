@@ -170,7 +170,7 @@ function parseEndpoint(
   const reqBody = op.requestBody as Record<string, unknown> | undefined;
   if (reqBody) {
     const content = reqBody.content as Record<string, Record<string, unknown>> | undefined;
-    const jsonContent = content?.["application/json"];
+    const jsonContent = content?.["application/json"] ?? content?.["multipart/form-data"];
     if (jsonContent) {
       const schemaRef = jsonContent.schema as Record<string, string> | undefined;
       let schemaName = "";
@@ -263,12 +263,15 @@ function parseEndpoint(
       const respContent = successResp?.content as Record<string, Record<string, unknown>> | undefined;
       const jsonResp = respContent?.["application/json"];
       if (jsonResp) {
-        const respSchemaRef = jsonResp.schema as Record<string, string> | undefined;
+        const respSchemaRef = jsonResp.schema as Record<string, unknown> | undefined;
         if (respSchemaRef?.$ref) {
-          const respSchema = resolveRef(respSchemaRef.$ref, schemas);
+          const respSchema = resolveRef(respSchemaRef.$ref as string, schemas);
           if (respSchema) {
             extractResponseKeyFields(respSchema, schemas, "response", responseKeyFields, 0);
           }
+        } else if (respSchemaRef && (respSchemaRef as Record<string, unknown>).type) {
+          // Inline response schema (no $ref) — use it directly
+          extractResponseKeyFields(respSchemaRef as Record<string, unknown>, schemas, "response", responseKeyFields, 0);
         }
         // Extract response example if available
         const examples = jsonResp.examples as Record<string, Record<string, unknown>> | undefined;

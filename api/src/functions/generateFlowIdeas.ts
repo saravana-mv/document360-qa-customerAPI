@@ -495,6 +495,7 @@ export async function generateFlowIdeasHandler(
 
   // "__random__" sentinel: pick a random focus pattern for variety
   const RANDOM_PATTERNS = [
+    "Focus on happy-path success scenarios with RICH response assertions. Each idea should test the SAME endpoint succeeding but assert DIFFERENT response body fields. For example, if the response has fields A, B, C, D — idea 1 asserts fields A and B, idea 2 asserts fields C and D, idea 3 asserts array items and nested objects. Cover field existence, value types, array lengths, and nested field values. The goal is comprehensive response contract coverage across multiple simple flows.",
     "Generate CRUD lifecycle flows for each entity — create, read, update, delete.",
     "Focus on error scenarios: missing required fields (400), unauthorized access (401), resource not found (404), and validation errors (422).",
     "Test foreign key relationships between resources — verify that child resources correctly reference parent entities and that cascading operations work.",

@@ -11,6 +11,11 @@ export const IDEA_TEMPLATES: IdeaTemplate[] = [
     prompt: "__random__",
   },
   {
+    key: "happy",
+    label: "Happy cases",
+    prompt: "Focus on happy-path success scenarios with RICH response assertions. Each idea should test the SAME endpoint succeeding but assert DIFFERENT response body fields. For example, if the response has fields A, B, C, D — idea 1 asserts fields A and B, idea 2 asserts fields C and D, idea 3 asserts array items and nested objects. Cover field existence, value types, array lengths, and nested field values. The goal is comprehensive response contract coverage across multiple simple flows.",
+  },
+  {
     key: "crud",
     label: "CRUD lifecycle",
     prompt: "Generate CRUD lifecycle flows for each entity — create, read, update, delete.",
