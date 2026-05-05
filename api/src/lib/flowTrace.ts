@@ -63,13 +63,18 @@ export interface FlowTraceDocument {
     costUsd: number;
   } | null;
 
-  goldenResponses?: Array<{
-    method: string;
-    path: string;
-    statusCode: number;
-    runId: string;
-    stepIndex: number;
-  }>;
+  goldenResponseSearch: {
+    endpointsSearched: string[];
+    runsScanned: number;
+    matchesFound: number;
+    responses: Array<{
+      method: string;
+      path: string;
+      statusCode: number;
+      runId: string;
+      stepIndex: number;
+    }>;
+  } | null;
 }
 
 /** Extract ## path/filename.md headers from spec context string. */
@@ -147,7 +152,7 @@ export interface TraceBuilder {
   setSpecSelection(sel: FlowTraceDocument["specSelection"]): void;
   setSpecContext(specContext: string): void;
   setStepContext(text: string): void;
-  setGoldenResponses(responses: Array<{ method: string; path: string; statusCode: number; _runId: string; _stepIndex: number }>): void;
+  setGoldenResponseSearch(search: { endpointsSearched: string[]; runsScanned: number; matchesFound: number; responses: Array<{ method: string; path: string; statusCode: number; _runId: string; _stepIndex: number }> }): void;
   setPrompt(systemPrompt: string, userMessage: string): void;
   /** Wraps a post-processor, recording before/after diff. Returns the processed XML. */
   wrapPostProcessor(name: string, xml: string, fn: (xml: string) => string): string;
@@ -178,6 +183,7 @@ export function createTraceBuilder(
     prompt: { systemPrompt: "", userMessage: "" },
     postProcessing: [],
     model: null,
+    goldenResponseSearch: null,
   };
 
   return {
@@ -197,14 +203,19 @@ export function createTraceBuilder(
       doc.stepContext = text.slice(0, MAX_PROMPT_SIZE);
     },
 
-    setGoldenResponses(responses) {
-      doc.goldenResponses = responses.map(r => ({
-        method: r.method,
-        path: r.path,
-        statusCode: r.statusCode,
-        runId: r._runId,
-        stepIndex: r._stepIndex,
-      }));
+    setGoldenResponseSearch(search) {
+      doc.goldenResponseSearch = {
+        endpointsSearched: search.endpointsSearched,
+        runsScanned: search.runsScanned,
+        matchesFound: search.matchesFound,
+        responses: search.responses.map(r => ({
+          method: r.method,
+          path: r.path,
+          statusCode: r.statusCode,
+          runId: r._runId,
+          stepIndex: r._stepIndex,
+        })),
+      };
     },
 
     setPrompt(systemPrompt, userMessage) {

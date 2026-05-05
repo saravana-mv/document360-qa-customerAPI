@@ -944,13 +944,21 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
 
   // Load golden responses from recent successful test runs
   const goldenEndpoints = specContext ? extractEndpointsFromContext(specFiles, specContext) : [];
-  const goldenResponses = goldenEndpoints.length > 0
+  const goldenSearch = goldenEndpoints.length > 0
     ? await loadGoldenResponses(projectId, goldenEndpoints)
-    : [];
-  const goldenBlock = formatGoldenResponses(goldenResponses);
-  if (goldenResponses.length > 0) {
-    console.log(`[generateFlow] Golden responses: ${goldenResponses.length} for ${goldenEndpoints.length} endpoints (${goldenBlock.length} chars)`);
-    trace.setGoldenResponses(goldenResponses);
+    : { responses: [], meta: { endpointsSearched: [], normalizedPatterns: [], runsScanned: 0, matchesFound: 0 } };
+  const goldenBlock = formatGoldenResponses(goldenSearch.responses);
+  // Always record search metadata in trace — even when no matches — so user can debug
+  trace.setGoldenResponseSearch({
+    endpointsSearched: goldenSearch.meta.endpointsSearched,
+    runsScanned: goldenSearch.meta.runsScanned,
+    matchesFound: goldenSearch.meta.matchesFound,
+    responses: goldenSearch.responses,
+  });
+  if (goldenSearch.responses.length > 0) {
+    console.log(`[generateFlow] Golden responses: ${goldenSearch.responses.length} for ${goldenEndpoints.length} endpoints (${goldenBlock.length} chars)`);
+  } else {
+    console.log(`[generateFlow] No golden responses found (searched ${goldenSearch.meta.runsScanned} runs for ${goldenSearch.meta.normalizedPatterns.length} patterns: ${goldenSearch.meta.normalizedPatterns.slice(0, 5).join(", ")})`);
   }
 
   // Analyze cross-step dependencies between endpoints in the spec context
@@ -1078,7 +1086,15 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
           // Save debug trace (fire-and-forget)
           trace.setModelUsage({ name: body.model ?? "default", inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd });
           const traceId = await trace.save();
-          const traceData = `data: ${JSON.stringify({ traceId })}\n\n`;
+          const traceData = `data: ${JSON.stringify({
+            traceId,
+            goldenResponses: {
+              matched: goldenSearch.responses.length,
+              runsScanned: goldenSearch.meta.runsScanned,
+              endpointsSearched: goldenSearch.meta.endpointsSearched.length,
+              injectedChars: goldenBlock.length,
+            },
+          })}\n\n`;
           controller.enqueue(encoder.encode(traceData));
 
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
@@ -1160,6 +1176,12 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
             costUsd: result.usage.costUsd,
           },
           ...(failedFiles.length > 0 ? { warning: `${failedFiles.length} of ${specFiles.length} spec files could not be read. Flow may be missing required fields.`, failedFiles } : {}),
+          goldenResponses: {
+            matched: goldenSearch.responses.length,
+            runsScanned: goldenSearch.meta.runsScanned,
+            endpointsSearched: goldenSearch.meta.endpointsSearched.length,
+            injectedChars: goldenBlock.length,
+          },
           _debug: { projectId, commonFields, projVarMap, specSource: body.ideaId ? "server" : "client", specFilesReceived: specFiles.length, specFilesRequested: specFiles, specContextLength: specContext.length },
         }),
       };

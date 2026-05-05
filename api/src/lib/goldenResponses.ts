@@ -155,15 +155,32 @@ function collectSteps(run: Record<string, unknown>): StepLike[] {
   return steps;
 }
 
+export interface GoldenSearchResult {
+  responses: GoldenResponse[];
+  /** Search metadata for trace/debug visibility */
+  meta: {
+    endpointsSearched: string[];
+    normalizedPatterns: string[];
+    runsScanned: number;
+    matchesFound: number;
+  };
+}
+
 /**
  * Query Cosmos for recent successful step results matching the given endpoints.
- * Returns deduplicated golden responses (most recent per method+normalized path).
+ * Returns deduplicated golden responses (most recent per method+normalized path)
+ * plus search metadata for observability.
  */
 export async function loadGoldenResponses(
   projectId: string,
   endpoints: string[],
-): Promise<GoldenResponse[]> {
-  if (!endpoints.length) return [];
+): Promise<GoldenSearchResult> {
+  const emptyResult: GoldenSearchResult = {
+    responses: [],
+    meta: { endpointsSearched: endpoints, normalizedPatterns: endpoints.map(normalizePath), runsScanned: 0, matchesFound: 0 },
+  };
+
+  if (!endpoints.length) return emptyResult;
 
   try {
     const container = await getTestRunsContainer();
@@ -180,7 +197,7 @@ export async function loadGoldenResponses(
 
     if (!runs || runs.length === 0) {
       console.log("[goldenResponses] No recent runs found");
-      return [];
+      return emptyResult;
     }
 
     const endpointPatterns = endpoints.map(normalizePath);
@@ -229,12 +246,20 @@ export async function loadGoldenResponses(
       }
     }
 
-    const result = [...seen.values()].slice(0, MAX_GOLDEN_RESPONSES);
-    console.log(`[goldenResponses] Found ${result.length} golden responses from ${seen.size} unique matches`);
-    return result;
+    const responses = [...seen.values()].slice(0, MAX_GOLDEN_RESPONSES);
+    console.log(`[goldenResponses] Found ${responses.length} golden responses from ${seen.size} unique matches`);
+    return {
+      responses,
+      meta: {
+        endpointsSearched: endpoints,
+        normalizedPatterns: endpointPatterns,
+        runsScanned: runs.length,
+        matchesFound: seen.size,
+      },
+    };
   } catch (e) {
     console.error("[goldenResponses] Failed to load golden responses:", e instanceof Error ? e.message : String(e));
-    return [];
+    return { ...emptyResult, meta: { ...emptyResult.meta, endpointsSearched: endpoints } };
   }
 }
 

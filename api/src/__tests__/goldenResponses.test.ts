@@ -124,10 +124,12 @@ describe("loadGoldenResponses", () => {
     mockFetchAll.mockReset();
   });
 
-  it("returns empty array when no runs exist", async () => {
+  it("returns empty responses when no runs exist", async () => {
     mockFetchAll.mockResolvedValue({ resources: [] });
     const result = await loadGoldenResponses("proj1", ["/v3/articles"]);
-    expect(result).toEqual([]);
+    expect(result.responses).toEqual([]);
+    expect(result.meta.runsScanned).toBe(0);
+    expect(result.meta.endpointsSearched).toEqual(["/v3/articles"]);
   });
 
   it("extracts passing steps from server-side runs (steps array)", async () => {
@@ -154,9 +156,11 @@ describe("loadGoldenResponses", () => {
     });
 
     const result = await loadGoldenResponses("proj1", ["/v3/articles"]);
-    expect(result).toHaveLength(1);
-    expect(result[0].method).toBe("POST");
-    expect(result[0].statusCode).toBe(201);
+    expect(result.responses).toHaveLength(1);
+    expect(result.responses[0].method).toBe("POST");
+    expect(result.responses[0].statusCode).toBe(201);
+    expect(result.meta.runsScanned).toBe(1);
+    expect(result.meta.matchesFound).toBe(1);
   });
 
   it("extracts passing steps from browser-side runs (testResults object)", async () => {
@@ -183,8 +187,8 @@ describe("loadGoldenResponses", () => {
     });
 
     const result = await loadGoldenResponses("proj1", ["/v3/articles"]);
-    expect(result).toHaveLength(1);
-    expect(result[0].method).toBe("GET");
+    expect(result.responses).toHaveLength(1);
+    expect(result.responses[0].method).toBe("GET");
   });
 
   it("falls back to tagResults when testResults is missing", async () => {
@@ -206,8 +210,8 @@ describe("loadGoldenResponses", () => {
     });
 
     const result = await loadGoldenResponses("proj1", ["/v3/categories"]);
-    expect(result).toHaveLength(1);
-    expect(result[0].method).toBe("POST");
+    expect(result.responses).toHaveLength(1);
+    expect(result.responses[0].method).toBe("POST");
   });
 
   it("matches resolved URLs against template endpoints via normalization", async () => {
@@ -229,8 +233,8 @@ describe("loadGoldenResponses", () => {
 
     // Spec endpoint has {placeholders}
     const result = await loadGoldenResponses("proj1", ["/v3/projects/{project_id}/categories"]);
-    expect(result).toHaveLength(1);
-    expect(result[0].statusCode).toBe(201);
+    expect(result.responses).toHaveLength(1);
+    expect(result.responses[0].statusCode).toBe(201);
   });
 
   it("deduplicates by method+normalized path (keeps first/most recent)", async () => {
@@ -264,8 +268,8 @@ describe("loadGoldenResponses", () => {
     });
 
     const result = await loadGoldenResponses("proj1", ["/v3/articles"]);
-    expect(result).toHaveLength(1);
-    expect(result[0].responseBody).toContain("newer");
+    expect(result.responses).toHaveLength(1);
+    expect(result.responses[0].responseBody).toContain("newer");
   });
 
   it("limits to 5 golden responses", async () => {
@@ -286,13 +290,14 @@ describe("loadGoldenResponses", () => {
 
     const endpoints = Array.from({ length: 10 }, (_, i) => `/v3/endpoint${i}`);
     const result = await loadGoldenResponses("proj1", endpoints);
-    expect(result.length).toBeLessThanOrEqual(5);
+    expect(result.responses.length).toBeLessThanOrEqual(5);
+    expect(result.meta.matchesFound).toBe(10); // all 10 matched, but capped at 5
   });
 
   it("returns empty on Cosmos error", async () => {
     mockFetchAll.mockRejectedValue(new Error("Cosmos down"));
     const result = await loadGoldenResponses("proj1", ["/v3/articles"]);
-    expect(result).toEqual([]);
+    expect(result.responses).toEqual([]);
   });
 });
 
