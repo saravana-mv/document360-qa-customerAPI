@@ -134,6 +134,27 @@ function UseVarButton({ paramName, varMap, onApply }: {
   );
 }
 
+/** Small icon button to fill a file input from a matching file project variable. */
+function UseFileVarButton({ paramName, fileVarMap, onApply }: {
+  paramName: string;
+  fileVarMap: Map<string, { sentinel: string; fileName: string; fileSize?: number }>;
+  onApply: (sentinel: string, fileName: string) => void;
+}) {
+  const entry = fileVarMap.get(paramName);
+  if (!entry) return null;
+  return (
+    <button
+      onClick={() => onApply(entry.sentinel, entry.fileName)}
+      className="text-[#0969da] hover:text-[#0860ca] shrink-0 p-0.5 rounded hover:bg-[#ddf4ff] transition-colors"
+      title={`Use file variable: ${paramName} → ${entry.fileName}${entry.fileSize ? ` (${formatBytes(entry.fileSize)})` : ""}`}
+    >
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.745 3A23.933 23.933 0 0 0 3 12c0 3.183.62 6.22 1.745 9M19.5 3c.967 2.78 1.5 5.817 1.5 9s-.533 6.22-1.5 9M8.25 8.885l1.444-.89a.75.75 0 0 1 1.105.402l2.402 7.206a.75.75 0 0 0 1.104.401l1.445-.889" />
+      </svg>
+    </button>
+  );
+}
+
 // ── Schema-aware input control ─────────────────────────────────────────────
 //
 // Picks the right HTML control based on the JSON Schema:
@@ -425,6 +446,17 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
     return m;
   }, [variables]);
 
+  // File variable lookup — only file-type variables, keyed by name
+  const fileVarMap = useMemo(() => {
+    const m = new Map<string, { sentinel: string; fileName: string; fileSize?: number }>();
+    for (const v of variables) {
+      if (v.type === "file" && v.fileName) {
+        m.set(v.name, { sentinel: v.value, fileName: v.fileName, fileSize: v.fileSize });
+      }
+    }
+    return m;
+  }, [variables]);
+
   // Collect available examples from the spec
   const examples = useMemo(() => collectExamples(endpoint), [endpoint]);
 
@@ -466,7 +498,7 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
   // Body state — separate channels for raw text / form fields / files
   const [body, setBody] = useState("");
   const [formFields, setFormFields] = useState<Record<string, string>>({});
-  const [formFiles, setFormFiles] = useState<Record<string, File | null>>({});
+  const [formFiles, setFormFiles] = useState<Record<string, File | string | null>>({});
 
   // Form / Raw toggle — defaults to form when properties exist, raw otherwise
   const [bodyMode, setBodyMode] = useState<BodyMode>(
@@ -621,26 +653,52 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
       let bodyPreview: string | null = null;
 
       if (isMultipart) {
-        // Multipart is form-only — always build FormData
-        const fd = new FormData();
-        const previewLines: string[] = [];
-        for (const [k, v] of Object.entries(formFields)) {
-          if (v !== "") {
-            fd.append(k, v);
-            previewLines.push(`${k}: ${v}`);
+        // Check if any file field uses a sentinel (file project variable)
+        const hasSentinel = Object.values(formFiles).some(v => typeof v === "string");
+
+        if (hasSentinel) {
+          // Send as JSON with X-FF-Content-Type — proxy resolves file sentinels server-side
+          const jsonBody: Record<string, string> = {};
+          const previewLines: string[] = [];
+          for (const [k, v] of Object.entries(formFields)) {
+            if (v !== "") { jsonBody[k] = v; previewLines.push(`${k}: ${v}`); }
           }
-        }
-        for (const [k, file] of Object.entries(formFiles)) {
-          if (file) {
-            fd.append(k, file);
-            previewLines.push(`${k}: [file] ${file.name} (${formatBytes(file.size)})`);
+          for (const [k, v] of Object.entries(formFiles)) {
+            if (typeof v === "string") {
+              jsonBody[k] = v;
+              const fv = variables.find(pv => pv.value === v);
+              previewLines.push(`${k}: [variable] ${fv?.fileName ?? k}`);
+            } else if (v) {
+              // Can't mix real File with sentinel — show error
+              previewLines.push(`${k}: [file] ${v.name} (${formatBytes(v.size)})`);
+            }
           }
-        }
-        if (previewLines.length > 0) {
-          fetchBody = fd;
+          fetchBody = JSON.stringify(jsonBody);
           bodyPreview = previewLines.join("\n");
+          headers["Content-Type"] = "application/json";
+          headers["X-FF-Content-Type"] = "multipart/form-data";
+        } else {
+          // Standard multipart — build real FormData
+          const fd = new FormData();
+          const previewLines: string[] = [];
+          for (const [k, v] of Object.entries(formFields)) {
+            if (v !== "") {
+              fd.append(k, v);
+              previewLines.push(`${k}: ${v}`);
+            }
+          }
+          for (const [k, file] of Object.entries(formFiles)) {
+            if (file && file instanceof File) {
+              fd.append(k, file);
+              previewLines.push(`${k}: [file] ${file.name} (${formatBytes(file.size)})`);
+            }
+          }
+          if (previewLines.length > 0) {
+            fetchBody = fd;
+            bodyPreview = previewLines.join("\n");
+          }
+          // NOTE: do NOT set Content-Type — the browser adds it with the correct boundary.
         }
-        // NOTE: do NOT set Content-Type — the browser adds it with the correct boundary.
       } else if (bodyMode === "raw") {
         // Raw mode — send the editor text verbatim
         if (body.trim()) {
@@ -936,10 +994,37 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
                       </span>
                     </div>
                     {prop.isFile ? (
-                      <FileInput
-                        file={formFiles[prop.name] ?? null}
-                        onChange={(f) => setFormFiles((prev) => ({ ...prev, [prop.name]: f }))}
-                      />
+                      <div className="flex items-center gap-1">
+                        {typeof formFiles[prop.name] === "string" ? (
+                          <div className="flex items-center text-sm border border-[#d1d9e0] rounded-md bg-white w-[380px] h-[40px] overflow-hidden">
+                            <span className="h-full flex items-center px-3 bg-[#ddf4ff] border-r border-[#d1d9e0] text-[#0969da] font-medium shrink-0">
+                              Variable
+                            </span>
+                            <span className="px-2 truncate flex-1 text-[#1f2328]">
+                              {variables.find(v => v.value === formFiles[prop.name])?.fileName ?? prop.name}
+                            </span>
+                            <button
+                              onClick={() => setFormFiles((prev) => ({ ...prev, [prop.name]: null }))}
+                              className="px-2 text-[#656d76] hover:text-[#d1242f] shrink-0"
+                              title="Clear"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        ) : (
+                          <FileInput
+                            file={(formFiles[prop.name] as File) ?? null}
+                            onChange={(f) => setFormFiles((prev) => ({ ...prev, [prop.name]: f }))}
+                          />
+                        )}
+                        <UseFileVarButton
+                          paramName={prop.name}
+                          fileVarMap={fileVarMap}
+                          onApply={(sentinel) => setFormFiles((prev) => ({ ...prev, [prop.name]: sentinel }))}
+                        />
+                      </div>
                     ) : (
                       <div className="flex items-center gap-1">
                         <ParamInput
