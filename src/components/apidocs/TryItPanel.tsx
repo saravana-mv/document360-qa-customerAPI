@@ -5,6 +5,7 @@ import { JsonEditor } from "../common/JsonEditor";
 import { HeadersTable } from "../common/HeadersTable";
 import { useProjectVariablesStore } from "../../store/projectVariables.store";
 import type { ParsedEndpointDoc } from "../../lib/spec/swaggerParser";
+import type { Schema } from "../../types/spec.types";
 
 // Renders a warning string with two clickable hot-words:
 //   • "Settings > Connections" / "Settings → Connections" → routes to /settings/connections
@@ -76,6 +77,11 @@ const STATUS_COLORS: Record<string, string> = {
   "5": "text-[#d1242f] bg-[#ffebe9]",
 };
 
+// Shared input/select base styles — keep look consistent across param + body controls.
+const INPUT_BASE = "flex-1 text-sm border border-[#d1d9e0] rounded-md px-2 py-1 bg-white text-[#1f2328] placeholder-[#afb8c1] outline-none focus:border-[#0969da]";
+const INPUT_MONO = `${INPUT_BASE} font-mono`;
+const SELECT_BASE = "flex-1 text-sm border border-[#d1d9e0] rounded-md px-2 py-1 bg-white text-[#1f2328] outline-none focus:border-[#0969da] cursor-pointer font-mono";
+
 /** Inline copy button with checkmark feedback. */
 function CopyButton({ value, label }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false);
@@ -117,6 +123,140 @@ function UseVarButton({ paramName, varMap, onApply }: {
       </svg>
     </button>
   );
+}
+
+// ── Schema-aware input control ─────────────────────────────────────────────
+//
+// Picks the right HTML control based on the JSON Schema:
+//   • enum             → <select> dropdown
+//   • boolean          → true / false select
+//   • integer / number → <input type="number">
+//   • string + format=date / date-time → <input type="date" / datetime-local">
+//   • everything else  → <input type="text">
+
+function ParamInput({ schema, value, onChange, placeholder, idHint }: {
+  schema?: Schema;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  idHint?: string;
+}) {
+  // Enum → select
+  if (schema?.enum && schema.enum.length > 0) {
+    return (
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={SELECT_BASE}
+        aria-label={idHint}
+      >
+        <option value="">—</option>
+        {schema.enum.map((v) => (
+          <option key={String(v)} value={String(v)}>{String(v)}</option>
+        ))}
+      </select>
+    );
+  }
+
+  // Boolean → true / false select
+  if (schema?.type === "boolean") {
+    return (
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={SELECT_BASE}
+        aria-label={idHint}
+      >
+        <option value="">—</option>
+        <option value="true">true</option>
+        <option value="false">false</option>
+      </select>
+    );
+  }
+
+  // Integer / number → numeric input
+  if (schema?.type === "integer" || schema?.type === "number") {
+    return (
+      <input
+        type="number"
+        step={schema.type === "integer" ? 1 : "any"}
+        min={schema.minimum}
+        max={schema.maximum}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={INPUT_MONO}
+        aria-label={idHint}
+      />
+    );
+  }
+
+  // String + date format
+  if (schema?.type === "string" && schema.format === "date") {
+    return (
+      <input
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={INPUT_MONO}
+        aria-label={idHint}
+      />
+    );
+  }
+  if (schema?.type === "string" && schema.format === "date-time") {
+    return (
+      <input
+        type="datetime-local"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={INPUT_MONO}
+        aria-label={idHint}
+      />
+    );
+  }
+
+  // Default: text
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className={INPUT_MONO}
+      aria-label={idHint}
+    />
+  );
+}
+
+// ── File input — matches D360's "Choose File / No file chosen" look ────────
+
+function FileInput({ file, onChange, accept }: {
+  file: File | null;
+  onChange: (f: File | null) => void;
+  accept?: string;
+}) {
+  return (
+    <label className="flex items-center gap-2 text-sm border border-[#d1d9e0] rounded-md bg-white cursor-pointer overflow-hidden hover:border-[#afb8c1] transition-colors w-full">
+      <span className="px-3 py-1 bg-[#f6f8fa] border-r border-[#d1d9e0] text-[#1f2328] font-medium shrink-0 hover:bg-[#eef1f6]">
+        Choose File
+      </span>
+      <span className={`px-1 truncate ${file ? "text-[#1f2328]" : "text-[#656d76]"}`}>
+        {file ? `${file.name} (${formatBytes(file.size)})` : "No file chosen"}
+      </span>
+      <input
+        type="file"
+        accept={accept}
+        className="hidden"
+        onChange={(e) => onChange(e.target.files?.[0] ?? null)}
+      />
+    </label>
+  );
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /** Collapsible accordion section — same design as Scenario Manager Run tab. */
@@ -226,6 +366,26 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
   // Collect available examples from the spec
   const examples = useMemo(() => collectExamples(endpoint), [endpoint]);
 
+  // ── Body content-type detection ──────────────────────────────────────────
+  const contentType = endpoint.requestBody?.contentType?.toLowerCase() ?? "";
+  const isMultipart = contentType.includes("multipart/");
+  const isFormUrlEncoded = contentType.includes("x-www-form-urlencoded");
+  const isJsonBody = !isMultipart && !isFormUrlEncoded && (contentType.includes("json") || (!!endpoint.requestBody && contentType === ""));
+  const isFormBody = isMultipart || isFormUrlEncoded;
+
+  // For multipart / urlencoded — flat list of top-level schema properties
+  const bodyProperties = useMemo(() => {
+    const schema = endpoint.requestBody?.schema;
+    if (!schema?.properties) return [];
+    const requiredSet = new Set(schema.required ?? []);
+    return Object.entries(schema.properties).map(([name, propSchema]) => ({
+      name,
+      schema: propSchema,
+      required: requiredSet.has(name),
+      isFile: propSchema.type === "string" && propSchema.format === "binary",
+    }));
+  }, [endpoint.requestBody]);
+
   // Initialize param values — blank by default
   const [paramValues, setParamValues] = useState<Record<string, string>>(() => {
     const vals: Record<string, string> = {};
@@ -235,10 +395,12 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
     return vals;
   });
 
-  // Request body — blank by default
+  // Body state — separate channels for JSON / form fields / files
   const [body, setBody] = useState("");
+  const [formFields, setFormFields] = useState<Record<string, string>>({});
+  const [formFiles, setFormFiles] = useState<Record<string, File | null>>({});
 
-  // Reset params + body when endpoint changes
+  // Reset everything when endpoint changes
   useEffect(() => {
     const vals: Record<string, string> = {};
     for (const p of [...endpoint.parameters]) {
@@ -246,6 +408,8 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
     }
     setParamValues(vals);
     setBody("");
+    setFormFields({});
+    setFormFiles({});
     setResponse(null);
     setError(null);
   }, [endpoint]);
@@ -262,8 +426,39 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
       }
       return next;
     });
-    if (ex.body) setBody(ex.body);
+    if (!ex.body) return;
+    if (isFormBody) {
+      // Try to interpret the example as a flat object → form fields
+      try {
+        const parsed = JSON.parse(ex.body);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          const next: Record<string, string> = {};
+          for (const [k, v] of Object.entries(parsed)) {
+            next[k] = v == null ? "" : String(v);
+          }
+          setFormFields(next);
+          return;
+        }
+      } catch { /* fall through */ }
+    }
+    setBody(ex.body);
   }
+
+  // Live URL preview — path params resolved, query params appended.
+  const previewUrl = useMemo(() => {
+    let path = endpoint.path;
+    for (const p of pathParams) {
+      const val = paramValues[p.name];
+      path = path.replace(`{${p.name}}`, val ? val : `{${p.name}}`);
+    }
+    const queryParts: string[] = [];
+    for (const p of queryParams) {
+      const val = paramValues[p.name];
+      if (val) queryParts.push(`${encodeURIComponent(p.name)}=${encodeURIComponent(val)}`);
+    }
+    const qs = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+    return `${baseUrl ?? ""}${path}${qs}`;
+  }, [endpoint.path, paramValues, baseUrl, pathParams, queryParams]);
 
   async function handleSend() {
     setSending(true);
@@ -287,7 +482,6 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
       const fullUrl = `${baseUrl || ""}${path}${qs}`;
 
       const headers: Record<string, string> = {};
-      if (body.trim()) headers["Content-Type"] = "application/json";
       if (connectionId) headers["X-FF-Connection-Id"] = connectionId;
       if (baseUrl) headers["X-FF-Base-Url"] = baseUrl;
 
@@ -296,10 +490,51 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
         if (val) headers[p.name] = val;
       }
 
+      // Build the body based on the detected content type
+      let fetchBody: BodyInit | undefined;
+      let bodyPreview: string | null = null;
+
+      if (isMultipart) {
+        const fd = new FormData();
+        const previewLines: string[] = [];
+        for (const [k, v] of Object.entries(formFields)) {
+          if (v !== "") {
+            fd.append(k, v);
+            previewLines.push(`${k}: ${v}`);
+          }
+        }
+        for (const [k, file] of Object.entries(formFiles)) {
+          if (file) {
+            fd.append(k, file);
+            previewLines.push(`${k}: [file] ${file.name} (${formatBytes(file.size)})`);
+          }
+        }
+        if (previewLines.length > 0) {
+          fetchBody = fd;
+          bodyPreview = previewLines.join("\n");
+        }
+        // NOTE: do NOT set Content-Type — the browser adds it with the correct boundary.
+      } else if (isFormUrlEncoded) {
+        const params = new URLSearchParams();
+        for (const [k, v] of Object.entries(formFields)) {
+          if (v !== "") params.append(k, v);
+        }
+        const encoded = params.toString();
+        if (encoded) {
+          fetchBody = encoded;
+          bodyPreview = encoded;
+          headers["Content-Type"] = "application/x-www-form-urlencoded";
+        }
+      } else if (body.trim()) {
+        fetchBody = body;
+        bodyPreview = body;
+        headers["Content-Type"] = endpoint.requestBody?.contentType || "application/json";
+      }
+
       const res = await fetch(fetchUrl, {
         method: endpoint.method.toUpperCase(),
         headers,
-        body: body.trim() ? body : undefined,
+        body: fetchBody,
       });
 
       const durationMs = Date.now() - start;
@@ -307,8 +542,8 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
       res.headers.forEach((v, k) => { responseHeaders[k] = v; });
 
       let respBody: unknown = null;
-      const contentType = res.headers.get("content-type") ?? "";
-      if (contentType.includes("json")) {
+      const ct = res.headers.get("content-type") ?? "";
+      if (ct.includes("json")) {
         try { respBody = await res.json(); } catch { respBody = null; }
       } else {
         const text = await res.text();
@@ -319,7 +554,7 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
         status: res.status,
         statusText: res.statusText,
         requestHeaders: { ...headers },
-        requestBody: body.trim() || null,
+        requestBody: bodyPreview,
         requestUrl: fullUrl,
         responseHeaders,
         body: respBody,
@@ -349,6 +584,14 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
             <ConnectionWarning text={connectionWarning} onConnect={onOpenConnect} />
           </div>
         )}
+
+        {/* ── URL preview ──────────────────────────────────────────── */}
+        <div className="space-y-1">
+          <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide">URL</label>
+          <div className="font-mono text-sm text-[#1f2328] bg-[#f6f8fa] border border-[#d1d9e0] rounded-md px-3 py-1.5 break-all select-all">
+            {previewUrl || <span className="text-[#afb8c1]">{endpoint.path}</span>}
+          </div>
+        </div>
 
         {/* ── Examples dropdown ─────────────────────────────────────── */}
         {examples.length > 0 && (
@@ -383,16 +626,19 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
                     {p.required && <span className="text-[#d1242f] ml-0.5">*</span>}
                   </span>
                   {p.schema?.type && (
-                    <span className="text-xs text-[#656d76]">{p.schema.type}{p.schema.format ? ` (${p.schema.format})` : ""}</span>
+                    <span className="text-xs text-[#656d76]">
+                      {p.schema.enum ? "enum" : p.schema.type}
+                      {!p.schema.enum && p.schema.format ? ` (${p.schema.format})` : ""}
+                    </span>
                   )}
                 </div>
                 <div className="flex items-center gap-1">
-                  <input
-                    type="text"
+                  <ParamInput
+                    schema={p.schema}
                     value={paramValues[p.name] ?? ""}
-                    onChange={(e) => updateParam(p.name, e.target.value)}
+                    onChange={(v) => updateParam(p.name, v)}
                     placeholder={p.schema?.example != null ? String(p.schema.example) : p.schema?.type ?? ""}
-                    className="flex-1 text-sm border border-[#d1d9e0] rounded-md px-2 py-1 bg-white text-[#1f2328] placeholder-[#afb8c1] outline-none focus:border-[#0969da] font-mono"
+                    idHint={p.name}
                   />
                   <UseVarButton paramName={p.name} varMap={varMap} onApply={(v) => updateParam(p.name, v)} />
                 </div>
@@ -413,16 +659,18 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
                     {p.required && <span className="text-[#d1242f] ml-0.5">*</span>}
                   </span>
                   {p.schema?.type && (
-                    <span className="text-xs text-[#656d76]">{p.schema.type}</span>
+                    <span className="text-xs text-[#656d76]">
+                      {p.schema.enum ? "enum" : p.schema.type}
+                    </span>
                   )}
                 </div>
                 <div className="flex items-center gap-1">
-                  <input
-                    type="text"
+                  <ParamInput
+                    schema={p.schema}
                     value={paramValues[p.name] ?? ""}
-                    onChange={(e) => updateParam(p.name, e.target.value)}
+                    onChange={(v) => updateParam(p.name, v)}
                     placeholder={p.schema?.example != null ? String(p.schema.example) : p.schema?.type ?? ""}
-                    className="flex-1 text-sm border border-[#d1d9e0] rounded-md px-2 py-1 bg-white text-[#1f2328] placeholder-[#afb8c1] outline-none focus:border-[#0969da] font-mono"
+                    idHint={p.name}
                   />
                   <UseVarButton paramName={p.name} varMap={varMap} onApply={(v) => updateParam(p.name, v)} />
                 </div>
@@ -439,12 +687,12 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
               <div key={p.name} className="space-y-0.5">
                 <span className="text-sm font-mono text-[#1f2328]">{p.name}</span>
                 <div className="flex items-center gap-1">
-                  <input
-                    type="text"
+                  <ParamInput
+                    schema={p.schema}
                     value={paramValues[p.name] ?? ""}
-                    onChange={(e) => updateParam(p.name, e.target.value)}
+                    onChange={(v) => updateParam(p.name, v)}
                     placeholder={p.schema?.example != null ? String(p.schema.example) : p.schema?.type ?? ""}
-                    className="flex-1 text-sm border border-[#d1d9e0] rounded-md px-2 py-1 bg-white text-[#1f2328] placeholder-[#afb8c1] outline-none focus:border-[#0969da] font-mono"
+                    idHint={p.name}
                   />
                   <UseVarButton paramName={p.name} varMap={varMap} onApply={(v) => updateParam(p.name, v)} />
                 </div>
@@ -458,14 +706,69 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
           <div className="space-y-1.5">
             <div className="flex items-baseline gap-2">
               <label className="text-sm font-semibold text-[#656d76] uppercase tracking-wide">Request body</label>
-              <span className="text-xs text-[#656d76]">{endpoint.requestBody.contentType}</span>
+              <span className="text-xs font-mono text-[#656d76]">{endpoint.requestBody.contentType}</span>
             </div>
-            <JsonEditor
-              value={body}
-              onChange={setBody}
-              height="12rem"
-              placeholder="{}"
-            />
+
+            {/* Multipart / form-urlencoded → flat field-by-field form */}
+            {isFormBody && bodyProperties.length > 0 ? (
+              <div className="space-y-2">
+                {bodyProperties.map((prop) => (
+                  <div key={prop.name} className="space-y-0.5">
+                    <div className="flex items-center gap-1">
+                      <span className="text-sm font-mono text-[#1f2328]">
+                        {prop.name}
+                        {prop.required && <span className="text-[#d1242f] ml-0.5">*</span>}
+                      </span>
+                      <span className="text-xs text-[#656d76]">
+                        {prop.schema.enum
+                          ? "enum"
+                          : prop.isFile
+                            ? "file"
+                            : prop.schema.type ?? "string"}
+                        {prop.schema.format && !prop.isFile && !prop.schema.enum ? ` (${prop.schema.format})` : ""}
+                      </span>
+                    </div>
+                    {prop.isFile ? (
+                      <FileInput
+                        file={formFiles[prop.name] ?? null}
+                        onChange={(f) => setFormFiles((prev) => ({ ...prev, [prop.name]: f }))}
+                      />
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <ParamInput
+                          schema={prop.schema}
+                          value={formFields[prop.name] ?? ""}
+                          onChange={(v) => setFormFields((prev) => ({ ...prev, [prop.name]: v }))}
+                          placeholder={prop.schema.example != null ? String(prop.schema.example) : prop.schema.type ?? ""}
+                          idHint={prop.name}
+                        />
+                        <UseVarButton
+                          paramName={prop.name}
+                          varMap={varMap}
+                          onApply={(v) => setFormFields((prev) => ({ ...prev, [prop.name]: v }))}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : isJsonBody ? (
+              <JsonEditor
+                value={body}
+                onChange={setBody}
+                height="12rem"
+                placeholder="{}"
+              />
+            ) : (
+              // Fallback for text/plain, application/xml, etc — plain textarea
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                rows={8}
+                className="w-full text-sm border border-[#d1d9e0] rounded-md px-2 py-1.5 bg-white text-[#1f2328] outline-none focus:border-[#0969da] font-mono"
+                placeholder="Request body"
+              />
+            )}
           </div>
         )}
 
@@ -556,7 +859,11 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
                     actions={<CopyButton value={response.requestBody} label="Copy request body" />}
                   >
                     <div className="p-0">
-                      <JsonCodeBlock value={(() => { try { return JSON.parse(response.requestBody); } catch { return response.requestBody; } })()} height="28rem" />
+                      {isFormBody ? (
+                        <pre className="text-sm font-mono text-[#1f2328] whitespace-pre-wrap break-all px-3 py-2">{response.requestBody}</pre>
+                      ) : (
+                        <JsonCodeBlock value={(() => { try { return JSON.parse(response.requestBody!); } catch { return response.requestBody; } })()} height="28rem" />
+                      )}
                     </div>
                   </Accordion>
                 )}
