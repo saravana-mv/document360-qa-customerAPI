@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { ContextMenu, MenuIcons } from "../common/ContextMenu";
 import type { MenuItem } from "../common/ContextMenu";
 import type { SpecFileItem } from "../../lib/api/specFilesApi";
+import { QualityScorePill } from "../common/QualityScorePill";
+import type { SpecQuality } from "../../lib/spec/specQuality";
 
 // ── Tree data model ───────────────────────────────────────────────────────────
 
@@ -328,6 +330,8 @@ interface NodeProps {
   sourcedPaths?: Set<string>;
   /** Paths currently being synced */
   syncingPaths?: Set<string>;
+  /** Quality scores keyed by full tree path (file paths and folder paths) */
+  qualityScores?: SpecQuality;
   /** Per-folder sort order */
   folderSortOrder: Record<string, SortOrder>;
   /** Multi-selected paths */
@@ -364,7 +368,7 @@ interface NodeProps {
 
 function TreeNodeRow({
   node, depth, selectedPath, selectedFolderPath, expandedFolders, renamingPath,
-  creatingUnder, pathsWithIdeas, sourcedPaths, syncingPaths, folderSortOrder,
+  creatingUnder, pathsWithIdeas, sourcedPaths, syncingPaths, qualityScores, folderSortOrder,
   multiSelectedPaths, multiSelectActive,
   draggingPath, dropTargetPath,
   onDragStart, onDragOver, onDrop, onDragEnd,
@@ -474,6 +478,16 @@ function TreeNodeRow({
               <HttpMethodTag method={node.httpMethod} />
             )}
             <span className={`truncate ${node.isSystem && !isSelected ? "text-[#8b949e]" : ""}`}>{node.name}</span>
+            {!node.isSystem && qualityScores && (() => {
+              if (node.type === "file") {
+                const ep = qualityScores.perEndpoint.get(node.path);
+                if (ep) return <QualityScorePill score={ep.score} />;
+              } else {
+                const fold = qualityScores.perFolder.get(node.path);
+                if (fold) return <QualityScorePill score={fold.score} endpointCount={fold.endpointCount} />;
+              }
+              return null;
+            })()}
           </span>
         )}
 
@@ -543,6 +557,7 @@ function TreeNodeRow({
               pathsWithIdeas={pathsWithIdeas}
               sourcedPaths={sourcedPaths}
               syncingPaths={syncingPaths}
+              qualityScores={qualityScores}
               folderSortOrder={folderSortOrder}
               multiSelectedPaths={multiSelectedPaths}
               multiSelectActive={multiSelectActive}
@@ -729,6 +744,8 @@ interface FileTreeProps {
   sourcedPaths?: Set<string>;
   /** Paths currently being synced */
   syncingPaths?: Set<string>;
+  /** Spec quality scores indexed by full tree path */
+  qualityScores?: SpecQuality;
   /** Multi-selected paths (managed by parent) */
   multiSelectedPaths: Set<string>;
   onSelectFile: (path: string) => void;
@@ -754,6 +771,7 @@ interface FileTreeProps {
 
 export function FileTree({
   files, loading, selectedPath, selectedFolderPath, pathsWithIdeas, sourcedPaths, syncingPaths,
+  qualityScores,
   multiSelectedPaths, onSelectFile, onSelectFolder, onMultiSelect, onSelectAll, onClearMultiSelect, onBulkDelete,
   onCreateFolder, onDeleteFile, onDeleteFolder, onRenameFile,
   onUploadFiles, onImportFromUrl, onSyncFile, onSyncFolder,
@@ -996,6 +1014,7 @@ export function FileTree({
     pathsWithIdeas,
     sourcedPaths,
     syncingPaths,
+    qualityScores,
     folderSortOrder,
     multiSelectedPaths,
     multiSelectActive,

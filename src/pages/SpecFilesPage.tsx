@@ -41,6 +41,7 @@ import { EndpointDocView } from "../components/apidocs/EndpointDocView";
 import { MethodBadge } from "../components/apidocs/MethodBadge";
 import { TryItPanel } from "../components/apidocs/TryItPanel";
 import { parseSwaggerSpec, buildEndpointFileMap, type ParsedSpec, type ParsedEndpointDoc } from "../lib/spec/swaggerParser";
+import { computeSpecQuality } from "../lib/spec/specQuality";
 
 /** Modal prompting the user for an access token when sync detects auth failure. */
 function AccessTokenPrompt({ message, initialToken, onSubmit, onClose }: {
@@ -224,6 +225,13 @@ export function SpecFilesPage() {
       }
     })();
   }, [hasSwagger, versionFolder, swaggerReloadKey]);
+
+  // Quality scores: pure derivation from parsedSpec; recomputes whenever the
+  // spec reloads (e.g. after Enhance Docs example saves bumped swaggerReloadKey).
+  const qualityScores = useMemo(() => {
+    if (!parsedSpec || !versionFolder) return undefined;
+    return computeSpecQuality(parsedSpec, versionFolder);
+  }, [parsedSpec, versionFolder]);
 
   // ── Connection status for current version ──────────────────────────────
   const currentVersionConfig = versionFolder ? versionConfigs[versionFolder] : undefined;
@@ -972,6 +980,7 @@ export function SpecFilesPage() {
             pathsWithIdeas={pathsWithIdeas}
             sourcedPaths={sourcedPaths}
             syncingPaths={syncingPaths}
+            qualityScores={qualityScores}
             multiSelectedPaths={multiSelectedPaths}
             onSelectFile={(path) => void selectFile(path)}
             onSelectFolder={selectFolder}
