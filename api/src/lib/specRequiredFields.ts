@@ -721,9 +721,24 @@ export interface SpecEndpoint {
   path: string;
   requiredRequestFields: string[];
   allRequestFields: string[];   // all field names from the request body table
-  responseFields: string[];  // bare field names from response
+  responseFields: string[];  // bare field names from response (from `- response.X` bullets)
+  responseExampleFields: Set<string>;  // every field name appearing anywhere in the parsed Example Response JSON
   specFilePath: string | null;  // from ## filename.md header preceding the endpoint
   itemSchemas: ItemSchema[];    // from ### Array Item Schema sections
+}
+
+/** Recursively collect every property name from a JSON value into a Set. */
+function collectExampleFieldNames(value: unknown, out: Set<string>): void {
+  if (value === null || value === undefined) return;
+  if (Array.isArray(value)) {
+    for (const item of value) collectExampleFieldNames(item, out);
+    return;
+  }
+  if (typeof value !== "object") return;
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    out.add(k);
+    collectExampleFieldNames(v, out);
+  }
 }
 
 /** Normalize a path for comparison: replace all {param} with * */
@@ -840,20 +855,42 @@ export function parseSpecEndpoints(distilledContext: string): SpecEndpoint[] {
       }
     }
 
-    // Response fields
+    // Response fields — bullets like "- `response.data.id (string)`" or "- `response.data[].id`".
+    // Capture both the `response.data.X` form (X is a word char) AND the `response.data[].X` /
+    // `response.data[N].X` array forms that the previous regex silently dropped.
     const respFields: string[] = [];
-    const respRe = /- `response\.(?:data\.)?(\w+)/g;
+    const respRe = /- `response(?:\.\w+|\[\d*\])*\.(\w+)/g;
     let rr: RegExpExecArray | null;
     while ((rr = respRe.exec(sec.text)) !== null) {
-      respFields.push(rr[1]);
+      if (!respFields.includes(rr[1])) respFields.push(rr[1]);
     }
     const flatRe = /Key fields:\s*(.+)/g;
     let fr: RegExpExecArray | null;
     while ((fr = flatRe.exec(sec.text)) !== null) {
-      const fields = fr[1].match(/response\.(?:data\.)?(\w+)/g) ?? [];
+      const fields = fr[1].match(/response(?:\.\w+|\[\d*\])*\.(\w+)/g) ?? [];
       for (const f of fields) {
-        const bare = f.replace(/^response\.(?:data\.)?/, "");
+        const bare = f.replace(/^response(?:\.\w+|\[\d*\])*\./, "");
         if (bare && !respFields.includes(bare)) respFields.push(bare);
+      }
+    }
+
+    // Response example — parse the ```json``` block under "### Example Response" and
+    // walk it to collect every field name. Used as a corroborating source for capture
+    // validation, since the bullet list above can be truncated by the distiller's
+    // 20-field cap and miss fields that genuinely exist in the response.
+    const responseExampleFields = new Set<string>();
+    const exampleBlockRe = /### Example Response[\s\S]*?```json\s*\n([\s\S]*?)\n```/;
+    const exMatch = exampleBlockRe.exec(sec.text);
+    if (exMatch) {
+      let exJson = exMatch[1].trim();
+      // The distiller may append "// ... truncated" — strip trailing comment lines
+      // so JSON.parse doesn't choke.
+      exJson = exJson.replace(/\n\s*\/\/[^\n]*$/g, "");
+      try {
+        const parsed = JSON.parse(exJson);
+        collectExampleFieldNames(parsed, responseExampleFields);
+      } catch {
+        /* example wasn't valid JSON (possibly truncated mid-object) — skip silently */
       }
     }
 
@@ -861,6 +898,7 @@ export function parseSpecEndpoints(distilledContext: string): SpecEndpoint[] {
       method: sec.method, path: sec.path,
       requiredRequestFields: reqFields, allRequestFields: allFields,
       responseFields: respFields,
+      responseExampleFields,
       specFilePath, itemSchemas,
     });
   }
@@ -1710,8 +1748,10 @@ export function validateCaptures(xml: string, specContext: string): string {
       }
     }
 
-    // No spec match — can't validate, leave untouched
-    if (!spec || spec.responseFields.length === 0) continue;
+    // No spec match, or both signal sources empty — can't validate, leave untouched
+    const haveBullets = spec && spec.responseFields.length > 0;
+    const haveExample = spec && spec.responseExampleFields.size > 0;
+    if (!spec || (!haveBullets && !haveExample)) continue;
 
     // Find all capture elements in this step
     const captureRe = /<capture\s+variable="state\.(\w+)"\s+source="response\.(?:data\.)?(\w+)"[^/]*\/>/g;
@@ -1720,10 +1760,14 @@ export function validateCaptures(xml: string, specContext: string): string {
     const stepXml = step.fullMatch;
     while ((cm = captureRe.exec(stepXml)) !== null) {
       const sourceField = cm[2]; // e.g. "version_number"
-      // Check if this field exists in the spec's response fields
-      if (!spec.responseFields.includes(sourceField)) {
+      // A capture is valid if EITHER signal confirms the field exists. The bullet
+      // list (responseFields) is capped at 20 by the distiller and may miss real
+      // fields; the response example is verbatim from the spec and rarely lies.
+      const inBullets = spec.responseFields.includes(sourceField);
+      const inExample = spec.responseExampleFields.has(sourceField);
+      if (!inBullets && !inExample) {
         badCaptures.push(cm[0]);
-        console.log(`[validateCaptures] Removing hallucinated capture: state.${cm[1]} from response.data.${sourceField} (step: ${step.method} ${step.path}, available: ${spec.responseFields.join(", ")})`);
+        console.log(`[validateCaptures] Removing hallucinated capture: state.${cm[1]} from response.data.${sourceField} (step: ${step.method} ${step.path}, bullets: [${spec.responseFields.join(", ")}], example fields: ${spec.responseExampleFields.size})`);
       }
     }
 
