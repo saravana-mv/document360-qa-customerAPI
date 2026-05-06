@@ -30,6 +30,7 @@ export type AuditAction =
   | "project.member_role_change"
   | "spec.upload"
   | "spec.update"
+  | "spec.enhance_example"
   | "spec.rename"
   | "spec.delete"
   | "spec.bulk_delete"
