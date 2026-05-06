@@ -239,8 +239,12 @@ export function filterRelevantSpecs(idea: IdeaLike, allSpecFiles: string[]): str
     for (const f of sameFolderDeps) needed.add(f);
 
     // Sibling folder create/delete specs SECOND (lower priority — for
-    // prerequisite entity setup/teardown). Capped to avoid bloating.
-    const MAX_SIBLING_DEPS = 10;
+    // prerequisite entity setup/teardown). Capped to avoid bloating; raised
+    // from 10 → 25 so flows with many cross-resource prereqs (e.g. articles
+    // needing categories, project_versions, workspaces, languages) don't
+    // silently lose dependent specs. The downstream MAX_SPEC_FILES still
+    // enforces the final budget.
+    const MAX_SIBLING_DEPS = 25;
     let siblingCount = 0;
     for (const file of eligibleFiles) {
       if (siblingCount >= MAX_SIBLING_DEPS) break;

@@ -64,7 +64,11 @@ export interface AiContext {
 
 // ── Constants ──────────────────────────────────────────────────────────
 
-const MAX_SPEC_SCAN = 50;
+// Cap on how many spec MD blobs `findMatchingSpec` examines per lookup. Set
+// well above realistic per-version-folder spec counts (Document360 has ~200
+// endpoints) so debug/fix-it doesn't silently miss specs that exist beyond
+// position 50 in the blob listing.
+const MAX_SPEC_SCAN = 500;
 
 // ── Spec lookup by method+path (moved from debugAnalyze.ts) ──────────
 

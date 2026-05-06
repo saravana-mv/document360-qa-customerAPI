@@ -347,8 +347,10 @@ function extractResponseKeyFields(
       result.push(`${fieldPath} (${type})`);
     }
 
-    // Cap at 20 key fields (raised from 15 to accommodate array item fields)
-    if (result.length >= 20) return;
+    // Cap at 100 — large enough to cover realistic response schemas
+    // (Document360's ArticleDetailResponse has ~30 fields). Below 100 we hit
+    // false-positive "hallucinated capture" rejections in validateCaptures.
+    if (result.length >= 100) return;
   }
 }
 
@@ -428,7 +430,7 @@ function formatEndpoint(ep: EndpointSummary): string {
   if (ep.responseKeyFields.length > 0) {
     lines.push("**Response fields available for capture** (use `<capture variable=\"state.xxx\" source=\"response.data.xxx\"/>`):");
     lines.push("For array fields marked with `[]`, use index syntax in captures: `response.data[0].id`, `response.data[1].id`, etc.");
-    for (const f of ep.responseKeyFields.slice(0, 20)) {
+    for (const f of ep.responseKeyFields.slice(0, 100)) {
       lines.push(`- \`${f}\``);
     }
   }
@@ -438,9 +440,12 @@ function formatEndpoint(ep: EndpointSummary): string {
     lines.push("");
     lines.push("### Example Response");
     const exStr = JSON.stringify(ep.responseExample, null, 2);
-    // Cap at 60 lines to keep distillation compact
+    // Cap at 200 lines — large enough to keep most realistic Document360 /
+    // ApiResponse-shaped wrappers intact (the ArticleDetail response is ~80
+    // lines pretty-printed). Below 200, parseSpecEndpoints' responseExampleFields
+    // set is incomplete and validateCaptures over-rejects.
     const exLines = exStr.split("\n");
-    const capped = exLines.length > 60 ? exLines.slice(0, 60).join("\n") + "\n  // ... truncated" : exStr;
+    const capped = exLines.length > 200 ? exLines.slice(0, 200).join("\n") + "\n  // ... truncated" : exStr;
     lines.push("```json");
     lines.push(capped);
     lines.push("```");

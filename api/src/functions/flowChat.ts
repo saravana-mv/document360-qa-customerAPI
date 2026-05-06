@@ -13,9 +13,13 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-// Cap spec context to ~50k characters (~12k tokens)
+// Cap spec context to ~50k characters (~12k tokens). MAX_SPEC_FILES raised
+// from 5 → 15 to match generateFlow's cap; the prior 5-file limit caused
+// chat answers to hallucinate when the user asked about endpoints whose
+// spec wasn't in the top 5 selected files. The MAX_SPEC_CONTEXT_CHARS
+// budget below still enforces the final token ceiling.
 const MAX_SPEC_CONTEXT_CHARS = 50_000;
-const MAX_SPEC_FILES = 5;
+const MAX_SPEC_FILES = 15;
 
 const FLOW_CHAT_SYSTEM_PROMPT = `You are an expert API test flow designer for the FlowForge API testing platform.
 
