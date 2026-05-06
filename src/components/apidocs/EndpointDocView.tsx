@@ -190,12 +190,24 @@ function RequestBodySection({ requestBody }: { requestBody: NonNullable<ParsedEn
   const [showExample, setShowExample] = useState(false);
   const [schemaResetKey, setSchemaResetKey] = useState(0);
   const [allExpanded, setAllExpanded] = useState(false);
+  const [selectedExampleName, setSelectedExampleName] = useState<string | null>(null);
+
+  const exampleNames = useMemo(() => {
+    return requestBody.examples ? Object.keys(requestBody.examples) : [];
+  }, [requestBody]);
+
+  const effectiveExampleName = selectedExampleName && exampleNames.includes(selectedExampleName)
+    ? selectedExampleName
+    : exampleNames[0] ?? null;
 
   const example = useMemo(() => {
+    if (requestBody.examples && effectiveExampleName) {
+      return requestBody.examples[effectiveExampleName];
+    }
     if (requestBody.example !== undefined) return requestBody.example;
     if (!requestBody.schema) return null;
     return generateSchemaExample(requestBody.schema);
-  }, [requestBody]);
+  }, [requestBody, effectiveExampleName]);
 
   const toggleAll = () => {
     setAllExpanded(prev => !prev);
@@ -249,11 +261,26 @@ function RequestBodySection({ requestBody }: { requestBody: NonNullable<ParsedEn
           {/* Example JSON */}
           {showExample && example != null && (
             <div className="border border-[#d1d9e0] rounded-lg overflow-hidden">
-              <div className="flex items-center justify-between bg-[#f6f8fa] border-b border-[#d1d9e0] px-3 py-1.5">
-                <span className="text-sm font-semibold text-[#656d76]">Example</span>
+              <div className="flex items-center justify-between bg-[#f6f8fa] border-b border-[#d1d9e0] px-3 py-1.5 gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-sm font-semibold text-[#656d76] shrink-0">Example</span>
+                  {exampleNames.length > 1 ? (
+                    <select
+                      value={effectiveExampleName ?? ""}
+                      onChange={(e) => setSelectedExampleName(e.target.value)}
+                      className="text-sm text-[#1f2328] bg-white border border-[#d1d9e0] rounded-md px-2 py-1 outline-none focus:border-[#0969da] cursor-pointer max-w-[280px] truncate"
+                    >
+                      {exampleNames.map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  ) : effectiveExampleName ? (
+                    <span className="text-sm text-[#656d76] font-mono truncate">{effectiveExampleName}</span>
+                  ) : null}
+                </div>
                 <button
                   onClick={() => { navigator.clipboard.writeText(JSON.stringify(example, null, 2)); }}
-                  className="text-sm text-[#0969da] hover:underline"
+                  className="text-sm text-[#0969da] hover:underline shrink-0"
                 >
                   Copy
                 </button>
