@@ -99,37 +99,65 @@ interface SchemaWalkStats {
   enumLikePropsWithEnum: number;
   objectsWithProperties: number; // ≥3 properties
   objectsDeclaringRequired: number; // those with `required` array (even empty)
+  /** Field paths that lack a description. */
+  missingDescriptionPaths: string[];
+  /** Field paths that look like enums (status/type/kind/...) but have no `enum` array. */
+  enumLikeMissingEnumPaths: string[];
+  /** Object paths (≥3 properties) where the `required` array is missing. */
+  objectsMissingRequiredPaths: string[];
 }
 
 const ENUM_NAME_PATTERN = /^(status|state|type|kind|mode|level|category|priority|severity|stage|phase|visibility)$/i;
 
-function walkSchemaForStats(schema: Schema | undefined, stats: SchemaWalkStats, depth = 0): void {
+function joinPath(prefix: string, segment: string): string {
+  if (!prefix) return segment;
+  if (prefix.endsWith("[]")) return `${prefix}.${segment}`;
+  return `${prefix}.${segment}`;
+}
+
+function walkSchemaForStats(
+  schema: Schema | undefined,
+  stats: SchemaWalkStats,
+  pathPrefix = "",
+  depth = 0,
+): void {
   if (!schema || depth > 5) return;
   if (schema.type === "array" && schema.items) {
-    walkSchemaForStats(schema.items, stats, depth + 1);
+    walkSchemaForStats(schema.items, stats, `${pathPrefix}[]`, depth + 1);
     return;
   }
   if (schema.properties) {
     const propNames = Object.keys(schema.properties);
     if (propNames.length >= 3) {
       stats.objectsWithProperties += 1;
-      if (Array.isArray(schema.required)) stats.objectsDeclaringRequired += 1;
+      if (Array.isArray(schema.required)) {
+        stats.objectsDeclaringRequired += 1;
+      } else {
+        stats.objectsMissingRequiredPaths.push(pathPrefix || "(root)");
+      }
     }
     for (const [propName, propSchema] of Object.entries(schema.properties)) {
+      const fieldPath = joinPath(pathPrefix, propName);
       stats.totalProps += 1;
-      if (isMeaningful(propSchema.description)) stats.describedProps += 1;
+      if (isMeaningful(propSchema.description)) {
+        stats.describedProps += 1;
+      } else {
+        stats.missingDescriptionPaths.push(fieldPath);
+      }
       if (propSchema.type === "string" && ENUM_NAME_PATTERN.test(propName)) {
         stats.enumLikeProps += 1;
         if (Array.isArray(propSchema.enum) && propSchema.enum.length > 0) {
           stats.enumLikePropsWithEnum += 1;
+        } else {
+          stats.enumLikeMissingEnumPaths.push(fieldPath);
         }
       }
-      walkSchemaForStats(propSchema, stats, depth + 1);
+      walkSchemaForStats(propSchema, stats, fieldPath, depth + 1);
     }
   }
-  if (schema.allOf) for (const s of schema.allOf) walkSchemaForStats(s, stats, depth + 1);
-  if (schema.oneOf) for (const s of schema.oneOf) walkSchemaForStats(s, stats, depth + 1);
-  if (schema.anyOf) for (const s of schema.anyOf) walkSchemaForStats(s, stats, depth + 1);
+  if (schema.allOf) for (const s of schema.allOf) walkSchemaForStats(s, stats, pathPrefix, depth + 1);
+  if (schema.oneOf) for (const s of schema.oneOf) walkSchemaForStats(s, stats, pathPrefix, depth + 1);
+  if (schema.anyOf) for (const s of schema.anyOf) walkSchemaForStats(s, stats, pathPrefix, depth + 1);
 }
 
 function emptyStats(): SchemaWalkStats {
@@ -140,7 +168,17 @@ function emptyStats(): SchemaWalkStats {
     enumLikePropsWithEnum: 0,
     objectsWithProperties: 0,
     objectsDeclaringRequired: 0,
+    missingDescriptionPaths: [],
+    enumLikeMissingEnumPaths: [],
+    objectsMissingRequiredPaths: [],
   };
+}
+
+/** Format a list of names with a cap and " (and N more)" suffix when over. */
+function formatList(names: string[], max = 5): string {
+  if (names.length === 0) return "";
+  if (names.length <= max) return names.join(", ");
+  return `${names.slice(0, max).join(", ")} (and ${names.length - max} more)`;
 }
 
 // ─── Per-factor evaluation ───────────────────────────────────────────────────
@@ -191,25 +229,31 @@ function evalParameters(ep: ParsedEndpointDoc): FactorResult[] {
     out.push(skipped(7, "Parameters described", "params.descriptions", "no parameters"));
     out.push(skipped(6, "Parameters typed/examplified", "params.examples", "no parameters"));
   } else {
-    const described = ep.parameters.filter((p) => isMeaningful(p.description)).length;
-    const typed = ep.parameters.filter(
-      (p) => p.example !== undefined || (p.schema && (p.schema.format || (Array.isArray(p.schema.enum) && p.schema.enum.length > 0))),
-    ).length;
+    const undescribed = ep.parameters.filter((p) => !isMeaningful(p.description)).map((p) => `${p.in}.${p.name}`);
+    const untyped = ep.parameters
+      .filter((p) => !(p.example !== undefined || (p.schema && (p.schema.format || (Array.isArray(p.schema.enum) && p.schema.enum.length > 0)))))
+      .map((p) => `${p.in}.${p.name}`);
+    const described = total - undescribed.length;
+    const typed = total - untyped.length;
     out.push(applicable(
       7,
       described / total,
       "Parameters described",
       "params.descriptions",
-      `${described} of ${total} parameter${total === 1 ? "" : "s"} have a meaningful description`,
-      described < total ? "Add `description` to each parameter in the spec" : undefined,
+      undescribed.length > 0
+        ? `${described} of ${total} parameter${total === 1 ? "" : "s"} have a meaningful description. Missing: ${formatList(undescribed)}`
+        : `${described} of ${total} parameter${total === 1 ? "" : "s"} have a meaningful description`,
+      undescribed.length > 0 ? "Add `description` to each parameter listed above" : undefined,
     ));
     out.push(applicable(
       6,
       typed / total,
       "Parameters typed/examplified",
       "params.examples",
-      `${typed} of ${total} parameter${total === 1 ? "" : "s"} have an example, format, or enum`,
-      typed < total ? "Add an `example` value or `schema.format` (e.g. uuid, date-time) to each parameter" : undefined,
+      untyped.length > 0
+        ? `${typed} of ${total} parameter${total === 1 ? "" : "s"} have an example, format, or enum. Missing: ${formatList(untyped)}`
+        : `${typed} of ${total} parameter${total === 1 ? "" : "s"} have an example, format, or enum`,
+      untyped.length > 0 ? "Add an `example` value or `schema.format` (e.g. uuid, date-time) to the parameters listed above" : undefined,
     ));
   }
 
@@ -286,20 +330,25 @@ function evalRequestBody(ep: ParsedEndpointDoc): FactorResult[] {
         "No required fields declared (vacuously satisfied)",
       ));
     } else {
-      const consistent = required.every((name) => name in properties);
-      const describedRequired = required.filter((name) => {
+      const inconsistent = required.filter((name) => !(name in properties));
+      const undescribedRequired = required.filter((name) => {
         const f = properties[name];
-        return f && isMeaningful(f.description);
-      }).length;
-      const earned = consistent ? describedRequired / required.length : 0;
+        return name in properties && !(f && isMeaningful(f.description));
+      });
+      const consistent = inconsistent.length === 0;
+      const describedRequired = required.length - undescribedRequired.length - inconsistent.length;
+      const earned = consistent ? (required.length - undescribedRequired.length) / required.length : 0;
+      const detail = !consistent
+        ? `\`required\` array references field(s) not in \`properties\`: ${formatList(inconsistent)}`
+        : undescribedRequired.length > 0
+          ? `${describedRequired} of ${required.length} required field${required.length === 1 ? "" : "s"} have descriptions. Missing: ${formatList(undescribedRequired)}`
+          : `${describedRequired} of ${required.length} required field${required.length === 1 ? "" : "s"} have descriptions`;
       out.push(applicable(
         5,
         earned,
         "Required fields documented",
         "body.requiredFields",
-        consistent
-          ? `${describedRequired} of ${required.length} required field${required.length === 1 ? "" : "s"} have descriptions`
-          : "`required` array references field(s) not in `properties`",
+        detail,
         earned < 1 ? "Add a `description` to every field listed in `schema.required`" : undefined,
       ));
     }
@@ -354,27 +403,43 @@ function evalResponses(ep: ParsedEndpointDoc): FactorResult[] {
     out.push(skipped(8, "Every response described", "responses.descriptions", "no responses declared"));
     out.push(skipped(7, "Every response has an example", "responses.examples", "no responses declared"));
   } else {
-    const described = responses.filter((r) => isMeaningful(r.description)).length;
+    const undescribedStatuses = responses.filter((r) => !isMeaningful(r.description)).map((r) => r.status);
+    const described = responses.length - undescribedStatuses.length;
     out.push(applicable(
       8,
       described / responses.length,
       "Every response described",
       "responses.descriptions",
-      `${described} of ${responses.length} response${responses.length === 1 ? "" : "s"} have a meaningful description`,
-      described < responses.length ? "Replace generic descriptions like 'OK'/'Error' with explanatory text" : undefined,
+      undescribedStatuses.length > 0
+        ? `${described} of ${responses.length} response${responses.length === 1 ? "" : "s"} have a meaningful description. Missing on: ${formatList(undescribedStatuses)}`
+        : `${described} of ${responses.length} response${responses.length === 1 ? "" : "s"} have a meaningful description`,
+      undescribedStatuses.length > 0 ? "Replace generic descriptions like 'OK'/'Error' with explanatory text on the statuses above" : undefined,
     ));
 
+    const noExampleStatuses: string[] = [];
+    const schemaOnlyStatuses: string[] = [];
     let exampleCredit = 0;
     for (const r of responses) {
-      if (r.example !== undefined || (r.examples && Object.keys(r.examples).length > 0)) exampleCredit += 1;
-      else if (r.schema) exampleCredit += 0.5;
+      if (r.example !== undefined || (r.examples && Object.keys(r.examples).length > 0)) {
+        exampleCredit += 1;
+      } else if (r.schema) {
+        exampleCredit += 0.5;
+        schemaOnlyStatuses.push(r.status);
+      } else {
+        noExampleStatuses.push(r.status);
+      }
     }
+    const exampleDetailParts: string[] = [];
+    if (noExampleStatuses.length > 0) exampleDetailParts.push(`No example: ${formatList(noExampleStatuses)}`);
+    if (schemaOnlyStatuses.length > 0) exampleDetailParts.push(`Schema only (counts as 0.5): ${formatList(schemaOnlyStatuses)}`);
     out.push(applicable(
       7,
       exampleCredit / responses.length,
       "Every response has an example",
       "responses.examples",
-      `${responses.length} response${responses.length === 1 ? "" : "s"}; example credit ${(exampleCredit).toFixed(1)} of ${responses.length} (schema-only counts as 0.5)`,
+      exampleDetailParts.length > 0
+        ? `Example credit ${exampleCredit.toFixed(1)} of ${responses.length}. ${exampleDetailParts.join(". ")}`
+        : `${responses.length} response${responses.length === 1 ? "" : "s"} all have explicit examples`,
       exampleCredit < responses.length
         ? "Use 'Enhance Docs example' to capture a real call for each status, or add inline examples in the spec"
         : undefined,
@@ -385,9 +450,9 @@ function evalResponses(ep: ParsedEndpointDoc): FactorResult[] {
 
 function evalSchemaDepth(ep: ParsedEndpointDoc): FactorResult[] {
   const stats = emptyStats();
-  if (ep.requestBody?.schema) walkSchemaForStats(ep.requestBody.schema, stats);
+  if (ep.requestBody?.schema) walkSchemaForStats(ep.requestBody.schema, stats, "request");
   for (const r of ep.responses) {
-    if (r.schema) walkSchemaForStats(r.schema, stats);
+    if (r.schema) walkSchemaForStats(r.schema, stats, `response.${r.status}`);
   }
 
   const out: FactorResult[] = [];
@@ -396,13 +461,16 @@ function evalSchemaDepth(ep: ParsedEndpointDoc): FactorResult[] {
     out.push(skipped(6, "Schema field descriptions", "schema.fieldDescriptions", "no object schemas to walk"));
   } else {
     const earned = stats.describedProps / stats.totalProps;
+    const missing = formatList(stats.missingDescriptionPaths, 5);
     out.push(applicable(
       6,
       earned,
       "Schema field descriptions",
       "schema.fieldDescriptions",
-      `${stats.describedProps} of ${stats.totalProps} schema field${stats.totalProps === 1 ? "" : "s"} have descriptions`,
-      earned < 1 ? "Add `description` to fields in request and response schemas" : undefined,
+      missing
+        ? `${stats.describedProps} of ${stats.totalProps} schema field${stats.totalProps === 1 ? "" : "s"} have descriptions. Missing: ${missing}`
+        : `${stats.describedProps} of ${stats.totalProps} schema field${stats.totalProps === 1 ? "" : "s"} have descriptions`,
+      earned < 1 ? "Add `description` to the fields above in request and response schemas" : undefined,
     ));
   }
 
@@ -410,13 +478,16 @@ function evalSchemaDepth(ep: ParsedEndpointDoc): FactorResult[] {
     out.push(skipped(2, "Enum-shaped fields enumerated", "schema.enums", "no enum-shaped field names found"));
   } else {
     const earned = stats.enumLikePropsWithEnum / stats.enumLikeProps;
+    const missing = formatList(stats.enumLikeMissingEnumPaths, 5);
     out.push(applicable(
       2,
       earned,
       "Enum-shaped fields enumerated",
       "schema.enums",
-      `${stats.enumLikePropsWithEnum} of ${stats.enumLikeProps} enum-shaped field${stats.enumLikeProps === 1 ? "" : "s"} (status/type/kind/...) have an explicit enum array`,
-      earned < 1 ? "Add an `enum` array listing valid values for status/type-style string fields" : undefined,
+      missing
+        ? `${stats.enumLikePropsWithEnum} of ${stats.enumLikeProps} enum-shaped field${stats.enumLikeProps === 1 ? "" : "s"} (status/type/kind/...) have an explicit enum array. Missing: ${missing}`
+        : `${stats.enumLikePropsWithEnum} of ${stats.enumLikeProps} enum-shaped field${stats.enumLikeProps === 1 ? "" : "s"} (status/type/kind/...) have an explicit enum array`,
+      earned < 1 ? "Add an `enum` array listing valid values for the fields above" : undefined,
     ));
   }
 
@@ -424,12 +495,15 @@ function evalSchemaDepth(ep: ParsedEndpointDoc): FactorResult[] {
     out.push(skipped(2, "`required` arrays declared", "schema.requiredAccuracy", "no large object schemas (≥3 properties)"));
   } else {
     const earned = stats.objectsDeclaringRequired / stats.objectsWithProperties;
+    const missing = formatList(stats.objectsMissingRequiredPaths, 5);
     out.push(applicable(
       2,
       earned,
       "`required` arrays declared",
       "schema.requiredAccuracy",
-      `${stats.objectsDeclaringRequired} of ${stats.objectsWithProperties} object schemas (≥3 props) declare a \`required\` array`,
+      missing
+        ? `${stats.objectsDeclaringRequired} of ${stats.objectsWithProperties} object schemas (≥3 props) declare a \`required\` array. Missing on: ${missing}`
+        : `${stats.objectsDeclaringRequired} of ${stats.objectsWithProperties} object schemas (≥3 props) declare a \`required\` array`,
       earned < 1 ? "Add a `required` array to every object schema with 3+ properties (use `[]` if nothing is required)" : undefined,
     ));
   }
