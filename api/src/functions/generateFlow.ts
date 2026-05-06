@@ -5,7 +5,7 @@ import { withAuth, getProjectId, getUserInfo, parseClientPrincipal } from "../li
 import { extractVersionFolder } from "../lib/apiRules";
 import { extractCommonRequiredFields, analyzeCrossStepDependencies, injectCrossStepCaptures, injectSpecRequiredFields, injectEndpointRefs, injectRulesRequiredFields, validateCaptures, stripExtraRequestFields } from "../lib/specRequiredFields";
 import { readDistilledContent } from "../lib/specDistillCache";
-import { loadAiContext } from "../lib/aiContext";
+import { loadAiContext, injectMissingEndpointRefsFromBlobs } from "../lib/aiContext";
 import { getIdeasContainer } from "../lib/cosmosClient";
 import { filterRelevantSpecs, resolveCrossFolderDeps } from "../lib/specFileSelection";
 import { createTraceBuilder, TraceBuilder } from "../lib/flowTrace";
@@ -1078,6 +1078,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
           xml = trace.wrapPostProcessor("injectSpecRequiredFields", xml, (x) => injectSpecRequiredFields(x, specContext, projVars));
           xml = trace.wrapPostProcessor("stripExtraRequestFields", xml, (x) => stripExtraRequestFields(x, specContext));
           xml = trace.wrapPostProcessor("injectEndpointRefs", xml, (x) => injectEndpointRefs(x, specContext));
+          xml = await trace.wrapPostProcessorAsync("injectMissingEndpointRefsFromBlobs", xml, (x) => injectMissingEndpointRefsFromBlobs(x, projectId));
           xml = trace.wrapPostProcessor("injectRulesRequiredFields", xml, (x) => injectRulesRequiredFields(x, ctx.rules, projVars));
           xml = trace.wrapPostProcessor("validateCaptures", xml, (x) => validateCaptures(x, specContext));
           xml = trace.wrapPostProcessor("fixTimestampAssertions", xml, (x) => fixTimestampAssertions(x));
@@ -1165,6 +1166,7 @@ async function generateFlow(req: HttpRequest, _ctx: InvocationContext): Promise<
       xml = trace.wrapPostProcessor("injectSpecRequiredFields", xml, (x) => injectSpecRequiredFields(x, specContext, projVars));
       xml = trace.wrapPostProcessor("stripExtraRequestFields", xml, (x) => stripExtraRequestFields(x, specContext));
       xml = trace.wrapPostProcessor("injectEndpointRefs", xml, (x) => injectEndpointRefs(x, specContext));
+      xml = await trace.wrapPostProcessorAsync("injectMissingEndpointRefsFromBlobs", xml, (x) => injectMissingEndpointRefsFromBlobs(x, projectId));
       xml = trace.wrapPostProcessor("injectRulesRequiredFields", xml, (x) => injectRulesRequiredFields(x, ctx.rules, projVars));
       xml = trace.wrapPostProcessor("validateCaptures", xml, (x) => validateCaptures(x, specContext));
       xml = trace.wrapPostProcessor("fixTimestampAssertions", xml, (x) => fixTimestampAssertions(x));

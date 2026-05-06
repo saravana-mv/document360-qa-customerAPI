@@ -156,6 +156,8 @@ export interface TraceBuilder {
   setPrompt(systemPrompt: string, userMessage: string): void;
   /** Wraps a post-processor, recording before/after diff. Returns the processed XML. */
   wrapPostProcessor(name: string, xml: string, fn: (xml: string) => string): string;
+  /** Async variant — same diff/error capture, awaits the processor. */
+  wrapPostProcessorAsync(name: string, xml: string, fn: (xml: string) => Promise<string>): Promise<string>;
   setModelUsage(usage: NonNullable<FlowTraceDocument["model"]>): void;
   /** Save to Cosmos (fire-and-forget). Returns the trace document ID. */
   save(): Promise<string>;
@@ -243,6 +245,27 @@ export function createTraceBuilder(
           error: e instanceof Error ? e.message : String(e),
         });
         return xml; // return unchanged on error
+      }
+    },
+
+    async wrapPostProcessorAsync(name, xml, fn) {
+      try {
+        const result = await fn(xml);
+        const changed = xml !== result;
+        doc.postProcessing.push({
+          name,
+          applied: changed,
+          changes: changed ? summarizeChanges(xml, result) : [],
+        });
+        return result;
+      } catch (e) {
+        doc.postProcessing.push({
+          name,
+          applied: false,
+          changes: [],
+          error: e instanceof Error ? e.message : String(e),
+        });
+        return xml;
       }
     },
 

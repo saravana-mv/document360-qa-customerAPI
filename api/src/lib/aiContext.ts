@@ -70,6 +70,11 @@ export interface AiContext {
 // position 50 in the blob listing.
 const MAX_SPEC_SCAN = 500;
 
+function stripProjectPrefix(blobName: string, projectId: string): string {
+  const prefix = projectId !== "unknown" ? `${projectId}/` : "";
+  return prefix && blobName.startsWith(prefix) ? blobName.slice(prefix.length) : blobName;
+}
+
 // ── Spec lookup by method+path (moved from debugAnalyze.ts) ──────────
 
 /**
@@ -80,7 +85,7 @@ export async function findMatchingSpec(
   projectId: string,
   method: string,
   path: string,
-): Promise<{ content: string; source: "distilled" | "raw" } | null> {
+): Promise<{ content: string; source: "distilled" | "raw"; blobName: string } | null> {
   const versionMatch = path.match(/^\/(v\d+)\//i);
   if (!versionMatch) return null;
 
@@ -137,13 +142,13 @@ export async function findMatchingSpec(
         ];
 
         if (patterns.some((p) => matchesPath(contentUpper, p))) {
-          return { content, source: "distilled" };
+          return { content, source: "distilled", blobName: stripProjectPrefix(blob.name, projectId) };
         }
 
         const normalizedContent = content.replace(/\{[^}]+\}/g, "{*}").toUpperCase();
         if (matchesPath(normalizedContent, `${methodUpper} ${pathPattern}`) ||
             matchesPath(normalizedContent, `${methodUpper} ${pathPatternWithoutVersion}`)) {
-          return { content, source: "distilled" };
+          return { content, source: "distilled", blobName: stripProjectPrefix(blob.name, projectId) };
         }
       } catch {
         // Skip unreadable blobs
@@ -164,7 +169,7 @@ export async function findMatchingSpec(
 
         if (patterns.some((p) => matchesPath(rawUpper, p)) ||
             matchesPath(normalizedRaw, `${methodUpper} ${pathPattern}`)) {
-          return { content: raw, source: "raw" };
+          return { content: raw, source: "raw", blobName: stripProjectPrefix(blob.name, projectId) };
         }
       } catch {
         // Skip
@@ -364,4 +369,80 @@ export async function loadAiContext(opts: AiContextOptions): Promise<AiContext> 
       return sections.join("\n\n");
     },
   };
+}
+
+// ── Async post-processor: fill missing endpointRefs via blob lookup ──────
+//
+// `injectEndpointRefs` (sync, in specRequiredFields.ts) only injects endpointRef
+// when the matching spec is in the AI's spec context. For cross-resource
+// prerequisite steps the AI invents (e.g. "create category" before an article
+// flow), the dependent spec isn't in `specContext`, so the post-processor has
+// nothing to inject. This async fallback runs AFTER `injectEndpointRefs` and
+// per-step calls `findMatchingSpec` to resolve the spec by direct blob lookup.
+
+const STEP_RE_GLOBAL = /<step\b[^>]*>[\s\S]*?<\/step>/g;
+
+function extractFilenameHeaderFromContent(content: string): string | null {
+  const m = content.match(/^## ([\w/.-]+\.md)\s*$/m);
+  return m ? m[1] : null;
+}
+
+/**
+ * For every <step> in the XML that lacks an <endpointRef>, look up the spec
+ * by method+path via blob storage and inject the ref using the blob's full
+ * project-relative path (e.g. "V3/categories/create-category.md"). Steps
+ * already carrying an endpointRef are left untouched.
+ *
+ * Returns the (possibly-modified) XML. No-op when projectId is "unknown".
+ */
+export async function injectMissingEndpointRefsFromBlobs(
+  xml: string,
+  projectId: string,
+): Promise<string> {
+  if (projectId === "unknown") return xml;
+
+  const matches = Array.from(xml.matchAll(STEP_RE_GLOBAL));
+  if (matches.length === 0) return xml;
+
+  // Process in reverse to preserve string offsets when splicing.
+  let result = xml;
+  let injected = 0;
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const m = matches[i];
+    const stepXml = m[0];
+    const stepStart = m.index!;
+    if (/<endpointRef>/.test(stepXml)) continue;
+
+    const methodMatch = stepXml.match(/<method>(GET|POST|PUT|PATCH|DELETE)<\/method>/i);
+    const pathMatch = stepXml.match(/<path>([^<]+)<\/path>/);
+    if (!methodMatch || !pathMatch) continue;
+    const method = methodMatch[1].toUpperCase();
+    const path = pathMatch[1].trim();
+
+    const found = await findMatchingSpec(projectId, method, path);
+    if (!found) continue;
+
+    // Prefer the blob's full project-relative path (e.g. "V3/categories/
+    // create-category.md") for consistency with refs the AI already produces.
+    // Fall back to the bare filename header inside the content if the blob
+    // path is unavailable for any reason.
+    const refPath = found.blobName || extractFilenameHeaderFromContent(found.content);
+    if (!refPath) continue;
+
+    // Insert <endpointRef> immediately after the closing </name> tag, which is
+    // where the schema expects it (after <name>, before <method>).
+    const insertAfterName = stepXml.replace(
+      /(<\/name>)(\s*)/,
+      `$1$2<endpointRef>${refPath}</endpointRef>$2`,
+    );
+    if (insertAfterName !== stepXml) {
+      result = result.slice(0, stepStart) + insertAfterName + result.slice(stepStart + stepXml.length);
+      injected += 1;
+      console.log(`[injectMissingEndpointRefsFromBlobs] step ${method} ${path} → ${refPath}`);
+    }
+  }
+  if (injected > 0) {
+    console.log(`[injectMissingEndpointRefsFromBlobs] injected ${injected} endpointRef(s) via blob lookup`);
+  }
+  return result;
 }
