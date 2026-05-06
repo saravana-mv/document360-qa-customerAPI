@@ -1133,6 +1133,7 @@ export function SpecFilesPage() {
                 <EndpointDocView
                   endpoint={selectedEndpoint}
                   securitySchemes={parsedSpec?.securitySchemes}
+                  qualityScore={selectedPath ? qualityScores?.perEndpoint.get(selectedPath) : undefined}
                 />
               ) : viewingContent && isFileContext && (selectedPath?.endsWith("/_skills.md") || selectedPath?.endsWith("/Skills.md")) ? (
                 loadingContent ? (

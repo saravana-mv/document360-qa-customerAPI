@@ -8,11 +8,15 @@ import { JsonCodeBlock } from "../common/JsonCodeBlock";
 import { generateSchemaExample } from "../../lib/spec/schemaExample";
 import type { ParsedEndpointDoc } from "../../lib/spec/swaggerParser";
 import type { SecurityScheme } from "../../types/spec.types";
+import type { EndpointScore } from "../../lib/spec/specQuality";
+import { QualityScoreBanner } from "../specfiles/QualityScoreBanner";
 
 interface Props {
   endpoint: ParsedEndpointDoc;
   /** Resolved security schemes from the spec — used by the Security section. */
   securitySchemes?: Record<string, SecurityScheme>;
+  /** Spec quality score for this endpoint, rendered as a banner above the description. */
+  qualityScore?: EndpointScore;
 }
 
 interface ResolvedSecurityScheme {
@@ -70,7 +74,7 @@ const METHOD_BOX_STYLES: Record<string, string> = {
   delete: "border-[#ffcecb] bg-[#fff5f5]",
 };
 
-export function EndpointDocView({ endpoint, securitySchemes }: Props) {
+export function EndpointDocView({ endpoint, securitySchemes, qualityScore }: Props) {
   const pathParams = endpoint.parameters.filter(p => p.in === "path");
   const queryParams = endpoint.parameters.filter(p => p.in === "query");
   const headerParams = endpoint.parameters.filter(p => p.in === "header");
@@ -104,6 +108,8 @@ export function EndpointDocView({ endpoint, securitySchemes }: Props) {
             {endpoint.path}
           </code>
         </div>
+
+        {qualityScore && <QualityScoreBanner score={qualityScore} />}
 
         {endpoint.description && (
           <p className="text-sm text-[#656d76] leading-relaxed">
