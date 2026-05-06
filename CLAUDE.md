@@ -206,7 +206,7 @@ For Azure Functions 500 with empty body: enable **Application Insights first** b
 Every AI API call must report cost to `useAiCostStore`. Never add AI calls without wiring cost tracking. TopBar shows cumulative spend.
 
 ### Credit Enforcement
-AI endpoints (`generateFlowIdeas`, `generateFlow`, `flowChat`, `debugAnalyze`) check project/user credit budgets before calling Claude (returns 402 if exhausted) and record usage after. Credits are seeded on project creation. Super Owners manage budgets via `/api/ai-credits`. TopBar shows project credit usage pill with red "exhausted" state.
+AI endpoints (`generateFlowIdeas`, `generateFlow`, `flowChat`, `debugAnalyze`, `editFlow`, `enhanceDocsExample`) check project/user credit budgets before calling Claude (returns 402 if exhausted) and record usage after. Credits are seeded on project creation. Super Owners manage budgets via `/api/ai-credits`. TopBar shows project credit usage pill with red "exhausted" state.
 
 ### Model Selection
 Shared registry at `api/src/lib/modelPricing.ts`. Default: Sonnet 4.6 ($3/$15 per Mtok). Opus overkill for structured output. All AI endpoints use the user-selected model (no hardcoded Haiku anywhere).

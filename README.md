@@ -37,6 +37,7 @@ A generic AI-assisted API testing platform. Import API specifications, connect a
 - **Import pipeline health reporting** — `ImportResultModal` displays a processing health banner (green/yellow/red) showing distillation results per endpoint and digest build status, with collapsible error details for failures
 - Drag-and-drop file/folder management with rename, move, and server-side bulk delete (version folder deletion requires typing name to confirm)
 - Version history for synced files (`_versions/` subfolder)
+- **Enhance Docs example (Try-it)** — After a Try-it call succeeds, qa_managers can click "Enhance Docs example" to AI-rewrite the example block in the spec MD using the captured request/response. The endpoint surgically slices only the OpenAPI request/response subtrees, pre-strips auth headers, and the AI replaces IDs (`*_id`/`*Id`/`*_uuid`/`*_key`/`*_token` fields and URL path params) with `{{proj.*}}` placeholders while redacting JWTs, Bearer tokens, emails, phone numbers, and internal hostnames. A server post-pass scans for residual secrets (returns 422 if any leak through). The user reviews a XML diff modal with cost + summary chips before confirming save (distillation auto-rebuilds).
 
 ### AI Flow Workshop
 - **Idea Generation** — Generate test flow ideas from spec context using Claude
