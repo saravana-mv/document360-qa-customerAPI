@@ -19,6 +19,10 @@ export interface EnhanceDocsExampleRequest {
 export interface EnhanceDocsExampleResponse {
   originalMd: string;
   updatedMd: string;
+  /** The updated paths[pathTemplate][method] object — splice this back into _swagger.json on save. */
+  updatedOperation: Record<string, unknown>;
+  pathTemplate: string;
+  method: string;
   updatedSliceSummary: {
     requestBodyExampleName: string | null;
     responseExampleName: string | null;

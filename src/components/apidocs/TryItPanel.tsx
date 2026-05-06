@@ -70,6 +70,8 @@ interface Props {
   specPath?: string;
   /** Top-level version folder for the active spec (e.g. "v3") */
   versionFolder?: string;
+  /** Callback fired after an Enhance-Docs save succeeds — used to bust the parsed-spec cache */
+  onSpecRefresh?: () => void;
 }
 
 interface TryItResponse {
@@ -431,7 +433,7 @@ function collectExamples(endpoint: ParsedEndpointDoc): NamedExample[] {
   return results;
 }
 
-export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectionWarning, onOpenConnect, securitySchemes, specPath, versionFolder }: Props) {
+export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectionWarning, onOpenConnect, securitySchemes, specPath, versionFolder, onSpecRefresh }: Props) {
   const variables = useProjectVariablesStore((s) => s.variables);
 
   const [sending, setSending] = useState(false);
@@ -1222,6 +1224,7 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
         <EnhanceDocsExampleModal
           open={enhanceModalOpen}
           onClose={() => setEnhanceModalOpen(false)}
+          onSaved={onSpecRefresh}
           request={{
             specPath,
             versionFolder,

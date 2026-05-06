@@ -7,7 +7,7 @@ import {
   type EnhanceDocsExampleRequest,
   type EnhanceDocsExampleResponse,
 } from "../../lib/api/enhanceDocsExampleApi";
-import { uploadSpecFile } from "../../lib/api/specFilesApi";
+import { uploadSpecFile, getSpecFileContent } from "../../lib/api/specFilesApi";
 import { useAiCostStore } from "../../store/aiCost.store";
 import { useSetupStore } from "../../store/setup.store";
 
@@ -90,7 +90,28 @@ export function EnhanceDocsExampleModal({ open, onClose, request, onSaved }: Pro
     if (state.kind !== "review" || !request) return;
     setState({ kind: "saving", result: state.result });
     try {
+      // 1. Save the per-endpoint MD (the file the user is viewing).
       await uploadSpecFile(request.specPath, state.result.updatedMd, "text/markdown");
+
+      // 2. Patch _system/_swagger.json so the Documentation tab and other consumers
+      //    (parsedSpec, endpointFileMap) pick up the new examples on next render.
+      //    Best-effort: a swagger sync failure shouldn't fail the MD save.
+      try {
+        const swaggerPath = `${request.versionFolder}/_system/_swagger.json`;
+        const swaggerRaw = await getSpecFileContent(swaggerPath);
+        const swagger = JSON.parse(swaggerRaw) as Record<string, unknown>;
+        const paths = swagger.paths as Record<string, unknown> | undefined;
+        if (paths && typeof paths === "object") {
+          const pathItem = paths[state.result.pathTemplate];
+          if (pathItem && typeof pathItem === "object") {
+            (pathItem as Record<string, unknown>)[state.result.method] = state.result.updatedOperation;
+            await uploadSpecFile(swaggerPath, JSON.stringify(swagger, null, 2), "application/json");
+          }
+        }
+      } catch (swaggerErr) {
+        console.warn("[EnhanceDocsExample] _swagger.json sync failed (non-fatal):", swaggerErr);
+      }
+
       setState({ kind: "saved" });
       onSaved?.();
     } catch (e) {

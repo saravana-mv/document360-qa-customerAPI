@@ -375,6 +375,11 @@ async function handle(req: HttpRequest): Promise<HttpResponseInit> {
   const applied = applyTargetSlice(blockParts.json, found, parsed, slice.responseStatusExisted);
   const updatedMd = spliceOpenApiBlock(blockParts, applied.newSpec);
 
+  // Extract the updated operation object so the frontend can also patch _swagger.json
+  const updatedPaths = applied.newSpec.paths as Record<string, unknown>;
+  const updatedPathItem = updatedPaths[found.pathTemplate] as Record<string, unknown>;
+  const updatedOperation = updatedPathItem[found.method] as Record<string, unknown>;
+
   // Audit (separate from spec.update — fired even if user cancels)
   audit(projectId, "spec.enhance_example", { oid, name: userName }, specPath, {
     method,
@@ -388,6 +393,9 @@ async function handle(req: HttpRequest): Promise<HttpResponseInit> {
   return ok({
     originalMd,
     updatedMd,
+    updatedOperation,
+    pathTemplate: found.pathTemplate,
+    method: found.method,
     updatedSliceSummary: {
       requestBodyExampleName: parsed.summary.requestBodyExampleName,
       responseExampleName: parsed.summary.responseExampleName,

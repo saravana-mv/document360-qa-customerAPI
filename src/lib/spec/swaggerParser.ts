@@ -26,6 +26,9 @@ export interface ParsedEndpointDoc {
     description?: string;
     contentType?: string;
     schema?: Schema;
+    example?: unknown;
+    /** OAS3 named examples map (example name → value) */
+    examples?: Record<string, unknown>;
   }>;
   security?: Array<Record<string, string[]>>;
   deprecated?: boolean;
@@ -124,16 +127,29 @@ export function parseSwaggerSpec(raw: string): ParsedSpec {
           const resolved = resolveRef(resp, spec) as Response;
           let contentType: string | undefined;
           let schema: Schema | undefined;
+          let example: unknown;
+          let namedExamples: Record<string, unknown> | undefined;
           if (resolved?.content) {
             const [ct, media] = Object.entries(resolved.content)[0] ?? [];
             contentType = ct;
             schema = media?.schema ? resolveSchemaRefs(media.schema, spec) : undefined;
+            example = (media as Record<string, unknown> | undefined)?.example;
+            const rawExamples = (media as Record<string, unknown> | undefined)?.examples as Record<string, { value?: unknown; summary?: string }> | undefined;
+            if (rawExamples) {
+              const collected: Record<string, unknown> = {};
+              for (const [name, ex] of Object.entries(rawExamples)) {
+                if (ex && typeof ex === "object" && "value" in ex) collected[name] = ex.value;
+              }
+              if (Object.keys(collected).length > 0) namedExamples = collected;
+            }
           }
           responses.push({
             status,
             description: resolved?.description,
             contentType,
             schema,
+            example,
+            examples: namedExamples,
           });
         }
       }

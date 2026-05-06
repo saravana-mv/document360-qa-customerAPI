@@ -28,7 +28,14 @@ export function ResponseTabs({ responses }: Props) {
   const active = responses.find(r => r.status === activeStatus) ?? responses[0];
 
   const example = useMemo(() => {
-    if (!active?.schema) return null;
+    if (!active) return null;
+    // Prefer explicit examples from the spec over schema-derived synthetic ones.
+    if (active.examples) {
+      const firstKey = Object.keys(active.examples)[0];
+      if (firstKey !== undefined) return active.examples[firstKey];
+    }
+    if (active.example !== undefined) return active.example;
+    if (!active.schema) return null;
     return generateSchemaExample(active.schema);
   }, [active]);
 

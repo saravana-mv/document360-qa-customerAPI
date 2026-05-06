@@ -276,6 +276,10 @@ describe("happy path", () => {
       addedNewExample: false,
       addedNewResponseStatus: false,
     });
+    expect(parsed.pathTemplate).toBe("/v3/articles");
+    expect(parsed.method).toBe("post");
+    expect(parsed.updatedOperation).toBeDefined();
+    expect(parsed.updatedOperation.responses["201"].content["application/json"].examples.Success.value.id).toBe("{{proj.articleId}}");
     expect(parsed.usage.costUsd).toBe(0.0042);
   });
 

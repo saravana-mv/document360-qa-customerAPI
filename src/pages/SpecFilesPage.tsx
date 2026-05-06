@@ -200,6 +200,7 @@ export function SpecFilesPage() {
   const [parsedSpec, setParsedSpec] = useState<ParsedSpec | null>(null);
   const [endpointFileMap, setEndpointFileMap] = useState<Map<string, ParsedEndpointDoc>>(new Map());
   const loadedSwaggerVersionRef = useRef<string | null>(null);
+  const [swaggerReloadKey, setSwaggerReloadKey] = useState(0);
 
   useEffect(() => {
     if (!hasSwagger || !versionFolder) {
@@ -208,8 +209,9 @@ export function SpecFilesPage() {
       loadedSwaggerVersionRef.current = null;
       return;
     }
-    if (loadedSwaggerVersionRef.current === versionFolder) return;
-    loadedSwaggerVersionRef.current = versionFolder;
+    const cacheKey = `${versionFolder}#${swaggerReloadKey}`;
+    if (loadedSwaggerVersionRef.current === cacheKey) return;
+    loadedSwaggerVersionRef.current = cacheKey;
     void (async () => {
       try {
         const raw = await getSpecFileContent(`${versionFolder}/_system/_swagger.json`);
@@ -221,7 +223,7 @@ export function SpecFilesPage() {
         setEndpointFileMap(new Map());
       }
     })();
-  }, [hasSwagger, versionFolder]);
+  }, [hasSwagger, versionFolder, swaggerReloadKey]);
 
   // ── Connection status for current version ──────────────────────────────
   const currentVersionConfig = versionFolder ? versionConfigs[versionFolder] : undefined;
@@ -1318,6 +1320,7 @@ export function SpecFilesPage() {
                       securitySchemes={parsedSpec?.securitySchemes}
                       specPath={selectedPath ?? undefined}
                       versionFolder={versionFolder ?? undefined}
+                      onSpecRefresh={() => setSwaggerReloadKey((k) => k + 1)}
                     />
                   )}
                 </div>
