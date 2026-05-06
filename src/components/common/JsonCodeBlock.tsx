@@ -43,8 +43,11 @@ function stringify(value: unknown): string {
 
 export function JsonCodeBlock({ value, className, height = "100%" }: Props) {
   const text = useMemo(() => stringify(value), [value]);
+  // overflow-auto on the wrapper handles the case where height="auto" + a
+  // height-constraining className (like `max-h-80`) — CodeMirror itself
+  // renders to full content height in that mode, so the wrapper must scroll.
   return (
-    <div className={className}>
+    <div className={`overflow-auto ${className ?? ""}`}>
       <CodeMirror
         value={text}
         height={height}
