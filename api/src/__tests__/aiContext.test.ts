@@ -281,4 +281,25 @@ describe("findMatchingSpec", () => {
     const result = await findMatchingSpec("proj1", "GET", "/v3/articles");
     expect(result).toBeNull();
   });
+
+  test("does not match shorter path against a longer-path endpoint (prefix collision)", async () => {
+    // Regression: searching for POST /v3/articles must NOT match a blob that
+    // documents POST /v3/articles/bulk (the bulk endpoint). String.includes
+    // would silently return the wrong blob because the shorter path is a
+    // substring of the longer one.
+    const mockReadDistilled = readDistilledContent as jest.MockedFunction<typeof readDistilledContent>;
+    mockListBlobs.mockResolvedValueOnce([
+      { name: "proj1/V3/articles/bulk-create-article-articles.md", size: 100, lastModified: "", contentType: "text/markdown", httpMethod: "POST" },
+      { name: "proj1/V3/articles/create-article-article.md", size: 100, lastModified: "", contentType: "text/markdown", httpMethod: "POST" },
+    ]);
+    mockReadDistilled
+      .mockResolvedValueOnce("## bulk-create-article-articles.md\n\n## Endpoint: POST /v3/projects/{project_id}/articles/bulk\n\n[bulk content]")
+      .mockResolvedValueOnce("## create-article-article.md\n\n## Endpoint: POST /v3/projects/{project_id}/articles\n\n[single create content]");
+
+    const result = await findMatchingSpec("proj1", "POST", "/v3/projects/{project_id}/articles");
+    expect(result).not.toBeNull();
+    // Must return the SINGLE-create blob, not the bulk one
+    expect(result!.content).toContain("create-article-article.md");
+    expect(result!.content).not.toContain("bulk-create-article-articles.md");
+  });
 });

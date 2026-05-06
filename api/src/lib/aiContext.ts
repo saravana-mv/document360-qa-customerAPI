@@ -102,6 +102,29 @@ export async function findMatchingSpec(
 
     const searchBlobs = methodMatches.length > 0 ? methodMatches : mdBlobs;
 
+    /**
+     * End-anchored path match: a substring `POST /v3/articles` would otherwise
+     * also match `POST /v3/articles/bulk` (the bulk endpoint), causing
+     * findMatchingSpec to return content for the wrong endpoint and
+     * downstream validators to flag the correct AI-generated endpointRef as
+     * stale. Require the matched path to end on a path boundary — newline,
+     * end-of-string, or any non-path char.
+     */
+    const matchesPath = (haystack: string, methodAndPath: string): boolean => {
+      const pat = methodAndPath.toUpperCase();
+      let from = 0;
+      while (true) {
+        const idx = haystack.indexOf(pat, from);
+        if (idx < 0) return false;
+        const after = haystack.charAt(idx + pat.length);
+        // Path boundary: end-of-string, newline, whitespace, or any char that
+        // can't legally extend a URL path. Crucially exclude "/" (prefix of a
+        // deeper path) and "{" (continuation of a path-param template).
+        if (after === "" || /[\s?#"`'<>]/.test(after)) return true;
+        from = idx + 1;
+      }
+    };
+
     for (const blob of searchBlobs) {
       try {
         const content = await readDistilledContent(blob.name);
@@ -113,13 +136,13 @@ export async function findMatchingSpec(
           `${methodUpper} /${versionFolder.toLowerCase()}${pathWithoutVersion}`,
         ];
 
-        if (patterns.some((p) => contentUpper.includes(p.toUpperCase()))) {
+        if (patterns.some((p) => matchesPath(contentUpper, p))) {
           return { content, source: "distilled" };
         }
 
         const normalizedContent = content.replace(/\{[^}]+\}/g, "{*}").toUpperCase();
-        if (normalizedContent.includes(`${methodUpper} ${pathPattern}`.toUpperCase()) ||
-            normalizedContent.includes(`${methodUpper} ${pathPatternWithoutVersion}`.toUpperCase())) {
+        if (matchesPath(normalizedContent, `${methodUpper} ${pathPattern}`) ||
+            matchesPath(normalizedContent, `${methodUpper} ${pathPatternWithoutVersion}`)) {
           return { content, source: "distilled" };
         }
       } catch {
@@ -139,8 +162,8 @@ export async function findMatchingSpec(
           `${methodUpper} ${pathWithoutVersion}`,
         ];
 
-        if (patterns.some((p) => rawUpper.includes(p.toUpperCase())) ||
-            normalizedRaw.includes(`${methodUpper} ${pathPattern}`.toUpperCase())) {
+        if (patterns.some((p) => matchesPath(rawUpper, p)) ||
+            matchesPath(normalizedRaw, `${methodUpper} ${pathPattern}`)) {
           return { content: raw, source: "raw" };
         }
       } catch {
