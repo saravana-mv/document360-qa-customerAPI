@@ -238,12 +238,12 @@ describe("renameDistilled", () => {
 describe("readDistilledContent", () => {
   it("returns cached content on version hit", async () => {
     mockDownload.mockResolvedValueOnce(
-      "<!-- distill-v9 -->\nDistilled content here",
+      "<!-- distill-v10 -->\nDistilled content here",
     );
 
     const result = await readDistilledContent("proj/V3/articles/create.md");
 
-    expect(result).toBe("<!-- distill-v9 -->\nDistilled content here");
+    expect(result).toBe("<!-- distill-v10 -->\nDistilled content here");
     // Should read from companion path
     expect(mockDownload).toHaveBeenCalledWith(
       "proj/V3/articles/_distilled/create.md",
@@ -265,7 +265,7 @@ describe("readDistilledContent", () => {
     expect(mockDownload).toHaveBeenCalledTimes(2);
     // distill called once for runtime + once inside fire-and-forget distillAndStore
     expect(mockDistill).toHaveBeenCalledTimes(2);
-    expect(result).toContain("<!-- distill-v9 -->");
+    expect(result).toContain("<!-- distill-v10 -->");
   });
 
   it("falls back to runtime distillation on cache miss", async () => {
@@ -313,8 +313,8 @@ describe("rebuildDigest", () => {
 
     // Mock readDistilledContent via downloadBlob (companion hits)
     mockDownload
-      .mockResolvedValueOnce(`<!-- distill-v9 -->\n${distilledCreate}`)
-      .mockResolvedValueOnce(`<!-- distill-v9 -->\n${distilledList}`);
+      .mockResolvedValueOnce(`<!-- distill-v10 -->\n${distilledCreate}`)
+      .mockResolvedValueOnce(`<!-- distill-v10 -->\n${distilledList}`);
 
     mockUpload.mockResolvedValue(undefined);
 
@@ -345,7 +345,7 @@ describe("rebuildDigest", () => {
       "## Endpoint: POST /v3/articles",
       "**Create article**",
     ].join("\n");
-    mockDownload.mockResolvedValueOnce(`<!-- distill-v9 -->\n${distilled}`);
+    mockDownload.mockResolvedValueOnce(`<!-- distill-v10 -->\n${distilled}`);
     mockUpload.mockResolvedValue(undefined);
 
     await rebuildDigest("proj1", "V3");

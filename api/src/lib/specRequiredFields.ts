@@ -58,12 +58,18 @@ function resolveRef(ref: string, schemas: Record<string, unknown>): Record<strin
 function extractFieldType(fieldDef: Record<string, unknown>, schemas: Record<string, unknown>): string {
   if (fieldDef.type) return fieldDef.type as string;
   if (fieldDef.allOf) {
-    const refs = fieldDef.allOf as Record<string, string>[];
-    for (const r of refs) {
-      if (r.$ref) {
+    const items = fieldDef.allOf as Record<string, unknown>[];
+    for (const r of items) {
+      if (typeof r?.$ref === "string") {
         const resolved = resolveRef(r.$ref, schemas);
         if (resolved?.type) return resolved.type as string;
         if (resolved?.enum) return "enum";
+      } else if (r?.type) {
+        // Inline allOf entry (post-splitter $ref resolution). Treat its type
+        // as the field's type. Most common shape: `{type: "object", properties: {...}}`.
+        return r.type as string;
+      } else if (r?.enum) {
+        return "enum";
       }
     }
     return "object";
@@ -310,8 +316,16 @@ function extractResponseKeyFields(
       let itemSchema: Record<string, unknown> | null = null;
       if (items?.$ref) itemSchema = resolveRef(items.$ref as string, schemas);
       if (!itemSchema && items?.allOf) {
-        for (const r of items.allOf as Record<string, string>[]) {
-          if (r.$ref) { itemSchema = resolveRef(r.$ref, schemas); break; }
+        for (const r of items.allOf as Record<string, unknown>[]) {
+          if (typeof r?.$ref === "string") {
+            itemSchema = resolveRef(r.$ref, schemas);
+            if (itemSchema) break;
+          } else if (r?.properties) {
+            // allOf entry is an INLINE schema (the splitter's inlineRefs resolves
+            // $refs into their full schema bodies). Treat it as the target.
+            itemSchema = r;
+            break;
+          }
         }
       }
       // Inline items schema (no $ref) — use directly if it has properties
@@ -329,9 +343,22 @@ function extractResponseKeyFields(
       // For nested objects, recurse if it's a $ref we can resolve, or inline
       let nested: Record<string, unknown> | null = null;
       if (def.$ref) nested = resolveRef(def.$ref as string, schemas);
-      if (def.allOf) {
-        for (const r of def.allOf as Record<string, string>[]) {
-          if (r.$ref) { nested = resolveRef(r.$ref, schemas); break; }
+      if (!nested && def.allOf) {
+        for (const r of def.allOf as Record<string, unknown>[]) {
+          if (typeof r?.$ref === "string") {
+            nested = resolveRef(r.$ref, schemas);
+            if (nested) break;
+          } else if (r?.properties) {
+            // allOf entry is an INLINE schema (the splitter's inlineRefs
+            // resolves $refs into their full schema bodies). Treat it as
+            // the target. Without this branch, Document360-style wrappers
+            // like `data: { allOf: [<inlined ArticleDetailResponse>] }`
+            // never recurse and the response field list misses every
+            // nested field — causing validateCaptures false positives on
+            // valid `<capture source="response.data.id"/>` elements.
+            nested = r;
+            break;
+          }
         }
       }
       // Inline object schema (no $ref) — use directly if it has properties
