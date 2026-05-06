@@ -25,19 +25,28 @@ export function ResponseTabs({ responses }: Props) {
   const [showExample, setShowExample] = useState(false);
   const [schemaResetKey, setSchemaResetKey] = useState(0);
   const [allExpanded, setAllExpanded] = useState(false);
+  const [selectedExampleName, setSelectedExampleName] = useState<string | null>(null);
   const active = responses.find(r => r.status === activeStatus) ?? responses[0];
+
+  const exampleNames = useMemo(() => {
+    return active?.examples ? Object.keys(active.examples) : [];
+  }, [active]);
+
+  // When the user switches status tabs, default the example selection to the
+  // first example of the new status — not the previous tab's selection.
+  const effectiveExampleName = selectedExampleName && exampleNames.includes(selectedExampleName)
+    ? selectedExampleName
+    : exampleNames[0] ?? null;
 
   const example = useMemo(() => {
     if (!active) return null;
-    // Prefer explicit examples from the spec over schema-derived synthetic ones.
-    if (active.examples) {
-      const firstKey = Object.keys(active.examples)[0];
-      if (firstKey !== undefined) return active.examples[firstKey];
+    if (active.examples && effectiveExampleName) {
+      return active.examples[effectiveExampleName];
     }
     if (active.example !== undefined) return active.example;
     if (!active.schema) return null;
     return generateSchemaExample(active.schema);
-  }, [active]);
+  }, [active, effectiveExampleName]);
 
   const toggleAll = () => {
     setAllExpanded(prev => !prev);
@@ -55,7 +64,7 @@ export function ResponseTabs({ responses }: Props) {
         {responses.map(r => (
           <button
             key={r.status}
-            onClick={() => { setActiveStatus(r.status); setShowExample(false); }}
+            onClick={() => { setActiveStatus(r.status); setShowExample(false); setSelectedExampleName(null); }}
             className={[
               "flex items-center gap-1.5 px-3 py-2 text-sm font-mono font-semibold transition-colors relative",
               r.status === activeStatus
@@ -113,11 +122,26 @@ export function ResponseTabs({ responses }: Props) {
               {/* Example JSON */}
               {showExample && example != null && (
                 <div className="border border-[#d1d9e0] rounded-lg overflow-hidden">
-                  <div className="flex items-center justify-between bg-[#f6f8fa] border-b border-[#d1d9e0] px-3 py-1.5">
-                    <span className="text-sm font-semibold text-[#656d76]">Example</span>
+                  <div className="flex items-center justify-between bg-[#f6f8fa] border-b border-[#d1d9e0] px-3 py-1.5 gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm font-semibold text-[#656d76] shrink-0">Example</span>
+                      {exampleNames.length > 1 ? (
+                        <select
+                          value={effectiveExampleName ?? ""}
+                          onChange={(e) => setSelectedExampleName(e.target.value)}
+                          className="text-sm text-[#1f2328] bg-white border border-[#d1d9e0] rounded-md px-2 py-1 outline-none focus:border-[#0969da] cursor-pointer max-w-[280px] truncate"
+                        >
+                          {exampleNames.map((n) => (
+                            <option key={n} value={n}>{n}</option>
+                          ))}
+                        </select>
+                      ) : effectiveExampleName ? (
+                        <span className="text-sm text-[#656d76] font-mono truncate">{effectiveExampleName}</span>
+                      ) : null}
+                    </div>
                     <button
                       onClick={() => { navigator.clipboard.writeText(JSON.stringify(example, null, 2)); }}
-                      className="text-sm text-[#0969da] hover:underline"
+                      className="text-sm text-[#0969da] hover:underline shrink-0"
                     >
                       Copy
                     </button>
