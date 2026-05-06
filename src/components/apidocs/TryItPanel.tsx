@@ -120,19 +120,56 @@ function CopyButton({ value, label }: { value: string; label?: string }) {
   );
 }
 
+/** snake_case → camelCase (e.g. "project_id" → "projectId"). */
+function toCamelCase(s: string): string {
+  return s.replace(/_([a-zA-Z0-9])/g, (_, c) => (c as string).toUpperCase());
+}
+
+/** camelCase → snake_case (e.g. "projectId" → "project_id"). */
+function toSnakeCase(s: string): string {
+  return s.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
+}
+
+/**
+ * Find a project variable for a parameter name, tolerating snake_case ↔
+ * camelCase mismatches (OpenAPI specs commonly use `project_id` while
+ * FlowForge's auto-detect suggests `projectId` as the variable name).
+ */
+function findVarMatch<T>(paramName: string, map: Map<string, T>): { key: string; value: T } | null {
+  const direct = map.get(paramName);
+  if (direct !== undefined) return { key: paramName, value: direct };
+  const camel = toCamelCase(paramName);
+  if (camel !== paramName) {
+    const v = map.get(camel);
+    if (v !== undefined) return { key: camel, value: v };
+  }
+  const snake = toSnakeCase(paramName);
+  if (snake !== paramName) {
+    const v = map.get(snake);
+    if (v !== undefined) return { key: snake, value: v };
+  }
+  // Case-insensitive fallback over all keys.
+  const lower = paramName.toLowerCase();
+  for (const [k, v] of map) {
+    if (k.toLowerCase() === lower) return { key: k, value: v };
+  }
+  return null;
+}
+
 /** Small icon button to fill a param from a matching project variable. */
 function UseVarButton({ paramName, varMap, onApply }: {
   paramName: string;
   varMap: Map<string, string>;
   onApply: (value: string) => void;
 }) {
-  const varValue = varMap.get(paramName);
-  if (!varValue) return null;
+  const match = findVarMatch(paramName, varMap);
+  if (!match || !match.value) return null;
+  const { key: varName, value: varValue } = match;
   return (
     <button
       onClick={() => onApply(varValue)}
       className="text-[#0969da] hover:text-[#0860ca] shrink-0 p-0.5 rounded hover:bg-[#ddf4ff] transition-colors"
-      title={`Use project variable: ${paramName} = ${varValue}`}
+      title={`Use project variable: ${varName} = ${varValue}`}
     >
       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" d="M4.745 3A23.933 23.933 0 0 0 3 12c0 3.183.62 6.22 1.745 9M19.5 3c.967 2.78 1.5 5.817 1.5 9s-.533 6.22-1.5 9M8.25 8.885l1.444-.89a.75.75 0 0 1 1.105.402l2.402 7.206a.75.75 0 0 0 1.104.401l1.445-.889" />
@@ -147,13 +184,14 @@ function UseFileVarButton({ paramName, fileVarMap, onApply }: {
   fileVarMap: Map<string, { sentinel: string; fileName: string; fileSize?: number }>;
   onApply: (sentinel: string, fileName: string) => void;
 }) {
-  const entry = fileVarMap.get(paramName);
-  if (!entry) return null;
+  const match = findVarMatch(paramName, fileVarMap);
+  if (!match) return null;
+  const { key: varName, value: entry } = match;
   return (
     <button
       onClick={() => onApply(entry.sentinel, entry.fileName)}
       className="text-[#0969da] hover:text-[#0860ca] shrink-0 p-0.5 rounded hover:bg-[#ddf4ff] transition-colors"
-      title={`Use file variable: ${paramName} → ${entry.fileName}${entry.fileSize ? ` (${formatBytes(entry.fileSize)})` : ""}`}
+      title={`Use file variable: ${varName} → ${entry.fileName}${entry.fileSize ? ` (${formatBytes(entry.fileSize)})` : ""}`}
     >
       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" d="M4.745 3A23.933 23.933 0 0 0 3 12c0 3.183.62 6.22 1.745 9M19.5 3c.967 2.78 1.5 5.817 1.5 9s-.533 6.22-1.5 9M8.25 8.885l1.444-.89a.75.75 0 0 1 1.105.402l2.402 7.206a.75.75 0 0 0 1.104.401l1.445-.889" />
