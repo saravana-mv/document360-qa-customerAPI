@@ -13,7 +13,7 @@ FlowForge is a generic AI-assisted API testing platform. It lets QA teams import
 
 ### Pages
 - **Project Selection** (`src/pages/ProjectSelectionPage.tsx`) — Full-screen project tile grid (first screen after login), create project, visibility toggle
-- **Spec Manager** (`src/pages/SpecFilesPage.tsx`) — Spec files, AI ideas, flow XML authoring, interactive flow chat. `ImportResultModal` after OpenAPI import shows stats + auto-detected path parameters (as project variable suggestions) and security schemes (as draft connection suggestions). After a Try-it call, qa_managers can click "Enhance Docs example" to AI-rewrite the example block in the spec MD using captured request/response data (with sanitized IDs/auth/PII). The endpoint returns a diff for confirmation; on save, distillation auto-rebuilds.
+- **Spec Manager** (`src/pages/SpecFilesPage.tsx`) — Spec files, AI ideas, flow XML authoring, interactive flow chat. `ImportResultModal` after OpenAPI import shows stats + auto-detected path parameters (as project variable suggestions) and security schemes (as draft connection suggestions). After a Try-it call, qa_managers can click "Enhance Docs example" to AI-rewrite the example block in the spec MD using captured request/response data (with sanitized IDs/auth/PII). The endpoint returns a diff for confirmation; on save, distillation auto-rebuilds. Each spec MD shows a **Spec Quality Score** pill (red <50 / amber 50-79 / green ≥80) in the file tree and a collapsible factor breakdown banner on the Documentation tab — see "Spec Quality Score" under AI Integration Rules.
 - **Scenario Manager** (`src/pages/TestPage.tsx`) — Version-based test tree, runner, run history, breakpoints
 - **Settings** (`src/pages/SettingsPage.tsx`) — General, API Keys, Variables, Connections, Members, Users, Audit Log (role-gated tabs)
 
@@ -222,6 +222,9 @@ Never regenerate ideas or flows that already exist. Cache, lock completed items,
 
 ### AI Idea Scoping
 Ideas strictly scoped to endpoints in provided spec files. Never reference external endpoints.
+
+### Spec Quality Score
+Client-side pure function (`src/lib/spec/specQuality.ts`) rates each spec MD 0-100% on factors that affect AI flow generation quality (operation metadata, parameters, request body, responses, schema depth, security — 19 factors across 6 groups). Skipped factors (e.g., security on a public endpoint) are excluded from the denominator. Bands: red <50, amber 50-79, green ≥80. Public API: `computeEndpointScore(endpoint)`, `computeSpecQuality(spec, versionFolder)`, `bandFor(score)`. Computed on-the-fly in `SpecFilesPage` via `useMemo` over `parsedSpec`; no persistence (server-side caching deferred to a follow-up if portfolio-level views need it). Surfaced as `<QualityScorePill/>` per file/folder in the file tree (skipped for `_system`/`_distilled` nodes — they are not in `buildEndpointFileMap`) and as `<QualityScoreBanner/>` (collapsible factor breakdown grouped by failing/partial/passing/skipped) above the operation description in `EndpointDocView`. Updates automatically via the existing `swaggerReloadKey` cache-bust after Enhance Docs example saves — no extra wiring.
 
 ---
 
