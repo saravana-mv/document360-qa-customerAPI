@@ -12,6 +12,7 @@ import {
   formatSchemeLocation,
 } from "./EndpointDocView";
 import { InlineCode, InlineMarkdown } from "./InlineMarkdown";
+import { EnhanceDocsExampleModal } from "./EnhanceDocsExampleModal";
 
 // Renders a warning string with two clickable hot-words:
 //   • "Settings > Connections" / "Settings → Connections" → routes to /settings/connections
@@ -65,6 +66,10 @@ interface Props {
   onOpenConnect?: () => void;
   /** Resolved security schemes from the spec — used for the Authentication section */
   securitySchemes?: Record<string, SecurityScheme>;
+  /** Project-scoped path to the spec MD file currently being viewed (e.g. "v3/articles/create-article.md") */
+  specPath?: string;
+  /** Top-level version folder for the active spec (e.g. "v3") */
+  versionFolder?: string;
 }
 
 interface TryItResponse {
@@ -426,13 +431,14 @@ function collectExamples(endpoint: ParsedEndpointDoc): NamedExample[] {
   return results;
 }
 
-export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectionWarning, onOpenConnect, securitySchemes }: Props) {
+export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectionWarning, onOpenConnect, securitySchemes, specPath, versionFolder }: Props) {
   const variables = useProjectVariablesStore((s) => s.variables);
 
   const [sending, setSending] = useState(false);
   const [response, setResponse] = useState<TryItResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resultTab, setResultTab] = useState<"request" | "response">("response");
+  const [enhanceModalOpen, setEnhanceModalOpen] = useState(false);
 
   // Build param input state from endpoint parameters
   const pathParams = endpoint.parameters.filter((p) => p.in === "path");
@@ -1064,30 +1070,45 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
           </div>
         )}
 
-        {/* ── Send button (fixed width) ────────────────────────────── */}
-        <button
-          onClick={() => void handleSend()}
-          disabled={sending || !canSend}
-          title={!canSend ? "Configure a connection first" : undefined}
-          className="w-[180px] flex items-center justify-center gap-2 bg-[#1f883d] hover:bg-[#1a7f37] disabled:bg-[#eef1f6] disabled:text-[#656d76] text-white text-sm font-medium rounded-md px-4 py-2 transition-colors"
-        >
-          {sending ? (
-            <>
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
-              Sending...
-            </>
-          ) : (
-            <>
+        {/* ── Send + Enhance buttons ───────────────────────────────── */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => void handleSend()}
+            disabled={sending || !canSend}
+            title={!canSend ? "Configure a connection first" : undefined}
+            className="w-[180px] flex items-center justify-center gap-2 bg-[#1f883d] hover:bg-[#1a7f37] disabled:bg-[#eef1f6] disabled:text-[#656d76] text-white text-sm font-medium rounded-md px-4 py-2 transition-colors"
+          >
+            {sending ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Sending...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                </svg>
+                Send Request
+              </>
+            )}
+          </button>
+
+          {response && specPath && versionFolder && (
+            <button
+              onClick={() => setEnhanceModalOpen(true)}
+              title="Use this captured request and response to update the example in the spec MD file"
+              className="flex items-center gap-2 border border-[#d1d9e0] hover:bg-[#f6f8fa] text-[#1f2328] text-sm font-medium rounded-md px-3 py-2 transition-colors"
+            >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.847-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.847.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.456-2.456L14.25 6l1.035-.259a3.375 3.375 0 0 0 2.456-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
               </svg>
-              Send Request
-            </>
+              Enhance Docs example
+            </button>
           )}
-        </button>
+        </div>
 
         {/* ── Error ────────────────────────────────────────────────── */}
         {error && (
@@ -1196,6 +1217,27 @@ export function TryItPanel({ endpoint, connectionId, baseUrl, canSend, connectio
           </div>
         )}
       </div>
+
+      {response && specPath && versionFolder && (
+        <EnhanceDocsExampleModal
+          open={enhanceModalOpen}
+          onClose={() => setEnhanceModalOpen(false)}
+          request={{
+            specPath,
+            versionFolder,
+            method: endpoint.method,
+            pathTemplate: endpoint.path,
+            capturedUrl: response.requestUrl,
+            capturedStatus: response.status,
+            requestHeaders: response.requestHeaders,
+            requestBody: response.requestBody,
+            requestContentType: response.requestHeaders["Content-Type"] ?? response.requestHeaders["content-type"],
+            responseHeaders: response.responseHeaders,
+            responseBody: response.body,
+            responseContentType: response.responseHeaders["Content-Type"] ?? response.responseHeaders["content-type"],
+          }}
+        />
+      )}
     </div>
   );
 }
