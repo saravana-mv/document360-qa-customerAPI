@@ -1421,7 +1421,6 @@ export function IdeasFlowsPage() {
                           onDownloadAll={downloadAllFlows}
                           onDeleteFlow={handleDeleteFlow}
                           onDeleteAllFlows={handleDeleteAllFlows}
-                          onStartNewIdeas={() => setShowNewIdeasModal(true)}
                           onMarkForImplementation={handleMarkForImplementation}
                           onMarkSelectedForImplementation={handleMarkSelectedForImplementation}
                           markedIds={markedIds}
