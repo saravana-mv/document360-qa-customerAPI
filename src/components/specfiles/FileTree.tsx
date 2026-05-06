@@ -478,18 +478,20 @@ function TreeNodeRow({
               <HttpMethodTag method={node.httpMethod} />
             )}
             <span className={`truncate ${node.isSystem && !isSelected ? "text-[#8b949e]" : ""}`}>{node.name}</span>
-            {!node.isSystem && qualityScores && (() => {
-              if (node.type === "file") {
-                const ep = qualityScores.perEndpoint.get(node.path);
-                if (ep) return <QualityScorePill score={ep.score} />;
-              } else {
-                const fold = qualityScores.perFolder.get(node.path);
-                if (fold) return <QualityScorePill score={fold.score} endpointCount={fold.endpointCount} />;
-              }
-              return null;
-            })()}
           </span>
         )}
+
+        {/* Quality score pill — fixed RHS slot so pills align vertically across rows */}
+        {!isRenaming && !node.isSystem && qualityScores && (() => {
+          if (node.type === "file") {
+            const ep = qualityScores.perEndpoint.get(node.path);
+            if (ep) return <QualityScorePill score={ep.score} />;
+          } else {
+            const fold = qualityScores.perFolder.get(node.path);
+            if (fold) return <QualityScorePill score={fold.score} endpointCount={fold.endpointCount} />;
+          }
+          return null;
+        })()}
 
         {/* Actions */}
         {!isRenaming && !node.isSystem && (
