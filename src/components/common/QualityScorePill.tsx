@@ -24,11 +24,11 @@ export function QualityScorePill({ score, endpointCount, title, size = "xs" }: P
     (endpointCount !== undefined
       ? `Average spec quality across ${endpointCount} endpoint${endpointCount === 1 ? "" : "s"}: ${score}%`
       : `Spec quality: ${score}%`);
-  const sizeClass = size === "sm" ? "text-xs px-2 py-0.5" : "text-xs px-1.5 py-px";
+  const sizeClass = size === "sm" ? "text-xs px-2 py-0.5 min-w-[5.5rem]" : "text-xs px-1.5 py-px min-w-[5rem]";
   return (
     <span
       title={computedTitle}
-      className={`shrink-0 inline-flex items-center font-semibold rounded-full border ${sizeClass} ${colors.bg} ${colors.border} ${colors.text}`}
+      className={`shrink-0 inline-flex items-center justify-center tabular-nums font-semibold rounded-full border ${sizeClass} ${colors.bg} ${colors.border} ${colors.text}`}
     >
       {label}
     </span>
