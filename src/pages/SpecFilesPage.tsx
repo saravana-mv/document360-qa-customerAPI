@@ -41,7 +41,7 @@ import { EndpointDocView } from "../components/apidocs/EndpointDocView";
 import { MethodBadge } from "../components/apidocs/MethodBadge";
 import { TryItPanel } from "../components/apidocs/TryItPanel";
 import { parseSwaggerSpec, buildEndpointFileMap, type ParsedSpec, type ParsedEndpointDoc } from "../lib/spec/swaggerParser";
-import { computeSpecQuality } from "../lib/spec/specQuality";
+import { computeSpecQuality, type SpecQuality } from "../lib/spec/specQuality";
 
 /** Modal prompting the user for an access token when sync detects auth failure. */
 function AccessTokenPrompt({ message, initialToken, onSubmit, onClose }: {
@@ -191,47 +191,76 @@ export function SpecFilesPage() {
     return p.split("/")[0] ?? null;
   }, [selectedFolderPath, selectedPath]);
 
-  // Check if swagger exists for the selected version folder
-  const hasSwagger = useMemo(() => {
-    if (!versionFolder) return false;
-    return files.some(f => f.name === `${versionFolder}/_system/_swagger.json`);
-  }, [versionFolder, files]);
+  // Every version folder that has a swagger — used to load specs eagerly so
+  // pills and scores show up before the user clicks anything.
+  const versionFoldersWithSwagger = useMemo(() => {
+    const set = new Set<string>();
+    for (const f of files) {
+      const segs = f.name.split("/");
+      if (segs.length === 3 && segs[1] === "_system" && segs[2] === "_swagger.json") {
+        set.add(segs[0]!);
+      }
+    }
+    return Array.from(set).sort();
+  }, [files]);
 
   // ── Parsed swagger spec + file-to-endpoint map ─────────────────────────
-  const [parsedSpec, setParsedSpec] = useState<ParsedSpec | null>(null);
-  const [endpointFileMap, setEndpointFileMap] = useState<Map<string, ParsedEndpointDoc>>(new Map());
-  const loadedSwaggerVersionRef = useRef<string | null>(null);
+  const [parsedSpecs, setParsedSpecs] = useState<Record<string, ParsedSpec>>({});
+  const loadedSwaggerKeyRef = useRef<string | null>(null);
   const [swaggerReloadKey, setSwaggerReloadKey] = useState(0);
 
   useEffect(() => {
-    if (!hasSwagger || !versionFolder) {
-      setParsedSpec(null);
-      setEndpointFileMap(new Map());
-      loadedSwaggerVersionRef.current = null;
+    if (versionFoldersWithSwagger.length === 0) {
+      setParsedSpecs({});
+      loadedSwaggerKeyRef.current = null;
       return;
     }
-    const cacheKey = `${versionFolder}#${swaggerReloadKey}`;
-    if (loadedSwaggerVersionRef.current === cacheKey) return;
-    loadedSwaggerVersionRef.current = cacheKey;
+    const cacheKey = `${versionFoldersWithSwagger.join("|")}#${swaggerReloadKey}`;
+    if (loadedSwaggerKeyRef.current === cacheKey) return;
+    loadedSwaggerKeyRef.current = cacheKey;
+    let cancelled = false;
     void (async () => {
-      try {
-        const raw = await getSpecFileContent(`${versionFolder}/_system/_swagger.json`);
-        const spec = parseSwaggerSpec(raw);
-        setParsedSpec(spec);
-        setEndpointFileMap(buildEndpointFileMap(spec));
-      } catch {
-        setParsedSpec(null);
-        setEndpointFileMap(new Map());
+      const next: Record<string, ParsedSpec> = {};
+      for (const vf of versionFoldersWithSwagger) {
+        try {
+          const raw = await getSpecFileContent(`${vf}/_system/_swagger.json`);
+          if (cancelled) return;
+          next[vf] = parseSwaggerSpec(raw);
+        } catch {
+          /* skip versions that fail to load */
+        }
       }
+      if (!cancelled) setParsedSpecs(next);
     })();
-  }, [hasSwagger, versionFolder, swaggerReloadKey]);
+    return () => { cancelled = true; };
+  }, [versionFoldersWithSwagger, swaggerReloadKey]);
 
-  // Quality scores: pure derivation from parsedSpec; recomputes whenever the
-  // spec reloads (e.g. after Enhance Docs example saves bumped swaggerReloadKey).
+  // Single-version derivations for Documentation tab consumers.
+  const parsedSpec: ParsedSpec | null = versionFolder ? parsedSpecs[versionFolder] ?? null : null;
+  const endpointFileMap = useMemo<Map<string, ParsedEndpointDoc>>(() => {
+    return parsedSpec ? buildEndpointFileMap(parsedSpec) : new Map();
+  }, [parsedSpec]);
+
+  // Quality scores merged across every loaded version so file-tree pills
+  // appear immediately, before the user has selected anything.
   const qualityScores = useMemo(() => {
-    if (!parsedSpec || !versionFolder) return undefined;
-    return computeSpecQuality(parsedSpec, versionFolder);
-  }, [parsedSpec, versionFolder]);
+    const versions = Object.entries(parsedSpecs);
+    if (versions.length === 0) return undefined;
+    const merged: SpecQuality = { perEndpoint: new Map(), perFolder: new Map(), overall: 0 };
+    let totalSum = 0;
+    let totalCount = 0;
+    for (const [vf, spec] of versions) {
+      const sq = computeSpecQuality(spec, vf);
+      for (const [k, v] of sq.perEndpoint) {
+        merged.perEndpoint.set(k, v);
+        totalSum += v.score;
+        totalCount += 1;
+      }
+      for (const [k, v] of sq.perFolder) merged.perFolder.set(k, v);
+    }
+    merged.overall = totalCount === 0 ? 0 : Math.round(totalSum / totalCount);
+    return merged;
+  }, [parsedSpecs]);
 
   // ── Connection status for current version ──────────────────────────────
   const currentVersionConfig = versionFolder ? versionConfigs[versionFolder] : undefined;
