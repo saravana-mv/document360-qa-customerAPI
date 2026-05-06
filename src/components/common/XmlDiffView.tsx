@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { diffLines } from "diff";
 
 interface DiffLine {
   type: "same" | "add" | "remove";
@@ -7,73 +8,38 @@ interface DiffLine {
   newNum?: number;
 }
 
-/** Simple line-level diff using longest common subsequence */
+/**
+ * Line-level diff using jsdiff (Myers algorithm with anchor-based matching).
+ * Handles JSON-like content with repeated lines (`}`, `},`, `]`) without
+ * the spurious-alignment artefacts a naive LCS would produce.
+ */
 function computeLineDiff(a: string, b: string): DiffLine[] {
-  const oldLines = a.split("\n");
-  const newLines = b.split("\n");
-
-  const m = oldLines.length;
-  const n = newLines.length;
-
-  // For large files, use a simpler O(n) approach
-  if (m * n > 500_000) {
-    return simpleDiff(oldLines, newLines);
-  }
-
-  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      if (oldLines[i - 1] === newLines[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1] + 1;
-      } else {
-        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+  const changes = diffLines(a, b, { newlineIsToken: false });
+  const result: DiffLine[] = [];
+  let oldNum = 0;
+  let newNum = 0;
+  for (const change of changes) {
+    // Each change.value is one or more lines joined by \n; trailing \n means
+    // the original ended with a newline. Splitting on \n and dropping the
+    // final empty entry (when present) gives us per-line items.
+    const parts = change.value.split("\n");
+    if (parts.length > 0 && parts[parts.length - 1] === "") parts.pop();
+    if (change.added) {
+      for (const text of parts) {
+        newNum++;
+        result.push({ type: "add", text, newNum });
       }
-    }
-  }
-
-  const result: DiffLine[] = [];
-  let i = m, j = n;
-  const stack: DiffLine[] = [];
-
-  while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
-      stack.push({ type: "same", text: oldLines[i - 1], oldNum: i, newNum: j });
-      i--; j--;
-    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-      stack.push({ type: "add", text: newLines[j - 1], newNum: j });
-      j--;
+    } else if (change.removed) {
+      for (const text of parts) {
+        oldNum++;
+        result.push({ type: "remove", text, oldNum });
+      }
     } else {
-      stack.push({ type: "remove", text: oldLines[i - 1], oldNum: i });
-      i--;
-    }
-  }
-
-  while (stack.length) result.push(stack.pop()!);
-  return result;
-}
-
-function simpleDiff(oldLines: string[], newLines: string[]): DiffLine[] {
-  const result: DiffLine[] = [];
-  const oldSet = new Set(oldLines);
-  const newSet = new Set(newLines);
-
-  let oi = 0, ni = 0;
-  while (oi < oldLines.length || ni < newLines.length) {
-    if (oi < oldLines.length && ni < newLines.length && oldLines[oi] === newLines[ni]) {
-      result.push({ type: "same", text: oldLines[oi], oldNum: oi + 1, newNum: ni + 1 });
-      oi++; ni++;
-    } else if (oi < oldLines.length && !newSet.has(oldLines[oi])) {
-      result.push({ type: "remove", text: oldLines[oi], oldNum: oi + 1 });
-      oi++;
-    } else if (ni < newLines.length && !oldSet.has(newLines[ni])) {
-      result.push({ type: "add", text: newLines[ni], newNum: ni + 1 });
-      ni++;
-    } else if (oi < oldLines.length) {
-      result.push({ type: "remove", text: oldLines[oi], oldNum: oi + 1 });
-      oi++;
-    } else {
-      result.push({ type: "add", text: newLines[ni], newNum: ni + 1 });
-      ni++;
+      for (const text of parts) {
+        oldNum++;
+        newNum++;
+        result.push({ type: "same", text, oldNum, newNum });
+      }
     }
   }
   return result;
